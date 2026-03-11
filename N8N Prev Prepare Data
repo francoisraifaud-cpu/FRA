@@ -1,0 +1,29 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "jsCode": "// ==========================================\n// NŒUD PREPARE DATA v7\n// Normalise les données planètes quel que soit le format source :\n//   Format A (ancien) : { fullDegree, isRetro, signe }\n//   Format B (nouveau) : { longitude_absolue, est_retrograde, signe, ... }\n// Chiron + astéroïdes inclus dans transits_complet_2026.json\n// ==========================================\n\nconst allItems = $input.all();\n\nlet transitsRaw = null, eclipsesRaw = null, luneRaw = null;\n\nfor (const item of allItems) {\n    const d = item.json;\n    const arr = Array.isArray(d) ? d : (d.data || []);\n    if (!arr.length) continue;\n    const first = arr[0];\n\n    if (first.date && first.planetes) {\n        transitsRaw = arr;\n    } else if (first.date_heure && first.lune) {\n        luneRaw = arr;\n    } else if (first.astre && first.type && first.date_maximum) {\n        eclipsesRaw = arr;\n    }\n}\n\nif (!transitsRaw)  throw new Error(\"transits introuvable — vérifier Extract from File\");\nif (!eclipsesRaw)  throw new Error(\"eclipses introuvable — vérifier Extract from File\");\nif (!luneRaw)      throw new Error(\"lune introuvable — vérifier Extract from File\");\n\n// ---- Normalisation d'une entrée planète ----\n// Gère les 2 formats : fullDegree OU longitude_absolue\nconst normalizePlanet = (p) => {\n    if (!p || typeof p !== \"object\") return p;\n    // Déjà normalisé (Format A)\n    if (p.fullDegree !== undefined) return p;\n    // Format B → convertir\n    return {\n        ...p,\n        fullDegree : p.longitude_absolue,\n        isRetro    : p.est_retrograde === \"True\" || p.est_retrograde === true ? \"True\" : \"False\",\n        signe      : p.signe || null\n    };\n};\n\n// ---- 1. NORMALISER toutes les planètes dans transitsData ----\nconst transitsNormalized = transitsRaw.map(day => {\n    if (!day?.planetes) return day;\n    const normalizedPlanetes = {};\n    for (const [planetName, planetData] of Object.entries(day.planetes)) {\n        normalizedPlanetes[planetName] = normalizePlanet(planetData);\n    }\n    return { ...day, planetes: normalizedPlanetes };\n});\n\n// ---- 2. LUNE HAUTE PRÉCISION : indexer par date ----\nconst luneByDate = {};\nluneRaw.forEach(entry => {\n    const date = entry.date_heure.substring(0, 10);\n    if (!luneByDate[date]) luneByDate[date] = [];\n    luneByDate[date].push({\n        heure     : entry.date_heure.substring(11, 16),\n        fullDegree: entry.lune.longitude_absolue,\n        signe     : entry.lune.signe,\n        degInSign : entry.lune.degre_dans_signe,\n        vitesse   : entry.lune.vitesse_journaliere\n    });\n});\n\n// ---- 3. ÉCLIPSES ----\nconst eclipses = eclipsesRaw.map(e => ({\n    astre : e.astre,\n    type  : e.type,\n    date  : e.date_maximum.substring(0, 10),\n    heure : e.date_maximum.substring(11, 16),\n    label : `Éclipse ${e.type} de ${e.astre} le ${e.date_maximum.substring(0, 10)}`\n}));\n\n// ---- 4. VÉRIFICATION présence astéroïdes ----\nconst samplePlanetes = transitsNormalized[0]?.planetes || {};\nconst asteroidsOK = {};\nfor (const a of [\"Chiron\", \"Lilith\", \"Ceres\", \"Pallas\", \"Junon\", \"Vesta\"]) {\n    asteroidsOK[a] = !!(samplePlanetes[a]?.fullDegree);\n}\n\n// ---- 5. OUTPUT ----\nreturn [{\n    json: {\n        transitsData : transitsNormalized,\n        luneData     : luneByDate,\n        eclipsesData : eclipses,\n        _meta: {\n            nbJours       : transitsNormalized.length,\n            nbLune        : luneRaw.length,\n            nbEclipses    : eclipses.length,\n            asteroidsOK   : asteroidsOK,\n            formatDetecte : (transitsRaw[0]?.planetes?.Soleil?.fullDegree !== undefined) ? \"A\" : \"B\"\n        }\n    }\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -18544,
+        4096
+      ],
+      "id": "6bce8a05-7b12-4d03-8cdd-fdfbec3f2552",
+      "name": "Prepare Data1"
+    }
+  ],
+  "connections": {
+    "Prepare Data1": {
+      "main": [
+        []
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "b6efd2f1fad5a0a294db5a1a7e88dd550900216aaeb7344a19bf4cfc45267781"
+  }
+}
