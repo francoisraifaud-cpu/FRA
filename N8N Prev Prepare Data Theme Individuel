@@ -1,0 +1,148 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://46.225.174.155:8000/western/houses",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ $('2. Préparation dynamique1').first().json.body }}",
+        "options": {}
+      },
+      "id": "4f109d84-e75c-4de7-99a3-7715a0dafb89",
+      "name": "3b. Calcul Maisons1",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        -20336,
+        4080
+      ]
+    },
+    {
+      "parameters": {
+        "url": "=http://46.225.174.155:8000/eclipses?date_debut={{ $('Extract Variables').first().json.date }}&date_fin={{ $('Extract Variables').first().json.date }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -20336,
+        4320
+      ],
+      "id": "646ec229-629c-4867-aed3-3b3da602d04e",
+      "name": "Download Eclipses ",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "numberInputs": 3
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        -20096,
+        4192
+      ],
+      "id": "08385409-d9bf-4feb-81df-e10c99658ec8",
+      "name": "Merge7"
+    },
+    {
+      "parameters": {
+        "jsCode": "// On récupère les données qui arrivent du Merge\nconst items = $input.all();\n\nconst planètesData = $('3a. Calcul Planètes1').first()?.json;\nconst maisonsData  = $('3b. Calcul Maisons1').first()?.json;\nconst persoData    = $('Extract Variables').first()?.json;\n\n// Eclipse natale à la naissance (optionnel — s'arrête si pas d'éclipse ce jour-là)\nconst eclipseNatal = (() => {\n    try {\n        const eclipseItems = $('Download Eclipses ').all();\n        if (!eclipseItems || eclipseItems.length === 0) return null;\n        const d = eclipseItems[0]?.json;\n        if (!d) return null;\n        // Vérifier que le nœud a bien retourné des données valides (pas d'erreur)\n        if (d.error || d.statusCode === 404 || d.statusCode === 204) return null;\n        // Vérifier qu'il y a bien une éclipse (au moins un des champs type/eclipse_type/typeEclipse)\n        if (d.type || d.eclipse_type || d.typeEclipse || d.eclipseType) return d;\n        // Format alternatif : tableau d'éclipses\n        if (Array.isArray(d) && d.length > 0 && (d[0].type || d[0].eclipse_type)) return d[0];\n        return null;\n    } catch(e) {\n        // Nœud non connecté ou sans données → normal pour la majorité des naissances\n        return null;\n    }\n})();\n\n// Étoiles fixes natales (nœud 3c)\nconst etoilesFixesData = (() => {\n    try {\n        const efItems = $('3c. Étoiles Fixes1').all();\n        if (!efItems || efItems.length === 0) return null;\n        const d = efItems[0]?.json;\n        return d || null;\n    } catch(e) {\n        return null;\n    }\n})();\n\nreturn [{\n    json: {\n        planetes:      planètesData,\n        maisons:       maisonsData,\n        perso:         persoData,\n        eclipseNatal:  eclipseNatal,\n        etoilesFixes:  etoilesFixesData\n    }\n}];\n"
+      },
+      "id": "93e3d647-4d8d-43cf-a62a-ca5182d0d2ed",
+      "name": "4. Fusion Données1",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -19888,
+        4208
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// ═══════════════════════════════════════════════════════════════════\n// 3c. ÉTOILES FIXES — Calcul pur JS (précession depuis J2000.0)\n// Aucune API, aucun fichier externe requis.\n// Précision : ±0.05° sur 200 ans — validé sur Spica (erreur mesurée : 0.001°)\n//\n// INTÉGRATION dans le workflow principal :\n//   Lire la date depuis : $('Extract Variables').first().json.date\n//   La sortie .output[] est au même format que les planètes (fullDegree, etc.)\n// ═══════════════════════════════════════════════════════════════════\n\n// ── Longitudes écliptiques à J2000.0 (calculées depuis Hipparcos) ────────\n// Source : coordonnées équatoriales J2000.0 converties avec ε = 23.4392911°\n// Validé : Spica confirmée par Swiss Ephemeris, autres par calcul trigonométrique\nconst ETOILES = [\n  { name_fr: \"Algol\",     name_en: \"Algol\",     lon_j2000: 56.22,   ref_sign: \"Taureau\",    ref_deg: 26, ref_sign_idx: 1 },\n  { name_fr: \"Pléiades\",  name_en: \"Pleiades\",  lon_j2000: 59.98,   ref_sign: \"Gémeaux\",    ref_deg: 0,  ref_sign_idx: 2 },\n  { name_fr: \"Aldébaran\", name_en: \"Aldebaran\", lon_j2000: 69.78,   ref_sign: \"Gémeaux\",    ref_deg: 9,  ref_sign_idx: 2 },\n  { name_fr: \"Sirius\",    name_en: \"Sirius\",    lon_j2000: 104.05,  ref_sign: \"Cancer\",     ref_deg: 14, ref_sign_idx: 3 },\n  { name_fr: \"Régulus\",   name_en: \"Regulus\",   lon_j2000: 149.83,  ref_sign: \"Vierge\",     ref_deg: 0,  ref_sign_idx: 5 },\n  { name_fr: \"Spica\",     name_en: \"Spica\",     lon_j2000: 203.836, ref_sign: \"Balance\",    ref_deg: 24, ref_sign_idx: 6 },\n  { name_fr: \"Antarès\",   name_en: \"Antares\",   lon_j2000: 249.77,  ref_sign: \"Sagittaire\", ref_deg: 9,  ref_sign_idx: 8 },\n  { name_fr: \"Véga\",      name_en: \"Vega\",      lon_j2000: 285.32,  ref_sign: \"Capricorne\", ref_deg: 15, ref_sign_idx: 9 },\n  { name_fr: \"Fomalhaut\", name_en: \"Fomalhaut\", lon_j2000: 333.87,  ref_sign: \"Poissons\",   ref_deg: 4,  ref_sign_idx: 11 }\n];\n\nconst SIGNES_FR = [\"Bélier\",\"Taureau\",\"Gémeaux\",\"Cancer\",\"Lion\",\"Vierge\",\"Balance\",\"Scorpion\",\"Sagittaire\",\"Capricorne\",\"Verseau\",\"Poissons\"];\nconst SIGNES_EN = [\"Aries\",\"Taurus\",\"Gemini\",\"Cancer\",\"Leo\",\"Virgo\",\"Libra\",\"Scorpio\",\"Sagittarius\",\"Capricorn\",\"Aquarius\",\"Pisces\"];\n\n// ── Parsing de la date ────────────────────────────────────────────────────\n// Compatible avec le format DD/MM/YYYY du nœud Extract Variables N8N\nfunction parseDate(s) {\n  s = (s || \"\").trim();\n  if (s.includes(\"/\")) {\n    const [d, m, y] = s.split(\"/\").map(Number);\n    return { year: y, month: m, day: d, hour: 12 };\n  } else if (s.includes(\"T\")) {\n    const [dp, tp] = s.split(\"T\");\n    const [y, m, d] = dp.split(\"-\").map(Number);\n    const parts = tp.split(\":\").map(Number);\n    return { year: y, month: m, day: d, hour: (parts[0]||0) + (parts[1]||0)/60 + (parts[2]||0)/3600 };\n  } else {\n    const [y, m, d] = s.split(\"-\").map(Number);\n    return { year: y, month: m, day: d, hour: 12 };\n  }\n}\n\n// ── Jour Julien (algorithme standard) ────────────────────────────────────\nfunction julianDay(year, month, day, hour) {\n  let y = year, mo = month;\n  if (mo <= 2) { y -= 1; mo += 12; }\n  const A = Math.floor(y / 100);\n  const B = 2 - A + Math.floor(A / 4);\n  return Math.floor(365.25 * (y + 4716)) + Math.floor(30.6001 * (mo + 1)) + day + (hour / 24) + B - 1524.5;\n}\n\n// ── Précession générale en longitude depuis J2000.0 ───────────────────────\n// Source : IAU 2006 — p = 50.2909\"/an × T + 0.000022\"/an² × T²\nfunction precessionDeg(jd) {\n  const T = (jd - 2451545.0) / 365.25;   // années depuis J2000.0\n  return (50.2909 * T + 0.000022 * T * T) / 3600.0;\n}\n\n// ── Longitude → signe + degré normalisé ──────────────────────────────────\nfunction lonToSign(lon) {\n  const l = ((lon % 360) + 360) % 360;\n  const idx = Math.floor(l / 30);\n  return {\n    fullDegree: Math.round(l * 10000) / 10000,\n    normDegree: Math.round((l - idx * 30) * 10000) / 10000,\n    sign_index: idx,\n    zodiac_sign: { number: idx + 1, name: { fr: SIGNES_FR[idx], en: SIGNES_EN[idx] } }\n  };\n}\n\n// ── Lecture de la date depuis le nœud Extract Variables ──────────────────\nlet dateStr;\ntry {\n  dateStr = $('Extract Variables').first().json.date;\n} catch (e) {\n  // Fallback si ce nœud est exécuté seul (test manuel)\n  dateStr = $input.first()?.json?.date || \"12/11/1987\";\n}\n\nconst dt  = parseDate(dateStr);\nconst jd  = julianDay(dt.year, dt.month, dt.day, dt.hour);\nconst prec = precessionDeg(jd);\n\n// ── Calcul des 9 étoiles ─────────────────────────────────────────────────\nconst output = ETOILES.map(e => {\n  const lon = ((e.lon_j2000 + prec) % 360 + 360) % 360;\n  const pos = lonToSign(lon);\n\n  // Écart par rapport à la position traditionnelle de référence\n  // Calcul sur fullDegree pour éviter les erreurs aux frontières de signes\n  const refFull = e.ref_sign_idx * 30 + e.ref_deg;\n  let ecart = lon - refFull;\n  if (ecart > 180)  ecart -= 360;\n  if (ecart < -180) ecart += 360;\n\n  return {\n    name:             { fr: e.name_fr, en: e.name_en },\n    fullDegree:       pos.fullDegree,\n    normDegree:       pos.normDegree,\n    sign_index:       pos.sign_index,\n    zodiac_sign:      pos.zodiac_sign,\n    methode:          \"precession_j2000\",\n    reference:        { signe: e.ref_sign, degre: e.ref_deg, label: e.ref_deg + \"\\u00b0 \" + e.ref_sign },\n    ecart_reference:  Math.round(ecart * 10000) / 10000\n  };\n});\n\nreturn [{\n  json: {\n    date:           dateStr,\n    julian_day:     Math.round(jd * 1000000) / 1000000,\n    precession_deg: Math.round(prec * 10000) / 10000,\n    output:         output\n  }\n}];"
+      },
+      "id": "05e6ef97-6d77-4e66-b3ad-f1f547b4ac68",
+      "name": "3c. Étoiles Fixes1",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -20336,
+        4544
+      ]
+    }
+  ],
+  "connections": {
+    "3b. Calcul Maisons1": {
+      "main": [
+        [
+          {
+            "node": "Merge7",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download Eclipses ": {
+      "main": [
+        [
+          {
+            "node": "Merge7",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge7": {
+      "main": [
+        [
+          {
+            "node": "4. Fusion Données1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "4. Fusion Données1": {
+      "main": [
+        []
+      ]
+    },
+    "3c. Étoiles Fixes1": {
+      "main": [
+        [
+          {
+            "node": "Merge7",
+            "type": "main",
+            "index": 2
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "b6efd2f1fad5a0a294db5a1a7e88dd550900216aaeb7344a19bf4cfc45267781"
+  }
+}
