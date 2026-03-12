@@ -5,6 +5,9 @@ if (!input?.planetes?.output || !input?.maisons?.output?.Houses) return [{ json:
 let perso = {};
 try { perso = $("Extract Variables").first()?.json || {}; } catch(e){}
 
+// Étoiles fixes (transmises depuis 3c. via 4. Fusion Données)
+const etoilesFixesRaw = (input.etoilesFixes?.output || []);
+
 // 1. FILTRAGE ET NOMMAGE SÉCURISÉ DES NŒUDS
 let rawPlanetes = input.planetes.output;
 let hasTrueNode = rawPlanetes.some(p => {
@@ -438,6 +441,99 @@ Object.entries(midpoints).forEach(([key, mp]) => {
     });
 });
 
+// 6h. ÉTOILES FIXES — Conjonctions avec les planètes natales
+// Orbes différenciés :
+//   ±2° — étoiles royales/majeures : Aldébaran, Sirius, Régulus, Spica, Antarès
+//   ±1° — autres étoiles : Algol, Pléiades, Véga, Fomalhaut
+const ETOILE_ORBS = {
+    "Aldébaran": 2.0,
+    "Sirius":    2.0,
+    "Régulus":   2.0,
+    "Spica":     2.0,
+    "Antarès":   2.0,
+    "Algol":     1.0,
+    "Pléiades":  1.0,
+    "Véga":      1.0,
+    "Fomalhaut": 1.0
+};
+const ETOILE_DESC = {
+    "Algol":     "Étoile de la Méduse (nature Saturne/Mars) : violence, catastrophe, perte irréversible — mais aussi courage absolu face au danger extrême, capacité à transformer la destruction en renaissance",
+    "Pléiades":  "Cluster des Pléiades / Alcyone (nature Lune/Mars) : deuil, larmes, mystère, liens ancestraux et spiritualité profonde — sensibilité exacerbée aux cycles et à la mémoire collective",
+    "Aldébaran": "Étoile Royale de l'Est — Œil du Taureau (nature Mars/Mercure) : honneur, intégrité, intelligence vive, vigilance stratégique. L'une des 4 Royales : succès durable si l'intégrité est maintenue",
+    "Sirius":    "Étoile du Grand Chien (nature Jupiter/Mars) : gloire, richesse, fidélité ardente, passion dévorante — nature solaire intense conférant rayonnement et leadership magnétique",
+    "Régulus":   "Étoile Royale du Cœur du Lion (nature Mars/Jupiter) : royauté, leadership naturel, succès fulgurant, ambition. L'une des 4 Royales : grandeur et chute si la vengeance supplante la noblesse",
+    "Spica":     "Épi de la Vierge (nature Vénus/Mars) : don artistique, chance remarquable, raffinement intellectuel, richesse créative — l'une des étoiles les plus bénéfiques du zodiaque",
+    "Antarès":   "Étoile Royale du Cœur du Scorpion (nature Mars/Jupiter) : courage, témérité, passion dévorante, succès militaire ou compétitif. L'une des 4 Royales : rival de Mars, intensité maximale",
+    "Véga":      "Étoile de la Lyre (nature Vénus/Mercure) : charisme magnétique irrésistible, dons artistiques et musicaux exceptionnels, raffinement spirituel et sens du beau transcendant",
+    "Fomalhaut": "Étoile Royale du Sud (nature Vénus/Mercure) : idéalisme visionnaire, rêve créateur, inspiration mystique, sens du sacré. L'une des 4 Royales : grandeur par la vision hors du commun"
+};
+
+// Construire la liste complète des points à vérifier :
+// planètes de naissance + DSC et IC s'ils ne sont pas déjà fournis par l'API
+const pointsEtoiles = [...planetes];
+const ANGLES_LABELS = { "Ascendant":"ASC (Cuspide M1)", "Milieu du Ciel":"MC (Cuspide M10)", "Descendant":"DSC (Cuspide M7)", "Imum Coeli":"IC (Cuspide M4)" };
+if (!pointsEtoiles.find(p => p.planet.fr === "Descendant" || p.planet.en === "Descendant")) {
+    const m7 = maisons.find(m => m.House === 7);
+    if (m7) pointsEtoiles.push({ planet:{fr:"Descendant",en:"Descendant"}, fullDegree:m7.degree, normDegree:m7.degree%30, zodiac_sign:{name:{fr:signs[Math.floor(m7.degree/30)%12].fr}} });
+}
+if (!pointsEtoiles.find(p => p.planet.fr === "Imum Coeli" || p.planet.en === "Imum Coeli")) {
+    const m4 = maisons.find(m => m.House === 4);
+    if (m4) pointsEtoiles.push({ planet:{fr:"Imum Coeli",en:"Imum Coeli"}, fullDegree:m4.degree, normDegree:m4.degree%30, zodiac_sign:{name:{fr:signs[Math.floor(m4.degree/30)%12].fr}} });
+}
+
+const etoileMatches = [];
+pointsEtoiles.forEach(planet => {
+    const pName = planet.planet.fr || planet.planet.en;
+    etoilesFixesRaw.forEach(etoile => {
+        const eName = etoile.name?.fr;
+        if (!eName) return;
+        const orbMax = ETOILE_ORBS[eName] ?? 1.0;
+        const diff = angularDiff(planet.fullDegree, etoile.fullDegree);
+        if (diff <= orbMax) {
+            const house = getHouseNumber(planet.fullDegree);
+            etoileMatches.push({
+                planete:   pName,
+                etoile:    eName,
+                etoile_en: etoile.name?.en || eName,
+                orb:       Math.round(diff * 100) / 100,
+                orbMax,
+                precision: diff <= 1.0 ? "forte (≤1°)" : "notable (≤2°)",
+                maison:    house,
+                signe:     planet.zodiac_sign?.name?.fr,
+                isAngle:   !!ANGLES_LABELS[pName],
+                desc:      ETOILE_DESC[eName] || ""
+            });
+        }
+    });
+});
+
+// Conjonctions étoiles fixes sur les 4 angles (M1 ASC / M4 IC / M7 DSC / M10 MC)
+const ANGULAR_HOUSES = new Set([1, 4, 7, 10]);
+const ANGLE_LABELS   = { 1:"ASC", 4:"IC", 7:"DSC", 10:"MC" };
+const etoileCuspMatches = [];
+maisons.filter(m => ANGULAR_HOUSES.has(m.House)).forEach(m => {
+    etoilesFixesRaw.forEach(etoile => {
+        const eName = etoile.name?.fr;
+        if (!eName) return;
+        const orbMax = ETOILE_ORBS[eName] ?? 1.0;
+        const diff = angularDiff(m.degree, etoile.fullDegree);
+        if (diff <= orbMax) {
+            const cuspSign = signs[Math.floor(m.degree / 30) % 12].fr;
+            etoileCuspMatches.push({
+                maison:    m.House,
+                angle:     ANGLE_LABELS[m.House],
+                etoile:    eName,
+                etoile_en: etoile.name?.en || eName,
+                orb:       Math.round(diff * 100) / 100,
+                orbMax,
+                precision: diff <= 1.0 ? "forte (≤1°)" : "notable (≤2°)",
+                signe:     cuspSign,
+                desc:      ETOILE_DESC[eName] || ""
+            });
+        }
+    });
+});
+
 // ─────────────────────────────────────────────────────────────────
 // 7. MAISONS ET DISPOSITIONS
 // ─────────────────────────────────────────────────────────────────
@@ -530,6 +626,15 @@ maisons.forEach((m, i) => {
         let mHelio  = seg.maitre?.helio?.condition ? ` ⚠ ÉTAT SOLAIRE: ${seg.maitre.helio.condition}` : "";
         if (seg.type === "Cuspide") {
             p += `\n1. OUVERTURE (Cuspide) : ${seg.signe} à ${seg.degre_debut.toFixed(2)}°, Décan ${seg.decan} Chaldéen.\n`;
+            // Étoiles fixes sur la pointe (cuspide) de cette maison
+            const cuspStars = etoileCuspMatches.filter(ec => ec.maison === m.House);
+            if (cuspStars.length > 0) {
+                cuspStars.forEach(ec => {
+                    p += `   ★ ÉTOILE FIXE SUR L'ANGLE ${ec.angle} (M${m.House}) : ${ec.etoile} (${ec.etoile_en}) — orbe ${ec.orb}°, ${ec.precision}\n`;
+                    p += `     → ${ec.desc}\n`;
+                    p += `     → INSTRUCTION : Cette étoile fixe teinte l'identité FONDAMENTALE de l'angle ${ec.angle} (Maison ${m.House}). Son influence est permanente et structure en profondeur tous les thèmes de cet angle, qu'il y ait ou non des locataires.\n`;
+                });
+            }
             p += `   Maître : ${seg.maitre.planete}${seg.maitre.retro} en M${seg.maitre.maison} (${seg.maitre.signe}${mHStr})${mHelio}.\n`;
             p += `   Aspects du maître : ${getMajorAspectsStr(seg.maitre.planete)}.\n`;
             if (seg.maitre.patron) p += `   Chaîne : ${seg.signe} → M${seg.maitre.maison} → finalité M${seg.maitre.patron.maison} (${seg.maitre.patron.planete}).\n`;
@@ -552,6 +657,14 @@ maisons.forEach((m, i) => {
                 p += `        - Patron : ${l.patron ? l.patron.nom+" en M"+l.patron.maison : "Lui-même (Domicile)"}.\n`;
                 p += `        - Aspects majeurs : ${l.aspectsStr}.\n`;
                 if (l.minorAspectsStr) p += `        - Aspects mineurs : ${l.minorAspectsStr}.\n`;
+                const etoilesLoc = etoileMatches.filter(em => em.planete === l.planete);
+                if (etoilesLoc.length > 0) {
+                    etoilesLoc.forEach(em => {
+                        p += `        ★ ÉTOILE FIXE EN CONJONCTION : ${em.etoile} (${em.etoile_en}) — orbe ${em.orb}°, influence ${em.precision}\n`;
+                        p += `          → ${em.desc}\n`;
+                        p += `          → INSTRUCTION : Intégrer l'influence de ${em.etoile} dans l'interprétation de ${em.planete} dans cette maison. L'étoile fixe colore et amplifie les thèmes planétaires.\n`;
+                    });
+                }
             });
         } else {
             p += `   Aucun locataire physique.\n`;
@@ -625,7 +738,25 @@ if (pof) pSynth += `PART DE FORTUNE (abondance/réussite) : ${pof.zodiac_sign.na
 if (pos) pSynth += `LOT DE L'ESPRIT (vocation/conscience) : ${pos.zodiac_sign.name.fr} (M${getHouseNumber(pos.fullDegree)}). Aspects : ${getMajorAspectsStr("Lot de l'Esprit")}\n`;
 if (nn && ns)  pSynth += `AXE KARMIQUE : Nœud Sud ${ns.zodiac_sign.name.fr} (M${getHouseNumber(ns.fullDegree)}) → Nœud Nord ${nn.zodiac_sign.name.fr} (M${getHouseNumber(nn.fullDegree)}).\n`;
 
-pSynth += `\nSynthétise ces dynamiques en identifiant les 3 à 5 grandes thématiques de vie de ce thème : les tensions majeures, les talents naturels, la configuration karmique, et l'orientation générale de l'énergie vitale. Intègre la secte, les configurations, les planètes angulaires et les conditions héliocentriques comme filtres interprétatifs principaux.`;
+if (etoileMatches.length > 0) {
+    pSynth += `\n=== ÉTOILES FIXES — CONJONCTIONS PLANÈTES NATALES ===\n`;
+    etoileMatches.forEach(em => {
+        const angleTag = em.isAngle ? " [ANGLE]" : "";
+        pSynth += `  ★ ${em.planete}${angleTag} (M${em.maison}, ${em.signe}) conjoint ${em.etoile} — orbe ${em.orb}°, ${em.precision}\n`;
+        pSynth += `    Nature : ${em.desc}\n`;
+    });
+    pSynth += `→ INSTRUCTION : Ces conjonctions sont des signatures stellaires permanentes du thème. Chaque étoile fixe amplifie ou infléchit radicalement le principe planétaire auquel elle est conjointe. Intègre-les comme marqueurs de destin ou de talent exceptionnel.\n`;
+}
+if (etoileCuspMatches.length > 0) {
+    pSynth += `\n=== ÉTOILES FIXES — LES 4 ANGLES (ASC / IC / DSC / MC) ===\n`;
+    etoileCuspMatches.forEach(ec => {
+        pSynth += `  ★ ${ec.angle} M${ec.maison} en ${ec.signe} conjoint ${ec.etoile} — orbe ${ec.orb}°, ${ec.precision}\n`;
+        pSynth += `    Nature : ${ec.desc}\n`;
+    });
+    pSynth += `→ INSTRUCTION : Une étoile fixe sur un angle (ASC/IC/DSC/MC) colore l'identité fondamentale de ce pilier du thème, indépendamment de tout locataire. L'influence est déterminante pour l'expression globale du thème.\n`;
+}
+
+pSynth += `\nSynthétise ces dynamiques en identifiant les 3 à 5 grandes thématiques de vie de ce thème : les tensions majeures, les talents naturels, la configuration karmique, et l'orientation générale de l'énergie vitale. Intègre la secte, les configurations, les planètes angulaires, les conditions héliocentriques et les étoiles fixes comme filtres interprétatifs principaux.`;
 
 prompts["synthese_globale"] = pSynth;
 
@@ -744,9 +875,9 @@ stats.almutem_scores  = almutemSorted;
 // ─────────────────────────────────────────────────────────────────
 const SYSTEM_NATAL = [
     "Tu es un astrologue expert de renommée mondiale, maîtrisant les techniques classiques (hellénistique, chaldéenne, arabe) et modernes.",
-    "Tu intègres : maîtrises modernes (Pluton→Scorpion), décans Chaldéens, dignités essentielles, conditions héliocentriques (Cazimi, Combuste, Étoile du Matin/Soir), configurations natales, réceptions mutuelles, antiscia, midpoints et profections.",
+    "Tu intègres : maîtrises modernes (Pluton→Scorpion), décans Chaldéens, dignités essentielles, conditions héliocentriques (Cazimi, Combuste, Étoile du Matin/Soir), configurations natales, réceptions mutuelles, antiscia, midpoints, étoiles fixes (Algol, Pléiades, Aldébaran, Sirius, Régulus, Spica, Antarès, Véga, Fomalhaut) et profections.",
     "Tu tutoies systématiquement le consultant. Ne commence JAMAIS par une formule de salutation. Démarre immédiatement par l'analyse.",
-    "Toute planète marquée ANGULAIRE ou CAZIMI est de PREMIER ORDRE interprétatif. Intègre systématiquement les dignités composites."
+    "Toute planète marquée ANGULAIRE, CAZIMI ou CONJOINTE À UNE ÉTOILE FIXE est de PREMIER ORDRE interprétatif. L'étoile fixe colore et amplifie de façon permanente le principe planétaire. Intègre systématiquement les dignités composites."
 ].join(" ");
 
 const prompts_llm = {};
@@ -773,6 +904,8 @@ return [{
         angularPlanets, criticalPlanets, mutualReceptions, antiscia,
         midpoints, midpointActivations, helioConditions,
         stats, prompts, prompts_llm, perso,
-        eclipseNatal: eclipseNatalData
+        eclipseNatal: eclipseNatalData,
+        etoileMatches,
+        etoileCuspMatches
     }
 }];
