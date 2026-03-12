@@ -17,6 +17,9 @@
 //       + getOrb() centralisé, PLANETS_MAJEURS sorti des boucles (Point 4)
 //       + try/catch autour des 5 sections critiques avec logs (Point 5)
 //       + Sections critiques aérées (Point 3)
+// v5.2 — PATCH ORBE STELLAIRE :
+//       + Bloc 11d : précalcul distances transit/étoile sur la période
+//       + formatTransitEtoileInfo() : instruction explicite au LLM (≤1° → inférence autorisée)
 // ==========================================
 
 // ---- 0. CONFIGURATION — modifier ici si le nœud est renommé ----
@@ -49,9 +52,13 @@ const perso         = enrichedData.perso || {};
 const typeRapport = (perso.rapport || "Annuel").trim();
 const persoStr    = `${perso.prenom || "Le consultant"} ${perso.nom || ""}, né(e) le ${perso.date || "inconnue"} à ${perso.lieu || "inconnu"}`;
 
+// ---- 1b. DONNÉES STELLAIRES & ÉCLIPTIQUES NATALES (v6) ----
+const etoileMatchesNatal     = enrichedData.etoileMatches     || [];
+const etoileCuspMatchesNatal = enrichedData.etoileCuspMatches || [];
+const eclipseNatalData       = enrichedData.eclipseNatal      || null;
+
 // ---- 2. UTILITAIRES CENTRALISÉS ----
 
-// parseDate unifiée (accepte DD/MM/YYYY ou YYYY-MM-DD)
 const parseDate = (str) => {
     if (!str) return null;
     str = str.trim();
@@ -61,17 +68,13 @@ const parseDate = (str) => {
     }
     return new Date(str);
 };
-// Alias pour compatibilité (parseDateNaiss était une copie exacte de parseDate)
 const parseDateNaiss = parseDate;
 
-// Calcul de l'orbe entre deux degrés écliptiques (tient compte du wrap 360°)
-// Remplace la répétition de : let diff = Math.abs(a-b); if(diff>180) diff=360-diff;
 const getOrb = (deg1, deg2) => {
     const diff = Math.abs(deg1 - deg2);
     return diff > 180 ? 360 - diff : diff;
 };
 
-// Planètes majeures (utilisé dans plusieurs sections — évite la recréation en boucle)
 const PLANETS_MAJEURS = new Set([
     "Soleil","Lune","Mercure","Vénus","Mars",
     "Jupiter","Saturne","Uranus","Neptune","Pluton",
@@ -162,15 +165,14 @@ const findNatalHouse = (deg) => {
     return 1;
 };
 
-// Localisation en Signes Entiers — utilisée pour les profections et le seigneur de l'année.
-// Règle : la maison = le rang du signe du point par rapport au signe de l'ASC.
-// Si ASC est en Bélier (index 0) → Bélier = M1, Taureau = M2, etc.
 const ascSignIndex = (() => {
     const ascDeg = natalAngles["Ascendant"];
     return ascDeg !== undefined ? Math.floor(ascDeg / 30) % 12 : null;
 })();
 const findWholeSignHouse = (deg) => {
-    if (ascSignIndex === null) return findNatalHouse(deg); // fallback si ASC manquant
+    // Règle : la maison = le rang du signe du point par rapport au signe de l'ASC.
+    // Si ASC est en Bélier (index 0) → Bélier = M1, Taureau = M2, etc.
+    if (ascSignIndex === null) return findNatalHouse(deg);
     const signIndex = Math.floor(((deg % 360) + 360) % 360 / 30) % 12;
     return ((signIndex - ascSignIndex + 12) % 12) + 1;
 };
@@ -194,24 +196,48 @@ if (natalDict["Nœud Nord"] && !natalDict["Nœud Sud"]) {
     };
 }
 
-// FIX : les angles ont une maison fixe par définition — ne pas recalculer via findNatalHouse
 if (natalDict["Ascendant"])       natalDict["Ascendant"].house       = 1;
 if (natalDict["Imum Coeli"])      natalDict["Imum Coeli"].house      = 4;
 if (natalDict["Descendant"])      natalDict["Descendant"].house      = 7;
 if (natalDict["Milieu du Ciel"])  natalDict["Milieu du Ciel"].house  = 10;
 
 
+// ---- 7-bis. PRÉ-CALCUL STELLAIRE & ÉCLIPTIQUE NATALS (v6) ----
+// Indexation rapide : planète natale → liste des étoiles conjointes
+const stellarByPlanet = {};
+etoileMatchesNatal.forEach(em => {
+    if (!stellarByPlanet[em.planete]) stellarByPlanet[em.planete] = [];
+    stellarByPlanet[em.planete].push(em);
+});
+// Indexation par angle natal (ASC/IC/DSC/MC) → étoiles conjointes
+const stellarByAngle = {};
+etoileCuspMatchesNatal.forEach(ec => {
+    if (!stellarByAngle[ec.angle]) stellarByAngle[ec.angle] = [];
+    stellarByAngle[ec.angle].push(ec);
+});
+// Point écliptique natal : degré sensible permanent (si né sous éclipse)
+const eclipticNatalPoint = eclipseNatalData ? {
+    degree : eclipseNatalData.degree,
+    house  : eclipseNatalData.house,
+    sign   : eclipseNatalData.sign,
+    label  : `ÉCLIPSE NATALE ${eclipseNatalData.type} de ${eclipseNatalData.astre} en ${eclipseNatalData.sign} à ${(eclipseNatalData.degree % 30).toFixed(1)}° — Maison ${eclipseNatalData.house}`
+} : null;
+// Étoiles royales (orbe ±2°, influence de premier ordre en transit)
+const ETOILES_ROYALES_SET = new Set(["Aldébaran","Sirius","Régulus","Spica","Antarès"]);
+// Mapping angle → numéro de maison
+const ANGLE_TO_MAISON = { "ASC":1, "IC":4, "DSC":7, "MC":10 };
+
 // ---- 7b. CARTE DES ASPECTS NATAUX N→N ----
 const NATAL_ASP_DEG  = { "Conjonction":0, "Sextile":60, "Carré":90, "Trigone":120, "Opposition":180 };
+
+const LUMINAIRES_SET  = new Set(["Soleil","Lune"]);
+const PERSONNELLES_SET = new Set(["Mercure","Vénus","Mars"]);
+const LENTES_SET      = new Set(["Jupiter","Saturne","Uranus","Neptune","Pluton","Chiron","Nœud Nord","Nœud Sud"]);
 
 // v5.2 — Orbes NATAUX variables selon la classe de planète.
 // Luminaires (Soleil, Lune) : orbes larges car leur "puissance" rayonne plus loin.
 // Planètes personnelles (Mercure, Vénus, Mars) : orbes standards.
 // Lentes transpersonnelles (Uranus, Neptune, Pluton) : orbes réduits entre elles.
-const LUMINAIRES_SET  = new Set(["Soleil","Lune"]);
-const PERSONNELLES_SET = new Set(["Mercure","Vénus","Mars"]);
-const LENTES_SET      = new Set(["Jupiter","Saturne","Uranus","Neptune","Pluton","Chiron","Nœud Nord","Nœud Sud"]);
-
 const NATAL_ORBES = {
     luminaire   : { "Conjonction":12, "Opposition":12, "Carré":10, "Trigone":10, "Sextile":8 },
     personnelle : { "Conjonction":10, "Opposition":10, "Carré":8,  "Trigone":8,  "Sextile":6 },
@@ -599,7 +625,6 @@ const detectNatalConfigurations = () => {
     }
     return configs;
 };
-// ---- 7p. CONFIGURATIONS NATALES ----
 const natalConfigurations = (() => {
     try {
         return detectNatalConfigurations();
@@ -629,7 +654,7 @@ const planetsOnAngles = {};
 const natalAngleDegrees = {};
 Object.entries(natalAngles).forEach(([name, deg]) => { natalAngleDegrees[ANGLE_NAMES[name]?.key || name] = deg; });
 natalNames.forEach(pN => {
-    if (angleSet.has(pN)) return; // les angles ne se matchent pas eux-mêmes
+    if (angleSet.has(pN)) return;
     const deg = natalDict[pN].deg;
     for (const [angleName, angleDeg] of Object.entries(natalAngles)) {
         const diff = getOrb(deg, angleDeg);
@@ -696,7 +721,7 @@ let syzygiePrenatale = null;
 }
 
 // ---- 7u. FONCTION getPrioriteFlags() (v5) ----
-const getPrioriteFlags = (pNatal) => {
+const getPrioriteFlags = (pNatal, pTransit = null) => {
     const flags = [];
     const angData = planetsOnAngles[pNatal];
     if (angData) {
@@ -705,6 +730,21 @@ const getPrioriteFlags = (pNatal) => {
     }
     if (pNatal === chartRuler) flags.push(`👑 MAÎTRE DU THÈME (ASC en ${ascSign}) — TRANSIT PRIORITAIRE`);
     if (profections?.annuelle?.seigneur === pNatal) flags.push(`🎯 SEIGNEUR DE L'ANNÉE (profection M${profections.annuelle.maison}) — amplification maximale`);
+    const stellarData = stellarByPlanet[pNatal];
+    // v6 : étoile fixe conjointe = amplificateur stellaire permanent
+    if (stellarData?.length > 0) {
+        // Si pTransit fourni, ne garder que les étoiles dans l'orbe de transit (≤1°)
+        const etoilesActives = pTransit
+            ? stellarData.filter(em => {
+                const dist = minTransitDistEtoile[`${pTransit}|||${em.etoile}`];
+                return dist !== undefined && dist <= 1.0;
+              })
+            : stellarData;
+        if (etoilesActives.length > 0) {
+            const etoilesStr = etoilesActives.map(em => `${em.etoile}(${em.orb}°natal)`).join(", ");
+            flags.push(`★ ÉTOILE FIXE CONJOINTE (${etoilesStr}) — transit amplifié par influence stellaire permanente`);
+        }
+    }
     return flags.length > 0 ? flags.join(" | ") : null;
 };
 
@@ -780,6 +820,9 @@ let transitsSuiviLent = {}, aspectsSuiviLent  = {};
 let transitsSuiviRap  = {}, aspectsSuiviRap   = {};
 let suiviRetro = {}; retroPlanets.forEach(p => { suiviRetro[p] = null; });
 let suiviAngle = {}, suiviTT = {};
+let suiviStellair = {};
+const ORBE_TRANSIT_STELLAIRE  = 1.0;
+const ORBE_RESONANCE_ECLIPSE  = 3.0;
 // v5: retroHistory pour calcul shadow periods
 const retroHistory = {}; SHADOW_PLANETS.forEach(p => { retroHistory[p] = []; });
 
@@ -810,15 +853,64 @@ const maisonsResult = Array.from({length:12}, (_, i) => ({
     stations_retro_texte        : [],
     lunaisons_texte             : [],
     eclipses_texte              : [],
-    eclipses_conjonctes_texte   : [],   // v5
+    eclipses_conjonctes_texte   : [],
     passages_angles_texte       : [],
     aspects_mondiaux_texte      : [],
-    shadow_texte                : [],   // v5
-    receptions_transit_texte    : [],   // v5
-    echo_natal_texte            : [],   // v5
-    convergences_texte          : [],   // v5
-    lune_precise_texte          : []    // v5
+    shadow_texte                : [],
+    receptions_transit_texte    : [],
+    echo_natal_texte            : [],
+    convergences_texte          : [],
+    lune_precise_texte          : [],
+    etoiles_stellaires_texte    : [],
+    eclipse_natal_active_texte  : []
 }));
+
+// ---- 11d. PRÉCALCUL DISTANCES TRANSITS → ÉTOILES FIXES NATALES ----
+// IMPORTANT : ce bloc est placé AVANT la boucle principale (section 9) pour éviter
+// la Temporal Dead Zone de `const minTransitDistEtoile` : getPrioriteFlags() y fait
+// référence dès la boucle principale (stations, aspects lents/rapides).
+// Pour chaque étoile conjointe à une planète/angle natal, calcule la distance
+// minimale atteinte par chaque planète lente sur la période.
+// → Injecté dans les prompts pour informer le LLM : ≤1° = inférence autorisée.
+const minTransitDistEtoile = {};
+try {
+    const etoilesToCheck = [
+        ...etoileMatchesNatal.map(em => ({ etoile: em.etoile, deg: em.etoile_degree })),
+        ...etoileCuspMatchesNatal.map(ec => ({ etoile: ec.etoile, deg: ec.etoile_degree }))
+    ].filter((v, i, a) => v.deg !== undefined && a.findIndex(x => x.etoile === v.etoile) === i);
+
+    for (const { etoile, deg } of etoilesToCheck) {
+        for (const pT of slowPlanets) {
+            const key = `${pT}|||${etoile}`;
+            let minDist = Infinity;
+            for (const day of daysArray) {
+                const pos = day.planetes?.[pT]?.fullDegree;
+                if (pos === undefined) continue;
+                let d = Math.abs(pos - deg); if (d > 180) d = 360 - d;
+                if (d < minDist) minDist = d;
+            }
+            if (minDist < Infinity) minTransitDistEtoile[key] = parseFloat(minDist.toFixed(2));
+        }
+    }
+} catch(e) { console.log("[WARN] Précalcul distances étoiles:", e.message); }
+
+// Fonction helper : génère l'instruction LLM pour une étoile donnée (utilisée en section 13b)
+const formatTransitEtoileInfo = (etoileName) => {
+    const activePlayers = [], inactivePlayers = [];
+    slowPlanets.forEach(pT => {
+        const dist = minTransitDistEtoile[`${pT}|||${etoileName}`];
+        if (dist === undefined) return;
+        if (dist <= 1.0) activePlayers.push(`${pT} : ${dist}° ✓`);
+        else             inactivePlayers.push(`${pT} : ${dist}°`);
+    });
+    if (!activePlayers.length && !inactivePlayers.length) return '';
+    let out = '\n    → Transits sur cette étoile (période) : ';
+    if (activePlayers.length) out += `ACTIFS (≤1°) : ${activePlayers.join(', ')} — INFÉRENCE AUTORISÉE, activer le signal stellaire dans l'analyse.`;
+    if (activePlayers.length && inactivePlayers.length) out += ' | ';
+    if (inactivePlayers.length) out += `Hors orbe : ${inactivePlayers.join(', ')} — NE PAS activer le signal stellaire pour ces planètes (l'influence de l'étoile reste un filtre natal de fond, non un événement de transit).`;
+    return out;
+};
+// ---- FIN BLOC 11d ----
 
 // ---- 9. BOUCLE PRINCIPALE ----
 let prevLuneSoleilDiff = null;
@@ -839,7 +931,6 @@ daysArray.forEach(day => {
             if (tl.currentHouse !== null) tl.periods.push({ maison:tl.currentHouse, texte:`Entre le ${tl.start} et le ${date}, ${pT} traverse cette maison.` });
             tl.start = date; tl.currentHouse = houseT; tl.currentSign = signT;
         }
-        // Ingress avec dignité
         if (suiviSigneLent[pT] !== null && suiviSigneLent[pT] !== signT) {
             const retroStr = isRetro ? " (rétrograde — ré-entrée)" : "";
             const digNew = getDignite(pT, signT), qNew = DIGNITE_QUALIF[digNew];
@@ -895,6 +986,7 @@ daysArray.forEach(day => {
         }
     }
 
+    // === STATIONS RÉTROGRADES ===
     // === STATIONS RÉTROGRADES — avec Station sur degré natal (v5) ===
     for (const p of retroPlanets) {
         const pData = day.planetes[p]; if (!pData) continue;
@@ -910,7 +1002,7 @@ daysArray.forEach(day => {
             for (const [pN, nData] of Object.entries(natalDict)) {
                 const diff = getOrb(stationDeg, nData.deg);
                 if (diff <= 2.0) {
-                    const prioFlag = getPrioriteFlags(pN) ? ` ${getPrioriteFlags(pN)}` : "";
+                    const prioFlag = getPrioriteFlags(pN, p) ? ` ${getPrioriteFlags(pN, p)}` : "";
                     natalProximity.push(`${pN} natal à ${diff.toFixed(1)}°${prioFlag}`);
                 }
             }
@@ -992,6 +1084,81 @@ daysArray.forEach(day => {
         }
     }
 
+    // === FENÊTRES STELLAIRES (v6) — Transit sur position exacte d'une étoile fixe natale ===
+    try {
+    // Étoiles conjointes à des planètes natales
+    for (const [pNatal, etoilesList] of Object.entries(stellarByPlanet)) {
+        const nData = natalDict[pNatal]; if (!nData) continue;
+        for (const em of etoilesList) {
+            if (em.etoile_degree === undefined) continue;
+            for (const pT of allTransit) {
+                const pData = day.planetes[pT]; if (!pData?.fullDegree) continue;
+                const diffS = getOrb(pData.fullDegree, em.etoile_degree);
+                const key   = `STELLAR_${pT}|||${em.etoile}|||${pNatal}`;
+                if (diffS <= ORBE_TRANSIT_STELLAIRE && !suiviStellair[key]) {
+                    suiviStellair[key] = { pTransit:pT, etoile:em.etoile, pNatal, maison:nData.house, debut:date, isRapide:fastPlanets.includes(pT), isRoyal:ETOILES_ROYALES_SET.has(em.etoile), desc:em.desc, orbNatal:em.orb, type:"planet" };
+                } else if (diffS > ORBE_TRANSIT_STELLAIRE && suiviStellair[key]) {
+                    const s = suiviStellair[key];
+                    const intensite = s.isRoyal ? "[ÉTOILE ROYALE — impact de premier ordre]" : "[étoile fixe]";
+                    const nature    = s.isRapide ? "Passage éphémère" : "Fenêtre profonde";
+                    const qualif    = em.precision.includes("forte") ? "très serrée (≤1° natal)" : "notable (≤2° natal)";
+                    const txt = `★ ${nature.toUpperCase()} — Du ${s.debut} au ${date} : ${s.pTransit} active ${s.etoile} ${intensite}, conjointe natalement à ${s.pNatal} (M${s.maison}, précision natale ${qualif}).\n  Nature de ${s.etoile} : ${s.desc.substring(0, 120)}...\n  → Le transit de ${s.pTransit} est MAGNIFIÉ par l'influence stellaire permanente.`;
+                    if (s.maison >= 1 && s.maison <= 12) maisonsResult[s.maison-1].etoiles_stellaires_texte.push(txt);
+                    delete suiviStellair[key];
+                }
+            }
+        }
+    }
+    // Étoiles sur les 4 angles nataux (planètes lentes uniquement — impact structural)
+    for (const [angle, etoilesList] of Object.entries(stellarByAngle)) {
+        const maisAngle = ANGLE_TO_MAISON[angle];
+        if (!maisAngle) continue;
+        for (const ec of etoilesList) {
+            if (ec.etoile_degree === undefined) continue;
+            for (const pT of slowPlanets) {
+                const pData = day.planetes[pT]; if (!pData?.fullDegree) continue;
+                const diffS = getOrb(pData.fullDegree, ec.etoile_degree);
+                const key   = `STELLAR_ANGLE_${pT}|||${ec.etoile}|||${angle}`;
+                if (diffS <= ORBE_TRANSIT_STELLAIRE && !suiviStellair[key]) {
+                    suiviStellair[key] = { pTransit:pT, etoile:ec.etoile, angle, maison:maisAngle, debut:date, isRoyal:ETOILES_ROYALES_SET.has(ec.etoile), desc:ec.desc, type:"angle" };
+                } else if (diffS > ORBE_TRANSIT_STELLAIRE && suiviStellair[key]) {
+                    const s = suiviStellair[key];
+                    const intensite = s.isRoyal ? "[ÉTOILE ROYALE — impact de premier ordre]" : "[étoile fixe]";
+                    const txt = `★ FENÊTRE STELLAIRE ANGULAIRE — Du ${s.debut} au ${date} : ${s.pTransit} active ${s.etoile} ${intensite} sur l'angle natal ${s.angle} (M${s.maison}).\n  Nature de ${s.etoile} : ${s.desc.substring(0, 100)}...\n  → Transit sur angle stellaire : identité et orientation de vie sous influence stellaire amplifiée.`;
+                    if (s.maison >= 1 && s.maison <= 12) maisonsResult[s.maison-1].etoiles_stellaires_texte.push(txt);
+                    delete suiviStellair[key];
+                }
+            }
+        }
+    }
+    // Résonance éclipse natale : éclipse de transit à ±3° du degré natal
+    if (eclipticNatalPoint && eclipsesByDate[date]) {
+        const e = eclipsesByDate[date];
+        const refDeg = e.astre === "Soleil" ? (day.planetes?.Soleil?.fullDegree || 0) : (luneDeg ?? day.planetes?.Lune?.fullDegree ?? 0);
+        const diffEcl = getOrb(refDeg, eclipticNatalPoint.degree);
+        if (diffEcl <= ORBE_RESONANCE_ECLIPSE) {
+            const txt = `⚡ RÉSONANCE ÉCLIPTIQUE NATALE — ${e.date} : Éclipse ${e.type} de ${e.astre} à ${diffEcl.toFixed(1)}° du degré natal de l'éclipse (${eclipticNatalPoint.label}).\n  Impact AMPLIFIÉ × 2 : cette éclipse de transit réactive la signature karmique de naissance. Les thèmes de M${eclipticNatalPoint.house} sont en jeu à un niveau exceptionnel — événement de transformation de premier ordre.`;
+            [eclipticNatalPoint.house, findNatalHouse(refDeg)].filter((h,i,a) => h>=1&&h<=12&&a.indexOf(h)===i).forEach(h => maisonsResult[h-1].eclipse_natal_active_texte.push(txt));
+        }
+    }
+    // Transit planète lente sur degré natal de l'éclipse (±1°)
+    if (eclipticNatalPoint) {
+        for (const pT of slowPlanets) {
+            const pData = day.planetes[pT]; if (!pData?.fullDegree) continue;
+            const diffE = getOrb(pData.fullDegree, eclipticNatalPoint.degree);
+            const keyE  = `ECL_NATAL_${pT}`;
+            if (diffE <= 1.0 && !suiviStellair[keyE]) {
+                suiviStellair[keyE] = { pTransit:pT, debut:date, maison:eclipticNatalPoint.house, type:"eclipse_natal" };
+            } else if (diffE > 1.0 && suiviStellair[keyE]) {
+                const s = suiviStellair[keyE];
+                const txt = `⚡ TRANSIT SUR DEGRÉ ÉCLIPTIQUE NATAL — Du ${s.debut} au ${date} : ${s.pTransit} passe sur le degré de l'${eclipticNatalPoint.label}.\n  → Réactivation de la thématique écliptique natale : événement lié à la mission de transformation inscrite à la naissance.`;
+                if (s.maison >= 1 && s.maison <= 12) maisonsResult[s.maison-1].eclipse_natal_active_texte.push(txt);
+                delete suiviStellair[keyE];
+            }
+        }
+    }
+    } catch(e) { console.log("[WARN] v6 Fenêtres stellaires/éclipse:", e.message); }
+
     // === ASPECTS MONDIAUX T→T ===
     for (let i=0; i<slowPlanets.length; i++) for (let j=i+1; j<slowPlanets.length; j++) {
         const p1=slowPlanets[i], p2=slowPlanets[j];
@@ -1054,11 +1221,10 @@ daysArray.forEach(day => {
         }
     }
 
-    // === LUNE ASPECTS PRÉCIS (v5 — Journalier/Hebdo) ===
+    // === LUNE ASPECTS PRÉCIS ===
     if (LUNE_PRECISE) {
         const lunePrec = computeLuneAspectsExacts(date);
         lunePrec.forEach(txt => {
-            // Determine maison (from the 3rd token which is the natal planet)
             const pNMatch = txt.match(/avec (.+?) natal \(M(\d+)\)/);
             if (pNMatch) {
                 const maisLune = parseInt(pNMatch[2]);
@@ -1083,7 +1249,6 @@ daysArray.forEach(day => {
     for (const pT of allTransit) {
         if (!day.planetes?.[pT]) continue;
         const posT = day.planetes[pT].fullDegree;
-        // Midpoints
         for (const mp of natalMidpoints) {
             for (const midDeg of [mp.mid1, mp.mid2]) {
                 const diff = getOrb(posT, midDeg);
@@ -1097,7 +1262,6 @@ daysArray.forEach(day => {
                 }
             }
         }
-        // Degrés critiques
         const critsT=getDegCritique(posT); if(!critsT.length) continue;
         const houseT=findNatalHouse(posT);
         for (const [pN, critsN] of Object.entries(degCritiquesNataux)) {
@@ -1106,7 +1270,6 @@ daysArray.forEach(day => {
         }
         const anarete=critsT.find(c=>c.type==="Anarète");
         if (anarete && houseT>=1&&houseT<=12) maisonsResult[houseT-1].degres_critiques_texte.push(`${date} : ${pT} ${anarete.label} en M${houseT}.`);
-        // Antiscia
         for (const ant of natalAntiscia) {
             for (const [aType, aDeg] of [["antiscion",ant.antiscion],["contra-antiscion",ant.contra]]) {
                 const diffA = getOrb(posT, aDeg);
@@ -1131,13 +1294,11 @@ try {
 const shadowPeriodsByHouse = {};
 for (const [planet, history] of Object.entries(retroHistory)) {
     if (history.length < 3) continue;
-    // Detect all station events
     const stations = [];
     for (let i=1; i<history.length; i++) {
         if (!history[i-1].isRetro && history[i].isRetro)  stations.push({ type:"R", date:history[i].date, deg:history[i].pos });
         if (history[i-1].isRetro  && !history[i].isRetro) stations.push({ type:"D", date:history[i].date, deg:history[i].pos });
     }
-    // Pair R/D cycles
     for (let si=0; si<stations.length; si++) {
         if (stations[si].type !== "R") continue;
         const rStat = stations[si], dStat = stations.slice(si+1).find(s=>s.type==="D");
@@ -1145,20 +1306,17 @@ for (const [planet, history] of Object.entries(retroHistory)) {
         const signR = signs[Math.floor(rStat.deg/30)%12], degR = (rStat.deg%30).toFixed(1);
         const signD = signs[Math.floor(dStat.deg/30)%12], degD = (dStat.deg%30).toFixed(1);
         const houseR = findNatalHouse(rStat.deg), houseD = findNatalHouse(dStat.deg);
-        // Determine shadow zone: [min(dStat.deg, rStat.deg), max(dStat.deg, rStat.deg)]
         const zLow = Math.min(dStat.deg, rStat.deg), zHigh = Math.max(dStat.deg, rStat.deg);
         const crossesZero = (zHigh - zLow) > 180;
         const inZone = (pos) => {
             if (!crossesZero) return pos >= zLow-0.5 && pos <= zHigh+0.5;
             return pos <= zLow+0.5 || pos >= zHigh-0.5;
         };
-        // Find pre-shadow start
         let preShadowStart = null;
         for (const entry of history) {
             if (entry.date >= rStat.date) break;
             if (!entry.isRetro && inZone(entry.pos) && preShadowStart === null) preShadowStart = entry.date;
         }
-        // Find post-shadow end
         let postShadowEnd = null, pastDStation = false;
         for (const entry of history) {
             if (!pastDStation && entry.date >= dStat.date) pastDStation = true;
@@ -1176,7 +1334,6 @@ for (const [planet, history] of Object.entries(retroHistory)) {
             `  • Station Directe le ${dStat.date} à ${degD}° ${signD} (M${houseD}) — reprise, intégration`,
             postShadowEnd ? `  • Post-ombre : du ${dStat.date} au ${postShadowEnd} (consolidation, manifestation différée)` : "",
         ].filter(Boolean).join("\n");
-        // Distribute to relevant maisons
         const maisons = [...new Set([houseR, houseD])];
         maisons.forEach(h => {
             if (h >= 1 && h <= 12) maisonsResult[h-1].shadow_texte.push(lines);
@@ -1227,6 +1384,20 @@ Object.keys(suiviTL_map).forEach(key => { const tl=suiviTL_map[key]; const txt=`
 Object.keys(suiviMidpoints).forEach(key => { const s=suiviMidpoints[key]; const txt=`Du ${s.debut} au ${lastDate} : ${s.pTransit} active le midpoint ${s.mp.key} → résonne sur ${s.mp.pA} (M${s.mp.maisA}) et ${s.mp.pB} (M${s.mp.maisB}).`; [...new Set([s.maison,s.maisA,s.maisB])].forEach(m=>{if(m>=1&&m<=12)maisonsResult[m-1].midpoints_texte.push(txt);}); });
 Object.keys(suiviAntiscia).forEach(key => { const s=suiviAntiscia[key]; const signAnt=signs[Math.floor(s.aDeg/30)%12]; const txt=`Du ${s.debut} au ${lastDate} : ${s.pTransit} active le ${s.type} de ${s.pNatal} natal (en ${signAnt}) — miroir de M${s.maison} activé silencieusement.`; if(s.maison>=1&&s.maison<=12) maisonsResult[s.maison-1].antiscia_texte.push(txt); });
 Object.keys(suiviTT).forEach(key => { const a=suiviTT[key]; const txt=a.cat==="ll"?`Du ${a.debut} au ${lastDate} : ${a.p1} en ${a.type} avec ${a.p2} (cycle majeur, M${a.maison}↔M${a.maison2}).`:`Du ${a.debut} au ${lastDate} : ${a.p1} active ${a.p2} en ${a.type} (M${a.maison}).`; if(a.maison>=1&&a.maison<=12) maisonsResult[a.maison-1].aspects_mondiaux_texte.push(txt); });
+Object.keys(suiviStellair).forEach(key => {
+    const s = suiviStellair[key];
+    if (!s.maison || s.maison < 1 || s.maison > 12) return;
+    if (s.type === "eclipse_natal") {
+        const txt = `⚡ TRANSIT SUR DEGRÉ ÉCLIPTIQUE NATAL — Du ${s.debut} au ${lastDate} : ${s.pTransit} passe sur le degré de l'${eclipticNatalPoint?.label || "éclipse natale"}.\n  → Réactivation de la thématique écliptique natale.`;
+        maisonsResult[s.maison-1].eclipse_natal_active_texte.push(txt);
+    } else {
+        const intensite = s.isRoyal ? "[ÉTOILE ROYALE]" : "[étoile fixe]";
+        const nature    = s.isRapide ? "Passage éphémère" : "Fenêtre profonde";
+        const cible     = s.type === "angle" ? `l'angle natal ${s.angle}` : `${s.pNatal} natal`;
+        const txt = `★ ${nature.toUpperCase()} — Du ${s.debut} au ${lastDate} : ${s.pTransit} active ${s.etoile} ${intensite}, conjointe à ${cible} (M${s.maison}).\n  → Transit amplifié par l'influence stellaire permanente.`;
+        maisonsResult[s.maison-1].etoiles_stellaires_texte.push(txt);
+    }
+});
 
 // ---- 10b. SCORING PAR MAISON — Anti-infobésité (v5.2) ----
 // Score = pondération des transits lourds actifs + éclipses conjonctes + convergences.
@@ -1267,6 +1438,13 @@ const computeHouseScore = (maisonNum) => {
     // Stations sur degré natal
     m.stations_retro_texte.filter(t => t.includes("STATION SUR PLANÈTE NATALE")).forEach(() => score += 4);
 
+    // v6 : fenêtres stellaires royales (+3) et autres (+1)
+    m.etoiles_stellaires_texte.forEach(t => { score += t.includes("ÉTOILE ROYALE") ? 3 : 1; });
+    // v6 : maison de l'éclipse natale — sensibilité structurelle permanente (+2)
+    if (eclipticNatalPoint?.house === maisonNum) score += 2;
+    // v6 : résonances écliptiques détectées (événement exceptionnel)
+    score += m.eclipse_natal_active_texte.length * 6;
+
     return score;
 };
 
@@ -1289,7 +1467,7 @@ Object.keys(aspectsSuiviLent).forEach(key => {
         const housePhr = w.transitHouseAtStart===w.transitHouseAtPeak?`M${w.transitHouseAtPeak}`:`M${w.transitHouseAtStart}/M${w.transitHouseAtPeak}`;
         const waveSeq  = nbVagues>1?` [Passage ${idx+1}/${nbVagues}${nbVagues>=3&&idx===1?" — pic rétrograde central":""}]`:"";
         // v5: flag priorité
-        const prioFlag = getPrioriteFlags(pNatalName);
+        const prioFlag = getPrioriteFlags(pNatalName, pTransit);
         const prioStr  = prioFlag ? `\n  ⚑ PRIORITÉ : ${prioFlag}` : "";
         const phrEnvoie = `=> ${pTransit} active votre ${pNatalName} natal (M${a.natalHouse}) par ${aspName}. Passage ${idx+1}${waveSeq} (${w.directionAtStart?"Rétrograde transit":"Direct"}) du ${w.start} au ${w.end} (Pic le ${w.peakDate}).${prioStr}`;
         const phrRecoit = `=> Votre ${pNatalName} natal reçoit un(e) ${aspName} de ${pTransit} (${housePhr}). Passage ${idx+1}${waveSeq} du ${w.start} au ${w.end} (Pic le ${w.peakDate}).${prioStr}`;
@@ -1334,7 +1512,7 @@ Object.keys(aspectsSuiviRap).forEach(key => {
     const pTransit=parts[0], aspName=parts[1], pNatalName=parts[2];
     a.waves.forEach(w => {
         const plage=w.start===w.end?w.start:`Du ${w.start} au ${w.end}`;
-        const prioFlag=getPrioriteFlags(pNatalName), prioStr=prioFlag?`\n  ⚑ PRIORITÉ : ${prioFlag}`:"";
+        const prioFlag=getPrioriteFlags(pNatalName, pTransit), prioStr=prioFlag?`\n  ⚑ PRIORITÉ : ${prioFlag}`:"";
         const phrEnvoie=`=> ${plage} : ${pTransit} en ${aspName} avec votre ${pNatalName} natal (M${a.natalHouse}), Pic le ${w.peakDate}.${prioStr}`;
         const phrRecoit=`=> ${plage} : ${pTransit} active votre ${pNatalName} natal (M${a.natalHouse}) par ${aspName}, Pic le ${w.peakDate}.${prioStr}`;
         if (w.transitHouseAtPeak>=1&&w.transitHouseAtPeak<=12) maisonsResult[w.transitHouseAtPeak-1].aspects_rapides_texte.push(phrEnvoie);
@@ -1353,7 +1531,7 @@ Object.keys(aspectsSuiviRap).forEach(key => {
 const traverseesResume = [];
 for (const p of slowPlanets) { const tl=transitsSuiviLent[p]; if(tl?.periods.length>0) { const mais=tl.periods.map(per=>`M${per.maison}`).filter((v,i,a)=>a.indexOf(v)===i).join(" → "); traverseesResume.push(`- ${p} : ${mais} sur la période.`); } }
 
-// ---- 11b. ÉCHO NATAL (v5) — reuse aspectsSuiviLent ----
+// ---- 11b. ÉCHO NATAL (v5) ----
 Object.keys(aspectsSuiviLent).forEach(key => {
     const parts = key.replace("slow_","").split("|||");
     const pTransit=parts[0], aspName=parts[1], pNatal=parts[2];
@@ -1375,6 +1553,18 @@ Object.keys(aspectsSuiviLent).forEach(key => {
         const pTransit=parts[0], aspName=parts[1], pNatal=parts[2];
         if (!PLANETS_MAJEURS_CONV.has(pTransit)) return;
         a.waves.forEach(w => { allPeakDates.push({ date:w.peakDate, label:`${pTransit} ${aspName} ${pNatal} natal (M${a.natalHouse})`, maison:a.natalHouse }); });
+    });
+    const stellarSeen = new Set();
+    maisonsResult.forEach(m => {
+        m.etoiles_stellaires_texte.forEach(txt => {
+            if (!txt.includes("ÉTOILE ROYALE")) return;
+            const dm = txt.match(/Du (\d{4}-\d{2}-\d{2}) au /);
+            if (!dm) return;
+            const peakKey = `${dm[1]}_M${m.maison}`;
+            if (stellarSeen.has(peakKey)) return;
+            stellarSeen.add(peakKey);
+            allPeakDates.push({ date:dm[1], label:txt.substring(2, 90)+"… [★ Étoile Royale]", maison:m.maison });
+        });
     });
     allPeakDates.sort((a,b) => a.date.localeCompare(b.date));
     const WINDOW = 10;
@@ -1484,6 +1674,25 @@ maisonsResult.forEach(m => {
     const cfgsPourMaison = natalConfigurations.filter(c=>c.maisons.includes(m.maison));
     if (cfgsPourMaison.length>0) prompt += `\n\n[CONFIGURATIONS NATALES — Cette maison est dans une structure géométrique natale]\n${cfgsPourMaison.map(c=>c.label).join("\n")}`;
 
+    // v6 : Étoiles fixes natales des planètes et angles de cette maison
+    const planetesDeMaison = Object.entries(natalDict).filter(([n,d])=>d.house===m.maison).map(([n])=>n);
+    const etoilesNatMaison = planetesDeMaison.flatMap(p => (stellarByPlanet[p]||[]).map(em =>
+        `  ★ ${em.planete} (M${m.maison}) conjoint ${em.etoile} (orbe natal ${em.orb}°) : ${em.desc.substring(0,100)}…${formatTransitEtoileInfo(em.etoile)}`
+    ));
+    const maisonAngleKey = { 1:"ASC", 4:"IC", 7:"DSC", 10:"MC" }[m.maison];
+    const etoilesAngleMaison = maisonAngleKey ? (stellarByAngle[maisonAngleKey]||[]).map(ec =>
+        `  ★ Angle ${ec.angle} M${m.maison} conjoint ${ec.etoile} (orbe natal ${ec.orb}°) : ${ec.desc.substring(0,100)}…${formatTransitEtoileInfo(ec.etoile)}`
+    ) : [];
+    const tousEtoilesMaison = [...etoilesNatMaison, ...etoilesAngleMaison];
+    if (tousEtoilesMaison.length > 0) {
+        prompt += `\n\n[ÉTOILES FIXES NATALES EN M${m.maison} — Amplificateurs permanents]\n${tousEtoilesMaison.join("\n")}\n→ INSTRUCTION : activer le signal stellaire UNIQUEMENT pour les planètes marquées ACTIFS (≤1°) ci-dessus. Pour les planètes hors orbe, l'étoile reste un filtre natal de fond sans événement de transit à signaler.`;
+    }
+
+    // v6 : Éclipse natale (si maison concernée)
+    if (eclipticNatalPoint?.house === m.maison) {
+        prompt += `\n\n[ÉCLIPSE NATALE — Sensibilité karmique permanente en M${m.maison}]\n${eclipticNatalPoint.label}.\nCette maison est le foyer d'une transformation profonde inscrite à la naissance. Tout transit ou éclipse future touchant ce secteur ou ce degré précis (${(eclipticNatalPoint.degree % 30).toFixed(1)}° ${eclipticNatalPoint.sign}) est amplifié par la mémoire écliptique natale. → INSTRUCTION : traiter M${m.maison} avec une attention renforcée sur les événements de rupture/transformation.`;
+    }
+
     // Planètes angulaires de cette maison
     const angulairesIci = Object.entries(planetsOnAngles).filter(([pN])=>natalDict[pN]?.house===m.maison);
     if (angulairesIci.length>0) {
@@ -1526,6 +1735,8 @@ maisonsResult.forEach(m => {
         : "";
 
     if (m.convergences_texte.length)          prompt += secDedup("FENÊTRES DE HAUTE INTENSITÉ — Convergences de transits majeurs", m.convergences_texte);
+    if (m.eclipse_natal_active_texte.length)  prompt += secDedup("RÉSONANCES ÉCLIPTIQUES NATALES — Réactivation de la signature de naissance (amplification × 2)", m.eclipse_natal_active_texte);
+    if (m.etoiles_stellaires_texte.length)    prompt += secDedup("FENÊTRES STELLAIRES — Transits magnifiés par étoiles fixes natales", m.etoiles_stellaires_texte);
     if (m.eclipses_conjonctes_texte.length)   prompt += secDedup("ÉCLIPSES CONJONCTES — Activation directe de points nataux (événements rares, impact maximal)", m.eclipses_conjonctes_texte);
     if (m.eclipses_texte.length)              prompt += sec("ÉCLIPSES DANS CE SECTEUR", m.eclipses_texte);
     if (m.lunaisons_texte.length)             prompt += sec("LUNAISONS (NL/PL) DANS CE SECTEUR", m.lunaisons_texte);
@@ -1628,18 +1839,49 @@ const clustersActifs=Object.entries(activatedNatal).filter(([pN,transits])=>tran
     const cfgForPN=(configsByPlanet[pN]||[]).map(c=>c.type).join(", ");
     const cfgStr=cfgForPN?` | Configs : ${cfgForPN}`:"";
     const prioFlag=getPrioriteFlags(pN)?` | ${getPrioriteFlags(pN)}`:"";
-    return `- ${pN} natal (M${house}) activé par : ${[...transits].join(" + ")}${links?` | Réseau natal : ${links}`:""}${cfgStr}${prioFlag}.`;
+    const stellarForPN=(stellarByPlanet[pN]||[]).map(em=>em.etoile).join("+");
+    const stellarStr=stellarForPN?` | ★ Étoile(s) fixe(s) conjointe(s) : ${stellarForPN}`:"";
+    return `- ${pN} natal (M${house}) activé par : ${[...transits].join(" + ")}${links?` | Réseau natal : ${links}`:""}${cfgStr}${prioFlag}${stellarStr}.`;
 });
 if (clustersActifs.length>0) promptSynth += `\n\n[NŒUDS D'ACTIVATION — Planètes sous pression multiple]\n${clustersActifs.join("\n")}`;
 
 const eclipsesGlobal=eclipsesData.filter(e=>{const d=new Date(e.date);return d>=dStart&&d<=dEnd;});
 if (eclipsesGlobal.length>0) promptSynth += `\n\n[ÉCLIPSES DE LA PÉRIODE]\n${eclipsesGlobal.map(e=>`${e.date} : Éclipse ${e.type} de ${e.astre} (${e.label})`).join("\n")}`;
 
-// Axe nodal
 if (natalDict["Nœud Nord"] && natalDict["Nœud Sud"]) {
     const maisNN=natalDict["Nœud Nord"].house, maisNS=natalDict["Nœud Sud"].house;
     const signNN=natalDict["Nœud Nord"].sign, signNS=natalDict["Nœud Sud"].sign;
     promptSynth += `\n\n[AXE NODAL NATAL — Fil karmique]\nNœud Nord en ${signNN} (M${maisNN}) ↔ Nœud Sud en ${signNS} (M${maisNS}). Tout transit activant l'un ou l'autre réveille l'axe karmique M${maisNN}/M${maisNS} : passé (M${maisNS}) versus direction évolutive (M${maisNN}).`;
+}
+
+// v6 + v5.2 patch : Points stellaires nataux avec instruction LLM sur orbe transit
+// v6 : Points stellaires nataux et fenêtres actives sur la période
+if (etoileMatchesNatal.length > 0 || etoileCuspMatchesNatal.length > 0) {
+    promptSynth += `\n\n[ÉTOILES FIXES NATALES — Amplificateurs permanents de transits]`;
+    etoileMatchesNatal.forEach(em => {
+        const pFlag = getPrioriteFlags(em.planete) ? ` | ${getPrioriteFlags(em.planete)}` : "";
+        promptSynth += `\n★ ${em.planete} (M${em.maison}, ${em.signe}) conjoint ${em.etoile} (orbe natal ${em.orb}°)${pFlag} : ${em.desc.substring(0, 120)}…${formatTransitEtoileInfo(em.etoile)}`;
+    });
+    etoileCuspMatchesNatal.forEach(ec => {
+        promptSynth += `\n★ Angle ${ec.angle} M${ec.maison} conjoint ${ec.etoile} (orbe natal ${ec.orb}°) : ${ec.desc.substring(0, 100)}…${formatTransitEtoileInfo(ec.etoile)}`;
+    });
+    const stellarActifs = [...new Set(maisonsResult.flatMap(m => m.etoiles_stellaires_texte))];
+    if (stellarActifs.length > 0) {
+        promptSynth += `\n→ FENÊTRES STELLAIRES ACTIVES SUR LA PÉRIODE (${stellarActifs.length} passage(s)) :\n${stellarActifs.slice(0, 5).map(t => t.split("\n")[0]).join("\n")}`;
+    } else {
+        promptSynth += `\n→ Aucune fenêtre stellaire de transit détectée sur cette période (les étoiles fixes restent comme filtre interprétatif de fond).`;
+    }
+}
+
+// v6 : Signature écliptique natale et résonances de la période
+if (eclipticNatalPoint) {
+    promptSynth += `\n\n[SIGNATURE ÉCLIPTIQUE NATALE]\n${eclipticNatalPoint.label}.\nCet individu est né lors d'une éclipse : le degré ${(eclipticNatalPoint.degree % 30).toFixed(1)}° ${eclipticNatalPoint.sign} en M${eclipticNatalPoint.house} est un point de transformation karmique permanent. Tout transit ou éclipse future sur ce degré (±3°) réactive cette signature de naissance.`;
+    const eclNatActifs = [...new Set(maisonsResult.flatMap(m => m.eclipse_natal_active_texte))];
+    if (eclNatActifs.length > 0) {
+        promptSynth += `\n→ RÉSONANCES ÉCLIPTIQUES DÉTECTÉES SUR LA PÉRIODE (${eclNatActifs.length} activation(s)) :\n${eclNatActifs.slice(0, 3).map(t => t.split("\n")[0]).join("\n")}`;
+    } else {
+        promptSynth += `\nAucune résonance écliptique directe sur la période (pas d'éclipse de transit à ±3° du degré natal).`;
+    }
 }
 
 promptSynth += `\n\n[CONSIGNE DE RÉDACTION]\n${cfg.consigneSynth}`;
