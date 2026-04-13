@@ -1,0 +1,149 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst validItems = [];\n\nlet persoAStr = '', persoBStr = '', typoLabel = '';\ntry {\n  const synVars = $('Extract Variables SYN').first()?.json || {};\n  const pa = synVars.personne_a || {};\n  const pb = synVars.personne_b || {};\n  if (pa.prenom || pa.nom) persoAStr = `${pa.prenom || ''} ${(pa.nom || '').toUpperCase()}`.trim();\n  if (pb.prenom || pb.nom) persoBStr = `${pb.prenom || ''} ${(pb.nom || '').toUpperCase()}`.trim();\n  typoLabel = synVars.typologie || '';\n} catch(e) {}\nif (!persoAStr || !persoBStr || !typoLabel) {\n  try {\n    const prep = $('Super noeud Syn').first()?.json?._meta || {};\n    if (!persoAStr && prep.persoA) persoAStr = prep.persoA;\n    if (!persoBStr && prep.persoB) persoBStr = prep.persoB;\n    if (!typoLabel && prep.typo) typoLabel = prep.typo;\n  } catch(e) {}\n}\nconst safe = s => s.replace(/[<>:\\\"/|?*]/g, '_').trim();\npersoAStr = safe(persoAStr || 'Personne 1');\npersoBStr = safe(persoBStr || 'Personne 2');\ntypoLabel = safe(typoLabel || 'Synastrie');\nconst nomFichierCible = `Rapport Synastrie - ${typoLabel} - ${persoAStr} - ${persoBStr}`;\n\nfor (const item of items) {\n  if (!item.binary) continue;\n  const binaryKey = Object.keys(item.binary)[0];\n  if (!binaryKey) continue;\n\n  item.binary[binaryKey].fileName = `${nomFichierCible}.pdf`;\n  item.binary[binaryKey].mimeType = 'application/pdf';\n  item.binary[binaryKey].fileExtension = 'pdf';\n\n  validItems.push(item);\n}\n\nreturn validItems;"
+      },
+      "id": "0c0846a2-e463-4ee5-90ae-a459327c1ea4",
+      "name": "Fix Nom & MIME PDF final1",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3248,
+        1648
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://46.225.174.155:3000/forms/chromium/convert/html",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "parameterType": "formBinaryData",
+              "name": "files",
+              "inputDataFieldName": "data"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          }
+        }
+      },
+      "id": "d6da36f4-3380-4a4e-aeee-6162e532a961",
+      "name": "Convert HTML to PDF1",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3056,
+        1648
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.isComplete }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "77ba4848-7353-49a2-a944-b1dbefc13491",
+      "name": "Contrôle Données Complètes4",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        2368,
+        1648
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst newItems = [];\n\nfor (let i = 0; i < items.length; i++) {\n  const htmlContent = items[i].json.html || \"<html><body>Erreur: Aucun HTML généré</body></html>\";\n  \n  // Méthode moderne et robuste de n8n pour créer un fichier binaire\n  const binaryData = await this.helpers.prepareBinaryData(Buffer.from(htmlContent), 'index.html', 'text/html');\n  \n  newItems.push({\n    json: items[i].json,\n    binary: {\n      data: binaryData\n    }\n  });\n}\n\nreturn newItems;"
+      },
+      "id": "712e99b6-0553-4a6b-a45a-e325481021a8",
+      "name": "Prépare HTML pour Gotenberg4",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2592,
+        1648
+      ]
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        2832,
+        1648
+      ],
+      "id": "f0944a96-68ea-446a-86e3-4d1adc950ddd",
+      "name": "Merge2"
+    }
+  ],
+  "connections": {
+    "Fix Nom & MIME PDF final1": {
+      "main": [
+        []
+      ]
+    },
+    "Convert HTML to PDF1": {
+      "main": [
+        [
+          {
+            "node": "Fix Nom & MIME PDF final1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Contrôle Données Complètes4": {
+      "main": [
+        [
+          {
+            "node": "Prépare HTML pour Gotenberg4",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prépare HTML pour Gotenberg4": {
+      "main": [
+        [
+          {
+            "node": "Merge2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge2": {
+      "main": [
+        [
+          {
+            "node": "Convert HTML to PDF1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "b6efd2f1fad5a0a294db5a1a7e88dd550900216aaeb7344a19bf4cfc45267781"
+  }
+}

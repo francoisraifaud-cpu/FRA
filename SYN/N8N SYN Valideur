@@ -1,0 +1,801 @@
+// ══════════════════════════════════════════════════════════════════════
+// VALIDATEUR POST-LLM — SYNASTRIE v4.0 (noeud silencieux)
+// ══════════════════════════════════════════════════════════════════════
+// Vérifie la cohérence des textes LLM synastrie avec les données
+// calculées. Output JSON consultable dans les logs n8n.
+//
+// Entrée : sortie de "Reassemble SYN" ou "3. Reassemble Trad SYN"
+// Référence : "5. Calcul SYN" + "Enrichissement A/B"
+//
+// v4.0: fix parser possessifs grammaticaux — 3 sous-bugs corrigés :
+//       1. synthese: "ton/ta/tes" résout vers A (pas B)
+//       2. possessifs parenthétiques: "tes besoins (Jupiter en Bélier)"
+//       3. rôles parenthétiques: "l'enfant (Lune en Lion)" → role-based
+//       + isCompositeContext ajouté dans validatePersonSwap
+// v3.0: contexte composite/Davison (réduit faux positifs), signes EN,
+//       dignités complètes (Exil/Chute/Exaltation), overlay synthèse,
+//       patterns EN pour maisons/overlay
+// v2.0: synData fallback robuste, prénom word-boundary,
+//       contexte perspective (B→A vs A→B)
+// ══════════════════════════════════════════════════════════════════════
+
+const reassembled = $input.first()?.json || {};
+
+// ── 0. CHARGEMENT ROBUSTE DE synData ──
+
+let synData = null;
+const tryLoad = (fn) => { try { return fn(); } catch(e) { return null; } };
+
+if (reassembled.synData && reassembled.synData.meta) {
+    synData = reassembled.synData;
+}
+if (!synData?.meta) {
+    const prep = tryLoad(() => $('Super noeud Syn').first()?.json);
+    if (prep?._synRef?.meta) synData = prep._synRef;
+}
+if (!synData?.meta) synData = tryLoad(() => $('5. Calcul SYN').first()?.json);
+if (!synData?.meta) synData = tryLoad(() => $('Calcul SYN').first()?.json);
+if (!synData) synData = {};
+
+const meta = synData.meta || {};
+const persoA = meta.personne_a || {};
+const persoB = meta.personne_b || {};
+
+let prenomA_raw = persoA.prenom || "";
+let prenomB_raw = persoB.prenom || "";
+let nomA_raw = persoA.nom || "";
+let nomB_raw = persoB.nom || "";
+
+if (!prenomA_raw && reassembled.meta?.personne_a?.prenom) {
+    prenomA_raw = reassembled.meta.personne_a.prenom;
+    nomA_raw = reassembled.meta.personne_a.nom || nomA_raw;
+}
+if (!prenomB_raw && reassembled.meta?.personne_b?.prenom) {
+    prenomB_raw = reassembled.meta.personne_b.prenom;
+    nomB_raw = reassembled.meta.personne_b.nom || nomB_raw;
+}
+
+const prenomA = prenomA_raw.toLowerCase();
+const prenomB = prenomB_raw.toLowerCase();
+const nomA = nomA_raw.toLowerCase();
+const nomB = nomB_raw.toLowerCase();
+
+const MIN_NAME_LEN = 2;
+const canMatchA = prenomA.length >= MIN_NAME_LEN;
+const canMatchB = prenomB.length >= MIN_NAME_LEN;
+
+function matchPersonName(lc, prenom, nom) {
+    if (!prenom || prenom.length < MIN_NAME_LEN) return false;
+    const wordBoundary = (text, word) => {
+        const idx = text.indexOf(word);
+        if (idx === -1) return false;
+        const before = idx > 0 ? text[idx - 1] : ' ';
+        const after = idx + word.length < text.length ? text[idx + word.length] : ' ';
+        return /[\s,.:;!?'"()\-—–]/.test(before) || idx === 0
+            ? (/[\s,.:;!?'"()\-—–]/.test(after) || idx + word.length === text.length)
+            : false;
+    };
+    if (wordBoundary(lc, prenom)) return true;
+    if (nom && nom.length >= MIN_NAME_LEN && wordBoundary(lc, nom)) return true;
+    return false;
+}
+
+// ── 1. CARTES DE RÉFÉRENCE DES POSITIONS NATALES (A & B) ──
+
+function buildPlanetMaps(enrichedKey) {
+    const signMap = {};
+    const houseMap = {};
+    let enriched = {};
+    try { enriched = $(enrichedKey).first()?.json || {}; } catch(e) { return { signMap, houseMap }; }
+
+    let planets = enriched.planetes;
+    if (!Array.isArray(planets)) {
+        if (planets?.output && Array.isArray(planets.output)) planets = planets.output;
+        else planets = [];
+    }
+
+    planets.forEach(p => {
+        const name = p.planet?.fr || p.planet?.en || p.name;
+        if (!name) return;
+        const sign = p.zodiac_sign?.name?.fr;
+        if (sign) signMap[name] = sign;
+        const house = p.house || p.maison;
+        if (house) houseMap[name] = parseInt(house);
+    });
+
+    const maisons = enriched.maisons;
+    if (Array.isArray(maisons)) {
+        maisons.forEach(m => {
+            const hNum = m.maison || m.House;
+            if (!hNum) return;
+            (m.segments || []).forEach(s => {
+                (s.locataires || []).forEach(l => {
+                    if (l.planete && !houseMap[l.planete]) {
+                        houseMap[l.planete] = parseInt(hNum);
+                    }
+                });
+            });
+        });
+    }
+    return { signMap, houseMap };
+}
+
+const mapsA = buildPlanetMaps("Enrichissement A");
+const mapsB = buildPlanetMaps("Enrichissement B");
+
+// ── 2. CARTE DES OVERLAYS (référence) ──
+
+const overlayBinA = synData.overlay_b_in_a || {};
+const overlayAinB = synData.overlay_a_in_b || {};
+
+function buildOverlayRef(overlay) {
+    const ref = {};
+    Object.entries(overlay).forEach(([house, planets]) => {
+        if (!Array.isArray(planets)) return;
+        planets.forEach(p => {
+            const name = p.planet || p.planete || p.name;
+            if (name) ref[name] = parseInt(house);
+        });
+    });
+    return ref;
+}
+
+const overlayRefBinA = buildOverlayRef(overlayBinA);
+const overlayRefAinB = buildOverlayRef(overlayAinB);
+
+// ── 3. CARTE DES INTER-ASPECTS (référence) ──
+
+function buildAspectRef(aspects) {
+    const ref = new Set();
+    if (!Array.isArray(aspects)) return ref;
+    aspects.forEach(a => {
+        const from = (a.from || a.planete_source || "").toLowerCase();
+        const to = (a.to || a.planete_cible || "").toLowerCase();
+        const type = (a.aspect || a.type || "").toLowerCase();
+        if (from && to && type) {
+            ref.add(`${from}|${to}|${type}`);
+            ref.add(`${to}|${from}|${type}`);
+        }
+    });
+    return ref;
+}
+
+const aspectRefBtoA = buildAspectRef([
+    ...(synData.inter_aspects_tier1_b_to_a || []),
+    ...(synData.inter_aspects_tier2_b_to_a || [])
+]);
+const aspectRefAtoB = buildAspectRef([
+    ...(synData.inter_aspects_tier1_a_to_b || []),
+    ...(synData.inter_aspects_tier2_a_to_b || [])
+]);
+
+// ── 4. VOCABULAIRE D'EXCLUSION ──
+
+const TRANSIT_VERBS = [
+    "transite", "traverse", "entre en", "arrive en", "quitte la",
+    "passage de", "passage en", "passage du", "transit de", "transit du",
+    "se déplace en", "progresse en", "arc solaire",
+    "sera en", "serait en", "entrera en", "ira en", "retour de",
+    "ingress", "entrée en", "passage vers", "quand il entre", "quand elle entre",
+    "éclipse", "saros", "en transit", "transit ", "progression de",
+    "lunation", "pleine lune", "nouvelle lune",
+    "direction primaire", "arc dirigé", "révolution solaire",
+    "profection", "firdaria"
+];
+
+const RHETORIC_EXCLUSIONS = [
+    "contrairement à", "tandis que", "alors que", "par opposition à",
+    "à la différence de", "en comparaison", "imaginons",
+    "en général", "généralement", "traditionnellement", "dans l'absolu"
+];
+
+const CORE_PLANETS = ["Soleil","Lune","Mercure","Vénus","Mars","Jupiter","Saturne","Uranus","Neptune","Pluton"];
+const ALL_SIGNS_FR = ["bélier","taureau","gémeaux","cancer","lion","vierge","balance","scorpion","sagittaire","capricorne","verseau","poissons"];
+const ALL_SIGNS_EN = ["aries","taurus","gemini","cancer","leo","virgo","libra","scorpio","sagittarius","capricorn","aquarius","pisces"];
+const SIGN_EN_TO_FR = { "aries":"bélier","taurus":"taureau","gemini":"gémeaux","cancer":"cancer","leo":"lion","virgo":"vierge","libra":"balance","scorpio":"scorpion","sagittarius":"sagittaire","capricorn":"capricorne","aquarius":"verseau","pisces":"poissons" };
+const ALL_SIGNS = [...ALL_SIGNS_FR, ...ALL_SIGNS_EN];
+const normSign = (s) => SIGN_EN_TO_FR[s] || s;
+
+const COMPOSITE_KEYWORDS = [
+    "composite", "thème composite", "composite chart",
+    "davison", "thème davison", "davison chart",
+    "thème de la relation", "chart of the relationship",
+    "mi-point", "midpoint chart", "relationship chart"
+];
+const isCompositeContext = (lc) => COMPOSITE_KEYWORDS.some(kw => lc.includes(kw));
+
+// ── 5. FONCTIONS UTILITAIRES ──
+
+const splitSentences = (text) => {
+    return text.replace(/\n/g, '. ').split(/(?<=[.!?…])\s+/).filter(s => s.length > 5);
+};
+
+const isExcludedContext = (sentence) => {
+    const lc = sentence.toLowerCase();
+    return TRANSIT_VERBS.some(v => lc.includes(v)) ||
+           RHETORIC_EXCLUSIONS.some(v => lc.includes(v));
+};
+
+const matchWithBoundary = (text, pattern) => {
+    const idx = text.indexOf(pattern);
+    if (idx === -1) return false;
+    const after = text[idx + pattern.length];
+    if (after && /\d/.test(after)) return false;
+    return true;
+};
+
+// ── 5b. DÉSAMBIGUÏSATION PRONOMS POSSESSIFS & RÔLES ──
+// En synastrie, le LLM écrit "le Soleil de Samy ... ton Mars en Balance".
+// "ton/ta/tes" = l'interlocuteur (A en perspective_a, A en synthese, B en perspective_b).
+// Gère aussi les planètes entre parenthèses après un possessif ou un rôle :
+//   "tes besoins d'expansion (Jupiter en Bélier)" → Jupiter = addressee
+//   "le besoin de l'enfant (Lune en Lion)" → Lune = personne ayant role=enfant
+
+const _roleA = (meta.personne_a?.role || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+const _roleB = (meta.personne_b?.role || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+const CHILD_TERMS = /\b(l'enfant|de l'enfant|du fils|de la fille|cet enfant|son enfant|the child|l['']enfant)\b/;
+const PARENT_TERMS = /\b(le parent|la m[eè]re|le p[eè]re|du parent|de la m[eè]re|du p[eè]re|the parent|the mother|the father|son parent|sa m[eè]re|son p[eè]re)\b/;
+const MENTOR_TERMS = /\b(le mentor|du mentor|son mentor|the mentor)\b/;
+const MENTEE_TERMS = /\b(le prot[eé]g[eé]|du prot[eé]g[eé]|l'[eé]l[eè]ve|de l'[eé]l[eè]ve|the mentee|the prot[eé]g[eé])\b/;
+
+function findParenOpen(lc, planetIdx) {
+    const searchStart = Math.max(0, planetIdx - 8);
+    const slice = lc.substring(searchStart, planetIdx);
+    const p = slice.lastIndexOf('(');
+    return p !== -1 ? searchStart + p : -1;
+}
+
+function isPossessiveOfAddressee(lc, planetLc) {
+    const idx = lc.indexOf(planetLc);
+    if (idx === -1) return false;
+    const before = lc.substring(Math.max(0, idx - 40), idx).trimEnd();
+    if (/\b(ton|ta|tes|your)\s*$/.test(before) ||
+        /\b(ton|ta|tes|your)\s+\w+\s*$/.test(before) ||
+        /\b(ton|ta|tes|your)\s+\w+\s+\w+\s*$/.test(before)) return true;
+
+    const parenOpen = findParenOpen(lc, idx);
+    if (parenOpen !== -1) {
+        const beforeParen = lc.substring(Math.max(0, parenOpen - 80), parenOpen).trimEnd();
+        if (/\b(ton|ta|tes|your)\b/.test(beforeParen)) return true;
+    }
+    return false;
+}
+
+function detectRoleContext(lc, planetLc) {
+    const idx = lc.indexOf(planetLc);
+    if (idx === -1) return null;
+
+    const parenOpen = findParenOpen(lc, idx);
+    if (parenOpen === -1) return null;
+    const beforeParen = lc.substring(Math.max(0, parenOpen - 70), parenOpen).trimEnd();
+
+    const isChild  = CHILD_TERMS.test(beforeParen);
+    const isParent = PARENT_TERMS.test(beforeParen);
+    const isMentor = MENTOR_TERMS.test(beforeParen);
+    const isMentee = MENTEE_TERMS.test(beforeParen);
+
+    if (isChild) {
+        if (_roleA === 'enfant') return 'A';
+        if (_roleB === 'enfant') return 'B';
+    }
+    if (isParent) {
+        if (['parent','mere','pere','mère','père'].includes(_roleA)) return 'A';
+        if (['parent','mere','pere','mère','père'].includes(_roleB)) return 'B';
+    }
+    if (isMentor) {
+        if (_roleA === 'mentor') return 'A';
+        if (_roleB === 'mentor') return 'B';
+    }
+    if (isMentee) {
+        if (['protege','eleve','protégé','élève'].includes(_roleA)) return 'A';
+        if (['protege','eleve','protégé','élève'].includes(_roleB)) return 'B';
+    }
+    return null;
+}
+
+function isExplicitOwner(lc, planetLc, personPrenom) {
+    if (!personPrenom || personPrenom.length < MIN_NAME_LEN) return false;
+    return lc.includes(`${planetLc} de ${personPrenom}`) ||
+           lc.includes(`le ${planetLc} de ${personPrenom}`) ||
+           lc.includes(`la ${planetLc} de ${personPrenom}`) ||
+           lc.includes(`l'${planetLc} de ${personPrenom}`);
+}
+
+function isDignityForThisPlanet(lc, planetLc, dignityTerm) {
+    const planetIdx = lc.indexOf(planetLc);
+    const dignityIdx = lc.indexOf(dignityTerm);
+    if (planetIdx === -1 || dignityIdx === -1) return true;
+    const distance = Math.abs(dignityIdx - planetIdx);
+    for (const other of CORE_PLANETS) {
+        const otherLc = other.toLowerCase();
+        if (otherLc === planetLc) continue;
+        const otherIdx = lc.indexOf(otherLc);
+        if (otherIdx !== -1 && Math.abs(dignityIdx - otherIdx) < distance) return false;
+    }
+    return true;
+}
+
+function resolveEffectivePerson(lc, nameLc, mentionsA, mentionsB, perspective) {
+    const addresseeIsA = (perspective === "perspective_a" || perspective === "synthese");
+    const ownedByA = isExplicitOwner(lc, nameLc, prenomA);
+    const ownedByB = isExplicitOwner(lc, nameLc, prenomB);
+    const possessive = isPossessiveOfAddressee(lc, nameLc);
+    const roleCtx = detectRoleContext(lc, nameLc);
+
+    if (ownedByA) return "A";
+    if (ownedByB) return "B";
+    if (possessive) return addresseeIsA ? "A" : "B";
+    if (roleCtx) return roleCtx;
+    if (mentionsA && !mentionsB) return "A";
+    if (mentionsB && !mentionsA) return "B";
+    return null;
+}
+
+// ── 6. VALIDATIONS ──
+
+function validateSignText(text, perspective) {
+    const warnings = [];
+    if (!text) return warnings;
+    const sentences = splitSentences(text);
+
+    const overlaySignMap = perspective === "perspective_a" ? mapsB.signMap
+        : perspective === "perspective_b" ? mapsA.signMap
+        : Object.assign({}, mapsA.signMap, mapsB.signMap);
+    const natalSignMap = perspective === "perspective_a" ? mapsA.signMap
+        : perspective === "perspective_b" ? mapsB.signMap
+        : Object.assign({}, mapsA.signMap, mapsB.signMap);
+
+    CORE_PLANETS.forEach(name => {
+        const correctSignOverlay = overlaySignMap[name];
+        const correctSignNatal = natalSignMap[name];
+        const nameLc = name.toLowerCase();
+
+        sentences.forEach(sentence => {
+            if (isExcludedContext(sentence)) return;
+            const lc = sentence.toLowerCase();
+            if (isCompositeContext(lc)) return;
+
+            const mentionsA = canMatchA && matchPersonName(lc, prenomA, nomA);
+            const mentionsB = canMatchB && matchPersonName(lc, prenomB, nomB);
+
+            ALL_SIGNS.forEach(rawSign => {
+                const signFr = normSign(rawSign);
+                const patterns = [
+                    `${nameLc} en ${rawSign}`,
+                    `${nameLc} dans le ${rawSign}`,
+                    `${nameLc} dans la ${rawSign}`,
+                    `${nameLc} dans les ${rawSign}`,
+                    `${nameLc} (${rawSign})`,
+                    `${nameLc} in ${rawSign}`
+                ];
+                if (!patterns.some(pat => lc.includes(pat))) return;
+
+                const effectivePerson = resolveEffectivePerson(lc, nameLc, mentionsA, mentionsB, perspective);
+
+                if (effectivePerson === "A") {
+                    const correctA = mapsA.signMap[name];
+                    if (correctA && signFr !== correctA.toLowerCase()) {
+                        warnings.push({
+                            person: prenomA_raw || "A", planet: name,
+                            claimedSign: signFr, correctSign: correctA,
+                            excerpt: sentence.substring(0, 150), type: "sign_mismatch_A"
+                        });
+                    }
+                } else if (effectivePerson === "B") {
+                    const correctB = mapsB.signMap[name];
+                    if (correctB && signFr !== correctB.toLowerCase()) {
+                        warnings.push({
+                            person: prenomB_raw || "B", planet: name,
+                            claimedSign: signFr, correctSign: correctB,
+                            excerpt: sentence.substring(0, 150), type: "sign_mismatch_B"
+                        });
+                    }
+                } else if (!mentionsA && !mentionsB) {
+                    const correctOverlay = correctSignOverlay;
+                    const correctNatal = correctSignNatal;
+                    const overlayOK = correctOverlay ? signFr === correctOverlay.toLowerCase() : false;
+                    const natalOK = correctNatal ? signFr === correctNatal.toLowerCase() : false;
+                    if (!overlayOK && !natalOK) {
+                        warnings.push({
+                            planet: name, claimedSign: signFr,
+                            expectedOverlay: correctOverlay || "?", expectedNatal: correctNatal || "?",
+                            perspective,
+                            excerpt: sentence.substring(0, 150), type: "sign_mismatch_context"
+                        });
+                    }
+                }
+            });
+        });
+    });
+    return warnings;
+}
+
+function validateHouseText(text, perspective, houseNum) {
+    const warnings = [];
+    if (!text) return warnings;
+    const sentences = splitSentences(text);
+
+    CORE_PLANETS.forEach(name => {
+        const correctHouseA = mapsA.houseMap[name];
+        const correctHouseB = mapsB.houseMap[name];
+        const nameLc = name.toLowerCase();
+
+        sentences.forEach(sentence => {
+            if (isExcludedContext(sentence)) return;
+            const lc = sentence.toLowerCase();
+            if (isCompositeContext(lc)) return;
+
+            for (let h = 1; h <= 12; h++) {
+                const natalPatterns = [
+                    `${nameLc} natal en maison ${h}`,
+                    `${nameLc} natale en maison ${h}`,
+                    `${nameLc} natal en m${h}`,
+                    `${nameLc} natale en m${h}`,
+                    `natal ${nameLc} in house ${h}`,
+                    `${nameLc} in natal house ${h}`
+                ];
+                if (!natalPatterns.some(pat => matchWithBoundary(lc, pat))) continue;
+
+                const mentionsA = canMatchA && matchPersonName(lc, prenomA, nomA);
+                const mentionsB = canMatchB && matchPersonName(lc, prenomB, nomB);
+
+                if (mentionsA && correctHouseA && h !== correctHouseA) {
+                    warnings.push({
+                        person: prenomA_raw || "A", planet: name,
+                        claimedHouse: h, correctHouse: correctHouseA,
+                        excerpt: sentence.substring(0, 150), type: "natal_house_mismatch_A"
+                    });
+                }
+                if (mentionsB && correctHouseB && h !== correctHouseB) {
+                    warnings.push({
+                        person: prenomB_raw || "B", planet: name,
+                        claimedHouse: h, correctHouse: correctHouseB,
+                        excerpt: sentence.substring(0, 150), type: "natal_house_mismatch_B"
+                    });
+                }
+            }
+        });
+    });
+    return warnings;
+}
+
+function validateOverlayText(text, perspective, houseNum) {
+    const warnings = [];
+    if (!text || !houseNum) return warnings;
+    const sentences = splitSentences(text);
+
+    const overlayRef = perspective === "perspective_a" ? overlayRefBinA : overlayRefAinB;
+    const natalHouseMap = perspective === "perspective_a" ? mapsA.houseMap : mapsB.houseMap;
+
+    CORE_PLANETS.forEach(name => {
+        const refHouse = overlayRef[name];
+        if (!refHouse) return;
+        const nameLc = name.toLowerCase();
+
+        sentences.forEach(sentence => {
+            if (isExcludedContext(sentence)) return;
+            const lc = sentence.toLowerCase();
+            if (isCompositeContext(lc)) return;
+
+            if (isPossessiveOfAddressee(lc, nameLc)) return;
+
+            for (let h = 1; h <= 12; h++) {
+                if (h === refHouse) continue;
+                const overlayPatterns = [
+                    `${nameLc} en maison ${h}`,
+                    `${nameLc} dans la maison ${h}`,
+                    `${nameLc} dans ta maison ${h}`,
+                    `${nameLc} dans votre maison ${h}`,
+                    `${nameLc} se pose en maison ${h}`,
+                    `${nameLc} tombe en maison ${h}`,
+                    `${nameLc} active la maison ${h}`,
+                    `${nameLc} in house ${h}`,
+                    `${nameLc} activates house ${h}`
+                ];
+                if (overlayPatterns.some(pat => matchWithBoundary(lc, pat))) {
+                    if (!lc.includes("natal")) {
+                        const natalH = natalHouseMap[name];
+                        if (natalH && h === natalH) continue;
+                        warnings.push({
+                            planet: name, claimedHouse: h, correctOverlayHouse: refHouse,
+                            perspective, analyzedHouse: houseNum,
+                            excerpt: sentence.substring(0, 150), type: "overlay_mismatch"
+                        });
+                    }
+                }
+            }
+        });
+    });
+    return warnings;
+}
+
+function validatePredictiveVocabulary(text, sectionLabel) {
+    const warnings = [];
+    if (!text) return warnings;
+    const sentences = splitSentences(text);
+    const PREDICTIVE_TERMS = [
+        "cette année", "l'année prochaine",
+        "dans les mois", "prochainement", "bientôt",
+        "transit de", "transit du", "progression de", "profection",
+        "révolution solaire", "direction primaire", "arc dirigé",
+        "firdaria", "rétrogradation de transit"
+    ];
+    const PREDICTIVE_PATTERNS = [/\ben 20\d{2}\b/i, /\bin 20\d{2}\b/i];
+
+    sentences.forEach(sentence => {
+        const lc = sentence.toLowerCase();
+        PREDICTIVE_TERMS.forEach(term => {
+            if (lc.includes(term)) {
+                warnings.push({
+                    term, section: sectionLabel,
+                    excerpt: sentence.substring(0, 150), type: "predictive_vocabulary"
+                });
+            }
+        });
+        PREDICTIVE_PATTERNS.forEach(rx => {
+            if (rx.test(sentence)) {
+                warnings.push({
+                    term: sentence.match(rx)?.[0] || "year_ref", section: sectionLabel,
+                    excerpt: sentence.substring(0, 150), type: "predictive_vocabulary"
+                });
+            }
+        });
+    });
+    return warnings;
+}
+
+function validatePersonSwap(text, perspective, sectionLabel) {
+    const warnings = [];
+    if (!text || !canMatchA || !canMatchB) return warnings;
+    const sentences = splitSentences(text);
+    const addresseeIsA = (perspective === "perspective_a" || perspective === "synthese");
+
+    CORE_PLANETS.forEach(name => {
+        const nameLc = name.toLowerCase();
+        const signA = mapsA.signMap[name] ? mapsA.signMap[name].toLowerCase() : null;
+        const signB = mapsB.signMap[name] ? mapsB.signMap[name].toLowerCase() : null;
+        if (!signA || !signB || signA === signB) return;
+
+        sentences.forEach(sentence => {
+            if (isExcludedContext(sentence)) return;
+            const lc = sentence.toLowerCase();
+            if (isCompositeContext(lc)) return;
+
+            const mentionsA = matchPersonName(lc, prenomA, nomA);
+            const mentionsB = matchPersonName(lc, prenomB, nomB);
+            const possessive = isPossessiveOfAddressee(lc, nameLc);
+            const roleCtx = detectRoleContext(lc, nameLc);
+
+            if (mentionsA && !mentionsB && lc.includes(`${nameLc} en ${signB}`)) {
+                if (!addresseeIsA && possessive) return;
+                if (roleCtx === "B") return;
+                warnings.push({
+                    planet: name, claimedForA: mapsB.signMap[name], correctForA: mapsA.signMap[name],
+                    section: sectionLabel, excerpt: sentence.substring(0, 150),
+                    type: "person_swap_sign"
+                });
+            }
+            if (mentionsB && !mentionsA && lc.includes(`${nameLc} en ${signA}`)) {
+                if (addresseeIsA && possessive) return;
+                if (roleCtx === "A") return;
+                warnings.push({
+                    planet: name, claimedForB: mapsA.signMap[name], correctForB: mapsB.signMap[name],
+                    section: sectionLabel, excerpt: sentence.substring(0, 150),
+                    type: "person_swap_sign"
+                });
+            }
+        });
+    });
+    return warnings;
+}
+
+function validateDignityText(text, perspective, sectionLabel) {
+    const warnings = [];
+    if (!text) return warnings;
+    const sentences = splitSentences(text);
+
+    const DIGNITY_RULES = {
+        "Domicile": {
+            "Soleil": ["Lion"], "Lune": ["Cancer"], "Mercure": ["Gémeaux", "Vierge"],
+            "Vénus": ["Taureau", "Balance"], "Mars": ["Bélier", "Scorpion"],
+            "Jupiter": ["Sagittaire", "Poissons"], "Saturne": ["Capricorne", "Verseau"],
+            "Uranus": ["Verseau"], "Neptune": ["Poissons"], "Pluton": ["Scorpion"]
+        },
+        "Exaltation": {
+            "Soleil": ["Bélier"], "Lune": ["Taureau"], "Mercure": ["Vierge"],
+            "Vénus": ["Poissons"], "Mars": ["Capricorne"], "Jupiter": ["Cancer"],
+            "Saturne": ["Balance"], "Uranus": ["Scorpion"], "Neptune": ["Cancer"], "Pluton": ["Lion"]
+        },
+        "Exil": {
+            "Soleil": ["Verseau"], "Lune": ["Capricorne"], "Mercure": ["Sagittaire", "Poissons"],
+            "Vénus": ["Bélier", "Scorpion"], "Mars": ["Taureau", "Balance"],
+            "Jupiter": ["Gémeaux", "Vierge"], "Saturne": ["Cancer", "Lion"],
+            "Uranus": ["Lion"], "Neptune": ["Vierge"], "Pluton": ["Taureau"]
+        },
+        "Chute": {
+            "Soleil": ["Balance"], "Lune": ["Scorpion"], "Mercure": ["Poissons"],
+            "Vénus": ["Vierge"], "Mars": ["Cancer"], "Jupiter": ["Capricorne"],
+            "Saturne": ["Bélier"], "Uranus": ["Taureau"], "Neptune": ["Capricorne"], "Pluton": ["Verseau"]
+        }
+    };
+
+    const DIGNITY_DETECT = [
+        { terms: ["en domicile", "domicile", "in domicile", "in rulership"], dignity: "Domicile" },
+        { terms: ["en exaltation", "exalté", "exaltée", "exalted", "in exaltation"], dignity: "Exaltation" },
+        { terms: ["en exil", "exilé", "exilée", "in detriment", "in exile"], dignity: "Exil" },
+        { terms: ["en chute", "in fall"], dignity: "Chute" }
+    ];
+
+    CORE_PLANETS.forEach(name => {
+        const nameLc = name.toLowerCase();
+        const signA = mapsA.signMap[name];
+        const signB = mapsB.signMap[name];
+
+        sentences.forEach(sentence => {
+            const lc = sentence.toLowerCase();
+            if (!lc.includes(nameLc)) return;
+            if (isCompositeContext(lc)) return;
+
+            const mentionsA = canMatchA && matchPersonName(lc, prenomA, nomA);
+            const mentionsB = canMatchB && matchPersonName(lc, prenomB, nomB);
+
+            for (const dd of DIGNITY_DETECT) {
+                const matchedTerm = dd.terms.find(t => lc.includes(t));
+                if (!matchedTerm) continue;
+                if (!isDignityForThisPlanet(lc, nameLc, matchedTerm)) continue;
+
+                const validSigns = (DIGNITY_RULES[dd.dignity] || {})[name] || [];
+                if (validSigns.length === 0) continue;
+
+                const effectivePerson = resolveEffectivePerson(lc, nameLc, mentionsA, mentionsB, perspective);
+
+                if (effectivePerson === "A") {
+                    if (signA && !validSigns.some(r => r.toLowerCase() === signA.toLowerCase())) {
+                        warnings.push({
+                            planet: name, person: prenomA_raw, claimed: dd.dignity,
+                            actualSign: signA, expectedSigns: validSigns.join("/"),
+                            section: sectionLabel, excerpt: sentence.substring(0, 150),
+                            type: "dignity_error"
+                        });
+                    }
+                } else if (effectivePerson === "B") {
+                    if (signB && !validSigns.some(r => r.toLowerCase() === signB.toLowerCase())) {
+                        warnings.push({
+                            planet: name, person: prenomB_raw, claimed: dd.dignity,
+                            actualSign: signB, expectedSigns: validSigns.join("/"),
+                            section: sectionLabel, excerpt: sentence.substring(0, 150),
+                            type: "dignity_error"
+                        });
+                    }
+                }
+            }
+        });
+    });
+    return warnings;
+}
+
+// ── 7. EXÉCUTION ──
+
+const results = {
+    timestamp: new Date().toISOString(),
+    totalWarnings: 0,
+    subjects: `${prenomA_raw || 'A'} ${(persoA.nom || '').toUpperCase()} et ${prenomB_raw || 'B'} ${(persoB.nom || '').toUpperCase()}`.trim(),
+    typologie: meta.typologie || "?",
+    perspective_a: {},
+    perspective_b: {},
+    synthese: null,
+    ref_counts: {
+        planetsA_signs: Object.keys(mapsA.signMap).length,
+        planetsA_houses: Object.keys(mapsA.houseMap).length,
+        planetsB_signs: Object.keys(mapsB.signMap).length,
+        planetsB_houses: Object.keys(mapsB.houseMap).length,
+        overlayBinA_planets: Object.keys(overlayRefBinA).length,
+        overlayAinB_planets: Object.keys(overlayRefAinB).length,
+        aspectsBtoA: aspectRefBtoA.size / 2,
+        aspectsAtoB: aspectRefAtoB.size / 2,
+        synData_loaded: !!synData.meta,
+        prenomA: prenomA_raw || "(vide)",
+        prenomB: prenomB_raw || "(vide)"
+    }
+};
+
+function runValidation(text, perspective, houseNum, label) {
+    const signW = validateSignText(text, perspective);
+    const houseW = validateHouseText(text, perspective, houseNum);
+    const overlayW = validateOverlayText(text, perspective, houseNum);
+    const predictW = validatePredictiveVocabulary(text, label);
+    const swapW = validatePersonSwap(text, perspective, label);
+    const dignityW = validateDignityText(text, perspective, label);
+
+    const total = signW.length + houseW.length + overlayW.length + predictW.length + swapW.length + dignityW.length;
+    return { signW, houseW, overlayW, predictW, swapW, dignityW, total };
+}
+
+const perspA = reassembled.perspective_a || {};
+Object.entries(perspA).forEach(([houseNum, data]) => {
+    const txt = data.llm_text || "";
+    const hNum = parseInt(houseNum);
+    const label = `Perspective A — Maison ${hNum}`;
+    const v = runValidation(txt, "perspective_a", hNum, label);
+    if (v.total > 0) {
+        results.perspective_a[`M${hNum}`] = v;
+        results.totalWarnings += v.total;
+    }
+});
+
+const perspB = reassembled.perspective_b || {};
+Object.entries(perspB).forEach(([houseNum, data]) => {
+    const txt = data.llm_text || "";
+    const hNum = parseInt(houseNum);
+    const label = `Perspective B — Maison ${hNum}`;
+    const v = runValidation(txt, "perspective_b", hNum, label);
+    if (v.total > 0) {
+        results.perspective_b[`M${hNum}`] = v;
+        results.totalWarnings += v.total;
+    }
+});
+
+const synthTxt = reassembled.synthese?.llm_text || "";
+if (synthTxt) {
+    const label = "Synthèse";
+    const signW = validateSignText(synthTxt, "synthese");
+    const houseW = validateHouseText(synthTxt, "synthese", 0);
+    const _rawOverlayW = [];
+    for (let h = 1; h <= 12; h++) {
+        _rawOverlayW.push(...validateOverlayText(synthTxt, "perspective_a", h));
+        _rawOverlayW.push(...validateOverlayText(synthTxt, "perspective_b", h));
+    }
+    const _seenOverlay = new Set();
+    const overlayW = _rawOverlayW.filter(w => {
+        const key = `${w.planet || ''}|${w.claimedHouse || ''}|${w.excerpt?.substring(0,80) || ''}`;
+        if (_seenOverlay.has(key)) return false;
+        _seenOverlay.add(key);
+        return true;
+    });
+    const predictW = validatePredictiveVocabulary(synthTxt, label);
+    const swapW = validatePersonSwap(synthTxt, "synthese", label);
+    const dignityW = validateDignityText(synthTxt, "synthese", label);
+    const total = signW.length + houseW.length + overlayW.length + predictW.length + swapW.length + dignityW.length;
+    if (total > 0) {
+        results.synthese = { signW, houseW, overlayW, predictW, swapW, dignityW, total };
+        results.totalWarnings += total;
+    }
+}
+
+// ── 8. VERDICT ──
+
+results.status = results.totalWarnings === 0 ? "CLEAN" : "WARNINGS_DETECTED";
+
+if (results.totalWarnings === 0) {
+    results.summary = "Aucune incohérence détectée entre les textes LLM et les données synastrie.";
+} else {
+    const categories = {};
+    const countType = (obj) => {
+        if (!obj) return;
+        Object.values(obj).forEach(section => {
+            if (!section || typeof section !== 'object') return;
+            Object.entries(section).forEach(([key, arr]) => {
+                if (Array.isArray(arr) && arr.length > 0) {
+                    const typeName = key.replace(/W$/, '');
+                    categories[typeName] = (categories[typeName] || 0) + arr.length;
+                }
+            });
+        });
+    };
+    countType(results.perspective_a);
+    countType(results.perspective_b);
+    if (results.synthese && typeof results.synthese === 'object') {
+        Object.entries(results.synthese).forEach(([key, arr]) => {
+            if (Array.isArray(arr) && arr.length > 0) {
+                const typeName = key.replace(/W$/, '');
+                categories[typeName] = (categories[typeName] || 0) + arr.length;
+            }
+        });
+    }
+
+    const detail = Object.entries(categories).map(([k, v]) => `${k}: ${v}`).join(", ");
+    results.summary = `${results.totalWarnings} incohérence(s) potentielle(s). Répartition: ${detail}.`;
+}
+
+return [{ json: results }];

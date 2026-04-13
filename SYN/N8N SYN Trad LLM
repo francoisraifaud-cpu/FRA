@@ -1,0 +1,69 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "jsCode": "// ==========================================\n// DÉCOUPAGE SYN TRAD v2.0\n// Prend la sortie de Reassemble SYN et la découpe\n// en items individuels pour la traduction séquentielle\n// Fix: ne retourne jamais un item d'erreur au traducteur\n// ==========================================\n\nconst reassembled = $input.first()?.json;\nif (!reassembled) return [];\n\nconst items = [];\n\nconst perspA = reassembled.perspective_a || {};\nObject.entries(perspA).forEach(([houseNum, data]) => {\n    if (data.llm_text && data.llm_text.trim()) {\n        items.push({ json: {\n            key: `perspective_a_${houseNum}`,\n            category: 'perspective_a',\n            house: parseInt(houseNum),\n            label: data.label || '',\n            score: data.score || 0,\n            is_principale: data.is_principale || false,\n            original_text: data.llm_text\n        }});\n    }\n});\n\nconst perspB = reassembled.perspective_b || {};\nObject.entries(perspB).forEach(([houseNum, data]) => {\n    if (data.llm_text && data.llm_text.trim()) {\n        items.push({ json: {\n            key: `perspective_b_${houseNum}`,\n            category: 'perspective_b',\n            house: parseInt(houseNum),\n            label: data.label || '',\n            score: data.score || 0,\n            is_principale: data.is_principale || false,\n            original_text: data.llm_text\n        }});\n    }\n});\n\nconst synthese = reassembled.synthese;\nif (synthese && synthese.llm_text && synthese.llm_text.trim()) {\n    items.push({ json: {\n        key: 'synthese',\n        category: 'synthese',\n        house: 0,\n        label: synthese.label || 'Synthèse',\n        score: null,\n        is_principale: false,\n        original_text: synthese.llm_text\n    }});\n}\n\nreturn items.length > 0 ? items : [];"
+      },
+      "id": "syn-trad-decoupe-001",
+      "name": "1. Découpage SYN Trad",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-2400, 4200]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Voici un extrait strict de l'analyse de synastrie astrologique (compatibilité relationnelle entre deux personnes) :\n\n---\n{{ $json.original_text }}\n---\n\nTon travail : Rendre CE TEXTE PRÉCIS parfaitement compréhensible pour un client qui n'y connaît absolument rien en astrologie.\n\nRÈGLE D'OR ABSOLUE : TU NE DOIS SOUS AUCUN PRÉTEXTE RÉSUMER LE TEXTE.\nTa réponse finale doit comporter EXACTEMENT le même nombre de paragraphes, détailler toutes les mêmes nuances relationnelles et psychologiques, et être AUSSI LONGUE que le texte original.\n\nCONSIGNES STRICTES :\n1. Supprime le jargon purement technique : Cuspide, Décan, Trigone, Carré, Conjonction, Opposition, Sextile, Quinconce, Pérégrin, Exil, Domicile, Chute, Exaltation, Chaîne de disposition, Stellium, Aspect, Orbe, Superposition, Overlay, Tier, Lot arabe, Part de Fortune, Almutem, Dignité essentielle, Réception mutuelle, Antiscia, Contra-antiscia, Parallèle de déclinaison, Contra-parallèle, Hors Limites (OOB), Midpoint, Vertex, Anti-Vertex, Thème Davison, Composite, Hayz, Appliquant, Séparant.\n2. CONSERVE les éléments intelligibles par un non-initié :\n   - Les NOMS DE PLANÈTES (Soleil, Lune, Mercure, Vénus, Mars, Jupiter, Saturne, Uranus, Neptune, Pluton, Chiron) : noms propres universellement compris.\n   - Les NOMS DE SIGNES (Bélier, Taureau, Scorpion, etc.) : repères culturels accessibles.\n   - Les ÉTOILES FIXES (Algol, Spica, Antarès, etc.) : noms propres qui apportent de la couleur.\n   - Les termes « Maison 1 » à « Maison 12 » doivent être remplacés par leur signification relationnelle (ex : « ta sphère relationnelle et d'engagement » au lieu de « Maison 7 », « ta sphère d'intimité profonde » au lieu de « Maison 8 »).\n3. Remplace la technique par l'explication du sens : Au lieu de « Vénus de B en trigone au Soleil de A », dis « La Vénus de [prénom B] s'harmonise avec le Soleil de [prénom A], créant un courant naturel d'affection et de reconnaissance mutuelle... ». Pour les parallèles de déclinaison, parle de « résonance profonde ». Pour les antiscia, parle de « lien caché ». Pour le thème Davison, parle de « l'essence même de la relation » ou « le thème de naissance de votre relation ». Pour le composite, parle de « la dynamique commune de votre couple ».\n4. Garde les titres de sections avec leurs marqueurs markdown (## et ###), les puces, la poésie et la profondeur psychologique du texte original.\n5. Conserve STRICTEMENT le pronom d'adresse et les accords de genre du texte original. Si le texte utilise « tu » et le masculin, garde-les. Si « elle » et le féminin, garde-les.\n6. NE RAJOUTE PAS d'introduction ou de conclusion. Rédige uniquement le texte transformé.\n7. Rédige dans la même langue que le texte original.\n8. CONTEXTE SYNASTRIE : ce texte parle de la dynamique entre deux personnes. Préserve toujours qui influence qui (la direction relationnelle).",
+        "options": {
+          "systemMessage": "Tu es un maître absolu en vulgarisation psychologique et astrologique relationnelle. Ton but est de réécrire un texte technique de synastrie (compatibilité entre deux personnes) en un récit fluide, poétique et intelligible, SANS JAMAIS le résumer.\n\nTu agis comme un filtre de jargon technique : tu supprimes les termes géométriques, calculatoires et ésotériques (Trigone, Carré, Cuspide, Orbe, Overlay, Tier, Lot arabe, Dignité, Réception mutuelle, Antiscia, Parallèle, Contra-parallèle, Midpoint, Vertex, Hayz, OOB, Appliquant, Séparant, etc.) mais tu CONSERVES les noms de planètes, de signes zodiacaux et d'étoiles fixes, car ils sont universellement compris. Tu peux parler de « thème de naissance de la relation » pour le Davison et le Composite.\n\nLe lecteur doit sentir la dynamique relationnelle entre les deux personnes sans avoir besoin d'un dictionnaire astrologique. Tu conserves 100% de la longueur, de l'architecture et des détails de l'analyse d'origine.\n\nGARDES DE FIDÉLITÉ ABSOLUES :\n- Ne JAMAIS changer le signe ou le secteur d'une planète lors de la reformulation.\n- Ne JAMAIS ajouter d'information astrologique absente du texte original.\n- Ne JAMAIS inventer de degrés zodiacaux, de dates ou d'aspects qui ne figurent pas dans le texte source.\n- Ne JAMAIS supprimer un paragraphe entier ou une interprétation — reformuler, pas résumer.\n- Ne JAMAIS changer le genre grammatical : conserver masculin ou féminin tel que dans l'original.\n- PRÉSERVER LA DIRECTION : si le texte dit que B influence A, ne JAMAIS reformuler comme si A influençait B.\n- INTERDICTION D'AMPLIFICATION : ne JAMAIS exagérer ou intensifier les qualificatifs du texte original. Si le texte dit 'influence notable', ne pas écrire 'influence dévastatrice'.\n- PRÉSERVER LES PRÉNOMS : ne JAMAIS remplacer un prénom par un autre ou par une formule générique."
+        }
+      },
+      "id": "syn-trad-agent-001",
+      "name": "2. Traducteur SYN",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [-2160, 4200]
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-3.1-pro-preview",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [-2160, 4420],
+      "id": "syn-trad-gemini-001",
+      "name": "Gemini Trad SYN",
+      "credentials": { "googlePalmApi": { "id": "CYaGbTvdLDOY2t1E", "name": "Google Gemini(PaLM) Api account" } }
+    },
+    {
+      "parameters": {
+        "jsCode": "// ==========================================\n// REASSEMBLE TRAD SYN v3.0\n// Reconstruit la structure perspective_a / perspective_b / synthese\n// à partir des items traduits par le Traducteur SYN\n// FIX v3: matching par key + gestion erreurs + label propagé\n// ==========================================\n\nconst items = $input.all();\n\nlet originalItems = [];\ntry { originalItems = $('1. Découpage SYN Trad').all(); } catch(e) {}\n\nlet synDataPassThrough = {};\ntry { synDataPassThrough = $('Reassemble SYN').first()?.json?.synData || {}; } catch(e) {\n    try { synDataPassThrough = $('5. Calcul SYN').first()?.json || {}; } catch(e2) {\n        try { synDataPassThrough = $('Calcul SYN').first()?.json || {}; } catch(e3) {}\n    }\n}\n\nconst result = {\n    perspective_a: {}, perspective_b: {}, synthese: null,\n    synData: synDataPassThrough,\n    _meta: { total_items: items.length, total_originals: originalItems.length, errors: [], translated: 0 }\n};\n\nif (items.length !== originalItems.length) {\n    result._meta.warning = `Attendu ${originalItems.length} traductions, reçu ${items.length}`;\n}\n\nitems.forEach((item, idx) => {\n    if (item.json?.error || item.json?.errorMessage) {\n        result._meta.errors.push({ idx, error: item.json?.errorMessage || item.json?.error });\n        return;\n    }\n\n    const translated = item.json?.output || item.json?.text || '';\n    if (!translated || translated.includes('skipped')) return;\n\n    const orig = originalItems[idx]?.json || {};\n    const key = orig.key || '';\n    const house = orig.house;\n    const score = orig.score;\n    const is_principale = orig.is_principale;\n    const label = orig.label || '';\n\n    if (!key) {\n        result._meta.errors.push({ idx, error: 'Aucune clé originale trouvée pour cet index' });\n        return;\n    }\n\n    result._meta.translated++;\n\n    if (key === 'synthese') {\n        result.synthese = { label, llm_text: translated };\n    } else if (key.startsWith('perspective_a_')) {\n        const h = key.replace('perspective_a_', '');\n        result.perspective_a[h] = { label, llm_text: translated, house, score, is_principale };\n    } else if (key.startsWith('perspective_b_')) {\n        const h = key.replace('perspective_b_', '');\n        result.perspective_b[h] = { label, llm_text: translated, house, score, is_principale };\n    }\n});\n\nreturn [{ json: result }];"
+      },
+      "id": "syn-trad-reassemble-001",
+      "name": "3. Reassemble Trad SYN",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-1920, 4200]
+    }
+  ],
+  "connections": {
+    "1. Découpage SYN Trad": {
+      "main": [[ {"node": "2. Traducteur SYN", "type": "main", "index": 0} ]]
+    },
+    "2. Traducteur SYN": {
+      "main": [[ {"node": "3. Reassemble Trad SYN", "type": "main", "index": 0} ]]
+    },
+    "Gemini Trad SYN": {
+      "ai_languageModel": [[ {"node": "2. Traducteur SYN", "type": "ai_languageModel", "index": 0} ]]
+    },
+    "3. Reassemble Trad SYN": {
+      "main": [[]]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "b6efd2f1fad5a0a294db5a1a7e88dd550900216aaeb7344a19bf4cfc45267781"
+  }
+}
