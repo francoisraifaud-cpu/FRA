@@ -1,0 +1,951 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $('Super noeud Syn').item.json.slot_a_1.prompt_user }}",
+        "options": {
+          "systemMessage": "={{ $('Super noeud Syn').item.json.slot_a_1.prompt_system }}"
+        }
+      },
+      "id": "00c39e4c-8926-4120-a7be-36a4da796d62",
+      "name": "SYN A1",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        -272,
+        960
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $('Super noeud Syn').item.json.slot_a_2.prompt_user }}",
+        "options": {
+          "systemMessage": "={{ $('Super noeud Syn').item.json.slot_a_2.prompt_system }}"
+        }
+      },
+      "id": "ea17d8d9-3817-4ff2-85be-591130fcf4a2",
+      "name": "SYN A2",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        -272,
+        1360
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $('Super noeud Syn').item.json.slot_a_3.prompt_user }}",
+        "options": {
+          "systemMessage": "={{ $('Super noeud Syn').item.json.slot_a_3.prompt_system }}"
+        }
+      },
+      "id": "a5bc45d9-20a4-47fd-b470-f327d9ced797",
+      "name": "SYN A3",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        -272,
+        1760
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $('Super noeud Syn').item.json.slot_a_4.prompt_user }}",
+        "options": {
+          "systemMessage": "={{ $('Super noeud Syn').item.json.slot_a_4.prompt_system }}"
+        }
+      },
+      "id": "cb88f55c-9d66-4e13-9025-c2f477ed9c6d",
+      "name": "SYN A4",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        -272,
+        2160
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $('Super noeud Syn').item.json.slot_a_5.prompt_user }}",
+        "options": {
+          "systemMessage": "={{ $('Super noeud Syn').item.json.slot_a_5.prompt_system }}"
+        }
+      },
+      "id": "51da0409-c1e1-4b27-aafb-213bac82d6ec",
+      "name": "SYN A5",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        -272,
+        2560
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $('Super noeud Syn').item.json.slot_a_6.prompt_user }}",
+        "options": {
+          "systemMessage": "={{ $('Super noeud Syn').item.json.slot_a_6.prompt_system }}"
+        }
+      },
+      "id": "81c5c2fa-3138-4bad-b966-9cf47a125e7d",
+      "name": "SYN A6",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        -272,
+        2960
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $('Super noeud Syn').item.json.slot_b_1.prompt_user }}",
+        "options": {
+          "systemMessage": "={{ $('Super noeud Syn').item.json.slot_b_1.prompt_system }}"
+        }
+      },
+      "id": "563b13c4-1676-469b-b742-c31a1d02b395",
+      "name": "SYN B1",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        208,
+        960
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $('Super noeud Syn').item.json.slot_b_2.prompt_user }}",
+        "options": {
+          "systemMessage": "={{ $('Super noeud Syn').item.json.slot_b_2.prompt_system }}"
+        }
+      },
+      "id": "aab0ad83-a4b9-4998-9003-71aa0acb96d2",
+      "name": "SYN B2",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        208,
+        1360
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $('Super noeud Syn').item.json.slot_b_3.prompt_user }}",
+        "options": {
+          "systemMessage": "={{ $('Super noeud Syn').item.json.slot_b_3.prompt_system }}"
+        }
+      },
+      "id": "e8f4a8bd-45a7-4620-948c-5e7f170c7a1e",
+      "name": "SYN B3",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        208,
+        1760
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $('Super noeud Syn').item.json.slot_b_4.prompt_user }}",
+        "options": {
+          "systemMessage": "={{ $('Super noeud Syn').item.json.slot_b_4.prompt_system }}"
+        }
+      },
+      "id": "fc329ded-7a52-46ae-84b1-a6959d581142",
+      "name": "SYN B4",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        208,
+        2160
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $('Super noeud Syn').item.json.slot_b_5.prompt_user }}",
+        "options": {
+          "systemMessage": "={{ $('Super noeud Syn').item.json.slot_b_5.prompt_system }}"
+        }
+      },
+      "id": "c07e0c82-d09e-46c2-a735-c60a8b741034",
+      "name": "SYN B5",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        208,
+        2560
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $('Super noeud Syn').item.json.slot_b_6.prompt_user }}",
+        "options": {
+          "systemMessage": "={{ $('Super noeud Syn').item.json.slot_b_6.prompt_system }}"
+        }
+      },
+      "id": "bca9e472-25ed-406d-a9b5-f02b2495404f",
+      "name": "SYN B6",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        208,
+        2960
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $('Super noeud Syn').item.json.slot_synth.prompt_user }}",
+        "options": {
+          "systemMessage": "={{ $('Super noeud Syn').item.json.slot_synth.prompt_system }}"
+        }
+      },
+      "id": "a6c25a32-35d1-44cc-b591-ea3c6e173ccb",
+      "name": "SYN Synthèse",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        688,
+        2368
+      ]
+    },
+    {
+      "parameters": {
+        "numberInputs": 3
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        1088,
+        2960
+      ],
+      "id": "979d14f5-0619-44eb-8513-b1046884ae09",
+      "name": "Merge Final"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ==========================================\n// REASSEMBLE SYN LLM v3.0\n// Rassemble les 13 résultats LLM parallèles\n// en structure exploitable pour les rapports HTML\n// Robustifié : gestion erreurs agents, validation\n// ==========================================\n\nconst allItems = $input.all();\nconst prepData = $('Super noeud Syn').first()?.json || {};\n\nlet synDataRef = prepData._synRef || {};\nif (!synDataRef.meta) {\n    try { synDataRef = $('5. Calcul SYN').first()?.json || {}; } catch(e) {\n        try { synDataRef = $('Calcul SYN').first()?.json || {}; } catch(e2) {}\n    }\n}\n\nconst result = {\n    perspective_a: {},\n    perspective_b: {},\n    synthese: null,\n    synData: synDataRef,\n    meta: {\n        total_prompts: allItems.length,\n        total_active: 0,\n        total_errors: 0,\n        total_skipped: 0,\n        errors: [],\n        timestamp: new Date().toISOString()\n    }\n};\n\nconst slotKeys = [\n    ...Array.from({length:6}, (_,i) => ({key: `slot_a_${i+1}`, dir: 'perspective_a'})),\n    ...Array.from({length:6}, (_,i) => ({key: `slot_b_${i+1}`, dir: 'perspective_b'})),\n    {key: 'slot_synth', dir: 'synthese'}\n];\n\nif (allItems.length !== slotKeys.length) {\n    result.meta.warning = `Attendu ${slotKeys.length} items, reçu ${allItems.length} — vérifier les agents LLM`;\n}\n\nfor (let idx = 0; idx < allItems.length && idx < slotKeys.length; idx++) {\n    const item = allItems[idx];\n    const slot = slotKeys[idx];\n    const slotData = prepData[slot.key];\n    if (!slotData || !slotData.active) {\n        result.meta.total_skipped++;\n        continue;\n    }\n\n    if (item.json?.error || item.json?.errorMessage) {\n        result.meta.total_errors++;\n        result.meta.errors.push({\n            slot: slot.key, house: slotData.house, label: slotData.label,\n            error: item.json?.errorMessage || item.json?.error || 'Agent LLM failure'\n        });\n        continue;\n    }\n\n    const llmText = item.json?.output || item.json?.text || item.json?.response || '';\n    if (!llmText || llmText.includes('skipped') || llmText.includes('\\\"skipped\\\"')) {\n        result.meta.total_skipped++;\n        continue;\n    }\n\n    result.meta.total_active++;\n\n    if (slot.dir === 'synthese') {\n        result.synthese = {\n            label: slotData.label,\n            llm_text: llmText\n        };\n    } else {\n        result[slot.dir][slotData.house] = {\n            house: slotData.house,\n            label: slotData.label,\n            score: slotData.score,\n            is_principale: slotData.is_principale,\n            llm_text: llmText\n        };\n    }\n}\n\nreturn [{ json: result }];"
+      },
+      "id": "d2ed7db7-2327-4d28-9275-cc396580ed95",
+      "name": "Reassemble SYN",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1408,
+        2560
+      ]
+    },
+    {
+      "parameters": {
+        "numberInputs": 6
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        208,
+        3440
+      ],
+      "id": "a98a28d6-e1fc-461a-bc50-bd02963606e9",
+      "name": "Merge A1"
+    },
+    {
+      "parameters": {
+        "numberInputs": 6
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        688,
+        3440
+      ],
+      "id": "e651e4bc-5281-418f-b788-f444251e2a45",
+      "name": "Merge B1"
+    },
+    {
+      "parameters": {},
+      "id": "51216a79-b75b-4636-a6e4-73925441366c",
+      "name": "Merge SYN Final1",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        -704,
+        2528
+      ],
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-3.1-pro-preview",
+        "options": {}
+      },
+      "id": "2d165c7b-0046-4841-a9e7-f14428702ae6",
+      "name": "Gemini A",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        -272,
+        1168
+      ],
+      "credentials": {
+        "googlePalmApi": {
+          "id": "CYaGbTvdLDOY2t1E",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-3.1-pro-preview",
+        "options": {}
+      },
+      "id": "6e26132d-0e51-4985-b805-fdf0dd48a931",
+      "name": "Gemini B1",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        208,
+        1168
+      ],
+      "credentials": {
+        "googlePalmApi": {
+          "id": "CYaGbTvdLDOY2t1E",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-3.1-pro-preview",
+        "options": {}
+      },
+      "id": "09c99a4b-4920-4de3-9d61-28856251c839",
+      "name": "Gemini A2",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        -272,
+        1568
+      ],
+      "credentials": {
+        "googlePalmApi": {
+          "id": "CYaGbTvdLDOY2t1E",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-3.1-pro-preview",
+        "options": {}
+      },
+      "id": "99fdbf2d-2d55-4fd3-9e1a-85051c418fac",
+      "name": "Gemini B2",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        208,
+        1568
+      ],
+      "credentials": {
+        "googlePalmApi": {
+          "id": "CYaGbTvdLDOY2t1E",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-3.1-pro-preview",
+        "options": {}
+      },
+      "id": "35aa0c6d-628d-4243-ba50-7280651bdc79",
+      "name": "Gemini A3",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        -272,
+        1968
+      ],
+      "credentials": {
+        "googlePalmApi": {
+          "id": "CYaGbTvdLDOY2t1E",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-3.1-pro-preview",
+        "options": {}
+      },
+      "id": "57905257-a2f8-4ab8-af86-a00bc9927483",
+      "name": "Gemini B3",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        208,
+        1968
+      ],
+      "credentials": {
+        "googlePalmApi": {
+          "id": "CYaGbTvdLDOY2t1E",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-3.1-pro-preview",
+        "options": {}
+      },
+      "id": "d338be1d-d4f6-4809-8e28-ad28ba8f2d03",
+      "name": "Gemini A4",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        -272,
+        2368
+      ],
+      "credentials": {
+        "googlePalmApi": {
+          "id": "CYaGbTvdLDOY2t1E",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-3.1-pro-preview",
+        "options": {}
+      },
+      "id": "64e8cfd2-a135-42e4-86d3-ec3ce1bcba22",
+      "name": "Gemini B4",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        208,
+        2368
+      ],
+      "credentials": {
+        "googlePalmApi": {
+          "id": "CYaGbTvdLDOY2t1E",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-3.1-pro-preview",
+        "options": {}
+      },
+      "id": "0530b661-6cb2-430b-9289-d5c0643aa58d",
+      "name": "Gemini A5",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        -272,
+        2752
+      ],
+      "credentials": {
+        "googlePalmApi": {
+          "id": "CYaGbTvdLDOY2t1E",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-3.1-pro-preview",
+        "options": {}
+      },
+      "id": "83b020d9-8761-4234-b297-20c68d251521",
+      "name": "Gemini B5",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        208,
+        2752
+      ],
+      "credentials": {
+        "googlePalmApi": {
+          "id": "CYaGbTvdLDOY2t1E",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-3.1-pro-preview",
+        "options": {}
+      },
+      "id": "757f86c3-048a-46b9-8e10-2ac5d1023b2c",
+      "name": "Gemini A6",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        -272,
+        3152
+      ],
+      "credentials": {
+        "googlePalmApi": {
+          "id": "CYaGbTvdLDOY2t1E",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-3.1-pro-preview",
+        "options": {}
+      },
+      "id": "7b1a8412-df7d-4315-9c3b-61e043285dc2",
+      "name": "Gemini B6",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        208,
+        3168
+      ],
+      "credentials": {
+        "googlePalmApi": {
+          "id": "CYaGbTvdLDOY2t1E",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-3.1-pro-preview",
+        "options": {}
+      },
+      "id": "13241225-b34b-4a3f-8a47-2ee0b4c07b12",
+      "name": "Gemini Synthèse",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        688,
+        2576
+      ],
+      "credentials": {
+        "googlePalmApi": {
+          "id": "CYaGbTvdLDOY2t1E",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "SYN A1": {
+      "main": [
+        [
+          {
+            "node": "Merge A1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SYN A2": {
+      "main": [
+        [
+          {
+            "node": "Merge A1",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "SYN A3": {
+      "main": [
+        [
+          {
+            "node": "Merge A1",
+            "type": "main",
+            "index": 2
+          }
+        ]
+      ]
+    },
+    "SYN A4": {
+      "main": [
+        [
+          {
+            "node": "Merge A1",
+            "type": "main",
+            "index": 3
+          }
+        ]
+      ]
+    },
+    "SYN A5": {
+      "main": [
+        [
+          {
+            "node": "Merge A1",
+            "type": "main",
+            "index": 4
+          }
+        ]
+      ]
+    },
+    "SYN A6": {
+      "main": [
+        [
+          {
+            "node": "Merge A1",
+            "type": "main",
+            "index": 5
+          }
+        ]
+      ]
+    },
+    "SYN B1": {
+      "main": [
+        [
+          {
+            "node": "Merge B1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SYN B2": {
+      "main": [
+        [
+          {
+            "node": "Merge B1",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "SYN B3": {
+      "main": [
+        [
+          {
+            "node": "Merge B1",
+            "type": "main",
+            "index": 2
+          }
+        ]
+      ]
+    },
+    "SYN B4": {
+      "main": [
+        [
+          {
+            "node": "Merge B1",
+            "type": "main",
+            "index": 3
+          }
+        ]
+      ]
+    },
+    "SYN B5": {
+      "main": [
+        [
+          {
+            "node": "Merge B1",
+            "type": "main",
+            "index": 4
+          }
+        ]
+      ]
+    },
+    "SYN B6": {
+      "main": [
+        [
+          {
+            "node": "Merge B1",
+            "type": "main",
+            "index": 5
+          }
+        ]
+      ]
+    },
+    "SYN Synthèse": {
+      "main": [
+        [
+          {
+            "node": "Merge Final",
+            "type": "main",
+            "index": 2
+          }
+        ]
+      ]
+    },
+    "Merge Final": {
+      "main": [
+        [
+          {
+            "node": "Reassemble SYN",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reassemble SYN": {
+      "main": [
+        []
+      ]
+    },
+    "Merge A1": {
+      "main": [
+        [
+          {
+            "node": "Merge Final",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge B1": {
+      "main": [
+        [
+          {
+            "node": "Merge Final",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge SYN Final1": {
+      "main": [
+        [
+          {
+            "node": "SYN A1",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "SYN A2",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "SYN A3",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "SYN A4",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "SYN A5",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "SYN A6",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "SYN B1",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "SYN B2",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "SYN B3",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "SYN B4",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "SYN B5",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "SYN B6",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "SYN Synthèse",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini A": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "SYN A1",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini B1": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "SYN B1",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini A2": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "SYN A2",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini B2": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "SYN B2",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini A3": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "SYN A3",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini B3": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "SYN B3",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini A4": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "SYN A4",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini B4": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "SYN B4",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini A5": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "SYN A5",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini B5": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "SYN B5",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini A6": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "SYN A6",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini B6": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "SYN B6",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini Synthèse": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "SYN Synthèse",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "b6efd2f1fad5a0a294db5a1a7e88dd550900216aaeb7344a19bf4cfc45267781"
+  }
+}

@@ -1,0 +1,108 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\n\nlet persoAStr = '', persoBStr = '', typoLabel = '';\ntry {\n  const synVars = $('Extract Variables SYN').first()?.json || {};\n  const pa = synVars.personne_a || {};\n  const pb = synVars.personne_b || {};\n  if (pa.prenom || pa.nom) persoAStr = `${pa.prenom || ''} ${(pa.nom || '').toUpperCase()}`.trim();\n  if (pb.prenom || pb.nom) persoBStr = `${pb.prenom || ''} ${(pb.nom || '').toUpperCase()}`.trim();\n  typoLabel = synVars.typologie || '';\n} catch(e) {}\nif (!persoAStr || !persoBStr || !typoLabel) {\n  try {\n    const prep = $('Super noeud Syn').first()?.json?._meta || {};\n    if (!persoAStr && prep.persoA) persoAStr = prep.persoA;\n    if (!persoBStr && prep.persoB) persoBStr = prep.persoB;\n    if (!typoLabel && prep.typo) typoLabel = prep.typo;\n  } catch(e) {}\n}\nconst safe = s => s.replace(/[<>:\\\"/|?*]/g, '_').trim();\npersoAStr = safe(persoAStr || 'Personne 1');\npersoBStr = safe(persoBStr || 'Personne 2');\ntypoLabel = safe(typoLabel || 'Synastrie');\nconst nomFichierCible = `Données Techniques Synastrie - ${typoLabel} - ${persoAStr} - ${persoBStr}`;\n\nfor (const item of items) {\n  if (!item.binary) continue;\n  if (item.binary.data) {\n    item.binary.data.fileName = `${nomFichierCible}.pdf`;\n    item.binary.data.mimeType = 'application/pdf';\n    item.binary.data.fileExtension = 'pdf';\n  }\n  if (item.binary.html_file) {\n    delete item.binary.html_file;\n  }\n}\n\nreturn items;"
+      },
+      "id": "e46b2ea2-1619-436c-ad5d-36d6c36a7fe8",
+      "name": "Fix Nom & MIME PDF final",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1568,
+        3008
+      ]
+    },
+    {
+      "parameters": {
+        "name": "={{ $binary.data.fileName }}",
+        "driveId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "My Drive"
+        },
+        "folderId": {
+          "__rl": true,
+          "value": "1Sp6Y0b4mtgA2DE-L1vmR6sogxw6taBqJ",
+          "mode": "id"
+        },
+        "options": {}
+      },
+      "id": "fa6c1c9c-572e-4e38-aa24-caab90f531e8",
+      "name": "Upload Google Drive1",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        -1376,
+        3008
+      ],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "9VfQaRqjSmo3Rv1Z",
+          "name": "Google Drive account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://46.225.174.155:3000/forms/chromium/convert/html",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "parameterType": "formBinaryData",
+              "name": "files",
+              "inputDataFieldName": "html_file"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          }
+        }
+      },
+      "id": "8b5fa3b9-8de3-4a93-bae9-227063bc73ff",
+      "name": "Convert HTML to PDF2",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -1808,
+        3008
+      ]
+    }
+  ],
+  "connections": {
+    "Fix Nom & MIME PDF final": {
+      "main": [
+        [
+          {
+            "node": "Upload Google Drive1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Convert HTML to PDF2": {
+      "main": [
+        [
+          {
+            "node": "Fix Nom & MIME PDF final",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "b6efd2f1fad5a0a294db5a1a7e88dd550900216aaeb7344a19bf4cfc45267781"
+  }
+}
