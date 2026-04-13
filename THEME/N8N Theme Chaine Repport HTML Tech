@@ -1,0 +1,163 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.isComplete }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "25baba32-28e3-482c-9c50-2875a7efb971",
+      "name": "Contrôle Données Complètes5",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        432,
+        3840
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst newItems = [];\n\nfor (let i = 0; i < items.length; i++) {\n  const json = items[i].json;\n  const htmlContent = json.html || \"<html><body>Erreur: Aucun HTML généré</body></html>\";\n  \n  // 1. Récupération des variables pour le nom du fichier\n  const nom = json.nom || \"\";\n  const prenom = json.prenom || \"\";\n  const dateBrute = json.date || \"\";\n  \n  // 2. Formatage du nom et de la date (ex: 12/11/1987 devient 12-11-1987)\n  const nomAffiche = prenom && nom ? `${prenom} ${nom}` : (prenom || nom || \"Inconnu\");\n  const dateFormatee = dateBrute.replace(/\\//g, '-');\n  \n  // 3. Création du nom de fichier final\n  let fileName = `index.html`;\n  \n  // 4. Création du binaire avec le nom personnalisé\n  const binaryData = await this.helpers.prepareBinaryData(Buffer.from(htmlContent), fileName, 'text/html');\n  \n  newItems.push({\n    json: json,\n    binary: {\n      data: binaryData\n    }\n  });\n}\n\nreturn newItems;"
+      },
+      "id": "8e5e3513-24df-4084-a16b-43e1b37610cd",
+      "name": "Prépare HTML pour Gotenberg5",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        672,
+        3840
+      ]
+    },
+    {
+      "parameters": {
+        "name": "={{ $binary.data.fileName }}",
+        "driveId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "My Drive"
+        },
+        "folderId": {
+          "__rl": true,
+          "value": "17eloVRLhvrAV5mHio-nQRg3QSLnhcNVz",
+          "mode": "id"
+        },
+        "options": {}
+      },
+      "id": "09193567-0a93-4f09-93da-e3e3ad3e62f0",
+      "name": "Upload Google Drive2",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        1360,
+        3840
+      ],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "9VfQaRqjSmo3Rv1Z",
+          "name": "Google Drive account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://46.225.174.155:3000/forms/chromium/convert/html",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "parameterType": "formBinaryData",
+              "name": "files",
+              "inputDataFieldName": "data"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          }
+        }
+      },
+      "id": "a0a8ba54-a5e0-4c4d-bef9-16a89e9c2513",
+      "name": "Convert HTML to PDF3",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        896,
+        3840
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\n\nlet nomFichierCible = \"Rapport Technique Thème Astral\";\ntry {\n  const perso = $('Extract Variables').first().json;\n  const prenom = (perso.prenom || '').trim();\n  const nom = (perso.nom || '').toUpperCase().trim();\n  const nomAffiche = prenom ? `${prenom} ${nom}` : nom;\n  const safeNom = nomAffiche.trim().replace(/[^a-zA-ZÀ-ÿ0-9 \\-]/g, '_');\n  nomFichierCible = `Rapport Technique Thème Astral - ${safeNom}`;\n} catch(e) {}\n\nfor (const item of items) {\n  if (!item.binary) continue;\n\n  // 1. On cible spécifiquement le vrai fichier PDF renvoyé par Gotenberg (sous la clé 'data')\n  if (item.binary.data) {\n    item.binary.data.fileName = `${nomFichierCible}.pdf`;\n    item.binary.data.mimeType = 'application/pdf';\n    item.binary.data.fileExtension = 'pdf';\n  }\n\n  // 2. On supprime le fichier HTML d'origine pour ne garder QUE le PDF et éviter les doublons\n  if (item.binary.html_file) {\n    delete item.binary.html_file;\n  }\n}\n\nreturn items;"
+      },
+      "id": "18bbb56b-5fc6-42d2-b700-b31b470333df",
+      "name": "Fix Nom & MIME PDF final3",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1136,
+        3840
+      ]
+    }
+  ],
+  "connections": {
+    "Contrôle Données Complètes5": {
+      "main": [
+        [
+          {
+            "node": "Prépare HTML pour Gotenberg5",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prépare HTML pour Gotenberg5": {
+      "main": [
+        [
+          {
+            "node": "Convert HTML to PDF3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Convert HTML to PDF3": {
+      "main": [
+        [
+          {
+            "node": "Fix Nom & MIME PDF final3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fix Nom & MIME PDF final3": {
+      "main": [
+        [
+          {
+            "node": "Upload Google Drive2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "b6efd2f1fad5a0a294db5a1a7e88dd550900216aaeb7344a19bf4cfc45267781"
+  }
+}

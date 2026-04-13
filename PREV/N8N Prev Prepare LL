@@ -1,0 +1,177 @@
+{
+    "nodes": [
+      {
+        "parameters": {
+          "jsCode": "const geo = $json;\nconst vars = $('Extract Variables').first().json;\n\nif (!geo || !geo.lat) {\n  throw new Error(\"Coordonnées GPS introuvables. geo=\" + JSON.stringify(geo));\n}\nif (!vars || !vars.date) {\n  throw new Error(\"Variables introuvables. vars=\" + JSON.stringify(vars));\n}\n\nconst d = vars.date.split('/');\nconst h = vars.heure.split(/[:Hh]/);\n\nconst birthDate = new Date(Date.UTC(parseInt(d[2]), parseInt(d[1]) - 1, parseInt(d[0]), parseInt(h[0]), parseInt(h[1]) || 0));\nconst timestamp = Math.floor(birthDate.getTime() / 1000);\n\nreturn [{ json: { lat: geo.lat, lon: geo.lon, timestamp: timestamp } }];"
+        },
+        "id": "bcb15c7f-c134-4904-ad57-84608ef283c2",
+        "name": "1b. Prepare Timezone1",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 1,
+        "position": [
+          -21616,
+          4064
+        ]
+      },
+      {
+        "parameters": {
+          "jsCode": "// PRÉV — remplace l’ancienne chaîne « 1c Get Timezone1 » + logique fuseau dans ce nœud.\n// Connexions : « 1b. Prepare Timezone1 » → CE nœud → suite (ex. 3a. Calcul Planètes1).\n// Heure CIVILE au lieu de naissance ; affine l’offset TimeZoneDB par itérations (DST / historique).\n// Nécessite typeVersion ≥ 2.\n\nconst vars = $(\"Extract Variables\").first().json;\nconst geo = $(\"1b. Prepare Timezone1\").first().json;\n\nif (!geo || geo.lat === undefined || geo.lat === null || String(geo.lat).trim() === \"\") {\n  throw new Error(\"Coordonnées GPS introuvables.\");\n}\nif (!vars || !vars.date) {\n  throw new Error(\"Variables introuvables.\");\n}\n\nconst lat = parseFloat(geo.lat);\nconst lon = parseFloat(geo.lon);\nif (!Number.isFinite(lat) || !Number.isFinite(lon)) {\n  throw new Error(\"Coordonnées GPS invalides.\");\n}\n\nconst d = vars.date.split(\"/\");\nconst h = vars.heure.split(/[:Hh]/);\nconst yy = parseInt(d[2], 10);\nconst mo = parseInt(d[1], 10);\nconst da = parseInt(d[0], 10);\nconst hh = parseInt(h[0], 10);\nconst mi = parseInt(h[1] || \"0\", 10);\n\nconst localNaiveUtcSec = Math.floor(Date.UTC(yy, mo - 1, da, hh, mi, 0) / 1000);\n\nconst TZ_KEY = \"UV443YWQRYUC\";\nlet U = localNaiveUtcSec;\nlet gmtOff = 0;\n\nfor (let iter = 0; iter < 4; iter++) {\n  const tzData = await this.helpers.httpRequest({\n    method: \"GET\",\n    url: \"http://api.timezonedb.com/v2.1/get-time-zone\",\n    qs: {\n      key: TZ_KEY,\n      format: \"json\",\n      by: \"position\",\n      lat: String(lat),\n      lng: String(lon),\n      time: String(U),\n    },\n    json: true,\n  });\n\n  if (!tzData || tzData.gmtOffset === undefined) {\n    throw new Error(\"Fuseau horaire introuvable. tzData=\" + JSON.stringify(tzData));\n  }\n  gmtOff = tzData.gmtOffset;\n  const nextU = localNaiveUtcSec - gmtOff;\n  if (Math.abs(nextU - U) <= 1) {\n    U = nextU;\n    break;\n  }\n  U = nextU;\n}\n\nconst tz = gmtOff / 3600;\n\nconst payload = {\n  year: yy,\n  month: mo,\n  date: da,\n  hours: hh,\n  minutes: mi,\n  seconds: 0,\n  latitude: lat,\n  longitude: lon,\n  timezone: tz,\n  config: {\n    observation_point: \"geocentric\",\n    ayanamsha: \"tropical\",\n    language: \"fr\",\n  },\n};\n\nreturn [{ json: { body: JSON.stringify(payload) } }];\n"
+        },
+        "id": "88325882-e618-4d57-b52f-4f6d20ffab3e",
+        "name": "2. Préparation dynamique1",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          -21328,
+          4064
+        ]
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "string": [
+              {
+                "operation": "isNotEmpty"
+              }
+            ]
+          }
+        },
+        "id": "dcbe67b1-42c4-4038-8955-a53705542148",
+        "name": "IF - Ville trouvée ?1",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 1,
+        "position": [
+          -22176,
+          3936
+        ]
+      },
+      {
+        "parameters": {
+          "assignments": {
+            "assignments": [
+              {
+                "id": "19b8c7d6-e5f4-4a3b-9c2d-1e0f8b7a6c5d",
+                "name": "latitude",
+                "value": "={{ $json.lat }}",
+                "type": "string"
+              },
+              {
+                "id": "28a7b6c5-d4e3-3b2a-8b1c-0d9e7a6b5c4d",
+                "name": "longitude",
+                "value": "={{ $json.lon }}",
+                "type": "string"
+              },
+              {
+                "id": "37c6a5b4-c3d2-2a1b-7a0b-9c8d6b5a4b3c",
+                "name": "adresse_officielle_trouvee",
+                "value": "={{ $json.display_name }}",
+                "type": "string"
+              }
+            ]
+          },
+          "options": {}
+        },
+        "id": "ecfde37e-792f-450f-bb42-c3a674c85af8",
+        "name": "Extraction Coordonnées1",
+        "type": "n8n-nodes-base.set",
+        "typeVersion": 3.4,
+        "position": [
+          -21936,
+          3840
+        ]
+      },
+      {
+        "parameters": {},
+        "id": "ace1660b-833c-4949-ad2f-559598276c8c",
+        "name": "Gestion Erreur (Ville introuvable)1",
+        "type": "n8n-nodes-base.noOp",
+        "typeVersion": 1,
+        "position": [
+          -21936,
+          4064
+        ]
+      },
+      {
+        "parameters": {
+          "jsCode": "// PRÉV — remplace l’ancien nœud HTTP « 1. Géocodage2 » (Nominatim seul).\n// Si le site a envoyé birth_place_lat / birth_place_lng valides → réutilise sans Nominatim.\n// Sinon → Nominatim (comportement historique).\n// Nécessite nœud Code typeVersion ≥ 2 (async + this.helpers.httpRequest).\n\nconst v = $input.first().json;\n\nfunction parseNum(x) {\n  if (x === null || x === undefined) return NaN;\n  if (typeof x === \"number\" && Number.isFinite(x)) return x;\n  if (typeof x === \"string\" && String(x).trim()) {\n    return parseFloat(String(x).trim().replace(\",\", \".\"));\n  }\n  return NaN;\n}\n\nconst lat0 = parseNum(v.birth_place_lat);\nconst lon0 = parseNum(v.birth_place_lng);\n\nif (\n  Number.isFinite(lat0) &&\n  Number.isFinite(lon0) &&\n  Math.abs(lat0) <= 90 &&\n  Math.abs(lon0) <= 180\n) {\n  const disp =\n    typeof v.birth_place_formatted_address === \"string\" && v.birth_place_formatted_address.trim()\n      ? v.birth_place_formatted_address.trim()\n      : [v.lieu, v.pays].filter(Boolean).join(\", \");\n  return [{ json: { lat: String(lat0), lon: String(lon0), display_name: disp } }];\n}\n\nconst lieu = encodeURIComponent((v.lieu || \"\").trim());\nconst pays = encodeURIComponent((v.pays || \"\").trim());\nconst url = `https://nominatim.openstreetmap.org/search?q=${lieu}%2C%20${pays}&format=json&limit=1`;\n\nconst rows = await this.helpers.httpRequest({\n  method: \"GET\",\n  url,\n  headers: { \"User-Agent\": \"n8n-astrology-bot-2026\" },\n  json: true,\n});\n\nif (!Array.isArray(rows) || rows.length === 0) {\n  return [{ json: {} }];\n}\n\nconst r = rows[0];\nreturn [{ json: { lat: r.lat, lon: r.lon, display_name: r.display_name } }];\n"
+        },
+        "id": "60062de7-8446-4368-adbb-1444cb685add",
+        "name": "1. Géocodage2",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          -22400,
+          3936
+        ]
+      }
+    ],
+    "connections": {
+      "1b. Prepare Timezone1": {
+        "main": [
+          [
+            {
+              "node": "2. Préparation dynamique1",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "IF - Ville trouvée ?1": {
+        "main": [
+          [
+            {
+              "node": "Extraction Coordonnées1",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Gestion Erreur (Ville introuvable)1",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Extraction Coordonnées1": {
+        "main": [
+          [
+            {
+              "node": "1b. Prepare Timezone1",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Gestion Erreur (Ville introuvable)1": {
+        "main": [
+          [
+            {
+              "node": "1b. Prepare Timezone1",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "1. Géocodage2": {
+        "main": [
+          [
+            {
+              "node": "IF - Ville trouvée ?1",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "pinData": {},
+    "meta": {
+      "templateCredsSetupCompleted": true,
+      "instanceId": "b6efd2f1fad5a0a294db5a1a7e88dd550900216aaeb7344a19bf4cfc45267781"
+    }
+  }

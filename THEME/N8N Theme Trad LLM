@@ -1,0 +1,128 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "jsCode": "const elementsManquants = [];\n\n// Liste des noms exacts de vos nœuds à vérifier\nconst nodesToVerify = [\n  \"Maison 1\", \"Maison 2\", \"Maison 3\", \"Maison 4\", \n  \"Maison 5\", \"Maison 6\", \"Maison 7\", \"Maison 8\", \n  \"Maison 9\", \"Maison 10\", \"Maison 11\", \"Maison 12\",\n  \"Synthèse Globale1\"\n];\n\nfor (const nodeName of nodesToVerify) {\n  try {\n    // On vérifie si le nœud a généré une sortie\n    const data = $(nodeName).first();\n    if (!data || !data.json) {\n      elementsManquants.push(nodeName);\n    }\n  } catch (e) {\n    elementsManquants.push(nodeName);\n  }\n}\n\n// LOGIQUE DE BLOCAGE\nif (elementsManquants.length > 0) {\n  console.log(\"Attente de : \" + elementsManquants.join(\", \"));\n  // IMPORTANT : Retourner un tableau vide ARRÊTE l'exécution de cette branche\n  return []; \n}\n\n// Si on arrive ici, tout est fini\nreturn [{ \n  json: { \n    status: \"COMPLET\", \n    message: \"Toutes les analyses sont prêtes.\" \n  } \n}];"
+      },
+      "id": "2a39f99b-7b60-487b-bcb6-2b7d7a1a63d6",
+      "name": "0. Gatekeeper (Attente)2",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -32,
+        2928
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = [];\n\nfor (let i = 1; i <= 12; i++) {\n  let content = \"\";\n  try { \n      content = $(`Maison ${i}`).first().json.output || $(`Maison ${i}`).first().json.text || \"\"; \n  } catch (e) {}\n  \n  if (content) {\n      items.push({ json: { key: `maison_${i}`, original_text: content } });\n  }\n}\n\nlet synth = \"\";\ntry { \n    synth = $('Synthèse Globale1').first().json.output || $('Synthèse Globale1').first().json.text || \"\"; \n} catch(e) {}\n\nif (synth) {\n    items.push({ json: { key: 'synthese', original_text: synth } });\n}\n\nreturn items;"
+      },
+      "id": "7dc101e5-9fc3-42bd-a925-96609e3e2851",
+      "name": "1. Découpage (Boucle)2",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        576,
+        2944
+      ]
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        384,
+        2944
+      ],
+      "id": "281cc5f6-2d69-4594-9874-5afd6944af6c",
+      "name": "Merge1"
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-3.1-pro-preview",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        784,
+        3120
+      ],
+      "id": "d88e5d5a-234e-4ae1-9353-88213621187d",
+      "name": "Google Gemini Chat Model2"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Voici un extrait strict de l'analyse astrologique (Maison ou Synthèse) de cette personne :\n\n---\n{{ $json.original_text }}\n---\n\nTon travail : Rendre CE TEXTE PRÉCIS parfaitement compréhensible pour un client qui n'y connaît absolument rien en astrologie.\n\nRÈGLE D'OR ABSOLUE : TU NE DOIS SOUS AUCUN PRÉTEXTE RÉSUMER LE TEXTE.\nTa réponse finale doit comporter EXACTEMENT le même nombre de paragraphes, détailler toutes les mêmes nuances psychologiques, et être AUSSI LONGUE que le texte original.\n\nCONSIGNES STRICTES :\n1. Supprime le jargon purement technique : Cuspide, Décan, Trigone, Carré, Conjonction, Opposition, Sextile, Quinconce, Pérégrin, Exil, Domicile, Chaîne de disposition, Stellium, Aspect, Orbe, Profection, Firdaria, Arc solaire, Transit, Progression.\n2. CONSERVE les éléments intelligibles par un non-initié :\n   - Les NOMS DE PLANÈTES (Soleil, Lune, Mercure, Vénus, Mars, Jupiter, Saturne, Uranus, Neptune, Pluton, Chiron) : ce sont des noms propres universellement compris.\n   - Les NOMS DE SIGNES (Bélier, Taureau, Scorpion, etc.) : ils servent de repères culturels accessibles.\n   - Le mot ÉCLIPSE : universellement compris.\n   - Les ÉTOILES FIXES (Algol, Spica, Antarès, etc.) : noms propres qui apportent de la couleur.\n   - Les termes Maison 1 à 12 doivent être remplacés par leur signification (ex: \"ta sphère relationnelle\" au lieu de \"Maison 7\").\n3. Remplace la technique par l'explication du sens : Au lieu de dire \"Mars carré Jupiter amène une tension\", dis \"Mars et Jupiter s'affrontent dans ton ciel, créant une lutte intérieure entre l'envie de foncer et le besoin de voir plus grand...\".\n4. Garde les titres avec leurs marqueurs markdown (## et ###), garde les puces, garde la poésie et la profondeur psychologique du texte original.\n5. Conserve STRICTEMENT le pronom d'adresse et les accords de genre du texte original. Si le texte original utilise le masculin (motivé, inspiré, né, appelé, fait), ta reformulation DOIT utiliser le masculin. Si le texte original utilise le féminin, ta reformulation DOIT utiliser le féminin. Ne JAMAIS changer le genre.\n6. NE RAJOUTE PAS d'introduction (du type \"Voici la traduction...\") ou de conclusion. Rédige uniquement le texte transformé.\n7. Rédige ta réponse dans la même langue que le texte original. ",
+        "options": {
+          "systemMessage": "Tu es un maître absolu en vulgarisation psychologique et astrologique. Ton but est de réécrire un texte technique complexe en un récit fluide, poétique et intelligible, SANS JAMAIS le résumer. Tu agis comme un filtre de jargon technique : tu supprimes les termes géométriques et calculatoires (Trigone, Carré, Cuspide, Orbe, etc.) mais tu CONSERVES les noms de planètes, de signes zodiacaux, d'étoiles fixes et le mot éclipse, car ils sont universellement compris et apportent une couleur essentielle au texte. Le lecteur doit pouvoir tracer le fil astrologique sans avoir besoin d'un dictionnaire. Tu conserves 100% de la longueur, de l'architecture et des détails de l'analyse d'origine.\n\nGARDES DE FIDÉLITÉ ABSOLUES :\n- Ne JAMAIS changer le signe ou la maison d'une planète lors de la reformulation. Si le texte dit 'Mars en Bélier' ou 'Mars en M1', ta reformulation doit conserver Mars, Bélier et la référence au secteur correspondant.\n- Ne JAMAIS ajouter d'information astrologique absente du texte original (pas de nouvelles planètes, aspects, dates ou interprétations).\n- Ne JAMAIS inventer de degrés zodiacaux, de dates ou d'aspects qui ne figurent pas dans le texte source.\n- Ne JAMAIS supprimer un paragraphe entier ou une interprétation — reformuler, pas résumer.\n- Ne JAMAIS changer le genre grammatical : si le texte original est au masculin, ta reformulation DOIT rester au masculin (né, motivé, inspiré, appelé). Si au féminin, rester au féminin.\n- PRÉCISION DES ORBES : si le texte dit 'à proximité de' ou 'dans l'orbe de', ne JAMAIS reformuler en 'exactement sur' ou 'pile sur'. Conserver le degré de précision original.\n- ÉTOILES FIXES : si le texte ne dit PAS qu'une étoile est 'activée' ou 'conjointe', ne JAMAIS ajouter cette notion.\n- INTERDICTION D'AMPLIFICATION : ne JAMAIS exagérer ou intensifier les qualificatifs du texte original."
+        }
+      },
+      "id": "ef03d19a-7710-4466-9f1d-d973d7617fa3",
+      "name": "2. Traducteur (1 par 1)",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        784,
+        2944
+      ]
+    }
+  ],
+  "connections": {
+    "0. Gatekeeper (Attente)2": {
+      "main": [
+        [
+          {
+            "node": "Merge1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "1. Découpage (Boucle)2": {
+      "main": [
+        [
+          {
+            "node": "2. Traducteur (1 par 1)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge1": {
+      "main": [
+        [
+          {
+            "node": "1. Découpage (Boucle)2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model2": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "2. Traducteur (1 par 1)",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "2. Traducteur (1 par 1)": {
+      "main": [
+        []
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "b6efd2f1fad5a0a294db5a1a7e88dd550900216aaeb7344a19bf4cfc45267781"
+  }
+}

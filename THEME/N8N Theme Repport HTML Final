@@ -1,0 +1,343 @@
+const items = $input.all();
+let vars = {};
+try { vars = $("Extract Variables").first()?.json || {}; } catch(e) {}
+const langue = vars.langue || 'Français';
+const isEN = langue !== 'Français';
+let astroData = { maisons: [], planetes: [], etoileMatches: [], etoileCuspMatches: [], paranResults: [] };
+try { astroData = $("Enrichissement Astrologique").first()?.json || astroData; } catch(e) {}
+const _etoileMatches = astroData.etoileMatches || [];
+const _etoileCuspMatches = astroData.etoileCuspMatches || [];
+const _stellarByPlanet = {};
+_etoileMatches.forEach(em => { if (em.isAngle) return; if (!_stellarByPlanet[em.planete]) _stellarByPlanet[em.planete] = []; _stellarByPlanet[em.planete].push(em); });
+const _stellarByCusp = {};
+_etoileCuspMatches.forEach(ec => { const h = ec.maison || ec.house; if (h) { if (!_stellarByCusp[h]) _stellarByCusp[h] = []; _stellarByCusp[h].push(ec); }});
+const _paranResults = astroData.paranResults || [];
+
+const _plTF = astroData.planetes || [];
+const _solSignTF = _plTF.find(p => (p.planet?.fr || p.planet?.en) === "Soleil")?.zodiac_sign?.name?.fr || "";
+const _lunSignTF = _plTF.find(p => (p.planet?.fr || p.planet?.en) === "Lune")?.zodiac_sign?.name?.fr || "";
+const _ascSignTF = (astroData.maisons || []).find(h => h.maison === 1)?.segments?.find(s => s.type === "Cuspide")?.signe || "";
+const _lumHeaderTF = isEN
+    ? `Sun: ${_solSignTF} / Ascendant: ${_ascSignTF} / Moon: ${_lunSignTF}`
+    : `Soleil : ${_solSignTF} / Ascendant : ${_ascSignTF} / Lune : ${_lunSignTF}`;
+
+const _lotsByHouseTF = {};
+{
+    const _mTF = astroData.maisons || [];
+    const _nplTF = astroData.planetes || [];
+    const _ndTF = {};
+    _nplTF.forEach(p => { const n = p.planet?.fr || p.planet?.en || p.name || ""; _ndTF[n] = p.degree_decimal || 0; });
+    const _fnhTF = (deg) => {
+        for (const h of _mTF) { for (const seg of (h.segments || [])) { if (seg.type === "Cuspide") { const start = seg.degre_decimal || 0; const nextH = _mTF.find(hh => hh.maison === (h.maison % 12) + 1); const end = nextH?.segments?.find(s => s.type === "Cuspide")?.degre_decimal || (start + 30); let d = deg, s = start, e = end; if (e < s) { if (d < s) d += 360; e += 360; } if (d >= s && d < e) return h.maison; } } }
+        return 1;
+    };
+    const _aTF = _ndTF["Ascendant"], _sTF = _ndTF["Soleil"], _moTF = _ndTF["Lune"];
+    if (_aTF !== undefined && _sTF !== undefined && _moTF !== undefined) {
+        const isDCTF = (((_sTF - _aTF) + 360) % 360) > 180;
+        const lcTF = (a,b,c) => (((a+b-c)%360)+360)%360;
+        const liTF = (a,b,c) => (((a+c-b)%360)+360)%360;
+        const LOT_SET_TF = new Set();
+        _nplTF.forEach(p => { const n = p.planet?.fr || p.planet?.en || p.name || ""; if (n.startsWith("Lot ") || n === "Part de Fortune") LOT_SET_TF.add(n); });
+        _mTF.forEach(h => { (h.segments || []).forEach(seg => { (seg.locataires || []).forEach(l => { const nm = l.planete || ""; if (nm.startsWith("Lot ") || nm === "Part de Fortune") LOT_SET_TF.add(nm); }); }); });
+        const pushTF = (name, deg) => { if (LOT_SET_TF.has(name)) return; const house = _fnhTF(deg); if (!_lotsByHouseTF[house]) _lotsByHouseTF[house] = []; _lotsByHouseTF[house].push(name); };
+        const pofTF = isDCTF ? lcTF(_aTF,_moTF,_sTF) : lcTF(_aTF,_sTF,_moTF);
+        pushTF("Part de Fortune", pofTF);
+        const posTF = isDCTF ? lcTF(_aTF,_sTF,_moTF) : lcTF(_aTF,_moTF,_sTF);
+        pushTF("Lot de l'Esprit", posTF);
+        const _maTF = _ndTF["Mars"], _veTF = _ndTF["Vénus"], _saTF = _ndTF["Saturne"], _meTF = _ndTF["Mercure"], _juTF = _ndTF["Jupiter"];
+        if (_meTF !== undefined) pushTF("Lot de Nécessité", isDCTF ? lcTF(_aTF,pofTF,_meTF) : liTF(_aTF,pofTF,_meTF));
+        if (_veTF !== undefined) pushTF("Lot d'Éros", isDCTF ? lcTF(_aTF,_veTF,posTF) : liTF(_aTF,_veTF,posTF));
+        if (_maTF !== undefined) pushTF("Lot de Courage", isDCTF ? lcTF(_aTF,pofTF,_maTF) : liTF(_aTF,pofTF,_maTF));
+        if (_saTF !== undefined) pushTF("Lot de Némésis", isDCTF ? lcTF(_aTF,pofTF,_saTF) : liTF(_aTF,pofTF,_saTF));
+        pushTF("Lot de Basis", lcTF(_aTF,pofTF,posTF));
+        pushTF("Lot d'Exaltation", lcTF(_aTF,19,_sTF));
+        pushTF("Lot du Daemon", isDCTF ? lcTF(_aTF,_sTF,posTF) : liTF(_aTF,_sTF,posTF));
+        if (_maTF !== undefined) pushTF("Lot de Victoire", isDCTF ? lcTF(_aTF,_juTF||0,posTF) : liTF(_aTF,_juTF||0,posTF));
+        if (_saTF !== undefined && _sTF !== undefined) pushTF("Lot du Père", isDCTF ? lcTF(_aTF,_saTF,_sTF) : lcTF(_aTF,_sTF,_saTF));
+        if (_veTF !== undefined && _moTF !== undefined) pushTF("Lot de la Mère", isDCTF ? lcTF(_aTF,_moTF,_veTF) : lcTF(_aTF,_veTF,_moTF));
+        if (_saTF !== undefined && _maTF !== undefined) pushTF("Lot de Maladie", isDCTF ? lcTF(_aTF,_maTF,_saTF) : lcTF(_aTF,_saTF,_maTF));
+        const _dTF = (_aTF + 180) % 360;
+        if (_veTF !== undefined) pushTF("Lot du Mariage", isDCTF ? lcTF(_aTF,_dTF,_veTF) : lcTF(_aTF,_veTF,_dTF));
+        pushTF("Lot des Enfants", isDCTF ? lcTF(_aTF,_juTF||0,_saTF||0) : liTF(_aTF,_juTF||0,_saTF||0));
+        if (_saTF !== undefined) pushTF("Lot de Voyage", isDCTF ? lcTF(_aTF,_saTF||0,_juTF||0) : liTF(_aTF,_saTF||0,_juTF||0));
+    }
+}
+
+let data = {
+    nom: vars.nom || "Inconnu",
+    prenom: vars.prenom || "",
+    nomAffiche: ((vars.prenom || "") + " " + (vars.nom || "").toUpperCase()).trim() || "Utilisateur",
+    date: vars.date || "--/--/----",
+    heure: vars.heure || "--H--",
+    lieu: vars.lieu || "Lieu inconnu",
+    maisons: {},
+    synthese: ""
+};
+
+// On récupère les textes d'analyse générés par l'IA depuis les items d'entrée
+items.forEach((item, index) => {
+    const txt = item.json?.output || item.json?.text || "";
+    if (index < 12) {
+        data.maisons['m' + (index + 1)] = txt;
+    } else {
+        data.synthese = txt;
+    }
+});
+
+const ZODIAC_MAP = {
+    "Bélier": "♈", "Taureau": "♉", "Gémeaux": "♊", "Cancer": "♋",
+    "Lion": "♌", "Vierge": "♍", "Balance": "♎", "Scorpion": "♏",
+    "Sagittaire": "♐", "Capricorne": "♑", "Verseau": "♒", "Poissons": "♓"
+};
+
+const esc = (t) => String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+
+const inline = (t) => {
+  const escaped = esc(t);
+  return escaped
+    .replace(/\*\*\*(.*?)\*\*\*/g, '<strong><em>$1</em></strong>')
+    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.*?)\*/g, '<em>$1</em>');
+};
+
+const md = (text) => {
+  if (!text) return '<p style="color: #aaa; font-style: italic; font-size: 14px;">' + (isEN ? 'Content not received...' : 'Contenu non reçu...') + '</p>';
+  // Pré-processing A : titre gras wrappé → "**1. Début\ncontinuation**"
+  // ^  ancre au début de ligne pour ne PAS matcher après un préfixe ### ou ##
+  text = String(text)
+    .replace(/^([\*]{0,3}\d[\d.]*[\.\)]\s[^\n]{4,})\n([^\n\*]{3,80}[\*]{1,3})/gm, '$1 $2');
+  // Pré-processing B : parenthèse non fermée en fin de ligne numérotée
+  // "2) Titre (Score 117 - Priorité\nAbsolue) Suite..." → rejoint le fragment fermant
+  text = text.replace(
+    /^([\*]{0,3}\d[\d.]*[\.\)]\s[^\n]*\([^\n)]*)\n([\wÀ-ÿ\u2019\u2018'-]+\))/gm,
+    '$1 $2');
+  // Pré-processing C : continuation très courte (< 25 car, sans point) après titre numéroté
+  text = text.replace(
+    /^([\*]{0,3}\d[\d.]*[\.\)]\s[^\n]{30,140})\n([^\n\d\*\#\.]{2,25})\n/gm,
+    '$1 $2\n');
+  // Pré-processing D : LLM colle titre et corps sur une même ligne avec "##"/"###" comme séparateur
+  // "## Titre ## Corps" ou "### 1.2) Titre ### Corps" → sépare en deux lignes
+  text = text.replace(/^(#{1,3} .+?)\s+#{2,}\s+([^\n]+)$/gm, '$1\n$2');
+  const lines = text.split('\n');
+  const out = [];
+  let inList = false;
+  for (let line of lines) {
+    const isBullet = /^[-*]\s+\S/.test(line) && !/^\*\*/.test(line);
+    if (!isBullet && inList) { out.push('</ul>'); inList = false; }
+
+    // --- Normalisation des titres ---
+    // Strip global des marqueurs ATX fermants : "## Title ##", "1.2) Title ###", "## Title ###"
+    // Couvre tous les cas où le LLM omet le marqueur ouvrant mais garde le fermant.
+    line = line.replace(/\s+#+\s*$/, '');
+    // Texte nu (stripped) pour la détection. Pour "1.1) Label : Contenu long", on émet h5+p séparés.
+    const stripped = line.replace(/\*/g, '');
+    let lineHandled = false;
+
+    // # ou ## → titre bleu (niveau 1) ; ### et au-delà → sous-titre sombre (niveau 2)
+    // Le prompt LLM impose ## pour les sections et ### pour les sous-sections
+    if (/^#{1,2} /.test(line)) {
+      line = '### ' + line.replace(/^#{1,2} /, '').replace(/\*/g, '');
+    } else if (/^#{3,} /.test(line)) {
+      line = '#### ' + line.replace(/^#{3,} /, '').replace(/\*/g, '');
+    } else {
+      const subMatch = stripped.match(/^(\d+\.\d+[.)]\s+)(.+)$/);
+      if (subMatch) {
+        const prefix = subMatch[1];
+        const rest   = subMatch[2];
+        const colon  = rest.indexOf(' : ');
+        if (colon > 0 && colon <= 90) {
+          const after = rest.slice(colon + 3);
+          if (after.length > 60) {
+            out.push(`<h5 style="font-family: 'Source Sans 3', 'Segoe UI', sans-serif; font-size: 15px; font-weight: 700; color: #1a1a2e; margin: 16px 0 4px; line-height: 1.4;">${esc(prefix + rest.slice(0, colon))}</h5>`);
+            if (after.trim()) out.push(`<p style="font-size: 15.5px; line-height: 1.82; color: #2c2c3a; margin: 4px 0 9px; text-align: justify;">${inline(after)}</p>`);
+            lineHandled = true;
+          } else if ((prefix + rest).length <= 130) {
+            line = '#### ' + prefix + rest;
+          }
+        } else if ((prefix + rest).length <= 130) {
+          line = '#### ' + prefix + rest;
+        }
+      } else {
+        const mainMatch = stripped.match(/^(\d+[.)]\s+)(.+)$/);
+        if (mainMatch) {
+          const prefix = mainMatch[1];
+          const rest   = mainMatch[2];
+          if ((prefix + rest).length <= 155) {
+            line = '### ' + prefix + rest;
+          } else {
+            const colon = rest.indexOf(' : ');
+            if (colon > 0 && colon <= 120) {
+              const after = rest.slice(colon + 3);
+              out.push(`<h4 style="font-family: 'Source Sans 3', 'Segoe UI', sans-serif; font-size: 16px; font-weight: 700; color: #2E5FA3; margin: 24px 0 8px; padding-left: 12px; border-left: 3px solid #2E5FA3; line-height: 1.4;">${esc(prefix + rest.slice(0, colon))}</h4>`);
+              if (after.trim()) out.push(`<p style="font-size: 15.5px; line-height: 1.82; color: #2c2c3a; margin: 9px 0; text-align: justify;">${inline(after)}</p>`);
+              lineHandled = true;
+            } else {
+              line = '### ' + prefix + rest;
+            }
+          }
+        } else if (/^\*{2,3}[^*]{4,120}\*{2,3}$/.test(line)) {
+          line = '### ' + stripped;
+        } else if (/^(conclusion|synthèse|en\s+synthèse|en\s+conclusion|recommandation)/i.test(stripped) && stripped.length < 120) {
+          // Headers "Conclusion :" / "Synthèse et recommandation" écrits sans ** ni # par le prompt LLM
+          const colonIdx = stripped.indexOf(' : ');
+          if (colonIdx > 0 && colonIdx <= 50 && stripped.slice(colonIdx + 3).trim().length > 20) {
+            out.push(`<h4 style="font-family: 'Source Sans 3', 'Segoe UI', sans-serif; font-size: 16px; font-weight: 700; color: #2E5FA3; margin: 24px 0 8px; padding-left: 12px; border-left: 3px solid #2E5FA3; line-height: 1.4;">${esc(stripped.slice(0, colonIdx))}</h4>`);
+            out.push(`<p style="font-size: 15.5px; line-height: 1.82; color: #2c2c3a; margin: 9px 0; text-align: justify;">${inline(stripped.slice(colonIdx + 3))}</p>`);
+            lineHandled = true;
+          } else {
+            line = '### ' + stripped;
+          }
+        }
+      }
+    }
+
+    if (lineHandled) continue;
+
+    if (line.startsWith('### ')) {
+      out.push(`<h4 style="font-family: 'Source Sans 3', 'Segoe UI', sans-serif; font-size: 16px; font-weight: 700; color: #2E5FA3; margin: 24px 0 8px; padding-left: 12px; border-left: 3px solid #2E5FA3; line-height: 1.4;">${esc(line.replace(/^### /, ''))}</h4>`);
+    } else if (line.startsWith('#### ')) {
+      out.push(`<h5 style="font-family: 'Source Sans 3', 'Segoe UI', sans-serif; font-size: 15px; font-weight: 700; color: #1a1a2e; margin: 16px 0 6px; line-height: 1.4;">${esc(line.replace(/^#### /, ''))}</h5>`);
+    } else if (isBullet) {
+      if (!inList) { out.push('<ul style="margin: 10px 0 12px 20px; padding: 0;">'); inList = true; }
+      out.push(`<li style="font-size: 15.5px; line-height: 1.82; color: #2c2c3a; margin: 7px 0;">${inline(line.replace(/^[-*]\s+/, ''))}</li>`);
+    } else if (line.startsWith('---')) {
+      out.push('<hr style="border: 0; border-top: 1px solid #e8ebf5; margin: 22px 0;">');
+    } else if (line.trim() === '') {
+      out.push('<div style="height: 10px;"></div>');
+    } else {
+      out.push(`<p style="font-size: 15.5px; line-height: 1.82; color: #2c2c3a; margin: 9px 0; text-align: justify;">${inline(line)}</p>`);
+    }
+  }
+  if (inList) out.push('</ul>');
+  return out.join('');
+};
+
+const MAISONS_META = [
+  { n:1,  titre:"Maison 1 — L'Ascendant",        domaines:"Identité · Apparence · Tempérament inné",     description: "Cette maison est le pilier du thème astral de l’individu, elle est la ligne de départ de sa personnalité et définit l’angle de vue de tous les autres secteurs de sa vie (toutes les autres maisons) . Elle incarne sa singularité, son identité extérieure, son image projetée au monde. Elle représente l’apparence physique de l’individu, son tempérament, et la façon dont les autres le perçoivent. Cette maison incarne la vitalité de l’individu, comment il s’affirme face au monde, ainsi que ses premiers réflexes dans les situations de la vie (réflexes perçus au premier abord par les autres, ou “carapace extérieure” de protection de son identité profonde). En quelques mots, il s’agit de la maison ou : Je suis et j’incarne." },
+  { n:2,  titre:"Maison 2 — Les Possessions",    domaines:"Argent · Valeurs · Ressources",                description:"C'est la maison de l'argent que l’individu gagne, de ses biens matériels, de ses possessions immatérielles, de son estime de lui-même et de ses talents innés. Elle représente ses besoins primaires : se nourrir, se loger, se protéger ainsi que son rapport profond à la stabilité. Cette maison incarne sa chance financière, mais ne concerne que son propre compte en banque ou ses possessions personnelles (contrairement à la maison 8, qui gère, l'argent partagé avec les autres). En quelques mots, il s’agit de la maison du : J’ai." },
+  { n:3,  titre:"Maison 3 — La Communication",   domaines:"Communication · Études · Proches",              description:"C’est la maison qui régit la façon de penser, de raisonner, de parler de l’individu. Elle régit ses petits déplacements (vélo, voiture, train, marche), ses communications techniques (smartphone, e-mails, échanges rapides), ses relations avec ses frères et sœurs, ses voisins, son entourage de proximité (les relations non choisies, ou la communication est informelle et légère). Cette maison commande l’apprentissage quotidien, concret, curieux et horizontal de l’individu (contrairement à la maison 9, qui gère, l’apprentissage des concepts abstraits, les hautes études, et contrairement à la maison 6 qui gère, l’apprentissage au travail). En quelques mots, il s’agit de la maison ou : Je pense." },
+  { n:4,  titre:"Maison 4 — Le Foyer",           domaines:"Famille · Racines · Enfance",                  description:"C'est la maison du foyer privé, de la famille, de l’enfance (souvenirs), des origines de l’individu (au sens héréditaires, et patrimoniales). Il s’agit de la “racine de son arbre” : qui incarne pleinement son passé, sa vie privée, son refuge, son “cocon”. C'est là où il se sent chez lui (il peut s’agir de sa maison physique, comme de sa ville d’origine). Cette maison régit également l’intimité cachée de l’individu, sa base émotionnelle (relations avec ses parents, en lien avec la sécurité émotionnelle), son “jardin secret”. Elle régit aussi les amis considérés comme des frères / sœurs, ainsi que les fins de vie et les fins de cycle (enfance, tout comme vieillesse tranquille). En quelques mots, il s’agit de la maison ou : Je ressens." },
+  { n:5,  titre:"Maison 5 — Les Plaisirs",       domaines:"Créativité · Amour · Enfants",                  description:"Il s’agit de la maison des enfants, des amours romantiques (flirts) et des loisirs. Elle régit la création artistique, la prise de risque de l’individu (son rapport aux jeux de hasard, à la spéculation), sa capacité à s'émerveiller et à jouer (sa propre part d’enfant intérieur), son authenticité. Cette maison incarne son côté “artiste” : tout ce qui permet d'exprimer son unicité créatrice & rayonnante, sa différence, sa joie de vivre. Contrairement à la maison 7 (qui gère les relations amoureuses sérieuses), la maison 5 ne traite que la partie “séduction” de la relation amoureuse. En quelques mots, il s’agit de la maison ou : J’aime et je brille." },
+  { n:6,  titre:"Maison 6 — Le Quotidien",       domaines:"Travail · Santé · Routine",                     description:"C'est la maison des habitudes (rituels), de la santé (diététique, sommeil, sport, soins), du détail, de la discipline, et de l’environnement de travail quotidien de l’individu. Elle régit son sens du service aux autres, son utilité sociale, ses relations avec ses collègues proches (ou subordonnés), ses rapports avec ses animaux domestiques. Cette maison incarne l’apprentissage par le travail et l'endurance, le perfectionnisme de l’individu. Il s’agit également de la maison de son hygiène de vie, portant le lien entre son corps et son esprit (somatisation). En quelques mots, il s’agit de la maison ou : Je fonctionne au quotidien, je sers les autres." },
+  { n:7,  titre:"Maison 7 — Les Relations",      domaines:"Partenaire · Associés · Contrats",              description:"Il s’agit de la maison du mariage, des partenariats d'affaires, des relations contractuelles (contrat de travail, d’assurance etc..). Elle régit les ennemis déclarés de l’individu, uniquement dans le cadre de conflits ordinaires d’égal à égal, impliquant de la négociation (les conflits psychologiques lourds”, les guerres “d’usure” et de pouvoir, étant gérés en maison 8). Cette maison incarne l'Altérité de l’individu, son public / audience, et comment il se définit à travers le regard des autres (en miroir de la maison 1, régissant son “identité projetée” au monde). Cette maison représente aussi le type de partenaire que l’individu attire, ou qu’il admire. En quelques mots, il s’agit de la maison ou : Nous sommes." },
+  { n:8,  titre:"Maison 8 — Les Transformations",domaines:"Crises · Sexualité · Héritages",                description:"Il s’agit de la maison qui gère la sexualité, la mort (au sens symbolique de la “renaissance du phoenix”), les guerres d’usure, ainsi que les aspects transgressifs de l’individu. Elle porte son environnement occulte : ce qui lui est tabou, caché, refoulé, mais qui peut devenir conscient (par sa volonté). Il possède ainsi la clé de cet univers, mais peut avoir “peur d’ouvrir la porte”. Cette maison régit également l'argent des autres (héritages, investissements, finances du conjoint, prêts bancaires, aides sociales) en lien avec l’individu. Elle régit les métamorphoses radicales de sa vie, ses crises de croissance nécessaires (douloureuses, parfois exténuantes sur le plan psychologique), mais qui lui permettent de se reconstruire en profondeur, de renaître plus fort. En quelques mots, il s’agit de la maison du : Nous, dans l’intensité profonde de la confrontation à l’autre, et face aux abysses de la vie." },
+  { n:9,  titre:"Maison 9 — L'Esprit",           domaines:"Voyages · Philosophie · Quête de sens",        description:"Il s’agit de la maison de la quête de sens, des grands voyages transformants pour l’individu (par opposition aux petits voyages, gérés en maison 3). Elle régit sa spiritualité, sa philosophie de vie, son appétence pour les études supérieures, sa soif d’acquisition de savoirs profonds. Elle incarne son ouverture d'esprit, sa volonté d'expansion intellectuelle, sa confrontation à l’étranger (dans le cas d’une expatriation, par exemple). Cette maison gère aussi la loi (prise de hauteur sur les conflits, verdicts) et l’administration officielle (procédures et dossiers). Elle est l'essence même de la morale et de l’éthique de l’individu (par opposition à la maison 8, qui incarne sa transgression). En quelques mots, il s’agit de la maison ou : Je comprends le sens du monde." },
+  { n:10, titre:"Maison 10 — La Réussite",       domaines:"Carrière · Vocation · Statut",                  description:"C'est la maison qui incarne le point le plus haut du thème d’un individu. Elle représente sa carrière, sa réputation, son destin public et ses grandes ambitions sociales à long terme (professionnelles, politiques ou artistiques). Elle peut incarner ses relations filiales (avec un parent ayant autorité, un “mentor”), ou ses relations avec un supérieur hiérarchique. Cette maison traite du rapport au pouvoir de l’individu, évoque ses réussites sociales, ses promotions visibles aux yeux de tous (titres et honneurs). Elle est l’essence même de sa réputation. En quelques mots, il s’agit de la maison ou : Je me réalise publiquement, aux yeux de tous." },
+  { n:11, titre:"Maison 11 — Les Projets",       domaines:"Amis · Espoirs · Idéaux",                       description:"C’est la maison des amis (au sens large), de l’intelligence collective, des groupes & réseaux sociaux de l’individu (personnels ou professionnels). Elle incarne ses espoirs, sa foi, ses idéaux et sa vision du futur : partagés et concrétisés avec les autres, dans une communauté d'intérêts et une volonté d’atteindre un objectif commun. Elle régit l’insertion de l’individu dans un collectif (club de sport, parti politique, syndicat, groupe d'intérêt, sphère amicale etc..). Cette maison définit son sens de la camaraderie et de l’entraide ainsi que son engagement humanitaire ou social. En quelques mots, il s’agit de la maison ou : Nous projetons ensemble de ..." },
+  { n:12, titre:"Maison 12 — L'Inconscient",     domaines:"Secrets · Spiritualité · Épreuves",            description:"Il s’agit de la maison de la solitude et des épreuves de l’individu, mais aussi des lieux clos (non choisis : prisons, hôpitaux, ou choisis : lieux de retraite, maisons closes etc..). Elle incarne ses secrets profonds, sa spiritualité enfouie, son sacrifice, ses rêves, ses visions. Cette maison représente ce qui est caché et inaccessible à l’individu, sauf par rêve (son inconscient profond, par opposition aux tabous et aux pensées refoulées de la maison 8, accessibles via un effort conscient et une volonté). Cette maison gère également, les ennemis cachés de l'individu (ceux qui le trahissent en secret, ou lui-même), ou encore les animaux sauvages qu’il côtoie. Cette maison est plus largement celle de l’inconscient collectif, ou l'on capte les peurs, les espoirs et les courants invisibles de la société (la souffrance du monde, qui éveille la compassion de l’individu). Elle est la maison de la dissolution de l’ego par le “lâcher prise”, avant l'entame d’un nouveau cycle de sa vie. En quelques mots, il s’agit de la maison ou : Je transcende." }
+];
+const MAISONS_META_EN = [
+  { n:1,  titre:"House 1 — The Ascendant", domaines:"Identity · Appearance · Innate Temperament", description:"This house is the cornerstone of the birth chart, the starting point of personality and the lens through which all other life sectors are viewed. It embodies uniqueness, outer identity, and the image projected to the world. In short: I am and I embody." },
+  { n:2,  titre:"House 2 — Possessions", domaines:"Money · Values · Resources", description:"The house of earned income, material goods, self-esteem, and innate talents. It represents primary needs and the deep relationship with stability. In short: I have." },
+  { n:3,  titre:"House 3 — Communication", domaines:"Communication · Studies · Close Ones", description:"This house governs thinking, reasoning, and speaking. It rules short-distance travel, technical communications, relationships with siblings and close acquaintances. In short: I think." },
+  { n:4,  titre:"House 4 — Home", domaines:"Family · Roots · Childhood", description:"The house of the private home, family, childhood memories, and origins — embodying the past, private life, refuge, and inner cocoon. In short: I feel." },
+  { n:5,  titre:"House 5 — Pleasures", domaines:"Creativity · Love · Children", description:"The house of children, romantic love, and leisure — artistic creation, risk-taking, the inner child, and authenticity. In short: I love and I shine." },
+  { n:6,  titre:"House 6 — Daily Life", domaines:"Work · Health · Routine", description:"The house of habits, health, discipline, and the daily work environment — service to others, learning through work, and the bridge between body and mind. In short: I function daily, I serve others." },
+  { n:7,  titre:"House 7 — Relationships", domaines:"Partner · Associates · Contracts", description:"The house of marriage, business partnerships, and contractual relationships — Otherness, the public, and self-definition through others' eyes. In short: We are." },
+  { n:8,  titre:"House 8 — Transformations", domaines:"Crises · Sexuality · Inheritances", description:"The house governing sexuality, symbolic death, transgression, other people's money, radical metamorphoses, and necessary growth crises. In short: We, in deep intensity, facing life's abyss." },
+  { n:9,  titre:"House 9 — The Mind", domaines:"Travel · Philosophy · Quest for Meaning", description:"The house of the quest for meaning, transformative travel, spirituality, higher education, and deep knowledge — the essence of morals and ethics. In short: I understand the meaning of the world." },
+  { n:10, titre:"House 10 — Achievement", domaines:"Career · Vocation · Status", description:"The highest point of the chart — career, reputation, public destiny, and great long-term social ambitions. In short: I achieve publicly, for all to see." },
+  { n:11, titre:"House 11 — Projects", domaines:"Friends · Hopes · Ideals", description:"The house of friends, collective intelligence, and social networks — hopes, ideals, and the future shared with others. In short: We plan together to..." },
+  { n:12, titre:"House 12 — The Unconscious", domaines:"Secrets · Spirituality · Trials", description:"The house of solitude, trials, deep secrets, buried spirituality, and the collective unconscious — ego dissolution through letting go. In short: I transcend." }
+];
+const activeMaisons = isEN ? MAISONS_META_EN : MAISONS_META;
+
+const html = `<!DOCTYPE html>
+<html lang="${isEN ? 'en' : 'fr'}">
+<head>
+ <meta charset="UTF-8">
+ <meta name="viewport" content="width=device-width, initial-scale=1.0">
+ <title>${isEN ? 'Birth Chart Report' : 'Rapport Thème Astral'} — ${esc(data.nomAffiche)}</title>
+ <style>
+  @media print {
+   .house-section { page-break-after: always; break-after: page; }
+   .house-section:last-child { page-break-after: auto; break-after: auto; }
+   .synthese-section { page-break-after: always; break-after: page; }
+   @page { margin-bottom: 20mm; @bottom-center { content: counter(page) " / " counter(pages); font-size: 9pt; color: #888; } }
+  }
+ </style>
+</head>
+<body style="margin: 0; padding: 0; background-color: #ffffff;">
+ <div style="font-family: 'Source Sans 3', 'Segoe UI', sans-serif; font-size: 16px; font-weight: 400; line-height: 1.75; color: #2c2c3a; background: #ffffff; max-width: 820px; margin: 0 auto; padding: 28px 20px 60px;">
+  <div style="background: #1F3864; padding: 52px 44px 48px; color: white; text-align: center; border-radius: 14px; margin-bottom: 8px;">
+   <h1 style="font-family: 'Playfair Display', Georgia, serif; font-size: 36px; font-weight: 700; letter-spacing: 0.3px; color: #ffffff; margin: 0 0 10px;">${isEN ? 'Birth Chart Report' : 'Rapport Thème Astral'} — ${esc(data.nomAffiche)}</h1>
+   <p style="font-size: 14px; font-weight: 400; letter-spacing: 1px; color: #8ab4f8; margin: 0 0 6px;">${esc(_lumHeaderTF)}</p>
+   <p style="font-size: 15.5px; font-weight: 400; color: #aac4ff; letter-spacing: 0.5px; margin: 8px 0 0;">${esc(data.date)} · ${esc(data.heure)} · ${esc(data.lieu)}</p>
+  </div>
+
+  ${data.synthese ? `
+  <div style="background: #1F3864; padding: 15px 26px; border-radius: 8px; margin: 44px 0 22px;"><h2 style="font-family: 'Playfair Display', Georgia, serif; font-size: 18px; font-weight: 600; color: white; letter-spacing: 0.2px; margin: 0;">🔭&nbsp; ${isEN ? 'Global Summary' : 'Synthèse Globale'}</h2></div>
+  <div class="synthese-section" style="background: #ffffff; border-radius: 12px; border: 1px solid #e0e0e0; padding: 28px 30px; margin-bottom: 44px;">${md(data.synthese)}</div>
+  ` : ''}
+
+  ${_paranResults.length > 0 ? `
+  <div style="background: #1F3864; padding: 15px 26px; border-radius: 8px; margin: 44px 0 22px;"><h2 style="font-family: 'Playfair Display', Georgia, serif; font-size: 18px; font-weight: 600; color: white; letter-spacing: 0.2px; margin: 0;">🌟&nbsp; ${isEN ? 'Fixed Star Parans (Brady Method)' : "Parans d'Étoiles Fixes (méthode Brady)"}</h2></div>
+  <div style="background: #ffffff; border-radius: 12px; border: 1px solid #e0e0e0; padding: 20px 26px; margin-bottom: 44px;">
+    <p style="font-size: 14px; color: #64748b; font-style: italic; margin: 0 0 14px;">${isEN ? 'A paran forms when a fixed star and a planet simultaneously occupy a cardinal angle. It is a deep and permanent stellar bond.' : "Un paran se forme quand une étoile fixe et une planète se trouvent simultanément sur un angle cardinal. C'est un lien stellaire profond et permanent."}</p>
+    <table style="width:100%;border-collapse:collapse;font-size:14px;">
+      <tr style="background:#2E5FA3;color:white;"><th style="padding:8px 10px;text-align:left;">${isEN ? 'Fixed Star' : 'Étoile Fixe'}</th><th style="padding:8px;text-align:center;">${isEN ? 'Star Angle' : 'Angle Étoile'}</th><th style="padding:8px 10px;text-align:left;">${isEN ? 'Planet' : 'Planète'}</th><th style="padding:8px;text-align:center;">${isEN ? 'Planet Angle' : 'Angle Planète'}</th><th style="padding:8px;text-align:center;">${isEN ? 'Orb' : 'Orbe'}</th></tr>
+      ${_paranResults.map(pr => `<tr style="border-bottom:1px solid #d0daf0;"><td style="padding:8px 10px;font-weight:600;color:#1F3864;">★ ${esc(pr.etoile)}</td><td style="padding:8px;text-align:center;color:#2E5FA3;">${esc(pr.angle_etoile)}</td><td style="padding:8px 10px;font-weight:600;color:#1F3864;">${esc(pr.planete)}</td><td style="padding:8px;text-align:center;color:#2E5FA3;">${esc(pr.angle_planete)}</td><td style="padding:8px;text-align:center;font-weight:bold;color:${pr.orb <= 0.5 ? '#1F3864' : '#2E5FA3'};">${pr.orb}°</td></tr>${pr.interpretation ? `<tr style="background:#eef2fb;"><td colspan="5" style="padding:6px 12px;font-size:13px;color:#2E5FA3;font-style:italic;">${esc(pr.interpretation)}</td></tr>` : ''}`).join('')}
+    </table>
+  </div>
+  ` : ''}
+
+  <div style="background: #1F3864; padding: 15px 26px; border-radius: 8px; margin: 44px 0 22px;"><h2 style="font-family: 'Playfair Display', Georgia, serif; font-size: 18px; font-weight: 600; color: white; letter-spacing: 0.2px; margin: 0;">🏠&nbsp; ${isEN ? 'Astrological Houses' : 'Maisons Astrologiques'}</h2></div>
+  ${activeMaisons.map(m => {
+    const houseData = (astroData.maisons || []).find(h => h.maison === m.n) || { segments: [] };
+    const cuspideSigne = (houseData.segments || []).find(s => s.type === "Cuspide")?.signe || "";
+    const iconSigne = ZODIAC_MAP[cuspideSigne] || "🏠";
+    
+    let locatairesLabels = [];
+    (houseData.segments || []).forEach(seg => {
+        if (seg.locataires && seg.locataires.length > 0) {
+            seg.locataires.forEach(l => {
+                let name = l.planete;
+                if (l.retro && l.retro !== "") name += " (R)";
+                locatairesLabels.push(name);
+            });
+        }
+    });
+    (_lotsByHouseTF[m.n] || []).forEach(ln => { if (!locatairesLabels.includes(ln)) locatairesLabels.push(ln); });
+
+    return `
+    <div class="house-section" style="background: #ffffff; border-radius: 12px; margin: 22px 0; border: 1px solid #e0e0e0; overflow: hidden;">
+     <div style="background: #2E5FA3; padding: 16px 22px;">
+      <table width="100%" border="0" cellspacing="0" cellpadding="0">
+       <tr>
+        <td width="45" valign="middle" style="font-size: 28px; line-height: 1;">${iconSigne}</td>
+        <td valign="middle">
+         <div style="font-family: 'Playfair Display', Georgia, serif; font-size: 18px; font-weight: 600; color: #ffffff; letter-spacing: 0.1px; margin: 0;">${esc(m.titre)}</div>
+         <div style="font-size: 15.5px; font-weight: 400; color: #8ab4f8; margin-top: 3px; letter-spacing: 0.4px;">${esc(m.domaines)}</div>
+        </td>
+       </tr>
+      </table>
+     </div>
+     <div style="background: #fafbff; padding: 10px 20px; border-bottom: 1px solid #eaecf5;">
+        <span style="display: inline-block; background: #e8f0fe; color: #1F3864; font-size: 15.5px; font-weight: 600; padding: 4px 13px; border-radius: 20px; margin: 2px 3px;">${isEN ? 'Cusp' : 'Cuspide'} : ${esc(cuspideSigne)}</span>
+        ${locatairesLabels.length > 0 
+            ? locatairesLabels.map(l => `<span style="display: inline-block; background: #e8f0fe; color: #1F3864; font-size: 15.5px; font-weight: 600; padding: 4px 13px; border-radius: 20px; margin: 2px 3px;">${esc(l)}</span>`).join('')
+            : `<span style="display: inline-block; background: #f5f5f5; color: #777; font-size: 15.5px; font-weight: 600; padding: 4px 13px; border-radius: 20px; margin: 2px 3px;">${isEN ? 'Empty house' : 'Maison vide'}</span>`
+        }
+        ${locatairesLabels.map(lbl => {
+            const cn = lbl.replace(/ \(R\)$/, '');
+            return (_stellarByPlanet[cn] || []).map(em => {
+                const prec = (em.precision || '').includes('forte') ? '★★' : '★';
+                return '<span style="display:inline-block;background:#fff8e1;color:#5d4037;font-size:14px;font-weight:600;padding:3px 10px;border-radius:20px;margin:2px 3px;border:1px solid #ffb300;">' + prec + ' ' + esc(em.etoile) + ' (' + esc(cn) + ')</span>';
+            }).join('');
+        }).join('')}
+        ${(_stellarByCusp[m.n] || []).map(ec => {
+            const prec = (ec.precision || '').includes('forte') ? '★★' : '★';
+            return '<span style="display:inline-block;background:#fff8e1;color:#5d4037;font-size:14px;font-weight:600;padding:3px 10px;border-radius:20px;margin:2px 3px;border:1px solid #ffb300;">' + prec + ' ' + esc(ec.etoile) + ' (Cuspide)</span>';
+        }).join('')}
+     </div>
+     <div style="background: #f4f6ff; border-left: 4px solid #2E5FA3; padding: 11px 20px;">
+      <p style="font-size: 15.5px; font-style: italic; font-weight: 400; color: #1F3864; line-height: 1.6; margin: 0; text-align: justify;">${esc(m.description)}</p>
+     </div>
+     <div style="padding: 22px 26px;">${md(data.maisons['m'+m.n])}</div>
+    </div>`;
+  }).join('')}
+ </div>
+</body>
+</html>`;
+
+return [{ json: { ...data, html: html, isComplete: true } }];

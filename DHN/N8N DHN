@@ -1,0 +1,528 @@
+// Données planètes par créneau : même forme que la sortie du nœud « Scan fin planetes » / « Scan fin planetes1 » du workflow FRA/DHN/N8N DHN Scan fin Planetes (json = { statusCode, output[] }). Jeu de test exporté : FRA/DHN/DATA SCAN (tableau d’items).
+function gn(n){try{return $(n).first()?.json||null}catch(e){return null}}
+let planetItems=[];
+try{planetItems=$('Scan fin planetes').all()}catch(e){try{planetItems=$('Scan fin planetes1').all()}catch(e2){}}
+
+let scorerItems=[];
+try{scorerItems=$('Scorer').all()}catch(e){try{scorerItems=$('Scorer1').all()}catch(e2){}}
+
+const firstItem=scorerItems[0]?.json||{};
+const ranked=firstItem._ranked?JSON.parse(firstItem._ranked):[];
+let scoreMap=null;
+try{const rs=firstItem._scores;if(rs)scoreMap=JSON.parse(rs)}catch(eSc){}
+function labelLooksFullDay(lab){
+  const t=String(lab||'').replace(/[\s\u00A0\u202F\uFEFF]/g,'').replace(/h/gi,':').replace(/[\u2013\u2014\u2212]/g,'-');
+  return /^0+:0+-24(:0+)?$/i.test(t)||/^0+:0+-23:59$/i.test(t);
+}
+let plageHtml='';
+let plageBounds=null;
+try{
+  const pm=firstItem._plageMeta?JSON.parse(firstItem._plageMeta):null;
+  if(pm&&pm.active){
+    const loN=Number(pm.lo),hiN=Number(pm.hiInc);
+    const journeeNum=!Number.isNaN(loN)&&!Number.isNaN(hiN)&&loN<=0&&hiN>=1439;
+    const journeeEntiere=journeeNum||labelLooksFullDay(pm.label);
+    if(!journeeEntiere){
+      const lab=String(pm.label||'').replace(/</g,'');
+      if(pm.ignored){
+        plageHtml='<p style="font-size:13px;color:#444">Plage indiquée : <b>'+lab+'</b> (heure locale) — <span style="color:#c60">aucune fenêtre ASC cohérente avec le questionnaire ; la plage est ignorée pour filtrer le résultat.</span></p>';
+      }else{
+        plageBounds={lo:loN,hiInc:hiN,label:lab};
+        plageHtml='<p style="font-size:13px;color:#444">Plage indiquée : <b>'+lab+'</b> (heure locale). Scan : <b>grille 5 min sur 24 h</b>. Recommandation affichée = meilleur score <em>dans</em> cette plage ; le meilleur sur toute la journée est rappelé juste sous l’encadré violet lorsqu’il diffère.</p>';
+      }
+    }
+  }
+}catch(ePl){}
+const vars=gn('Extract Variables DHN')||gn('Extract Variables DHN1')||gn('Extract Variables');
+if(!vars?.date)throw new Error('DHN : date introuvable (Extract Variables / Extract Variables DHN).');
+
+const ddd=vars.date.split('/');
+const birthY=parseInt(ddd[2]),birthM=parseInt(ddd[1]),birthD=parseInt(ddd[0]);
+const birthDecimal=birthY+((birthM-1)*30.44+birthD)/365.25;
+
+const prep=gn('Prepare Timezone')||gn('Prepare Timezone1');
+const tzNode=gn('Get Timezone')||gn('Get Timezone1');
+const lat=parseFloat(prep.lat),lon=parseFloat(prep.lon),tz=(tzNode.gmtOffset||0)/3600;
+
+const R=Math.PI/180;
+function jd0(y,m,d){if(m<=2){y--;m+=12}const A=Math.floor(y/100);return Math.floor(365.25*(y+4716))+Math.floor(30.6001*(m+1))+d+2-A+Math.floor(A/4)-1524.5}
+function calcASC(h){
+  const ut=h-tz;const J=jd0(birthY,birthM,birthD);const T=(J-2451545)/36525;
+  let g=280.46061837+360.98564736629*(J-2451545)+0.000387933*T*T;g=((g%360)+360)%360;
+  const lst=((g+ut*1.00273790935*15+lon)%360+360)%360;
+  const eps=(23.4393-0.013*T)*R;const A=lst*R;const L=lat*R;
+  return((Math.atan2(-Math.cos(A),Math.sin(A)*Math.cos(eps)+Math.tan(L)*Math.sin(eps))/R+180)%360+360)%360;
+}
+const sgn=['Belier','Taureau','Gemeaux','Cancer','Lion','Vierge','Balance','Scorpion','Sagittaire','Capricorne','Verseau','Poissons'];
+function signOf(d){return sgn[Math.floor(((d%360)+360)%360/30)]}
+
+let housesItems=[];
+try{housesItems=$('Scan fin maisons').all()}catch(e){try{housesItems=$('Scan fin maisons1').all()}catch(e2){}}
+
+let progItems=[];
+try{progItems=$('Scan progressions').all()}catch(e){try{progItems=$('Scan progressions1').all()}catch(e2){}}
+
+const evtRaw=gn('Evenements de vie')||gn('Evenements de vie1')||{};
+const events=[];
+for(const[k,v]of Object.entries(evtRaw)){
+  if(!v||!k.startsWith('evt'))continue;
+  const lbl=v.replace(/(\d{2}\/\d{2}\/\d{4})/g,'').trim();
+  const allDates=[...v.matchAll(/(\d{2})\/(\d{2})\/(\d{4})/g)];
+  for(const dm of allDates.slice(0,3)){
+    events.push({label:lbl+' '+dm[0],day:parseInt(dm[1]),month:parseInt(dm[2]),year:parseInt(dm[3])});
+  }
+}
+const evtCount=events.length;
+const qFactor=evtCount>=4?0.45:evtCount>=3?0.55:evtCount>=2?0.75:1;
+
+let natalPlanets=[];
+try{
+  const noon=$('Scan Planetes').all();
+  const mid=noon[Math.min(12,noon.length-1)];
+  const _nout=Array.isArray(mid?.json?.output)?mid.json.output:[];
+  natalPlanets=_nout.filter(p=>p.fullDegree!==undefined).map(p=>({name:p.planet?.fr||p.planet?.en||'?',deg:p.fullDegree}));
+}catch(e){natalPlanets=[]}
+const ANGLE_NAMES=['Ascendant','Descendant','Milieu du Ciel','Imum Coeli','MC','IC'];
+const natalBodies=natalPlanets.filter(p=>!ANGLE_NAMES.includes(p.name));
+
+function normDeg(d){return((d%360)+360)%360}
+function aspDist(a,b){const d=Math.abs(normDeg(a)-normDeg(b));return Math.min(d,360-d)}
+
+const ASPECTS=[
+  {name:'conj',angle:0,orb:1.5,weight:4},
+  {name:'opp',angle:180,orb:1.5,weight:3},
+  {name:'car',angle:90,orb:1.5,weight:2},
+  {name:'tri',angle:120,orb:1.5,weight:1},
+  {name:'sex',angle:60,orb:1.5,weight:1},
+  {name:'qnx',angle:150,orb:1.0,weight:0.5},
+  {name:'ssx',angle:30,orb:1.0,weight:0.5}
+];
+
+const PW={'Soleil':1.5,'Sun':1.5,'Lune':1.5,'Moon':1.5,'Mercure':1.5,'Mercury':1.5,'V\u00e9nus':1.5,'Venus':1.5,'Mars':1.5,'Jupiter':1.0,'Saturne':1.0,'Saturn':1.0,'Uranus':1.0,'Neptune':1.0,'Pluton':1.0,'Pluto':1.0,'Ascendant':2.0,'Descendant':2.0,'Milieu du Ciel':2.0,'MC':2.0,'Imum Coeli':2.0,'IC':2.0};
+function pw(n){return PW[n]||0.5;}
+function bestAspect(pos1,pos2,orbOvr){
+  const d=aspDist(pos1,pos2);
+  for(const asp of ASPECTS){const ou=orbOvr||asp.orb;const ao=Math.abs(d-asp.angle);if(ao<ou)return{name:asp.name,angle:asp.angle,weight:asp.weight,ao:ao,ou:ou};}
+  return null;
+}
+
+
+function sunLong(jd){
+  const T=(jd-2451545.0)/36525.0;
+  const L0=280.46646+36000.76983*T+0.0003032*T*T;
+  const Mr=(357.52911+35999.05029*T-0.0001537*T*T)*R;
+  const C=(1.9146-0.004817*T)*Math.sin(Mr)+0.019993*Math.sin(2*Mr)+0.00029*Math.sin(3*Mr);
+  return((L0+C)%360+360)%360;
+}
+function jdFull(y,m,d,h){return jd0(y,m,d)+(h||0)/24;}
+function findSRjd(nSDeg,eY,bm,bd){
+  let lo=jdFull(eY,bm,bd,0)-1.5,hi=jdFull(eY,bm,bd,0)+1.5;
+  for(let i=0;i<25;i++){
+    const mid=(lo+hi)/2;
+    let diff=sunLong(mid)-nSDeg;
+    if(diff>180)diff-=360;if(diff<-180)diff+=360;
+    if(diff>0)hi=mid;else lo=mid;
+  }
+  return(lo+hi)/2;
+}
+function calcASCjd(jd){
+  const T=(jd-2451545.0)/36525.0;
+  let gmst=280.46061837+360.98564736629*(jd-2451545.0)+0.000387933*T*T;
+  gmst=((gmst%360)+360)%360;
+  const lst=((gmst+lon)%360+360)%360;
+  const eps=(23.4393-0.013*T)*R;const A=lst*R,L=lat*R;
+  return((Math.atan2(-Math.cos(A),Math.sin(A)*Math.cos(eps)+Math.tan(L)*Math.sin(eps))/R+180)%360+360)%360;
+}
+function calcMCjd(jd){
+  const T=(jd-2451545.0)/36525.0;
+  let gmst=280.46061837+360.98564736629*(jd-2451545.0)+0.000387933*T*T;
+  gmst=((gmst%360)+360)%360;
+  const lst=((gmst+lon)%360+360)%360;
+  const eps=(23.4393-0.013*T)*R;const A=lst*R;
+  return((Math.atan2(Math.sin(A),Math.cos(A)*Math.cos(eps))/R)%360+360)%360;
+}
+
+function getFromHouses(hItem){
+  if(!hItem?.json)return null;const j=hItem.json;
+  if(j.output&&Array.isArray(j.output)){
+    const h1=j.output.find(h=>h.house===1||h.house_number===1);
+    const h10=j.output.find(h=>h.house===10||h.house_number===10);
+    return{ascDeg:h1?.fullDegree,mcDeg:h10?.fullDegree,ascSign:h1?.zodiac_sign?.name?.fr};
+  }
+  if(j.ascendant)return{ascDeg:j.ascendant.fullDegree,mcDeg:j.mc?.fullDegree||j.midheaven?.fullDegree,ascSign:j.ascendant.zodiac_sign?.name?.fr};
+  return null;
+}
+function getFromPlanets(pItem){
+  if(!pItem?.json?.output||!Array.isArray(pItem.json.output))return null;
+  const asc=pItem.json.output.find(p=>p.planet?.fr==='Ascendant'||p.planet?.en==='Ascendant');
+  const mc=pItem.json.output.find(p=>p.planet?.fr==='Milieu du Ciel'||p.planet?.en==='MC');
+  if(!asc)return null;
+  return{ascDeg:asc.fullDegree,mcDeg:mc?.fullDegree,ascSign:asc.zodiac_sign?.name?.fr};
+}
+
+// N8N aplatit la reponse [{data:[{date,planetes},...]}] en items individuels
+// progSlice = tableau d'items n8n pour UN creneau candidat
+// Vitesse progresse: Lune=rapide, perso=normal, lentes=faible
+const PS={'Lune':1.5,'Soleil':1.0,'Mercure':1.0,'V\u00e9nus':1.0,'Mars':0.7,'Jupiter':0.3,'Saturne':0.3,'Uranus':0.15,'Neptune':0.15,'Pluton':0.15};
+function ps(n){return PS[n]||0.5;}
+
+function countProgHits(progSlice,slotAsc,slotMc,targets){
+  if(!progSlice||progSlice.length===0)return{score:0,details:[]};
+  const data=progSlice.map(it=>it.json).filter(d=>d&&d.planetes&&d.date);
+  if(data.length===0)return{score:0,details:[]};
+  let score=0;const details=[];const seen=new Set();
+  function toDecDate(d){const p=d.split('-');return parseInt(p[0])+((parseInt(p[1])-1)*30.44+parseInt(p[2]))/365.25;}
+  const progPlanets=['Soleil','Lune','Mars','Mercure','Jupiter','V\u00e9nus','Saturne','Uranus','Neptune','Pluton'];
+  for(const evt of events){
+    const evtDec=evt.year+((evt.month-1)*30.44+evt.day)/365.25;
+    let closest=data[0],minDist=999;
+    for(const d of data){const dd=toDecDate(d.date);if(Math.abs(dd-evtDec)<minDist){minDist=Math.abs(dd-evtDec);closest=d;}}
+    if(!closest?.planetes)continue;
+    const pp=closest.planetes;
+    if(slotAsc!==undefined){
+      for(const pn of progPlanets){
+        if(!pp[pn])continue;
+        const asp=bestAspect(pp[pn].longitude_absolue,slotAsc,1.0);
+        if(asp){
+          const key='p'+pn+'_'+asp.name+'_nASC';
+          const dup=seen.has(key);if(!dup)seen.add(key);
+          const tight=1-asp.ao/asp.ou;
+          const w=Math.round(asp.weight*pw(pn)*ps(pn)*tight*(dup?0.25:1)*10)/10;
+          if(w>=0.3){score+=w;details.push(evt.label+': p'+pn+' '+asp.name+' nASC ('+w.toFixed(1)+' '+asp.ao.toFixed(2)+'\u00B0'+(dup?'*':'')+')');
+          }
+        }
+      }
+    }
+    if(slotMc!==undefined){
+      for(const pn of progPlanets){
+        if(!pp[pn])continue;
+        const asp=bestAspect(pp[pn].longitude_absolue,slotMc,1.0);
+        if(asp){
+          const key='p'+pn+'_'+asp.name+'_nMC';
+          const dup=seen.has(key);if(!dup)seen.add(key);
+          const tight=1-asp.ao/asp.ou;
+          const w=Math.round(asp.weight*pw(pn)*ps(pn)*tight*(dup?0.25:1)*10)/10;
+          if(w>=0.3){score+=w;details.push(evt.label+': p'+pn+' '+asp.name+' nMC ('+w.toFixed(1)+' '+asp.ao.toFixed(2)+'\u00B0'+(dup?'*':'')+')');
+          }
+        }
+      }
+    }
+    const pAsc=pp['Ascendant']?.longitude_absolue;
+    const pMc=pp['MC']?.longitude_absolue;
+    if(pAsc!==undefined){
+      for(const np of targets){
+        const asp=bestAspect(pAsc,np.deg,1.0);
+        if(asp){
+          const key='pASC_'+asp.name+'_n'+np.name;
+          const dup=seen.has(key);if(!dup)seen.add(key);
+          const tight=1-asp.ao/asp.ou;
+          const w=Math.round(asp.weight*pw(np.name)*1.5*tight*(dup?0.25:1)*10)/10;
+          if(w>=0.3){score+=w;details.push(evt.label+': pASC '+asp.name+' n'+np.name+' ('+w.toFixed(1)+' '+asp.ao.toFixed(2)+'\u00B0'+(dup?'*':'')+')');
+          }
+        }
+      }
+    }
+    if(pMc!==undefined){
+      for(const np of targets){
+        const asp=bestAspect(pMc,np.deg,1.0);
+        if(asp){
+          const key='pMC_'+asp.name+'_n'+np.name;
+          const dup=seen.has(key);if(!dup)seen.add(key);
+          const tight=1-asp.ao/asp.ou;
+          const w=Math.round(asp.weight*pw(np.name)*tight*(dup?0.25:1)*10)/10;
+          if(w>=0.3){score+=w;details.push(evt.label+': pMC '+asp.name+' n'+np.name+' ('+w.toFixed(1)+' '+asp.ao.toFixed(2)+'\u00B0'+(dup?'*':'')+')');
+          }
+        }
+      }
+    }
+  }
+  return{score,details};
+}
+const validProg=progItems.filter(it=>it.json&&it.json.planetes&&it.json.date);
+const alignCountMismatch=scorerItems.length!==housesItems.length||scorerItems.length!==planetItems.length;
+
+function pairedScorerIdx(it){
+  const p=it&&it.pairedItem;
+  if(p==null)return null;
+  if(Array.isArray(p)){const x=p[0];return x!=null&&typeof x.item==='number'?x.item:null;}
+  return typeof p.item==='number'?p.item:null;
+}
+function pairMapByScorer(arr){
+  const m=new Map();
+  for(let k=0;k<arr.length;k++){
+    const sc=pairedScorerIdx(arr[k]);
+    if(sc!=null&&!m.has(sc))m.set(sc,k);
+  }
+  return m;
+}
+const housePair=pairMapByScorer(housesItems);
+const planetPair=pairMapByScorer(planetItems);
+const usedPairedJoin=housePair.size>0||planetPair.size>0;
+
+function pickBest(arr){
+  if(!arr||arr.length===0)return null;
+  const mx=Math.max(...arr.map(d=>d.totalScore));
+  return arr.filter(d=>d.totalScore===mx).sort((a,b)=>(b.arcScore+b.progScore+(b.srScore||0))-(a.arcScore+a.progScore+(a.srScore||0)))[0];
+}
+function slotMinOf(d){const p=d.time.split(':');return parseInt(p[0],10)*60+parseInt(p[1],10);}
+
+const detail=scorerItems.map((meta_raw,i)=>{
+  const meta=meta_raw?.json||{};
+  const hh=Number(meta._slotH),mm=Number(meta._slotM);
+  if(!Number.isFinite(hh)||!Number.isFinite(mm))return null;
+  const time=String(hh).padStart(2,'0')+':'+String(mm).padStart(2,'0');
+  const mathAscDeg=calcASC(hh+mm/60);
+  const mathSign=signOf(mathAscDeg);
+  const win=typeof meta._windowSign==='string'?String(meta._windowSign).trim():'';
+
+  const hIx=usedPairedJoin&&housePair.has(i)?housePair.get(i):i;
+  const pIx=usedPairedJoin&&planetPair.has(i)?planetPair.get(i):i;
+  let ascDeg,mcDeg,ascSign,src;
+  const hData=housesItems[hIx]!=null?getFromHouses(housesItems[hIx]):null;
+  const pData=planetItems[pIx]!=null?getFromPlanets(planetItems[pIx]):null;
+  if(hData&&hData.ascDeg!==undefined){ascDeg=hData.ascDeg;mcDeg=hData.mcDeg;ascSign=hData.ascSign;src='houses';}
+  else if(pData&&pData.ascDeg!==undefined){ascDeg=pData.ascDeg;mcDeg=pData.mcDeg;ascSign=pData.ascSign;src='planets';}
+  else{ascDeg=mathAscDeg;ascSign=mathSign;src='math';}
+  if(!ascSign&&ascDeg!==undefined)ascSign=signOf(ascDeg);
+
+  if(ascSign&&ascSign!==mathSign){
+    const trustApi=sgn.includes(win)&&ascSign===win&&win!==mathSign;
+    if(!trustApi){
+      ascDeg=mathAscDeg;
+      ascSign=mathSign;
+      if(src==='houses'||src==='planets')src=src+'+t';
+    }
+  }
+
+  const finalSign=ascSign||mathSign;
+  const wScr=Number(meta._windowScore);
+  const wScoreRaw=(scoreMap&&scoreMap[finalSign]!=null)?scoreMap[finalSign]:(Number.isFinite(wScr)?wScr:0);
+  const wSign=finalSign;
+  const wScore=Math.round(wScoreRaw*qFactor*100)/100;
+
+  const descDeg=ascDeg!==undefined?normDeg(ascDeg+180):undefined;
+  const icDeg=mcDeg!==undefined?normDeg(mcDeg+180):undefined;
+  const slotAngles=[];
+  if(ascDeg!==undefined)slotAngles.push({name:'Ascendant',deg:ascDeg});
+  if(mcDeg!==undefined)slotAngles.push({name:'Milieu du Ciel',deg:mcDeg});
+  if(descDeg!==undefined)slotAngles.push({name:'Descendant',deg:descDeg});
+  if(icDeg!==undefined)slotAngles.push({name:'Imum Coeli',deg:icDeg});
+  const slotTargets=[...natalBodies,...slotAngles];
+
+  let arcScore=0;const arcDetails=[];const arcSeen=new Set();
+
+  if(ascDeg!==undefined&&events.length>0){
+    for(const evt of events){
+      const evtDecimal=evt.year+((evt.month-1)*30.44+evt.day)/365.25;
+      const age=evtDecimal-birthDecimal;
+      const dirASC=normDeg(ascDeg+age);
+      const dirMC=mcDeg!==undefined?normDeg(mcDeg+age):null;
+      for(const p of slotTargets){
+        const aspA=bestAspect(dirASC,p.deg);
+        if(aspA){
+          const kA='dASC_'+aspA.name+'_'+p.name;
+          const dupA=arcSeen.has(kA);if(!dupA)arcSeen.add(kA);
+          const tight=1-aspA.ao/aspA.ou;
+          const w=Math.round(aspA.weight*pw(p.name)*tight*(dupA?0.5:1)*10)/10;
+          if(w>=0.3){arcScore+=w;arcDetails.push(evt.label+': dirASC '+aspA.name+' '+p.name+' ('+w.toFixed(1)+' '+aspA.ao.toFixed(2)+'\u00B0'+(dupA?'*':'')+')');}
+        }
+        if(dirMC!==null){
+          const aspM=bestAspect(dirMC,p.deg);
+          if(aspM){
+            const kM='dMC_'+aspM.name+'_'+p.name;
+            const dupM=arcSeen.has(kM);if(!dupM)arcSeen.add(kM);
+            const tight=1-aspM.ao/aspM.ou;
+            const w=Math.round(aspM.weight*pw(p.name)*tight*(dupM?0.5:1)*10)/10;
+            if(w>=0.3){arcScore+=w;arcDetails.push(evt.label+': dirMC '+aspM.name+' '+p.name+' ('+w.toFixed(1)+' '+aspM.ao.toFixed(2)+'\u00B0'+(dupM?'*':'')+')');}
+          }
+        }
+      }
+    }
+  }
+
+  let progScore=0;let progDetails=[];
+  if(validProg.length>0){
+    const ph=countProgHits(validProg,ascDeg,mcDeg,slotTargets);
+    progScore=ph.score;
+    progDetails=ph.details;
+  }
+
+  
+  let srScore=0;const srDetails=[];
+  const natalSun=natalBodies.find(p=>p.name==='Soleil'||p.name==='Sun');
+  if(natalSun&&events.length>0&&ascDeg!==undefined){
+    const srSeen=new Set();
+    const evtYears=[...new Set(events.map(e=>e.year))];
+    for(const eY of evtYears){
+      const srJD=findSRjd(natalSun.deg,eY,birthM,birthD);
+      const srAsc=calcASCjd(srJD);
+      const srMc=calcMCjd(srJD);
+      for(const p of slotTargets){
+        const aspA=bestAspect(srAsc,p.deg,3.0);
+        if(aspA){
+          const kA='srASC_'+aspA.name+'_'+p.name;
+          const dupA=srSeen.has(kA);if(!dupA)srSeen.add(kA);
+          const tight=1-aspA.ao/aspA.ou;
+          const w=Math.round(aspA.weight*pw(p.name)*tight*(dupA?0.5:1)*10)/10;
+          if(w>=0.3){srScore+=w;srDetails.push(eY+': srASC '+aspA.name+' '+p.name+' ('+w.toFixed(1)+')');}
+        }
+        const aspM=bestAspect(srMc,p.deg,3.0);
+        if(aspM){
+          const kM='srMC_'+aspM.name+'_'+p.name;
+          const dupM=srSeen.has(kM);if(!dupM)srSeen.add(kM);
+          const tight=1-aspM.ao/aspM.ou;
+          const w=Math.round(aspM.weight*pw(p.name)*tight*(dupM?0.5:1)*10)/10;
+          if(w>=0.3){srScore+=w;srDetails.push(eY+': srMC '+aspM.name+' '+p.name+' ('+w.toFixed(1)+')');}
+        }
+      }
+    }
+  }
+
+  const totalScore=wScore+arcScore+progScore+srScore;
+  return{time,ascDeg,mcDeg,ascSign,wSign,wScoreRaw,wScore,arcScore,progScore,srScore,totalScore,arcDetails,progDetails,srDetails,src};
+});
+
+const cleanDetail=detail.filter(d=>d!==null);
+const validDetail=cleanDetail.filter(d=>d.ascDeg!==undefined);
+const bestGlobal=validDetail.length>0?pickBest(validDetail):null;
+let bestPlage=null;
+if(plageBounds&&validDetail.length>0){
+  const loP=+plageBounds.lo,hiP=+plageBounds.hiInc;
+  const sub=validDetail.filter(d=>{const sm=slotMinOf(d);return sm>=loP&&sm<=hiP});
+  if(sub.length>0)bestPlage=pickBest(sub);
+}
+let best;
+if(plageBounds&&bestPlage)best=bestPlage;
+else if(bestGlobal)best=bestGlobal;
+else best={time:'12:00',ascSign:'?',wSign:'?',wScore:0,wScoreRaw:0,arcScore:0,progScore:0,srScore:0,totalScore:0,arcDetails:[],progDetails:[],srDetails:[]};
+
+const bestTime=best.time;
+const hasPlanets=natalPlanets.length>0;
+function sf(v){return typeof v==='number'?v.toFixed(1):v;}
+const te=(best.arcScore||0)+(best.progScore||0)+(best.srScore||0);
+let method;
+if(te>0){
+  method='Arcs('+sf(best.arcScore)+')+Prog('+sf(best.progScore)+')+RS('+sf(best.srScore||0)+')';
+  method+=qFactor<1?'+Quest(aj. '+sf(best.wScore)+', brut '+sf(best.wScoreRaw||0)+' ×'+qFactor+')':'+Quest('+sf(best.wScore)+')';
+}else{
+  method='Questionnaire ('+(best.wSign||'?')+') brut '+sf(best.wScoreRaw||0)+' pts'+(qFactor<1?', utilisé ×'+qFactor:'');
+}
+
+const windowGroups={};
+for(const d of cleanDetail){
+  const wk=d.wSign||d.ascSign||'?';
+  if(!windowGroups[wk])windowGroups[wk]={sign:wk,score:d.wScore,items:[]};
+  else windowGroups[wk].score=Math.max(windowGroups[wk].score,d.wScore);
+  windowGroups[wk].items.push(d);
+}
+
+const bestByAsc={};
+for(const d of validDetail){
+  const k=d.wSign||d.ascSign||'?';
+  if(k==='?')continue;
+  if(!bestByAsc[k]||d.totalScore>bestByAsc[k].totalScore)bestByAsc[k]=d;
+}
+const ascPeaksSorted=Object.entries(bestByAsc).sort((a,b)=>b[1].totalScore-a[1].totalScore);
+
+const nAnalysed=validDetail.length;
+const gridFull=nAnalysed>=280;
+let scanMetaNote='';
+try{const sm=firstItem._scanMeta?JSON.parse(firstItem._scanMeta):null;if(sm&&sm.slots)scanMetaNote=' Métadonnée Scorer : '+sm.slots+' créneau(x) ('+(sm.mode||'')+').';}catch(eM){}
+const picScopeTxt=gridFull?'sur la grille 5 min / 24 h (tous les créneaux).':'sur les '+nAnalysed+' créneau(x) réellement analysés dans ce scan (grille partielle — pas toute la journée).';
+
+let html='<div style="font-family:Arial,sans-serif;max-width:700px;margin:0 auto;padding:20px">';
+html+='<h2 style="color:#5B4A9E">Resultat de Rectification</h2>';
+html+='<p>Pour <b>'+(vars?.prenom||'')+' '+(vars?.nom||'')+'</b>, ne(e) le '+(vars?.date||'')+' a '+(vars?.lieu||'')+'</p>'+plageHtml;
+html+='<div style="background:#eee8ff;padding:20px;border-radius:10px;text-align:center;margin:20px 0">';
+html+='<p style="font-size:14px;margin:0 0 5px;color:#666">Heure de naissance estimee</p>';
+html+='<p style="font-size:36px;font-weight:bold;margin:0;color:#5B4A9E">'+bestTime+'</p>';
+html+='<p style="font-size:18px;margin:5px 0 0">Ascendant '+(best.ascSign||'?')+'</p>';
+html+='<p style="font-size:12px;margin:8px 0 0;color:#888">'+method+'</p>';
+if(qFactor<1){
+  html+='<p style="font-size:11px;margin-top:10px;color:#555">'+evtCount+' date(s) d\'événements : pondération questionnaire ×'+qFactor+' pour privilégier arcs, progressions et RS.</p>';
+}
+const byScore=[...validDetail].sort((a,b)=>b.totalScore-a.totalScore);
+let marginTxt='';
+if(byScore.length>=2){
+  const s0=byScore[0].totalScore;
+  const runner=byScore.find(x=>x.totalScore<s0-1e-9);
+  if(runner)marginTxt=' Écart 1er / 2e meilleur score ('+(gridFull?'grille 24 h complète':'parmi les créneaux analysés')+') : '+sf(s0-runner.totalScore)+'.';
+}
+html+='<p style="font-size:11px;margin-top:8px;color:#666">Les totaux ne sont pas des pourcentages ni une probabilité.'+marginTxt+'</p></div>';
+if(plageBounds&&bestGlobal&&best&&bestGlobal.time!==best.time){
+  const plLab=plageBounds.label||'votre plage';
+  html+='<div style="font-size:13px;color:#333;margin:14px 0;padding:14px;background:#f5f0ff;border-radius:8px;border-left:4px solid #5B4A9E">';
+  html+='<p style="margin:0 0 8px"><b>Meilleur créneau sur toute la journée</b> (hors contrainte de plage) : <b>'+bestGlobal.time+'</b>, ASC '+(bestGlobal.ascSign||'?')+' — total '+sf(bestGlobal.totalScore)+'.</p>';
+  html+='<p style="margin:0;font-size:12px;color:#555">L’heure en tête de mail est le meilleur <em>uniquement entre '+plLab+'</em> (ici '+best.time+', total '+sf(best.totalScore)+'). Les deux existent sur la même grille 5 min ; le total = arcs + progressions + RS + questionnaire (pondéré). Un 2e signe au questionnaire (ex. Verseau) peut donc gagner dans une fenêtre horaire alors qu’un autre créneau reste n°1 sur 24 h.</p>';
+  html+='</div>';
+}
+if(events.length>0){
+  html+='<p style="font-size:11px;color:#666;margin:12px 0;line-height:1.45">Le <b>Top 5 ASC</b> classe les <em>signes</em> selon les réponses : ce n’est pas un classement d’heures. À chaque minute testée, l’ASC réel est recalculé ; les points questionnaire de ce créneau suivent cet ASC. Avec plusieurs dates de vie, le poids du questionnaire est réduit : arcs, progressions et RS décident souvent du pic du total.</p>';
+}
+
+if(ascPeaksSorted.length>0){
+  const peakLine=ascPeaksSorted.slice(0,12).map(([sign,d])=>sign+' <b>'+d.time+'</b> ('+sf(d.totalScore)+')').join(' \u00b7 ');
+  const more=ascPeaksSorted.length>12?' \u2026':'';
+  html+='<p style="font-size:12px;color:#333;margin:12px 0;padding:10px 12px;background:#faf8ff;border-radius:6px;border:1px solid #e8e0f5"><b>Pic par signe (grille Q)</b> : pour chaque signe, créneau au <b>total</b> max '+picScopeTxt+' — '+peakLine+more+'. <span style="color:#666">Tableaux et points Q : <b>signe ASC affiché</b> (après réponse API ; recalcul local = Src « +t »). Les points questionnaire reprennent le score de ce signe ; si Scorer et API concordent contre le calcul local, l’API est conservée.</span></p>';
+}
+
+html+='<h3>Top 5 ASC (questionnaire)</h3><ol>'+ranked.map(r=>'<li><b>'+r.sign+'</b> \u2014 '+r.score+' pts</li>').join('')+'</ol>';
+html+='<p style="font-size:11px;color:#444;margin:10px 0 0;line-height:1.5"><b>Ce n’est pas la même chose que l’heure estimée.</b> Le Top 5 = uniquement les signes que le <em>questionnaire</em> valorise. L’heure en tête = le créneau où le <b>total</b> (arcs + progressions + RS + questionnaire pondéré) est maximal sur la grille. Un signe peut être <b>absent du Top 5</b> et gagner quand même : à cette minute, les <b>progressions / RS / arcs</b> peuvent être si élevés qu’ils dépassent un créneau « Sagittaire » ou « Verseau » avec plus de points Q mais moins d’événements.</p>';
+
+if(events.length>0){
+  html+='<h3>Validation</h3>';
+  html+='<p style="font-size:12px">Evenements: '+events.map(e=>e.label).join(', ')+'</p>';
+  html+='<p style="font-size:10px;color:#888">Pond\u00e9ration orbe: exact=100%, large=faible | Arcs: Angles x2, Perso x1.5, *=dedup x0.5 | Prog: Lune x1.5, Perso x1, Lents x0.3, *=dedup x0.25 | RS: ASC/MC RS vs natal, orbe 3\u00B0, *=dedup x0.5</p>';
+  if(!hasPlanets){html+='<p style="color:#c60">Positions natales indisponibles.</p>';}
+  else{
+    if(best.arcDetails&&best.arcDetails.length>0){
+      html+='<h4 style="margin:10px 0 5px">Arcs solaires ('+sf(best.arcScore)+' pts)</h4>';
+      html+='<ul style="font-size:12px">'+best.arcDetails.map(d=>'<li>'+d+'</li>').join('')+'</ul>';
+    }
+    if(best.progDetails&&best.progDetails.length>0){
+      html+='<h4 style="margin:10px 0 5px">Progressions API ('+sf(best.progScore)+' pts)</h4>';
+      html+='<ul style="font-size:12px">'+best.progDetails.map(d=>'<li>'+d+'</li>').join('')+'</ul>';
+    }
+    if(best.srDetails&&best.srDetails.length>0){
+      html+='<h4 style="margin:10px 0 5px">R\u00e9volutions Solaires ('+sf(best.srScore||0)+' pts)</h4>';
+      html+='<ul style="font-size:12px">'+best.srDetails.map(d=>'<li>'+d+'</li>').join('')+'</ul>';
+    }
+    if((best.arcDetails||[]).length===0&&(best.progDetails||[]).length===0&&(best.srDetails||[]).length===0){
+      html+='<p style="color:#999">Aucune correspondance arcs/progressions.</p>';
+    }
+  }
+}
+
+for(const wk of Object.keys(windowGroups)){
+  const wg=windowGroups[wk];
+  wg.items=wg.items.filter(d=>d.wSign===wg.sign);
+  wg.items.sort((a,b)=>slotMinOf(a)-slotMinOf(b));
+}
+const wkChrono=Object.keys(windowGroups).sort((a,b)=>{
+  const ia=windowGroups[a].items[0],ib=windowGroups[b].items[0];
+  const ma=ia?slotMinOf(ia):99999,mb=ib?slotMinOf(ib):99999;
+  return ma-mb;
+});
+for(const wk of wkChrono){
+  const wg=windowGroups[wk];
+  html+='<h3>Signe grille Q : '+wg.sign+' (pts Q grille 5 min'+(qFactor<1?', pond. ×'+qFactor:'')+' : '+wg.score+')</h3>';
+  html+='<table style="width:100%;border-collapse:collapse;font-size:12px">';
+  html+='<tr style="background:#5B4A9E;color:white"><th style="padding:4px">Heure</th><th style="padding:4px">ASC</th><th style="padding:4px">Deg</th><th style="padding:4px">Src</th><th style="padding:4px">Arc</th><th style="padding:4px">Prog</th><th style="padding:4px">RS</th><th style="padding:4px">Tot</th></tr>';
+  html+=wg.items.map(d=>{
+    const isBest=d.time===bestTime;const bg=isBest?'background:#e8dff5;font-weight:bold':'';
+    return '<tr style="border-bottom:1px solid #eee;'+bg+'"><td style="padding:3px;text-align:center">'+d.time+(isBest?' \u2605':'')+'</td><td style="padding:3px;text-align:center">'+d.ascSign+'</td><td style="padding:3px;text-align:center">'+(d.ascDeg!==undefined?d.ascDeg.toFixed(1)+'\u00B0':'?')+'</td><td style="padding:3px;text-align:center;color:#888;font-size:10px">'+d.src+'</td><td style="padding:3px;text-align:center">'+(d.arcScore?sf(d.arcScore):'-')+'</td><td style="padding:3px;text-align:center">'+(d.progScore?sf(d.progScore):'-')+'</td><td style="padding:3px;text-align:center">'+(d.srScore?sf(d.srScore):'-')+'</td><td style="padding:3px;text-align:center;font-weight:bold">'+(d.totalScore?sf(d.totalScore):'-')+'</td></tr>';
+  }).join('');
+  html+='</table>';
+}
+
+html+='<p style="font-size:10px;color:'+(gridFull?'#888':'#a60')+';margin-top:16px;line-height:1.4"><b>Couverture</b> : '+nAnalysed+' créneau(x) avec ASC dans ce rapport ; '+scorerItems.length+' item(s) Scorer.'+scanMetaNote+(gridFull?'':' — <b>scan partiel</b> : seuls les signes présents dans ces créneaux apparaissent en table ; le « Pic par signe » compare les totaux <em>uniquement</em> sur cet ensemble (pas sur 288 pas de 5 min).')+'</p>';
+html+='<p style="font-size:10px;color:#aaa;margin-top:10px">Natales (planetes): '+(natalBodies.length>0?natalBodies.map(p=>p.name+' '+p.deg.toFixed(1)).join(', '):'n/a')+'</p>';
+if(alignCountMismatch){
+  html+='<p style="font-size:11px;color:#c60;margin-top:8px">Alignement : '+scorerItems.length+' créneaux (scorer) vs '+planetItems.length+' réponses planètes et '+housesItems.length+' maisons — en cas d’échecs HTTP partiels, les lignes peuvent se décaler ; vérifier le scan.</p>';
+}
+if(usedPairedJoin){
+  html+='<p style="font-size:10px;color:#176;margin-top:4px">Appariement planètes/maisons → créneau via <b>pairedItem</b> (n8n), pas seulement la position dans la liste.</p>';
+}
+html+='</div>';
+
+return[{json:{to:vars?.mail||'',subject:'DHN - '+bestTime+' (ASC '+(best.ascSign||'?')+')',html:html}}];

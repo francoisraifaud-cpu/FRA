@@ -1,0 +1,108 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\n\nfor (const item of items) {\n  if (!item.binary) continue;\n\n  // Récupère le nom du fichier depuis le premier noeud (pour préserver le format)\n  const desiredName = item.json.desiredFilename || \"Données Techniques Prévisions.pdf\";\n\n  // 1. On cible spécifiquement le vrai fichier PDF renvoyé par Gotenberg (sous la clé 'data')\n  if (item.binary.data) {\n    item.binary.data.fileName = desiredName;\n    item.binary.data.mimeType = 'application/pdf';\n    item.binary.data.fileExtension = 'pdf';\n  }\n\n  // 2. On supprime le fichier HTML d'origine pour ne garder QUE le PDF et éviter les doublons\n  if (item.binary.html_file) {\n    delete item.binary.html_file;\n  }\n}\n\nreturn items;"
+      },
+      "id": "511e0c6f-93ae-423a-abf1-f8d6a7c85610",
+      "name": "Fix Nom & MIME PDF final2",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -13632,
+        4368
+      ]
+    },
+    {
+      "parameters": {
+        "name": "={{ $binary.data.fileName }}",
+        "driveId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "My Drive"
+        },
+        "folderId": {
+          "__rl": true,
+          "value": "1sKYtTAhjDE-XnPZvbLsvQYL6KI_8AY2i",
+          "mode": "id"
+        },
+        "options": {}
+      },
+      "id": "9b4042f4-d296-40ae-96f5-9103a6c3b174",
+      "name": "Upload Google Drive4",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        -13376,
+        4368
+      ],
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "9VfQaRqjSmo3Rv1Z",
+          "name": "Google Drive account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://46.225.174.155:3000/forms/chromium/convert/html",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "parameterType": "formBinaryData",
+              "name": "files",
+              "inputDataFieldName": "html_file"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          }
+        }
+      },
+      "id": "834a4287-2c63-41a9-9d2f-fe83eb3be3e1",
+      "name": "Convert HTML to PDF2",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -13888,
+        4368
+      ]
+    }
+  ],
+  "connections": {
+    "Fix Nom & MIME PDF final2": {
+      "main": [
+        [
+          {
+            "node": "Upload Google Drive4",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Convert HTML to PDF2": {
+      "main": [
+        [
+          {
+            "node": "Fix Nom & MIME PDF final2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "b6efd2f1fad5a0a294db5a1a7e88dd550900216aaeb7344a19bf4cfc45267781"
+  }
+}

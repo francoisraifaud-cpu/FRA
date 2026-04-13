@@ -1,0 +1,33 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "jsCode": "function gn(n) {\n  try {\n    return $(n).first()?.json || null;\n  } catch (e) {\n    return null;\n  }\n}\nconst src =\n  gn('Extract Variables') ||\n  gn('Extract Variables DHN') ||\n  gn('Extract Variables DHN1') ||\n  gn('Evenements de vie') ||\n  gn('Evenements de vie1') ||\n  {};\nconst out = {};\nfor (let i = 1; i <= 10; i++) {\n  const k = 'evt' + i;\n  const v = src[k];\n  if (v !== undefined && v !== null && String(v).trim() !== '') out[k] = v;\n}\nreturn [{ json: out }];"
+      },
+      "id": "abb4cf23-6e38-44d0-ba56-b2cd0b382607",
+      "name": "Evenements de vie",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [10768, 4160]
+    }
+  ],
+  "connections": {
+    "Evenements de vie": {
+      "main": [[]]
+    }
+  },
+  "pinData": {
+    "Evenements de vie": [
+      {
+        "evt1": "carriere 01/09/2011",
+        "evt2": "demenagement 01/10/2014",
+        "evt3": "rupture 20/08/2012",
+        "evt4": "promotion 07/01/2023",
+        "evt5": "voyage_important 19/06/2014"
+      }
+    ]
+  },
+  "meta": {
+    "templateCredsSetupCompleted": true
+  }
+}

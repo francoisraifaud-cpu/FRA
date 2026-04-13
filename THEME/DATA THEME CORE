@@ -1,0 +1,1179 @@
+[
+    {
+      "planetes": {
+        "statusCode": 200,
+        "output": [
+          {
+            "planet": {
+              "en": "Ascendant",
+              "fr": "Ascendant"
+            },
+            "fullDegree": 297.0788885487229,
+            "normDegree": 27.078888548722887,
+            "isRetro": "False",
+            "zodiac_sign": {
+              "number": 10,
+              "name": {
+                "en": "Capricorn",
+                "fr": "Capricorne"
+              }
+            }
+          },
+          {
+            "planet": {
+              "en": "Sun",
+              "fr": "Soleil"
+            },
+            "fullDegree": 229.56920649405697,
+            "normDegree": 19.56920649405697,
+            "isRetro": "False",
+            "zodiac_sign": {
+              "number": 8,
+              "name": {
+                "en": "Scorpio",
+                "fr": "Scorpion"
+              }
+            },
+            "latitude": 0.0002,
+            "distance_ua": 0.989802,
+            "vitesse_longitude": 1.0058,
+            "declinaison": -17.6277
+          },
+          {
+            "planet": {
+              "en": "Moon",
+              "fr": "Lune"
+            },
+            "fullDegree": 127.66371493398408,
+            "normDegree": 7.663714933984082,
+            "isRetro": "False",
+            "zodiac_sign": {
+              "number": 5,
+              "name": {
+                "en": "Leo",
+                "fr": "Lion"
+              }
+            },
+            "latitude": 4.1321,
+            "distance_ua": 0.002703,
+            "vitesse_longitude": 11.8439,
+            "declinaison": 22.3477
+          },
+          {
+            "planet": {
+              "en": "Mars",
+              "fr": "Mars"
+            },
+            "fullDegree": 202.41927822781247,
+            "normDegree": 22.41927822781247,
+            "isRetro": "False",
+            "zodiac_sign": {
+              "number": 7,
+              "name": {
+                "en": "Libra",
+                "fr": "Balance"
+              }
+            },
+            "latitude": 0.8427,
+            "distance_ua": 2.459612,
+            "vitesse_longitude": 0.6504,
+            "declinaison": -7.9448
+          },
+          {
+            "planet": {
+              "en": "Mercury",
+              "fr": "Mercure"
+            },
+            "fullDegree": 210.53064999752473,
+            "normDegree": 0.5306499975247334,
+            "isRetro": "False",
+            "zodiac_sign": {
+              "number": 8,
+              "name": {
+                "en": "Scorpio",
+                "fr": "Scorpion"
+              }
+            },
+            "latitude": 2.3071,
+            "distance_ua": 0.972817,
+            "vitesse_longitude": 0.9224,
+            "declinaison": -9.4976
+          },
+          {
+            "planet": {
+              "en": "Jupiter",
+              "fr": "Jupiter"
+            },
+            "fullDegree": 21.574672036762284,
+            "normDegree": 21.574672036762284,
+            "isRetro": "True",
+            "zodiac_sign": {
+              "number": 1,
+              "name": {
+                "en": "Aries",
+                "fr": "Bélier"
+              }
+            },
+            "latitude": -1.5267,
+            "distance_ua": 4.061483,
+            "vitesse_longitude": -0.1038,
+            "declinaison": 6.9958
+          },
+          {
+            "planet": {
+              "en": "Venus",
+              "fr": "Vénus"
+            },
+            "fullDegree": 250.6388068589307,
+            "normDegree": 10.638806858930707,
+            "isRetro": "False",
+            "zodiac_sign": {
+              "number": 9,
+              "name": {
+                "en": "Sagittarius",
+                "fr": "Sagittaire"
+              }
+            },
+            "latitude": -0.6291,
+            "distance_ua": 1.558022,
+            "vitesse_longitude": 1.2442,
+            "declinaison": -22.6682
+          },
+          {
+            "planet": {
+              "en": "Saturn",
+              "fr": "Saturne"
+            },
+            "fullDegree": 259.7422039169662,
+            "normDegree": 19.74220391696622,
+            "isRetro": "False",
+            "zodiac_sign": {
+              "number": 9,
+              "name": {
+                "en": "Sagittarius",
+                "fr": "Sagittaire"
+              }
+            },
+            "latitude": 1.1808,
+            "distance_ua": 10.880489,
+            "vitesse_longitude": 0.1075,
+            "declinaison": -21.8695
+          },
+          {
+            "planet": {
+              "en": "Uranus",
+              "fr": "Uranus"
+            },
+            "fullDegree": 264.7714750449876,
+            "normDegree": 24.771475044987596,
+            "isRetro": "False",
+            "zodiac_sign": {
+              "number": 9,
+              "name": {
+                "en": "Sagittarius",
+                "fr": "Sagittaire"
+              }
+            },
+            "latitude": -0.1605,
+            "distance_ua": 20.040587,
+            "vitesse_longitude": 0.0521,
+            "declinaison": -23.5004
+          },
+          {
+            "planet": {
+              "en": "Neptune",
+              "fr": "Neptune"
+            },
+            "fullDegree": 276.0668588052314,
+            "normDegree": 6.066858805231391,
+            "isRetro": "False",
+            "zodiac_sign": {
+              "number": 10,
+              "name": {
+                "en": "Capricorn",
+                "fr": "Capricorne"
+              }
+            },
+            "latitude": 0.9746,
+            "distance_ua": 30.903486,
+            "vitesse_longitude": 0.0282,
+            "declinaison": -22.3307
+          },
+          {
+            "planet": {
+              "en": "Pluto",
+              "fr": "Pluton"
+            },
+            "fullDegree": 220.29257270931703,
+            "normDegree": 10.292572709317028,
+            "isRetro": "False",
+            "zodiac_sign": {
+              "number": 8,
+              "name": {
+                "en": "Scorpio",
+                "fr": "Scorpion"
+              }
+            },
+            "latitude": 15.6703,
+            "distance_ua": 30.61459,
+            "vitesse_longitude": 0.0401,
+            "declinaison": 0.005
+          },
+          {
+            "planet": {
+              "en": "Ceres",
+              "fr": "Cérès"
+            },
+            "fullDegree": 281.167622459486,
+            "normDegree": 11.167622459485983,
+            "isRetro": "False",
+            "zodiac_sign": {
+              "number": 10,
+              "name": {
+                "en": "Capricorn",
+                "fr": "Capricorne"
+              }
+            },
+            "latitude": -5.3592,
+            "distance_ua": 3.442979,
+            "vitesse_longitude": 0.3395,
+            "declinaison": -28.3133
+          },
+          {
+            "planet": {
+              "en": "Vesta",
+              "fr": "Vesta"
+            },
+            "fullDegree": 127.08371386798414,
+            "normDegree": 7.0837138679841445,
+            "isRetro": "False",
+            "zodiac_sign": {
+              "number": 5,
+              "name": {
+                "en": "Leo",
+                "fr": "Lion"
+              }
+            },
+            "latitude": 0.1272,
+            "distance_ua": 2.13443,
+            "vitesse_longitude": 0.154,
+            "declinaison": 18.6276
+          },
+          {
+            "planet": {
+              "en": "Juno",
+              "fr": "Junon"
+            },
+            "fullDegree": 326.32485103098395,
+            "normDegree": 26.32485103098395,
+            "isRetro": "False",
+            "zodiac_sign": {
+              "number": 11,
+              "name": {
+                "en": "Aquarius",
+                "fr": "Verseau"
+              }
+            },
+            "latitude": -0.5156,
+            "distance_ua": 1.901212,
+            "vitesse_longitude": 0.2305,
+            "declinaison": -13.2291
+          },
+          {
+            "planet": {
+              "en": "Pallas",
+              "fr": "Pallas"
+            },
+            "fullDegree": 258.2754474714095,
+            "normDegree": 18.275447471409507,
+            "isRetro": "False",
+            "zodiac_sign": {
+              "number": 9,
+              "name": {
+                "en": "Sagittarius",
+                "fr": "Sagittaire"
+              }
+            },
+            "latitude": 27.8413,
+            "distance_ua": 3.944608,
+            "vitesse_longitude": 0.3951,
+            "declinaison": 4.8199
+          },
+          {
+            "planet": {
+              "en": "Chiron",
+              "fr": "Chiron"
+            },
+            "fullDegree": 88.0132111971141,
+            "normDegree": 28.013211197114103,
+            "isRetro": "True",
+            "zodiac_sign": {
+              "number": 3,
+              "name": {
+                "en": "Gemini",
+                "fr": "Gémeaux"
+              }
+            },
+            "latitude": -6.1343,
+            "distance_ua": 12.011139,
+            "vitesse_longitude": -0.0434,
+            "declinaison": 17.2948
+          },
+          {
+            "planet": {
+              "en": "Lilith",
+              "fr": "Lilith"
+            },
+            "fullDegree": 129.61595806115952,
+            "normDegree": 9.615958061159517,
+            "isRetro": "False",
+            "zodiac_sign": {
+              "number": 5,
+              "name": {
+                "en": "Leo",
+                "fr": "Lion"
+              }
+            },
+            "latitude": 3.9559,
+            "distance_ua": 0.002711,
+            "vitesse_longitude": 0.1115,
+            "declinaison": 21.6561
+          },
+          {
+            "planet": {
+              "en": "Mean Node",
+              "fr": "Nœud moyen"
+            },
+            "fullDegree": 359.78773248090187,
+            "normDegree": 29.787732480901866,
+            "isRetro": "True",
+            "zodiac_sign": {
+              "number": 12,
+              "name": {
+                "en": "Pisces",
+                "fr": "Poissons"
+              }
+            },
+            "latitude": 0,
+            "distance_ua": 0.00257,
+            "vitesse_longitude": -0.0529,
+            "declinaison": -0.0844
+          },
+          {
+            "planet": {
+              "en": "True Node",
+              "fr": "Nœud vrai"
+            },
+            "fullDegree": 1.1094735750366167,
+            "normDegree": 1.1094735750366167,
+            "isRetro": "True",
+            "zodiac_sign": {
+              "number": 1,
+              "name": {
+                "en": "Aries",
+                "fr": "Bélier"
+              }
+            },
+            "latitude": 0,
+            "distance_ua": 0.00243,
+            "vitesse_longitude": -0.0316,
+            "declinaison": 0.4414
+          },
+          {
+            "planet": {
+              "en": "Descendant",
+              "fr": "Descendant"
+            },
+            "fullDegree": 117.07888854872289,
+            "normDegree": 27.078888548722887,
+            "isRetro": "False",
+            "zodiac_sign": {
+              "number": 4,
+              "name": {
+                "en": "Cancer",
+                "fr": "Cancer"
+              }
+            }
+          },
+          {
+            "planet": {
+              "en": "MC",
+              "fr": "Milieu du Ciel"
+            },
+            "fullDegree": 235.6257008500452,
+            "normDegree": 25.625700850045206,
+            "isRetro": "False",
+            "zodiac_sign": {
+              "number": 8,
+              "name": {
+                "en": "Scorpio",
+                "fr": "Scorpion"
+              }
+            }
+          },
+          {
+            "planet": {
+              "en": "IC",
+              "fr": "Imum Coeli"
+            },
+            "fullDegree": 55.62570085004518,
+            "normDegree": 25.625700850045178,
+            "isRetro": "False",
+            "zodiac_sign": {
+              "number": 2,
+              "name": {
+                "en": "Taurus",
+                "fr": "Taureau"
+              }
+            }
+          }
+        ]
+      },
+      "maisons": {
+        "statusCode": 200,
+        "output": {
+          "Houses": [
+            {
+              "House": 1,
+              "degree": 297.0788885487229,
+              "normDegree": 27.078888548722887,
+              "zodiac_sign": {
+                "number": 10,
+                "name": {
+                  "en": "Capricorn",
+                  "fr": "Capricorne"
+                }
+              }
+            },
+            {
+              "House": 2,
+              "degree": 349.4034076704805,
+              "normDegree": 19.403407670480476,
+              "zodiac_sign": {
+                "number": 12,
+                "name": {
+                  "en": "Pisces",
+                  "fr": "Poissons"
+                }
+              }
+            },
+            {
+              "House": 3,
+              "degree": 29.518281669066347,
+              "normDegree": 29.518281669066347,
+              "zodiac_sign": {
+                "number": 1,
+                "name": {
+                  "en": "Aries",
+                  "fr": "Bélier"
+                }
+              }
+            },
+            {
+              "House": 4,
+              "degree": 55.62570085004518,
+              "normDegree": 25.625700850045178,
+              "zodiac_sign": {
+                "number": 2,
+                "name": {
+                  "en": "Taurus",
+                  "fr": "Taureau"
+                }
+              }
+            },
+            {
+              "House": 5,
+              "degree": 75.58671138303623,
+              "normDegree": 15.586711383036231,
+              "zodiac_sign": {
+                "number": 3,
+                "name": {
+                  "en": "Gemini",
+                  "fr": "Gémeaux"
+                }
+              }
+            },
+            {
+              "House": 6,
+              "degree": 94.34307766881193,
+              "normDegree": 4.3430776688119295,
+              "zodiac_sign": {
+                "number": 4,
+                "name": {
+                  "en": "Cancer",
+                  "fr": "Cancer"
+                }
+              }
+            },
+            {
+              "House": 7,
+              "degree": 117.07888854872289,
+              "normDegree": 27.078888548722887,
+              "zodiac_sign": {
+                "number": 4,
+                "name": {
+                  "en": "Cancer",
+                  "fr": "Cancer"
+                }
+              }
+            },
+            {
+              "House": 8,
+              "degree": 169.40340767048042,
+              "normDegree": 19.40340767048042,
+              "zodiac_sign": {
+                "number": 6,
+                "name": {
+                  "en": "Virgo",
+                  "fr": "Vierge"
+                }
+              }
+            },
+            {
+              "House": 9,
+              "degree": 209.51828166906634,
+              "normDegree": 29.51828166906634,
+              "zodiac_sign": {
+                "number": 7,
+                "name": {
+                  "en": "Libra",
+                  "fr": "Balance"
+                }
+              }
+            },
+            {
+              "House": 10,
+              "degree": 235.6257008500452,
+              "normDegree": 25.625700850045206,
+              "zodiac_sign": {
+                "number": 8,
+                "name": {
+                  "en": "Scorpio",
+                  "fr": "Scorpion"
+                }
+              }
+            },
+            {
+              "House": 11,
+              "degree": 255.58671138303626,
+              "normDegree": 15.58671138303626,
+              "zodiac_sign": {
+                "number": 9,
+                "name": {
+                  "en": "Sagittarius",
+                  "fr": "Sagittaire"
+                }
+              }
+            },
+            {
+              "House": 12,
+              "degree": 274.34307766881193,
+              "normDegree": 4.3430776688119295,
+              "zodiac_sign": {
+                "number": 10,
+                "name": {
+                  "en": "Capricorn",
+                  "fr": "Capricorne"
+                }
+              }
+            }
+          ]
+        }
+      },
+      "perso": {
+        "nom": "Raifaud",
+        "prenom": "François",
+        "date": "12/11/1987",
+        "heure": "13H15",
+        "lieu": "Nantes",
+        "pays": "France",
+        "mail": "francois.raifaud@gmail.com",
+        "langue": "Français",
+        "consigne_redaction": "Tu",
+        "genre": "M"
+      },
+      "eclipseNatal": null,
+      "etoilesFixes": {
+        "date": "12/11/1987",
+        "julian_day": 2447112,
+        "precession_deg": -0.1695,
+        "output": [
+          {
+            "name": {
+              "fr": "Algol",
+              "en": "Algol"
+            },
+            "fullDegree": 56.0505,
+            "normDegree": 26.0505,
+            "sign_index": 1,
+            "zodiac_sign": {
+              "number": 2,
+              "name": {
+                "fr": "Taureau",
+                "en": "Taurus"
+              }
+            },
+            "methode": "precession_j2000",
+            "reference": {
+              "signe": "Taureau",
+              "degre": 26,
+              "label": "26° Taureau"
+            },
+            "ecart_reference": 0.0505,
+            "declination_j2000": 40.96,
+            "ra_j2000": 47.04
+          },
+          {
+            "name": {
+              "fr": "Pléiades",
+              "en": "Pleiades"
+            },
+            "fullDegree": 59.8105,
+            "normDegree": 29.8105,
+            "sign_index": 1,
+            "zodiac_sign": {
+              "number": 2,
+              "name": {
+                "fr": "Taureau",
+                "en": "Taurus"
+              }
+            },
+            "methode": "precession_j2000",
+            "reference": {
+              "signe": "Gémeaux",
+              "degre": 0,
+              "label": "0° Gémeaux"
+            },
+            "ecart_reference": -0.1895,
+            "declination_j2000": 24.11,
+            "ra_j2000": 56.87
+          },
+          {
+            "name": {
+              "fr": "Aldébaran",
+              "en": "Aldebaran"
+            },
+            "fullDegree": 69.6105,
+            "normDegree": 9.6105,
+            "sign_index": 2,
+            "zodiac_sign": {
+              "number": 3,
+              "name": {
+                "fr": "Gémeaux",
+                "en": "Gemini"
+              }
+            },
+            "methode": "precession_j2000",
+            "reference": {
+              "signe": "Gémeaux",
+              "degre": 9,
+              "label": "9° Gémeaux"
+            },
+            "ecart_reference": 0.6105,
+            "declination_j2000": 16.51,
+            "ra_j2000": 68.98
+          },
+          {
+            "name": {
+              "fr": "Sirius",
+              "en": "Sirius"
+            },
+            "fullDegree": 103.8805,
+            "normDegree": 13.8805,
+            "sign_index": 3,
+            "zodiac_sign": {
+              "number": 4,
+              "name": {
+                "fr": "Cancer",
+                "en": "Cancer"
+              }
+            },
+            "methode": "precession_j2000",
+            "reference": {
+              "signe": "Cancer",
+              "degre": 14,
+              "label": "14° Cancer"
+            },
+            "ecart_reference": -0.1195,
+            "declination_j2000": -16.72,
+            "ra_j2000": 101.29
+          },
+          {
+            "name": {
+              "fr": "Régulus",
+              "en": "Regulus"
+            },
+            "fullDegree": 149.6605,
+            "normDegree": 29.6605,
+            "sign_index": 4,
+            "zodiac_sign": {
+              "number": 5,
+              "name": {
+                "fr": "Lion",
+                "en": "Leo"
+              }
+            },
+            "methode": "precession_j2000",
+            "reference": {
+              "signe": "Vierge",
+              "degre": 0,
+              "label": "0° Vierge"
+            },
+            "ecart_reference": -0.3395,
+            "declination_j2000": 11.97,
+            "ra_j2000": 152.09
+          },
+          {
+            "name": {
+              "fr": "Spica",
+              "en": "Spica"
+            },
+            "fullDegree": 203.6665,
+            "normDegree": 23.6665,
+            "sign_index": 6,
+            "zodiac_sign": {
+              "number": 7,
+              "name": {
+                "fr": "Balance",
+                "en": "Libra"
+              }
+            },
+            "methode": "precession_j2000",
+            "reference": {
+              "signe": "Balance",
+              "degre": 24,
+              "label": "24° Balance"
+            },
+            "ecart_reference": -0.3335,
+            "declination_j2000": -11.16,
+            "ra_j2000": 201.3
+          },
+          {
+            "name": {
+              "fr": "Antarès",
+              "en": "Antares"
+            },
+            "fullDegree": 249.6005,
+            "normDegree": 9.6005,
+            "sign_index": 8,
+            "zodiac_sign": {
+              "number": 9,
+              "name": {
+                "fr": "Sagittaire",
+                "en": "Sagittarius"
+              }
+            },
+            "methode": "precession_j2000",
+            "reference": {
+              "signe": "Sagittaire",
+              "degre": 9,
+              "label": "9° Sagittaire"
+            },
+            "ecart_reference": 0.6005,
+            "declination_j2000": -26.43,
+            "ra_j2000": 247.35
+          },
+          {
+            "name": {
+              "fr": "Véga",
+              "en": "Vega"
+            },
+            "fullDegree": 285.1505,
+            "normDegree": 15.1505,
+            "sign_index": 9,
+            "zodiac_sign": {
+              "number": 10,
+              "name": {
+                "fr": "Capricorne",
+                "en": "Capricorn"
+              }
+            },
+            "methode": "precession_j2000",
+            "reference": {
+              "signe": "Capricorne",
+              "degre": 15,
+              "label": "15° Capricorne"
+            },
+            "ecart_reference": 0.1505,
+            "declination_j2000": 38.78,
+            "ra_j2000": 279.23
+          },
+          {
+            "name": {
+              "fr": "Fomalhaut",
+              "en": "Fomalhaut"
+            },
+            "fullDegree": 333.7005,
+            "normDegree": 3.7005,
+            "sign_index": 11,
+            "zodiac_sign": {
+              "number": 12,
+              "name": {
+                "fr": "Poissons",
+                "en": "Pisces"
+              }
+            },
+            "methode": "precession_j2000",
+            "reference": {
+              "signe": "Poissons",
+              "degre": 4,
+              "label": "4° Poissons"
+            },
+            "ecart_reference": -0.2995,
+            "declination_j2000": -29.62,
+            "ra_j2000": 344.41
+          },
+          {
+            "name": {
+              "fr": "Rigel",
+              "en": "Rigel"
+            },
+            "fullDegree": 76.6605,
+            "normDegree": 16.6605,
+            "sign_index": 2,
+            "zodiac_sign": {
+              "number": 3,
+              "name": {
+                "fr": "Gémeaux",
+                "en": "Gemini"
+              }
+            },
+            "methode": "precession_j2000",
+            "reference": {
+              "signe": "Gémeaux",
+              "degre": 17,
+              "label": "17° Gémeaux"
+            },
+            "ecart_reference": -0.3395,
+            "declination_j2000": -8.2,
+            "ra_j2000": 78.63
+          },
+          {
+            "name": {
+              "fr": "Bételgeuse",
+              "en": "Betelgeuse"
+            },
+            "fullDegree": 88.5805,
+            "normDegree": 28.5805,
+            "sign_index": 2,
+            "zodiac_sign": {
+              "number": 3,
+              "name": {
+                "fr": "Gémeaux",
+                "en": "Gemini"
+              }
+            },
+            "methode": "precession_j2000",
+            "reference": {
+              "signe": "Gémeaux",
+              "degre": 29,
+              "label": "29° Gémeaux"
+            },
+            "ecart_reference": -0.4195,
+            "declination_j2000": 7.41,
+            "ra_j2000": 88.79
+          },
+          {
+            "name": {
+              "fr": "Canopus",
+              "en": "Canopus"
+            },
+            "fullDegree": 104.8005,
+            "normDegree": 14.8005,
+            "sign_index": 3,
+            "zodiac_sign": {
+              "number": 4,
+              "name": {
+                "fr": "Cancer",
+                "en": "Cancer"
+              }
+            },
+            "methode": "precession_j2000",
+            "reference": {
+              "signe": "Cancer",
+              "degre": 15,
+              "label": "15° Cancer"
+            },
+            "ecart_reference": -0.1995,
+            "declination_j2000": -52.7,
+            "ra_j2000": 95.99
+          },
+          {
+            "name": {
+              "fr": "Castor",
+              "en": "Castor"
+            },
+            "fullDegree": 110.0805,
+            "normDegree": 20.0805,
+            "sign_index": 3,
+            "zodiac_sign": {
+              "number": 4,
+              "name": {
+                "fr": "Cancer",
+                "en": "Cancer"
+              }
+            },
+            "methode": "precession_j2000",
+            "reference": {
+              "signe": "Cancer",
+              "degre": 20,
+              "label": "20° Cancer"
+            },
+            "ecart_reference": 0.0805,
+            "declination_j2000": 31.89,
+            "ra_j2000": 113.65
+          },
+          {
+            "name": {
+              "fr": "Pollux",
+              "en": "Pollux"
+            },
+            "fullDegree": 113.0505,
+            "normDegree": 23.0505,
+            "sign_index": 3,
+            "zodiac_sign": {
+              "number": 4,
+              "name": {
+                "fr": "Cancer",
+                "en": "Cancer"
+              }
+            },
+            "methode": "precession_j2000",
+            "reference": {
+              "signe": "Cancer",
+              "degre": 23,
+              "label": "23° Cancer"
+            },
+            "ecart_reference": 0.0505,
+            "declination_j2000": 28.03,
+            "ra_j2000": 116.33
+          },
+          {
+            "name": {
+              "fr": "Procyon",
+              "en": "Procyon"
+            },
+            "fullDegree": 115.6105,
+            "normDegree": 25.6105,
+            "sign_index": 3,
+            "zodiac_sign": {
+              "number": 4,
+              "name": {
+                "fr": "Cancer",
+                "en": "Cancer"
+              }
+            },
+            "methode": "precession_j2000",
+            "reference": {
+              "signe": "Cancer",
+              "degre": 26,
+              "label": "26° Cancer"
+            },
+            "ecart_reference": -0.3895,
+            "declination_j2000": 5.23,
+            "ra_j2000": 114.83
+          },
+          {
+            "name": {
+              "fr": "Arcturus",
+              "en": "Arcturus"
+            },
+            "fullDegree": 204.0605,
+            "normDegree": 24.0605,
+            "sign_index": 6,
+            "zodiac_sign": {
+              "number": 7,
+              "name": {
+                "fr": "Balance",
+                "en": "Libra"
+              }
+            },
+            "methode": "precession_j2000",
+            "reference": {
+              "signe": "Balance",
+              "degre": 24,
+              "label": "24° Balance"
+            },
+            "ecart_reference": 0.0605,
+            "declination_j2000": 19.18,
+            "ra_j2000": 213.92
+          },
+          {
+            "name": {
+              "fr": "Vindemiatrix",
+              "en": "Vindemiatrix"
+            },
+            "fullDegree": 189.7805,
+            "normDegree": 9.7805,
+            "sign_index": 6,
+            "zodiac_sign": {
+              "number": 7,
+              "name": {
+                "fr": "Balance",
+                "en": "Libra"
+              }
+            },
+            "methode": "precession_j2000",
+            "reference": {
+              "signe": "Balance",
+              "degre": 10,
+              "label": "10° Balance"
+            },
+            "ecart_reference": -0.2195,
+            "declination_j2000": 10.96,
+            "ra_j2000": 195.54
+          },
+          {
+            "name": {
+              "fr": "Zubenelgenubi",
+              "en": "Zubenelgenubi"
+            },
+            "fullDegree": 224.9105,
+            "normDegree": 14.9105,
+            "sign_index": 7,
+            "zodiac_sign": {
+              "number": 8,
+              "name": {
+                "fr": "Scorpion",
+                "en": "Scorpio"
+              }
+            },
+            "methode": "precession_j2000",
+            "reference": {
+              "signe": "Scorpion",
+              "degre": 15,
+              "label": "15° Scorpion"
+            },
+            "ecart_reference": -0.0895,
+            "declination_j2000": -16.04,
+            "ra_j2000": 222.68
+          },
+          {
+            "name": {
+              "fr": "Zubeneschamali",
+              "en": "Zubeneschamali"
+            },
+            "fullDegree": 229.2005,
+            "normDegree": 19.2005,
+            "sign_index": 7,
+            "zodiac_sign": {
+              "number": 8,
+              "name": {
+                "fr": "Scorpion",
+                "en": "Scorpio"
+              }
+            },
+            "methode": "precession_j2000",
+            "reference": {
+              "signe": "Scorpion",
+              "degre": 19,
+              "label": "19° Scorpion"
+            },
+            "ecart_reference": 0.2005,
+            "declination_j2000": -9.38,
+            "ra_j2000": 229.25
+          },
+          {
+            "name": {
+              "fr": "Deneb Algedi",
+              "en": "Deneb Algedi"
+            },
+            "fullDegree": 323.3805,
+            "normDegree": 23.3805,
+            "sign_index": 10,
+            "zodiac_sign": {
+              "number": 11,
+              "name": {
+                "fr": "Verseau",
+                "en": "Aquarius"
+              }
+            },
+            "methode": "precession_j2000",
+            "reference": {
+              "signe": "Verseau",
+              "degre": 24,
+              "label": "24° Verseau"
+            },
+            "ecart_reference": -0.6195,
+            "declination_j2000": -16.13,
+            "ra_j2000": 326.76
+          },
+          {
+            "name": {
+              "fr": "Scheat",
+              "en": "Scheat"
+            },
+            "fullDegree": 359.2005,
+            "normDegree": 29.2005,
+            "sign_index": 11,
+            "zodiac_sign": {
+              "number": 12,
+              "name": {
+                "fr": "Poissons",
+                "en": "Pisces"
+              }
+            },
+            "methode": "precession_j2000",
+            "reference": {
+              "signe": "Poissons",
+              "degre": 29,
+              "label": "29° Poissons"
+            },
+            "ecart_reference": 0.2005,
+            "declination_j2000": 28.08,
+            "ra_j2000": 346.19
+          },
+          {
+            "name": {
+              "fr": "Achernar",
+              "en": "Achernar"
+            },
+            "fullDegree": 345.1505,
+            "normDegree": 15.1505,
+            "sign_index": 11,
+            "zodiac_sign": {
+              "number": 12,
+              "name": {
+                "fr": "Poissons",
+                "en": "Pisces"
+              }
+            },
+            "methode": "precession_j2000",
+            "reference": {
+              "signe": "Poissons",
+              "degre": 15,
+              "label": "15° Poissons"
+            },
+            "ecart_reference": 0.1505,
+            "declination_j2000": -57.24,
+            "ra_j2000": 24.43
+          },
+          {
+            "name": {
+              "fr": "Deneb",
+              "en": "Deneb"
+            },
+            "fullDegree": 335.1605,
+            "normDegree": 5.1605,
+            "sign_index": 11,
+            "zodiac_sign": {
+              "number": 12,
+              "name": {
+                "fr": "Poissons",
+                "en": "Pisces"
+              }
+            },
+            "methode": "precession_j2000",
+            "reference": {
+              "signe": "Poissons",
+              "degre": 5,
+              "label": "5° Poissons"
+            },
+            "ecart_reference": 0.1605,
+            "declination_j2000": 45.28,
+            "ra_j2000": 310.36
+          }
+        ]
+      }
+    }
+  ]

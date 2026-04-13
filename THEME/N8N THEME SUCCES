@@ -1,0 +1,154 @@
+{
+    "nodes": [
+      {
+        "parameters": {
+          "jsCode": "/**\n * Merge7 (append) → 3 items avec chacun binary.data (PDF).\n * Regroupe en 1 item : data, data1, data2 pour le nœud Gmail (3 PJ).\n * Classement par fileName (libellés des nœuds « Fix Nom & MIME PDF final* »).\n */\nfunction pickPdfBinary(item) {\n  const bin = item.binary || {};\n  for (const key of Object.keys(bin)) {\n    const b = bin[key];\n    if (!b) continue;\n    const mime = String(b.mimeType || \"\").toLowerCase();\n    const ext = String(b.fileExtension || \"\").toLowerCase();\n    if (mime.includes(\"pdf\") || ext === \"pdf\") return b;\n  }\n  const keys = Object.keys(bin);\n  if (keys.length) return bin[keys[0]];\n  return null;\n}\n\nfunction bucketForFileName(fileName) {\n  const fn = String(fileName || \"\");\n  if (fn.includes(\"Données Techniques\")) return \"donnees\";\n  if (fn.includes(\"Rapport Technique\")) return \"tech\";\n  if (fn.includes(\"Rapport Thème\") || fn.includes(\"Thème Astral\")) return \"main\";\n  return null;\n}\n\nconst items = $input.all();\nif (items.length === 0) return [];\n\nconst buckets = { main: null, tech: null, donnees: null };\nconst orphans = [];\n\nfor (const item of items) {\n  const pdf = pickPdfBinary(item);\n  if (!pdf) continue;\n  const b = bucketForFileName(pdf.fileName);\n  if (b && !buckets[b]) buckets[b] = pdf;\n  else orphans.push(pdf);\n}\n\nfor (const o of orphans) {\n  if (!buckets.main) buckets.main = o;\n  else if (!buckets.tech) buckets.tech = o;\n  else if (!buckets.donnees) buckets.donnees = o;\n}\n\nif (!buckets.main || !buckets.tech || !buckets.donnees) {\n  throw new Error(\n    \"Prépare email 3 PDF : attendu 3 PDF distincts (principal, technique, données). \" +\n      \"Reçu : \" +\n      [buckets.main, buckets.tech, buckets.donnees].filter(Boolean).length +\n      \" — vérifie Merge7 et les noms de fichiers.\",\n  );\n}\n\nlet extract = {};\ntry {\n  extract = $(\"Extract Variables\").first().json || {};\n} catch (e) {\n  /* nœud absent en test isolé */\n}\n\nconst mailClient =\n  extract.mail ||\n  items.find((i) => i.json?.mail)?.json?.mail ||\n  items[0].json?.mailClient ||\n  items[0].json?.mail ||\n  null;\n\nconst prenom = extract.prenom ?? items[0].json?.prenom ?? null;\nconst nomRaw =\n  extract.nom != null ? String(extract.nom) : items[0].json?.nom != null ? String(items[0].json.nom) : \"\";\nconst nomStr = nomRaw.trim();\n\nfunction isEnglishLang(raw) {\n  const s = String(raw ?? \"\")\n    .trim()\n    .toLowerCase()\n    .normalize(\"NFD\")\n    .replace(/\\p{M}/gu, \"\");\n  if (!s) return false;\n  if (s === \"en\" || s === \"english\" || s === \"anglais\") return true;\n  if (s.includes(\"english\") || s.includes(\"anglais\")) return true;\n  return false;\n}\n\nconst en = isEnglishLang(extract.langue);\nconst prenomStr = prenom != null ? String(prenom).trim() : \"\";\n\nconst namePart =\n  [prenomStr, nomStr].filter(Boolean).join(\" \") || \"Client\";\nconst emailSubject = en\n  ? `🌟 Natal chart — ${namePart}`\n  : `🌟 Thème Astral — ${namePart}`;\n\nconst greetHtml = en\n  ? prenomStr\n    ? `<p>Hello,</p>`\n    : \"<p>Hello,</p>\"\n  : prenomStr\n    ? `<p>Bonjour,</p>`\n    : \"<p>Bonjour,</p>\";\n\nconst emailHtml = en\n  ? `${greetHtml}<p>Your three natal chart documents are attached (PDF).</p><p>Clear skies! 🌟</p>`\n  : `${greetHtml}<p>Vos trois documents thème astral sont en pièces jointes (PDF).</p><p>Bonnes étoiles ! 🌟</p>`;\n\nreturn [\n  {\n    json: {\n      mailClient: mailClient || \"votre.adresse.test@gmail.com\",\n      prenom,\n      nom: nomStr || null,\n      emailSubject,\n      emailHtml,\n    },\n    binary: {\n      data: buckets.main,\n      data1: buckets.tech,\n      data2: buckets.donnees,\n    },\n  },\n];\n"
+        },
+        "id": "9fd4ee9a-086e-4482-95a1-02b8214c90ef",
+        "name": "Prépare email 3 PDF",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          3328,
+          3840
+        ]
+      },
+      {
+        "parameters": {
+          "sendTo": "={{ $json.mailClient || 'votre.adresse.test@gmail.com' }}",
+          "subject": "={{ $json.emailSubject }}",
+          "message": "={{ $json.emailHtml }}",
+          "options": {
+            "attachmentsUi": {
+              "attachmentsBinary": [
+                {
+                  "property": "data,data1,data2"
+                }
+              ]
+            },
+            "bccList": ""
+          }
+        },
+        "id": "274574ef-e962-4682-aebc-d74a4abb28c4",
+        "name": "Envoi Email avec PDF1",
+        "type": "n8n-nodes-base.gmail",
+        "typeVersion": 2.1,
+        "position": [
+          3568,
+          3840
+        ],
+        "webhookId": "b7e803e5-3628-47d1-a692-84db339ebbce",
+        "credentials": {
+          "gmailOAuth2": {
+            "id": "Flg03IHE2aFkPhKq",
+            "name": "Gmail account 2"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "jsCode": "const WEBHOOK_NODE='Webhook';const EXTRACT_NAMES=['Extract Variables','Extract Variables SYN','Extract Variables DHN','Extract Variables DHN1','Extract Variables1'];function readOrderIdFromWebhook(){try{const j=$(WEBHOOK_NODE).first().json;const b=j?.body!==undefined&&j?.body!==null&&typeof j.body==='object'&&!Array.isArray(j.body)?j.body:j;let id=typeof b?.orderId==='string'?b.orderId.trim():'';if(!id&&typeof j?.orderId==='string')id=j.orderId.trim();return id||null;}catch(e){return null;}}function readOrderIdFromExtracts(){for(const n of EXTRACT_NAMES){try{const v=$(n).first()?.json?.orderId;if(typeof v==='string'&&v.trim())return v.trim();}catch(e){}}return null;}const siteCallbackOrderId=readOrderIdFromWebhook()||readOrderIdFromExtracts();if(!siteCallbackOrderId)return[];return[{json:{siteCallbackOrderId}}];"
+        },
+        "id": "4e274f28-7425-4250-89f1-736b00e13531",
+        "name": "Succes DHN",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          3808,
+          3840
+        ]
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "https://site-rapports-astro.vercel.app/api/webhooks/n8n-order-status",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "X-Site-Webhook-Secret",
+                "value": "m0gTWmHSVkmy823F3gMqZr0aVHqyAtvoPy4IXDIfizI"
+              }
+            ]
+          },
+          "sendBody": true,
+          "contentType": "raw",
+          "rawContentType": "application/json",
+          "body": "={{ JSON.stringify({ orderId: $json.siteCallbackOrderId, status: 'delivered' }) }}",
+          "options": {}
+        },
+        "id": "a4cfd35c-76dd-4332-a86f-eacee3505663",
+        "name": "POST SUCCES DHN",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.4,
+        "position": [
+          4032,
+          3840
+        ]
+      },
+      {
+        "parameters": {
+          "numberInputs": 3
+        },
+        "type": "n8n-nodes-base.merge",
+        "typeVersion": 3.2,
+        "position": [
+          3104,
+          3824
+        ],
+        "id": "bcd7a85c-8f73-4a3a-bbe3-432043ebe4a8",
+        "name": "Merge9"
+      }
+    ],
+    "connections": {
+      "Prépare email 3 PDF": {
+        "main": [
+          [
+            {
+              "node": "Envoi Email avec PDF1",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Envoi Email avec PDF1": {
+        "main": [
+          [
+            {
+              "node": "Succes DHN",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Succes DHN": {
+        "main": [
+          [
+            {
+              "node": "POST SUCCES DHN",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Merge9": {
+        "main": [
+          [
+            {
+              "node": "Prépare email 3 PDF",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "pinData": {},
+    "meta": {
+      "templateCredsSetupCompleted": true,
+      "instanceId": "b6efd2f1fad5a0a294db5a1a7e88dd550900216aaeb7344a19bf4cfc45267781"
+    }
+  }

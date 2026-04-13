@@ -1,0 +1,1749 @@
+// ==========================================
+// GÉNÉRATEUR — RAPPORT TECHNIQUE HTML v10
+// Enrichissements complets : Chiron, Lunaisons, Éclipses, Stations, Angles, Aspects T→T
+// ==========================================
+
+const items = $input.all().map(i => {
+    const j = i.json;
+    delete j.prompt_user;
+    delete j.prompt_system;
+    delete j.contexte_natal_prompt;
+    return j;
+});
+let enrichedData = { maisons: [], planetes: [], perso: {}, etoileMatches: [], etoileCuspMatches: [] };
+try { enrichedData = $("Enrichissement Astrologique").first()?.json || enrichedData; } catch(e) {}
+const natalHouses  = enrichedData.maisons  || [];
+const natalPlanets = enrichedData.planetes || [];
+const perso        = enrichedData.perso    || {};
+const etoileMatchesNatH  = enrichedData.etoileMatches     || [];
+const etoileCuspNatH    = enrichedData.etoileCuspMatches || [];
+const eclipseNatalH     = enrichedData.eclipseNatal      || null;
+const dispositorTreeH   = enrichedData.dispositorTree    || {};
+const accidentalDignityH= enrichedData.accidentalDignity || [];
+const hayzPlanetsH      = enrichedData.hayzPlanets       || [];
+const besiegedPlanetsH  = enrichedData.besiegedPlanets   || [];
+const moonVOCH          = enrichedData.moonVOC           || null;
+const sabianDataH       = enrichedData.sabianData        || {};
+const natalStatsH       = enrichedData.stats             || {};
+const paranResultsH     = enrichedData.paranResults      || [];
+const stationaryPlanetsH = enrichedData.stationaryPlanets || [];
+let   chartShapeH       = enrichedData.chartShape        || {};
+const interceptedSignsH = enrichedData.interceptedSigns  || [];
+const sensitivityProfileH = enrichedData.sensitivityProfile || "";
+enrichedData = null;
+const stellarByPlanetH  = {};
+etoileMatchesNatH.forEach(em => { if (em.isAngle) return; if (!stellarByPlanetH[em.planete]) stellarByPlanetH[em.planete] = []; stellarByPlanetH[em.planete].push(em); });
+const getEtoilesForPlanet = p => stellarByPlanetH[p] || [];
+
+const typeRapport = (perso.rapport || "Annuel").trim();
+const _langueDT = (perso.langue || "Français").trim();
+const isEN = _langueDT !== "Français";
+const L = {
+    titre: isEN ? 'Technical Forecast Data' : 'Données Techniques Prévisions',
+    maison: isEN ? 'House' : 'Maison',
+    cuspide: isEN ? 'Cusp' : 'Cuspide',
+    planete: isEN ? 'Planet' : 'Planète',
+    signe: isEN ? 'Sign' : 'Signe',
+    score: 'Score',
+    detail: isEN ? 'Details' : 'Détail',
+    position: 'Position',
+    retro: isEN ? 'Retro' : 'Rétro',
+    aspect: 'Aspect',
+    type: 'Type',
+    orbe: isEN ? 'Orb' : 'Orbe',
+    maisons_pl: isEN ? 'Houses' : 'Maisons',
+    soleil: isEN ? 'Sun' : 'Soleil',
+    lune: isEN ? 'Moon' : 'Lune',
+    ascendant: 'Ascendant',
+    inconnu: isEN ? 'Unknown' : 'Inconnu',
+    axeMaitrise: isEN ? 'Rulership Chain' : 'Axe de maîtrise',
+    recepMut: isEN ? 'Mutual Receptions' : 'Réceptions mutuelles',
+    figuresNat: isEN ? 'Natal Figures & N→N Network' : 'Figures natales & réseau N→N',
+    filtresDig: isEN ? 'Dignity Filters' : 'Filtres de dignité',
+    translationsLum: isEN ? 'Translations of Light' : 'Translations de lumière',
+    degresCrit: isEN ? 'Critical & Anaretic Degrees' : 'Degrés critiques & anarètes',
+    degreCrit: isEN ? 'Critical degree' : 'Degré critique',
+    antiscia: 'Antiscia & Contra-antiscia',
+    ingress: isEN ? 'Planetary Ingresses' : 'Ingress planétaires',
+    cyclesVie: isEN ? 'Life Cycles' : 'Cycles de vie',
+    lunaisons: isEN ? 'Lunations' : 'Lunaisons',
+    eclipses: isEN ? 'Eclipses' : 'Éclipses',
+    passagesAngle: isEN ? 'Angle Transits' : "Passages sur l'angle",
+    stationsRetro: isEN ? 'Retrograde & Direct Stations' : 'Stations rétrogrades & directes',
+    aspectsMond: isEN ? 'Sky Aspects in Transit' : 'Aspects du Ciel en Transit',
+    fenetreStellaire: isEN ? 'Stellar Windows — Transits on Natal Star Zones' : 'Fenêtres Stellaires — Transits sur zones stellaires natales',
+    declinaisons: isEN ? 'Declinations — Parallels, Contra-Parallels & OOB' : 'Déclinaisons — Parallèles, Contre-Parallèles & OOB en Transit',
+    resonanceEcl: isEN ? 'Natal Eclipse Resonances' : 'Résonances Écliptiques Natales',
+    resonBadge: isEN ? 'NATAL ECLIPSE RESONANCE' : 'RÉSONANCE ÉCLIPSE NATALE',
+    planProgPresence: isEN ? 'Progressed Planets — Presence in This Sector' : 'Planètes Progressées — Présence dans ce secteur',
+    aspectsProg: isEN ? 'Progressed Aspects P→N' : 'Aspects Progressés P→N',
+    presenceLentes: isEN ? 'Slow Planet Transits' : 'Présence des planètes lentes',
+    aspectsLentes: isEN ? 'Aspects Activated by Slow Planets' : 'Figures & Aspects activés par les planètes lentes',
+    presenceRapides: isEN ? 'Fast Planet Transits' : 'Présence des planètes rapides',
+    aspectsRapides: isEN ? 'Aspects Activated by Fast Planets' : 'Figures & Aspects activés par les planètes rapides',
+    noLente: isEN ? 'No slow planet transits in this sector during this period.' : 'Aucune planète lente ne traverse ce secteur sur cette période.',
+    noAspLente: isEN ? 'No slow planet aspect detected.' : 'Aucun aspect de planète lente détecté.',
+    noRapide: isEN ? 'No fast planet transits in this sector during this period.' : 'Aucune planète rapide ne traverse ce secteur sur cette période.',
+    noAspRapide: isEN ? 'No fast planet aspect detected.' : 'Aucun aspect de planète rapide détecté.',
+    traverse: isEN ? 'transits through' : 'traverse',
+    aVotre: isEN ? 'to your' : 'à votre',
+    natal: isEN ? 'natal' : 'natal',
+    prog: isEN ? 'prog.' : 'prog.',
+    en: isEN ? 'in' : 'en',
+    translation: 'Translation',
+    traduit: isEN ? 'translates' : 'traduit',
+    eclipse: isEN ? 'ECLIPSE' : 'ÉCLIPSE',
+    de: isEN ? 'of' : 'de',
+    etoileRoyale: isEN ? 'Royal Star' : 'Étoile Royale',
+    etoileFixe: isEN ? 'Fixed Star' : 'Étoile fixe',
+    domicile: isEN ? 'Domicile' : 'Domicile',
+    exaltation: isEN ? 'Exaltation' : 'Exaltation',
+    exil: isEN ? 'Exile' : 'Exil',
+    chute: isEN ? 'Fall' : 'Chute',
+    peregrin: isEN ? 'Peregrine' : 'Pérégrin',
+    fort: isEN ? 'STRONG' : 'FORT',
+    faible: isEN ? 'WEAK' : 'FAIBLE',
+    neutre: isEN ? 'NEUTRAL' : 'NEUTRE',
+    signalFrag: isEN ? 'weakened signal for this house.' : 'signal fragilisé pour cette maison.',
+    signalPuiss: isEN ? 'direct and powerful signal.' : 'signal direct et puissant.',
+    doubleAffaib: isEN ? 'Peregrine + Retrograde: double weakening.' : 'Pérégrin + Rétrograde : double fragilisation.',
+    boutChaine: isEN ? 'End of chain:' : 'Bout de chaîne :',
+    energieDistordue: isEN ? 'final energy is distorted.' : "l'énergie finale est distordue.",
+    mutuelle: isEN ? 'Mutual' : 'Mutuelle',
+    semiMut: isEN ? 'Semi-mutual' : 'Semi-mutuelle',
+    echangent: isEN ? 'exchange domiciles — mutual reinforcement' : 'échangent leurs domiciles — se renforcent mutuellement',
+    coopPartielle: isEN ? 'partial cooperation' : 'coopération partielle',
+    reseauActive: isEN ? 'natal · active network:' : 'natal · réseau activé :',
+    transitAmplifie: isEN ? 'Transit amplified — direct and powerful response.' : 'Transit amplifié — réponse directe et puissante.',
+    transitFragilise: isEN ? 'Transit weakened — energy moves with difficulty or reverses.' : "Transit fragilisé — l'énergie se déplace avec peine ou se retourne.",
+    cycle: 'Cycle',
+    activation: 'Activation',
+    cyclesLL: isEN ? 'Slow–Slow Cycles' : 'Cycles Lente–Lente',
+    activationsRL: isEN ? 'Fast–Slow Activations' : 'Activations Rapide–Lente',
+    ctxNatal: isEN ? 'Advanced Natal Context' : 'Contexte Natal Avancé',
+    techClassiques: isEN ? 'Classical Techniques' : 'Techniques classiques',
+    arbreDisp: isEN ? 'Dispositor Tree' : 'Arbre des Dispositions',
+    dispFinaux: isEN ? 'Final Dispositor(s):' : 'Dispositeur(s) final(aux) :',
+    dispDesc: isEN ? 'Planet(s) in domicile concentrating rulership chain power' : 'Planète(s) en domicile concentrant le pouvoir de la chaîne de maîtrise',
+    forcePlan: isEN ? 'Planetary Strength (Accidental Dignity — Lilly)' : 'Force Planétaire (Dignité Accidentelle — Lilly)',
+    hayz: '✦ Hayz',
+    assiege: isEN ? 'Besieged Planets' : 'Planètes Assiégées',
+    luneVOC: isEN ? 'Void of Course Moon' : 'Lune Vide de Course',
+    planStation: isEN ? 'Stationary Planets (concentrated energy)' : 'Planètes Stationnaires (énergie concentrée)',
+    energieConc: isEN ? 'Exceptionally concentrated energy.' : 'Énergie exceptionnellement concentrée.',
+    structTheme: isEN ? 'Natal Chart Structure' : 'Structure du Thème Natal',
+    gouvFormeInt: isEN ? 'Governance · Shape · Interceptions' : 'Gouvernance · Forme · Interceptions',
+    gouverneur: isEN ? 'Chart Ruler' : 'Gouverneur du thème',
+    almutem: 'Almutem Figuris',
+    sect: 'Sect',
+    formeTheme: isEN ? 'Chart Shape:' : 'Forme du Thème :',
+    signesInt: isEN ? 'Intercepted Signs' : 'Signes Interceptés',
+    sensibilite: isEN ? 'Chart Sensitivity Profile' : 'Profil de Sensibilité du Thème',
+    receptTransits: isEN ? 'Responsiveness to Transits' : 'Réceptivité aux transits',
+    seigneur: isEN ? 'Ruler' : 'Seigneur',
+    firdaria: 'Firdaria',
+    dirPrimaires: isEN ? 'Primary Directions — Threads of Destiny' : 'Directions Primaires — Trame du Destin',
+    dirActive: isEN ? 'active direction' : 'direction active',
+    dirsActives: isEN ? 'active directions' : 'directions actives',
+    methodeDP: isEN ? 'Method: Equatorial Arcs / Naibod' : 'Méthode : Arcs équatoriaux / Naibod',
+    dpWarning: isEN ? '<strong>⚠ Supreme technique:</strong> Primary Directions are the most powerful predictive technique in astrology. They indicate the <strong>inevitable turning points</strong> of existence (influence 1-3 years). A heavy transit not confirmed by a PD will have a diminished impact.' : '<strong>⚠ Technique suprême :</strong> Les Directions Primaires sont la technique prédictive la plus puissante de l\'astrologie. Elles indiquent les <strong>tournants inévitables</strong> de l\'existence (influence 1-3 ans). Un transit lourd non confirmé par une DP aura un impact atténué.',
+    dpFirdBridge: isEN
+        ? '<strong>Then — time lords (Firdaria):</strong> Primary Directions mark <strong>hard pivots</strong>. <strong>Firdaria</strong> on the following page names the <strong>background time lord</strong> and sub-period — the climate while PDs signal the strikes. Transits tied to the active major and sub-period weigh more in the synthesis <span style="white-space:nowrap">(heatmap ×1.3)</span>.'
+        : '<strong>Ensuite — chronocrateurs (Firdaria) :</strong> les DP marquent les <strong>frappes du temps</strong> et les bascules difficiles à contourner. La <strong>Firdaria</strong> sur la page suivante (à l’impression PDF) précise le <strong>chronocrateur de fond</strong> et sa sous-période : elle teinte le climat pendant que les DP signalent les pivots. Les transits du majeur et de la sous-période actifs sont renforcés en synthèse <span style="white-space:nowrap">(heatmap ×1,3)</span>.',
+    solarArcTitle: isEN ? 'Solar Arcs — Annual climate (technical)' : 'Arcs solaires — Climat annuel (technique)',
+    solarArcBadge: isEN ? 'Directed longitudes = natal + (progressed Sun − natal Sun), orb 1°' : 'Longitudes dirigées = natal + (Soleil progressé − Soleil natal), orbe 1°',
+    saDirected: isEN ? 'Directed body' : 'Dirigé',
+    saTarget: isEN ? 'Natal target' : 'Cible natale',
+    saHouseTgt: isEN ? 'Target house' : 'Maison cible',
+    saOrb: isEN ? 'Orb' : 'Orbe',
+    saNote: isEN ? 'Note' : 'Note',
+    saIntro: isEN
+        ? 'Slow, structuring hits for the year — distinct from Primary Directions (equatorial arcs / Naibod above). Also weighted in the heatmap.'
+        : 'Frappes lentes et structurantes pour l’année — à ne pas confondre avec les Directions primaires (arcs équatoriaux / Naibod ci-dessus). Pris en compte aussi dans la heatmap.',
+    solarArcCountLbl: isEN ? 'solar arc aspects' : 'aspects d’arc solaire',
+    promisseur: isEN ? 'Promissor' : 'Promisseur',
+    significateur: isEN ? 'Significator' : 'Significateur',
+    ageExact: isEN ? 'Exact Age' : 'Âge exact',
+    firdariaTitle: isEN ? 'Firdaria — Active Time Lord' : 'Firdaria — Chronocrateur Actif',
+    periodeMaj: isEN ? 'Major period:' : 'Période majeure :',
+    chronoMaj: isEN ? 'Major Time Lord:' : 'Chronocrateur majeur :',
+    sousPeriode: isEN ? 'Sub-period:' : 'Sous-période :',
+    firdariaDesc: isEN ? 'Transits touching or from' : 'Les transits touchant ou provenant de',
+    firdariaDesc2: isEN ? 'are amplified — they resonate with the active time lord.' : 'sont amplifiés — ils résonnent avec le chronocrateur actif.',
+    progSec: isEN ? 'Secondary Progressions' : 'Progressions Secondaires',
+    age: isEN ? 'Age' : 'Âge',
+    ans: isEN ? 'years' : 'ans',
+    aspEvtProg: isEN ? 'Progressed Aspects & Events' : 'Aspects et Événements Progressés',
+    revSolaire: isEN ? 'Solar Return' : 'Révolution Solaire',
+    date: 'Date',
+    ascRS: isEN ? 'SR ASC:' : 'ASC RS :',
+    revLunaires: isEN ? 'Lunar Returns' : 'Révolutions Lunaires',
+    retLunaires: isEN ? 'lunar returns' : 'retours lunaires',
+    transitsProg: isEN ? 'Transits → Progressed (T→P)' : 'Transits → Progressés (T→P)',
+    aspectsMond2: isEN ? 'Sky Aspects in Transit (Mundane)' : 'Aspects du Ciel en Transit (Mondiaux)',
+    aspCyclesAll: isEN ? 'aspect(s) — cycles and activations common to all' : 'aspect(s) — cycles et activations communs à tous',
+    neeSousEcl: isEN ? 'Born under eclipse — Permanent eclipse sensitivity' : 'Né(e) sous éclipse — Sensibilité écliptique permanente',
+    eclNatDesc: isEN ? 'The themes of House' : 'Les thèmes de la M',
+    eclNatDesc2: isEN ? 'are marked by deep karmic transformation. Any future transit or eclipse on this degree reactivates this natal signature.' : 'sont marqués d\'une transformation karmique profonde. Tout transit ou éclipse future sur ce degré réactive cette signature natale.',
+    themeStellair: isEN ? 'Stellar chart:' : 'Thème stellaire :',
+    voirSection: isEN ? '— see Fixed Stars section at the bottom of the report.' : '— voir section Étoiles Fixes en bas du rapport.',
+    coMaitre: isEN ? 'Traditional chart co-ruler:' : 'Co-maître traditionnel du thème :',
+    condHelio: isEN ? 'Natal Heliocentric Conditions' : 'Conditions Héliocentriques Natales',
+    vitesse: isEN ? 'speed' : 'vitesse',
+    seuil: isEN ? 'threshold' : 'seuil',
+    maisAnnee: isEN ? 'HOUSE OF THE YEAR' : "MAISON DE L'ANNÉE",
+    profAnnuelle: isEN ? '(annual profection) — central life sector.' : '(profection annuelle) — secteur de vie central.',
+    seignAnnee: isEN ? 'Annual Lord:' : "Seigneur de l'année :",
+    transitAmpliAnnee: isEN ? '— transits are amplified all year.' : '— ses transits sont amplifiés toute l\'année.',
+    bascule: isEN ? 'Switchover on' : 'Bascule le',
+    nouveauSeign: isEN ? 'new ruler:' : 'nouveau seigneur :',
+    seignResident: isEN ? 'is the annual lord and resides here — "headquarters" of the year.' : "est le seigneur de l'année et réside ici — \"quartier général\" de l'année.",
+    seignNextResident: isEN ? 'will be the annual lord after switchover and resides here.' : "sera le seigneur de l'année après bascule et réside ici.",
+    basculeProf: isEN ? 'PROFECTION SWITCHOVER' : 'BASCULE DE PROFECTION',
+    basculeMais: isEN ? '— this house will become the house of the year.' : '— cette maison deviendra la maison de l\'année.',
+    profMensuelle: isEN ? 'Monthly profection:' : 'Profection mensuelle :',
+    maisAnnAct: isEN ? 'is the annual house — this house is active this month.' : 'est la maison annuelle — cette maison est active ce mois.',
+    fiable: isEN ? '✅ Reliable' : '✅ Fiable',
+    probable: isEN ? '◉ Probable' : '◉ Probable',
+    possible: isEN ? '△ Possible' : '△ Possible',
+    fragile: isEN ? '○ Fragile' : '○ Fragile',
+    reinsSec: isEN ? 'Safety re-insertion (critical indicators)' : 'Réinsertion sécuritaire (indicateurs critiques)',
+    profilNat: isEN ? 'Natal profile:' : 'Profil natal :',
+    domPrioritaire: isEN ? '★ Priority domain' : '★ Domaine prioritaire',
+    domSecondaire: isEN ? '◉ Secondary domain' : '◉ Domaine secondaire',
+    domMineur: isEN ? '○ Minor domain' : '○ Domaine mineur',
+    poids: isEN ? 'weight' : 'poids',
+    luneProg: isEN ? 'Progressed Moon: months' : 'Lune progressée : mois',
+    penalite: isEN ? 'penalty' : 'pénalité',
+    configNat: isEN ? 'Natal config.:' : 'Config. natale :',
+    eclReactivee: isEN ? 'Eclipse reactivated:' : 'Éclipse réactivée :',
+    enApplication: isEN ? 'Applying' : 'En application',
+    enSeparation: isEN ? 'Separating' : 'En séparation',
+    contreInd: isEN ? 'counter-indicator(s)' : 'contre-indicateur(s)',
+};
+const prenomNom   = `${perso.prenom || ""} ${(perso.nom || "").toUpperCase()}`.trim();
+
+const formatDate = (str) => {
+    if (!str) return "";
+    str = str.trim();
+    if (str.includes("/")) return str;
+    const [y, m, d] = str.split("-");
+    return `${d}/${m}/${y}`;
+};
+const annee         = perso.annee || String(new Date().getFullYear());
+const dateEntreeStr = formatDate(perso.date_entree || `01/01/${annee}`);
+const dateSortieStr = formatDate(perso.date_sortie || `31/12/${annee}`);
+
+const labelType   = typeRapport;
+const showRapides = ["Mensuel","Hebdomadaire","Journalier"].includes(typeRapport);
+const titrePrincipal = `${L.titre} - ${labelType} - ${dateEntreeStr} - ${dateSortieStr} - ${prenomNom}`;
+const _fdf = (s) => { if (!s) return ""; s = s.trim(); if (s.includes("/")) return s.replace(/\//g, "_"); const [y,m,d] = s.split("-"); return `${d}_${m}_${y}`; };
+const _desiredPdfName = `${L.titre} - ${labelType} - ${_fdf(perso.date_entree || `01/01/${annee}`)} - ${_fdf(perso.date_sortie || `31/12/${annee}`)} - ${prenomNom}`;
+
+const aspectColors = {
+    "Conjonction":{ border:"#7c3aed",bg:"#f5f3ff",text:"#7c3aed" },
+    "Sextile"    :{ border:"#15803d",bg:"#f0fdf4",text:"#15803d" },
+    "Carré"      :{ border:"#c2410c",bg:"#fff7ed",text:"#c2410c" },
+    "Trigone"    :{ border:"#1d4ed8",bg:"#eff6ff",text:"#1d4ed8" },
+    "Quinconce"  :{ border:"#b45309",bg:"#fffbeb",text:"#b45309" },
+    "Opposition" :{ border:"#be123c",bg:"#fff1f2",text:"#be123c" }
+};
+const defaultColor = { border:"#1e3a8a",bg:"#eff6ff",text:"#1e3a8a" };
+const THEMES = {
+    "Annuel"      :{ bg:"#1F3864", badge:"#e8f0fe", badgeTxt:"#1F3864" },
+    "Mensuel"     :{ bg:"#1a4b2e", badge:"#e0f4e8", badgeTxt:"#1a4b2e" },
+    "Hebdomadaire":{ bg:"#3d1a5c", badge:"#f0e8ff", badgeTxt:"#3d1a5c" },
+    "Journalier"  :{ bg:"#5c2a0a", badge:"#fff0e8", badgeTxt:"#5c2a0a" }
+};
+const tc = THEMES[typeRapport] || { bg:"#1e3a8a", badge:"#e8f0fe", badgeTxt:"#1e3a8a" };
+
+const _solSignDP = natalPlanets.find(p => (p.planet?.fr || p.planet?.en) === "Soleil")?.zodiac_sign?.name?.fr || "";
+const _lunSignDP = natalPlanets.find(p => (p.planet?.fr || p.planet?.en) === "Lune")?.zodiac_sign?.name?.fr || "";
+const _ascSignDP = natalHouses.find(h => h.maison === 1)?.segments?.find(s => s.type === "Cuspide")?.signe || "";
+const _lumHeaderDP = `${L.soleil} : ${_solSignDP} / ${L.ascendant} : ${_ascSignDP} / ${L.lune} : ${_lunSignDP}`;
+
+const glyphs = {
+    "Soleil":"☉","Lune":"☽","Mercure":"☿","Vénus":"♀","Mars":"♂",
+    "Jupiter":"♃","Saturne":"♄","Uranus":"♅","Neptune":"♆","Pluton":"♇",
+    "Nœud Nord":"☊","Nœud Sud":"☋","Chiron":"⚷","Cérès":"⚳","Pallas":"⚴",
+    "Junon":"⚵","Vesta":"⚶","Part de Fortune":"⊕","Lilith":"⚸",
+    "Lot de l'Esprit":"⊗","Lot de Nécessité":"⊘","Lot d'Éros":"♡","Lot de Courage":"⚔",
+    "Lot de Némésis":"⚖","Lot de Basis":"⊞","Lot d'Exaltation":"△","Lot du Daemon":"☽",
+    "Milieu du Ciel":"MC","Imum Coeli":"IC","Ascendant":"Asc","Descendant":"Desc"
+};
+const signGlyphs = {
+    "Bélier":"♈","Taureau":"♉","Gémeaux":"♊","Cancer":"♋",
+    "Lion":"♌","Vierge":"♍","Balance":"♎","Scorpion":"♏",
+    "Sagittaire":"♐","Capricorne":"♑","Verseau":"♒","Poissons":"♓"
+};
+const g     = (name) => glyphs[name] ? `<span class="glyph">${glyphs[name]}</span>` : "";
+const badge = (a, isAngle) => {
+    const c   = aspectColors[a] || defaultColor;
+    const cls = isAngle ? "aspect-badge angle-aspect-badge" : "aspect-badge";
+    return `<span class="${cls}" style="color:${c.text};background:${c.bg};border-color:${c.text}">${a}</span>`;
+};
+
+const ANGLE_BY_HOUSE = { 1:"ASC", 4:"IC", 7:"DSC", 10:"MC" };
+const ANGLE_COLORS = {
+    "ASC":{ bg:"#f0fdf4",text:"#15803d",border:"#15803d" },
+    "IC" :{ bg:"#eff6ff",text:"#1d4ed8",border:"#1d4ed8" },
+    "DSC":{ bg:"#fdf4ff",text:"#7c3aed",border:"#7c3aed" },
+    "MC" :{ bg:"#fff7ed",text:"#c2410c",border:"#c2410c" }
+};
+const ANGLE_NAMES_SET = new Set(["Ascendant","Milieu du Ciel","Descendant","Imum Coeli"]);
+
+const signs = ["Bélier","Taureau","Gémeaux","Cancer","Lion","Vierge","Balance","Scorpion","Sagittaire","Capricorne","Verseau","Poissons"];
+const houseCusps = natalHouses.map(h => ({
+    house : h.maison,
+    degree: (signs.indexOf(h.segments?.[0]?.signe || "Bélier") * 30 + (h.segments?.[0]?.degre_debut || 0)) % 360
+})).sort((a,b) => a.degree - b.degree);
+
+const findNatalHouse = (deg) => {
+    for (let i = 0; i < 12; i++) {
+        const h1 = houseCusps[i].degree, h2 = houseCusps[(i+1)%12].degree;
+        if (h1 < h2) { if (deg >= h1 && deg < h2) return houseCusps[i].house; }
+        else         { if (deg >= h1 || deg < h2) return houseCusps[i].house; }
+    }
+    return 1;
+};
+
+const houseSegments = {};
+natalHouses.forEach(h => { houseSegments[h.maison] = h.segments || []; });
+
+const planetsByHouse = {};
+natalPlanets.forEach(p => {
+    const name  = p.planet?.fr || p.planet?.en || "";
+    if (!name) return;
+    const deg   = p.fullDegree, sign = p.zodiac_sign?.name?.fr || signs[Math.floor(deg/30)%12];
+    const house = findNatalHouse(deg);
+    if (!planetsByHouse[house]) planetsByHouse[house] = [];
+    planetsByHouse[house].push({ name, deg:((deg??0)%30).toFixed(1), sign, isAngle:ANGLE_NAMES_SET.has(name) });
+});
+
+// ---- LOTS HERMÉTIQUES (calcul local pour le rapport) ----
+{
+    const _nd = {};
+    natalPlanets.forEach(p => {
+        const n = p.planet?.fr || p.planet?.en || "";
+        if (n) _nd[n] = p.fullDegree;
+    });
+    const _asc = _nd["Ascendant"], _sun = _nd["Soleil"], _moon = _nd["Lune"];
+    if (_asc !== undefined && _sun !== undefined && _moon !== undefined) {
+        const isDC = (((_sun - _asc) + 360) % 360) > 180;
+        const lc = (a,b,c) => (((a+b-c)%360)+360)%360;
+        const li = (a,b,c) => (((a+c-b)%360)+360)%360;
+        const LOT_NAMES = new Set(["Part de Fortune","Lot de l'Esprit","Lot de Nécessité","Lot d'Éros","Lot de Courage","Lot de Némésis","Lot de Basis","Lot d'Exaltation","Lot du Daemon"]);
+        const alreadyHas = new Set();
+        natalPlanets.forEach(p => { const n = p.planet?.fr || p.planet?.en || ""; if (LOT_NAMES.has(n)) alreadyHas.add(n); });
+        const pushL = (name, deg) => {
+            if (alreadyHas.has(name)) return;
+            const sign = signs[Math.floor(deg/30)%12];
+            const house = findNatalHouse(deg);
+            if (!planetsByHouse[house]) planetsByHouse[house] = [];
+            planetsByHouse[house].push({ name, deg:((deg??0)%30).toFixed(1), sign, isAngle:false });
+        };
+        const pof = isDC ? lc(_asc,_moon,_sun) : lc(_asc,_sun,_moon);
+        pushL("Part de Fortune", pof);
+        const pos = isDC ? lc(_asc,_sun,_moon) : lc(_asc,_moon,_sun);
+        pushL("Lot de l'Esprit", pos);
+        const _ma = _nd["Mars"], _ve = _nd["Vénus"], _sa = _nd["Saturne"], _me = _nd["Mercure"];
+        if (_me !== undefined) pushL("Lot de Nécessité", isDC ? lc(_asc,pof,_me) : li(_asc,pof,_me));
+        if (_ve !== undefined) pushL("Lot d'Éros", isDC ? lc(_asc,_ve,pos) : li(_asc,_ve,pos));
+        if (_ma !== undefined) pushL("Lot de Courage", isDC ? lc(_asc,pof,_ma) : li(_asc,pof,_ma));
+        if (_sa !== undefined) pushL("Lot de Némésis", isDC ? lc(_asc,pof,_sa) : li(_asc,pof,_sa));
+        pushL("Lot de Basis", lc(_asc,pof,pos));
+        pushL("Lot d'Exaltation", lc(_asc,19,_sun));
+        pushL("Lot du Daemon", isDC ? lc(_asc,_sun,pos) : li(_asc,_sun,pos));
+    }
+}
+
+const natalAnglePos = {};
+natalPlanets.forEach(p => {
+    const name = p.planet?.fr || p.planet?.en || "";
+    if (ANGLE_NAMES_SET.has(name)) natalAnglePos[name] = { deg:p.fullDegree, sign:p.zodiac_sign?.name?.fr || signs[Math.floor(p.fullDegree/30)%12] };
+});
+
+// ---- CALCULS STATIQUES NATAUX (C1-C5) ----
+
+const MAITRES_R = {"Bélier":"Mars","Taureau":"Vénus","Gémeaux":"Mercure","Cancer":"Lune","Lion":"Soleil","Vierge":"Mercure","Balance":"Vénus","Scorpion":"Pluton","Sagittaire":"Jupiter","Capricorne":"Saturne","Verseau":"Uranus","Poissons":"Neptune"};
+const DOMICILE_R  = {"Soleil":["Lion"],"Lune":["Cancer"],"Mercure":["Gémeaux","Vierge"],"Vénus":["Taureau","Balance"],"Mars":["Bélier","Scorpion"],"Jupiter":["Sagittaire","Poissons"],"Saturne":["Capricorne","Verseau"],"Uranus":["Verseau"],"Neptune":["Poissons"],"Pluton":["Scorpion"]};
+const EXALTATION_R= {"Soleil":"Bélier","Lune":"Taureau","Mercure":"Vierge","Vénus":"Poissons","Mars":"Capricorne","Jupiter":"Cancer","Saturne":"Balance","Uranus":"Scorpion","Neptune":"Cancer","Pluton":"Lion"};
+const EXIL_R      = {"Soleil":["Verseau"],"Lune":["Capricorne"],"Mercure":["Sagittaire","Poissons"],"Vénus":["Bélier","Scorpion"],"Mars":["Taureau","Balance"],"Jupiter":["Gémeaux","Vierge"],"Saturne":["Cancer","Lion"],"Uranus":["Lion"],"Neptune":["Vierge"],"Pluton":["Taureau"]};
+const CHUTE_R     = {"Soleil":"Balance","Lune":"Scorpion","Mercure":"Poissons","Vénus":"Vierge","Mars":"Cancer","Jupiter":"Capricorne","Saturne":"Bélier","Uranus":"Taureau","Neptune":"Capricorne","Pluton":"Verseau"};
+
+const getDig = (p, s) => {
+    if ((DOMICILE_R[p]||[]).includes(s))  return {dignite:L.domicile,  force:L.fort,   sym:"✦",  cls:"dig-fort"};
+    if (EXALTATION_R[p] === s)            return {dignite:L.exaltation,force:L.fort,   sym:"✧",  cls:"dig-fort"};
+    if ((EXIL_R[p]||[]).includes(s))      return {dignite:L.exil,      force:L.faible, sym:"✗",  cls:"dig-faible"};
+    if (CHUTE_R[p] === s)                 return {dignite:L.chute,     force:L.faible, sym:"✗✗", cls:"dig-chute"};
+    return {dignite:L.peregrin, force:L.neutre, sym:"", cls:"dig-neutre"};
+};
+
+const natalDictR = {};
+natalPlanets.forEach(p => {
+    const name = p.planet?.fr || p.planet?.en || "";
+    if (!name) return;
+    const deg  = p.fullDegree;
+    const sign = p.zodiac_sign?.name?.fr || signs[Math.floor(deg/30)%12];
+    const house= findNatalHouse(deg);
+    const isRetro = p.isRetro === true || p.isRetro === "True";
+    const dig  = getDig(name, sign);
+    natalDictR[name] = { deg, sign, house, isRetro, ...dig };
+});
+
+const NALSP_ORB = {"Conjonction":10,"Opposition":10,"Carré":8,"Trigone":8,"Sextile":6};
+const NALSP_DEG = {"Conjonction":0,"Sextile":60,"Carré":90,"Trigone":120,"Opposition":180};
+const natalAspR = {};
+const natalNamesR = Object.keys(natalDictR);
+natalNamesR.forEach(n => { natalAspR[n] = []; });
+for (let i=0; i<natalNamesR.length; i++) {
+    for (let j=i+1; j<natalNamesR.length; j++) {
+        const nA=natalNamesR[i], nB=natalNamesR[j];
+        let diff = Math.abs(natalDictR[nA].deg - natalDictR[nB].deg);
+        if (diff>180) diff=360-diff;
+        for (const [asp, maxOrb] of Object.entries(NALSP_ORB)) {
+            const orbe = parseFloat(Math.abs(diff - NALSP_DEG[asp]).toFixed(2));
+            if (orbe <= maxOrb) {
+                natalAspR[nA].push({ planete:nB, type:asp, orbe, maison:natalDictR[nB].house, signe:natalDictR[nB].sign });
+                natalAspR[nB].push({ planete:nA, type:asp, orbe, maison:natalDictR[nA].house, signe:natalDictR[nA].sign });
+            }
+        }
+    }
+}
+natalNamesR.forEach(n => { natalAspR[n].sort((a,b)=>a.orbe-b.orbe); });
+
+const receptionsR = [];
+for (let i=0; i<natalNamesR.length; i++) {
+    for (let j=i+1; j<natalNamesR.length; j++) {
+        const pA=natalNamesR[i], pB=natalNamesR[j];
+        const sA=natalDictR[pA]?.sign, sB=natalDictR[pB]?.sign;
+        if (!sA||!sB) continue;
+        const AenDomB=(DOMICILE_R[pB]||[]).includes(sA), BenDomA=(DOMICILE_R[pA]||[]).includes(sB);
+        const AenExaB=EXALTATION_R[pB]===sA,              BenExaA=EXALTATION_R[pA]===sB;
+        if (AenDomB && BenDomA) receptionsR.push({ pA,pB,type:"domicile",maisA:natalDictR[pA].house,maisB:natalDictR[pB].house });
+        else if ((AenDomB&&BenExaA)||(BenDomA&&AenExaB)) receptionsR.push({ pA,pB,type:"semi",maisA:natalDictR[pA].house,maisB:natalDictR[pB].house });
+    }
+}
+
+const buildAxe = (maisNum) => {
+    const h = natalHouses.find(h=>h.maison===maisNum); if (!h) return null;
+    const signe0 = h.segments?.[0]?.signe || "Bélier";
+    const m1 = MAITRES_R[signe0]; if (!m1||!natalDictR[m1]) return null;
+    const nd1=natalDictR[m1], r1=nd1.isRetro?"[℞] ":"";
+    const m2=MAITRES_R[nd1.sign]; const nd2=m2?natalDictR[m2]:null;
+    const m3=nd2?MAITRES_R[nd2.sign]:null; const nd3=m3?natalDictR[m3]:null;
+    return {
+        signe0, m1, nd1, r1,
+        m2: m2&&m2!==m1?m2:null, nd2: nd2&&m2!==m1?nd2:null, r2: nd2?.isRetro?"[℞] ":"",
+        m3: m3&&m3!==m2&&m3!==m1?m3:null, nd3: nd3&&m3!==m2&&m3!==m1?nd3:null, r3: nd3?.isRetro?"[℞] ":"",
+    };
+};
+
+const renderAxeMaitrises = (maisNum) => {
+    const ax = buildAxe(maisNum); if (!ax) return "";
+    const digColor = (force) => force==="FORT"?"#15803d":force==="FAIBLE"?"#b91c1c":"#64748b";
+    const digBg    = (force) => force==="FORT"?"#f0fdf4":force==="FAIBLE"?"#fff1f2":"#f8fafc";
+
+    const node = (p, nd, r) => nd ? `<span class="axe-node">
+        <span class="axe-planet">${g(p)}${p}</span>
+        ${r?`<span class="axe-retro">℞</span>`:""}
+        <span class="axe-pos">M${nd.house} · ${nd.sign}</span>
+        <span class="axe-dig" style="color:${digColor(nd.force)};background:${digBg(nd.force)}">${nd.sym||""} ${nd.dignite}</span>
+    </span>` : "";
+
+    const warnings = [];
+    if (ax.nd1.force===L.faible) warnings.push(`⚠ ${ax.m1} ${ax.nd1.sym} ${ax.nd1.dignite} : ${L.signalFrag}`);
+    if (ax.nd1.force===L.fort)   warnings.push(`✦ ${ax.m1} ${ax.nd1.sym} ${ax.nd1.dignite} : ${L.signalPuiss}`);
+    if (ax.nd1.dignite===L.peregrin && ax.nd1.isRetro) warnings.push(`⚠ ${ax.m1} ${L.doubleAffaib}`);
+    if (ax.nd3?.force===L.faible) warnings.push(`⚠ ${L.boutChaine} ${ax.m3} ${ax.nd3.sym} ${ax.nd3.dignite} → ${L.energieDistordue}`);
+
+    return `<div class="section-title axe-title">🔗 ${L.axeMaitrise} — M${maisNum} (${ax.signe0})</div>
+    <div class="axe-chain">
+        <span class="axe-label">${L.cuspide} ${ax.signe0}</span>
+        <span class="axe-arrow">→</span>
+        ${node(ax.m1, ax.nd1, ax.nd1.isRetro)}
+        ${ax.m2 ? `<span class="axe-arrow">→</span>${node(ax.m2, ax.nd2, ax.nd2?.isRetro)}` : ""}
+        ${ax.m3 ? `<span class="axe-arrow">→</span>${node(ax.m3, ax.nd3, ax.nd3?.isRetro)}` : ""}
+    </div>
+    ${warnings.length ? `<div class="axe-warnings">${warnings.map(w=>`<div class="axe-warn">${w}</div>`).join("")}</div>` : ""}`;
+};
+
+const renderReceptionsMutuelles = (maisNum) => {
+    const planH = Object.entries(natalDictR).filter(([n,d])=>d.house===maisNum).map(([n])=>n);
+    const seg0  = natalHouses.find(h=>h.maison===maisNum)?.segments?.[0];
+    const maitre= seg0 ? MAITRES_R[seg0.signe] : null;
+    const relevant = receptionsR.filter(r=>
+        planH.includes(r.pA)||planH.includes(r.pB)||r.pA===maitre||r.pB===maitre
+    );
+    if (!relevant.length) return "";
+    const html = relevant.map(r => {
+        const isFull = r.type==="domicile";
+        const col  = isFull ? "#1F3864" : "#6b7280";
+        const bg   = isFull ? "#eef2fb" : "#f8fafc";
+        return `<div class="timeline-item recep-item" style="border-left-color:${col};background:${bg}">
+            <div class="event-text">
+                <span class="recep-badge" style="color:${col};border-color:${col}">${isFull?"✦✦ "+L.mutuelle:"✦ "+L.semiMut}</span>
+                ${g(r.pA)} <strong>${r.pA}</strong> (M${r.maisA}) ↔ ${g(r.pB)} <strong>${r.pB}</strong> (M${r.maisB})
+                <span style="color:#94a3b8;font-size:0.82rem">${isFull?L.echangent:L.coopPartielle}</span>
+            </div>
+        </div>`;
+    }).join("");
+    return `<div class="section-title recep-title">↔ ${L.recepMut}</div>${html}`;
+};
+
+const renderFiguresNatales = (maisNum, aspectsList) => {
+    if (!aspectsList?.length) return "";
+    const planH = Object.entries(natalDictR).filter(([n,d])=>d.house===maisNum).map(([n])=>n);
+    if (!planH.length) return "";
+    const touched = new Set();
+    aspectsList.forEach(a => { if (a.maison === maisNum || (a.isAngle && maisNum===a.maison)) touched.add(a.pNatal); });
+    planH.forEach(p => touched.add(p));
+
+    const lines = [];
+    touched.forEach(pN => {
+        const links = (natalAspR[pN]||[]).filter(l => l.type==="Conjonction"||l.type==="Opposition" ? l.orbe<=6 : l.orbe<=5);
+        if (!links.length) return;
+        const linesP = links.map(l => {
+            const q   = l.orbe<=1?"★ ":"";
+            const dig = natalDictR[l.planete];
+            return `<div class="fn-link">
+                <span class="fn-asp" style="color:${(aspectColors[l.type]||defaultColor).text}">${l.type}</span>
+                ${g(l.planete)} <strong>${l.planete}</strong>
+                <span class="fn-meta">M${l.maison} · ${l.signe} · ${q}${l.orbe}°</span>
+                ${dig&&dig.force!=="NEUTRE"?`<span class="fn-dig ${dig.cls}">${dig.sym} ${dig.dignite}</span>`:""}
+            </div>`;
+        }).join("");
+        lines.push(`<div class="fn-group">
+            <div class="fn-header">${g(pN)} <strong>${pN}</strong> ${L.reseauActive}</div>
+            ${linesP}
+        </div>`);
+    });
+    if (!lines.length) return "";
+    return `<div class="section-title fn-title">◉ ${L.figuresNat}</div>${lines.join("")}`;
+};
+
+const DIGNITY_MAJOR_TRANSITS = new Set(["Jupiter","Saturne","Uranus","Neptune","Pluton","Chiron"]);
+const renderDignitesActives = (aspectsList) => {
+    if (!aspectsList?.length) return "";
+    const items = [];
+    const seen = new Set();
+    aspectsList.forEach(a => {
+        if (!DIGNITY_MAJOR_TRANSITS.has(a.pTransit)) return;
+        const pN  = a.pNatal; if (!pN || seen.has(pN)) return;
+        const nd  = natalDictR[pN]; if (!nd || nd.force === "NEUTRE") return;
+        seen.add(pN);
+        const col = nd.force==="FORT"?"#15803d":"#b91c1c";
+        const bg  = nd.force==="FORT"?"#f0fdf4":"#fff1f2";
+        const msg = nd.force===L.fort
+            ? L.transitAmplifie
+            : L.transitFragilise;
+        items.push(`<div class="timeline-item dig-item" style="border-left-color:${col};background:${bg}">
+            <div class="event-text">
+                <span class="dig-badge" style="color:${col};border-color:${col}">${nd.sym} ${nd.dignite}</span>
+                ${g(pN)} <strong>${pN}</strong> natal en <strong>${nd.sign}</strong> — ${msg}
+            </div>
+        </div>`);
+    });
+    if (!items.length) return "";
+    return `<div class="section-title dig-title">⚖ ${L.filtresDig}</div>${items.join("")}`;
+};
+
+const renderTranslationsLumiere = (list) => {
+    if (!list?.length) return "";
+    const html = list.map(tl =>
+        `<div class="timeline-item tl-item" style="border-left-color:#0891b2">
+            <div class="date-box">${tl.debut} ➔ ${tl.fin}</div>
+            <div class="event-text">
+                ${g(tl.pF)} <strong>${tl.pF}</strong>
+                <span class="tl-badge">${L.translation}</span>
+                ${L.traduit} ${g(tl.pS1)} <strong>${tl.pS1}</strong> (M${tl.maisS1})
+                → ${g(tl.pS2)} <strong>${tl.pS2}</strong> (M${tl.maisS2})
+                <span style="color:#94a3b8;font-size:0.82rem">via ${tl.asp1}/${tl.asp2}</span>
+            </div>
+        </div>`
+    ).join("");
+    return `<div class="section-title tl-title">⟿ ${L.translationsLum}</div>${html}`;
+};
+
+// ---- RENDERERS C7 ----
+const renderDegresCritiques = (list) => {
+    if (!list?.length) return "";
+    const seen = new Set();
+    const dedup = list.filter(t => { const k=t.slice(0,80); if(seen.has(k))return false; seen.add(k); return true; });
+    const html = dedup.map(txt =>
+        `<div class="timeline-item dc-item" style="border-left-color:#2E5FA3">
+            <div class="event-text">
+                <span class="dc-badge">⚑ ${L.degreCrit}</span>
+                ${txt}
+            </div>
+        </div>`
+    ).join("");
+    return `<div class="section-title dc-title">⚑ ${L.degresCrit}</div>${html}`;
+};
+
+const renderProfection = (prof) => {
+    if (!prof) return "";
+    const isAnn  = prof.role === "annuelle";
+    const isSei  = !!prof.seigneurIci;
+    const isSeiNext = !!prof.seigneurNextIci;
+    const isMens = prof.role === "mensuelle";
+    const isBascule = prof.role === "bascule";
+    const col  = isAnn ? "#1F3864" : isSei ? "#2E5FA3" : isBascule ? "#7c3aed" : isSeiNext ? "#6d28d9" : "#1e40af";
+    const bg   = isAnn ? "#e8f0fe" : isSei ? "#eef2fb" : isBascule ? "#f3e8ff" : isSeiNext ? "#ede9fe" : "#f0f4ff";
+    const icon = isAnn ? "✶" : isSei ? (glyphs[prof.seigneurIci] || "♔") : isBascule ? "⚠" : isSeiNext ? (glyphs[prof.seigneurNextIci] || "♔") : "☽";
+    let blocks = [];
+    if (isAnn) {
+        let annTxt = `<strong>${L.maisAnnee}</strong> ${L.profAnnuelle}${prof.seigneur ? `<br><span style="font-size:0.85rem">${L.seignAnnee} <strong>${prof.seigneur}</strong> (M${prof.seignMaison}) ${L.transitAmpliAnnee}</span>` : ""}`;
+        if (prof.bascule) {
+            annTxt += `<br><span style="font-size:0.82rem;color:#7c3aed">⚠ ${L.bascule} ${prof.bascule.date} (${prof.bascule.ageNext} ${L.ans}) → M${prof.bascule.maisNext} (${prof.bascule.signeNext}), ${L.nouveauSeign} <strong>${prof.bascule.seigneurNext}</strong>${prof.bascule.seignMaisonNext ? ` (M${prof.bascule.seignMaisonNext})` : ""}.</span>`;
+        }
+        blocks.push({ col: "#1F3864", bg: "#e8f0fe", icon: "✶", txt: annTxt });
+    }
+    if (isSei) blocks.push({ col, bg, icon, txt: `<strong>${prof.seigneurIci}</strong> ${L.seignResident}` });
+    if (isSeiNext) blocks.push({ col, bg, icon, txt: `<strong>${prof.seigneurNextIci}</strong> ${L.seignNextResident}` });
+    if (isBascule && prof.bascule) blocks.push({ col, bg, icon, txt: `<strong>${L.basculeProf}</strong> ${prof.bascule.date} ${L.basculeMais}${prof.bascule.seigneurNext ? `<br><span style="font-size:0.85rem">${L.nouveauSeign} <strong>${prof.bascule.seigneurNext}</strong>${prof.bascule.seignMaisonNext ? ` (M${prof.bascule.seignMaisonNext})` : ""}.</span>` : ""}` });
+    if (isMens) blocks.push({ col, bg, icon, txt: `${L.profMensuelle} M${prof.maisAnn} ${L.maisAnnAct}` });
+    if (!blocks.length) return "";
+    return blocks.map(b => `<div class="prof-block" style="border-left-color:${b.col};background:${b.bg}">
+        <span class="prof-icon" style="color:${b.col}">${b.icon}</span>
+        <div class="prof-text">${b.txt}</div>
+    </div>`).join("");
+};
+
+const renderAntiscia = (list) => {
+    if (!list?.length) return "";
+    const seen = new Set();
+    const dedup = list.filter(t => { const k=t.slice(0,80); if(seen.has(k))return false; seen.add(k); return true; });
+    const html = dedup.map(txt =>
+        `<div class="timeline-item ant-item" style="border-left-color:#6366f1">
+            <div class="event-text">
+                <span class="ant-badge">◈ Antiscion</span>
+                ${txt}
+            </div>
+        </div>`
+    ).join("");
+    return `<div class="section-title ant-title">◈ ${L.antiscia}</div>${html}`;
+};
+
+const renderIngress = (list) => {
+    if (!list?.length) return "";
+    const seen = new Set();
+    const dedup = list.filter(t => { const k=t.slice(0,70); if(seen.has(k))return false; seen.add(k); return true; });
+    const html = dedup.map(txt =>
+        `<div class="timeline-item ing-item" style="border-left-color:#2E5FA3">
+            <div class="event-text"><span class="ing-badge">➤ Ingress</span>${txt}</div>
+        </div>`
+    ).join("");
+    return `<div class="section-title ing-title">➤ ${L.ingress}</div>${html}`;
+};
+
+const renderCyclesVie = (list) => {
+    if (!list?.length) return "";
+    const html = list.map(txt =>
+        `<div class="cyc-block">
+            <span class="cyc-icon">⧗</span>
+            <div class="cyc-text">${txt}</div>
+        </div>`
+    ).join("");
+    return `<div class="section-title cyc-title">⧗ ${L.cyclesVie}</div>${html}`;
+};
+
+const renderTransits = (list, emptyMsg) => {
+    if (!list?.length) return `<div class="empty">${emptyMsg}</div>`;
+    return list.map(t =>
+        `<div class="timeline-item" style="border-left-color:#1e3a8a">
+            <div class="date-box">${t.debut} ➔ ${t.fin}</div>
+            <div class="event-text">${g(t.planete)} <strong>${t.planete}</strong> ${L.traverse} ${signGlyphs[t.signe]||""} <strong>${t.signe}</strong></div>
+        </div>`
+    ).join("");
+};
+
+const renderAspects = (list, emptyMsg) => {
+    if (!list?.length) return `<div class="empty">${emptyMsg}</div>`;
+    return list.map(a => {
+        const c     = aspectColors[a.type] || defaultColor;
+        const isAng = a.isAngle || ANGLE_NAMES_SET.has(a.pNatal);
+        const rowBg = isAng ? "background:#f0f4ff;" : "";
+        return `<div class="timeline-item${isAng ? " angle-row" : ""}" style="border-left-color:${c.border};${rowBg}">
+            <div class="date-box">${a.debut} ➔ ${a.fin}</div>
+            <div class="event-text">
+                ${g(a.pTransit)} <strong>${a.pTransit}</strong>
+                ${L.en} ${badge(a.type, isAng)}
+                ${L.aVotre} ${g(a.pNatal)} <strong>${a.pNatal}</strong> ${L.natal}
+                ${isAng ? `<span class="angle-pill">${glyphs[a.pNatal]||a.pNatal}</span>` : ""}
+            </div>
+        </div>`;
+    }).join("");
+};
+
+const renderStations = (list) => {
+    if (!list?.length) return "";
+    const html = list.map(s => {
+        const isRetro = s.type === "Station rétrograde";
+        const color   = isRetro ? "#1F3864" : "#2E5FA3";
+        const bg      = isRetro ? "#e8f0fe" : "#eef2fb";
+        return `<div class="timeline-item station-item" style="border-left-color:${color}">
+            <div class="date-box">${s.date}</div>
+            <div class="event-text">
+                ${g(s.planete)} <strong>${s.planete}</strong>
+                <span class="station-badge" style="color:${color};background:${bg};border-color:${color}">${isRetro ? "℞" : "D"} ${s.type}</span>
+                en ${signGlyphs[s.signe]||""} <strong>${s.signe}</strong>
+            </div>
+        </div>`;
+    }).join("");
+    return `<div class="section-title station-title">⟳ ${L.stationsRetro}</div>${html}`;
+};
+
+const renderLunaisons = (list) => {
+    if (!list?.length) return "";
+    const html = list.map(l => {
+        const isNL  = l.type === "Nouvelle Lune";
+        const color = isNL ? "#1F3864" : "#2E5FA3";
+        const bg    = isNL ? "#e8f0fe" : "#eef2fb";
+        return `<div class="timeline-item" style="border-left-color:${color}">
+            <div class="date-box">${l.date}</div>
+            <div class="event-text">
+                <span style="font-size:1.1rem">${isNL ? "🌑" : "🌕"}</span>
+                <span class="lunai-badge" style="color:${color};background:${bg};border-color:${color}">${l.type}</span>
+                en ${signGlyphs[l.signe]||""} <strong>${l.signe}</strong>
+                <span style="color:#94a3b8;font-size:0.82rem">(${((l.degre??0) % 30).toFixed(1)}°)</span>
+            </div>
+        </div>`;
+    }).join("");
+    return `<div class="section-title lunai-title">☽ Lunaisons</div>${html}`;
+};
+
+const renderEclipses = (list) => {
+    if (!list?.length) return "";
+    const html = list.map(e => {
+        const isSol = e.astre === "Soleil";
+        const color = isSol ? "#c2410c" : "#1d4ed8";
+        const bg    = isSol ? "#fff7ed" : "#eff6ff";
+        const sarosBadge = e.saros_number
+            ? ` <span style="display:inline-block;padding:1px 7px;border-radius:5px;font-size:0.68rem;font-weight:700;background:#eef2fb;color:#1F3864;border:1px solid #2E5FA3;margin-left:4px">Saros ${e.saros_number}</span>`
+            : "";
+        const sarosTheme = e.saros_theme
+            ? `<div style="font-size:0.82rem;color:#1F3864;margin:3px 0 0 28px;font-style:italic">↳ ${e.saros_theme}</div>`
+            : "";
+        return `<div class="timeline-item eclipse-item" style="border-left-color:${color}">
+            <div class="date-box">${e.date}${e.heure ? " " + e.heure : ""}</div>
+            <div class="event-text">
+                <span class="eclipse-icon" style="color:${color}">${isSol ? "☉" : "☽"}</span>
+                <span class="eclipse-badge" style="color:${color};background:${bg};border-color:${color}">${L.eclipse} ${(e.type||'').toUpperCase()} ${L.de} ${(e.astre||'').toUpperCase()}</span>
+                en ${signGlyphs[e.signe]||""} <strong>${e.signe}</strong>${sarosBadge}
+            </div>
+            ${sarosTheme}
+        </div>`;
+    }).join("");
+    return `<div class="section-title eclipse-title">☀ ${L.eclipses}</div>${html}`;
+};
+
+const renderPassagesAngles = (list, houseNum) => {
+    if (!list?.length) return "";
+    const angleKey = ANGLE_BY_HOUSE[houseNum];
+    if (!angleKey) return "";
+    const ac  = ANGLE_COLORS[angleKey] || defaultColor;
+    const html = list.map(a =>
+        `<div class="timeline-item angle-passage-item" style="border-left-color:${ac.border}">
+            <div class="date-box">${a.debut} ➔ ${a.fin}</div>
+            <div class="event-text">
+                ${g(a.planete)} <strong>${a.planete}</strong>
+                <span class="conj-badge">Conjonction</span>
+                <span class="angle-key-badge" style="color:${ac.text};background:${ac.bg};border-color:${ac.border}">${a.angleKey}</span>
+                <span class="angle-full-name">${a.angleName}</span>
+                <span style="font-size:0.82rem;color:#94a3b8;">en ${signGlyphs[a.signe]||""} ${a.signe}</span>
+            </div>
+        </div>`
+    ).join("");
+    const angleFullNames = { "ASC":"Ascendant","IC":"Imum Coeli","DSC":"Descendant","MC":"Milieu du Ciel" };
+    const anPos   = natalAnglePos[angleFullNames[angleKey]];
+    const posInfo = anPos ? ` — ${signGlyphs[anPos.sign]||""} ${anPos.sign} ${((anPos.deg??0) % 30).toFixed(1)}°` : "";
+    return `<div class="section-title angle-title">⊕ ${L.passagesAngle} ${angleKey}${posInfo}</div>${html}`;
+};
+
+const renderAspectsMondiaux = (list) => {
+    if (!list?.length) return "";
+    const ll = list.filter(a => a.cat === "lente_lente");
+    const rl = list.filter(a => a.cat === "rapide_lente");
+
+    const renderGroup = (items, subtitle, bgRow) =>
+        items.length === 0 ? "" : items.map(a => {
+            const c = aspectColors[a.type] || defaultColor;
+            return `<div class="timeline-item mondial-item" style="border-left-color:${c.border};background:${bgRow}">
+                <div class="date-box">${a.debut} ➔ ${a.fin}</div>
+                <div class="event-text">
+                    ${g(a.p1)} <strong>${a.p1}</strong>
+                    <span class="mondial-sign">${signGlyphs[a.signe1]||""}</span>
+                    ${badge(a.type, false)}
+                    ${g(a.p2)} <strong>${a.p2}</strong>
+                    <span class="mondial-sign">${signGlyphs[a.signe2]||""}</span>
+                    <span class="mondial-cat-badge ${a.cat === "lente_lente" ? "ll-badge" : "rl-badge"}">${a.cat === "lente_lente" ? "Cycle" : "Activation"}</span>
+                    ${a.maison !== a.maison2 ? `<span class="dual-house">M${a.maison}↔M${a.maison2}</span>` : ""}
+                </div>
+            </div>`;
+        }).join("");
+
+    const llHTML = renderGroup(ll, "Cycles Lente–Lente", "#fafafa");
+    const rlHTML = renderGroup(rl, "Activations Rapide–Lente", "#eef2fb");
+
+    if (!llHTML && !rlHTML) return "";
+
+    const subLL = ll.length ? `<div class="mondial-sub">Cycles</div>${llHTML}` : "";
+    const subRL = rl.length ? `<div class="mondial-sub activation-sub">Activations</div>${rlHTML}` : "";
+
+    return `<div class="section-title mondial-title">⊛ Aspects du Ciel en Transit</div>${subLL}${subRL}`;
+};
+
+const maisons = items.filter(it => it.maison >= 1 && it.maison <= 12).sort((a,b) => a.maison - b.maison);
+
+let firdariaActive  = null;
+let helioConditions = null;
+let chartRulerTrad  = null;
+
+const _assignMeta = (src) => {
+    if (!src) return;
+    if (!firdariaActive  && src.firdariaActive)  firdariaActive  = src.firdariaActive;
+    if (!helioConditions && src.helioConditions) helioConditions = src.helioConditions;
+    if (!chartRulerTrad  && src.chartRulerTrad)  chartRulerTrad  = src.chartRulerTrad;
+};
+_assignMeta(enrichedData);
+for (const _it of items) { _assignMeta(_it); if (firdariaActive && helioConditions && chartRulerTrad) break; }
+if (!helioConditions) {
+    for (const nn of ["N8N Prev", "Super noeud2", "Super noeud", "Merge", "Merge1"]) {
+        try { _assignMeta($(nn).first()?.json); if (firdariaActive && helioConditions && chartRulerTrad) break; } catch(e) {}
+    }
+}
+
+let progressionsRaw = null;
+let _rsRaw = null;
+let _rlRaw = null;
+let _tpRaw = null;
+let _primaryDirections = null;
+const _collectDataMeta = (src) => {
+    if (!src) return;
+    if (!progressionsRaw && src.progressionsRaw) progressionsRaw = src.progressionsRaw;
+    if (!_rsRaw && src._rsRaw)   _rsRaw = src._rsRaw;
+    if (!_rlRaw && src._rlRaw)   _rlRaw = src._rlRaw;
+    if (!_tpRaw && src._tpRaw)   _tpRaw = src._tpRaw;
+    if (!firdariaActive && src.firdariaActive) firdariaActive = src.firdariaActive;
+    if (!_primaryDirections && src._primaryDirections && src._primaryDirections.length > 0) _primaryDirections = src._primaryDirections;
+};
+for (const _it of items) _collectDataMeta(_it);
+if (!_rsRaw || !_rlRaw || !firdariaActive) {
+    for (const nn of ["N8N Prev", "Super noeud2", "Super noeud", "Merge", "Merge1"]) {
+        try { _collectDataMeta($(nn).first()?.json); } catch(e) {}
+    }
+}
+
+const _SKIP_PROG_D = new Set(["Nœud Moyen","Nœud moyen","Noeud Moyen","Noeud moyen","Noeud_Moyen","Noeud_moyen","Mean Node"]);
+const _RENAME_PROG_D = {"Nœud Vrai":"Nœud Nord","Nœud vrai":"Nœud Nord","Noeud Vrai":"Nœud Nord","Noeud vrai":"Nœud Nord","Noeud_Vrai":"Nœud Nord","Noeud_vrai":"Nœud Nord","True Node":"Nœud Nord","MC":"Milieu du Ciel","IC":"Imum Coeli"};
+
+if (progressionsRaw?.planetes) {
+    const cleanedPlanetes = {};
+    let _trueNodeDeg = null;
+    Object.entries(progressionsRaw.planetes).forEach(([pName, pd]) => {
+        if (_SKIP_PROG_D.has(pName)) return;
+        const dName = _RENAME_PROG_D[pName] || pName;
+        if (dName === "Nœud Nord" && pName !== "Nœud Nord") _trueNodeDeg = pd.fullDegree;
+        cleanedPlanetes[dName] = { ...pd };
+    });
+    if (_trueNodeDeg !== null && !cleanedPlanetes["Nœud Sud"]) {
+        const _sDeg = (_trueNodeDeg + 180) % 360;
+        const _sSignIdx = Math.floor(_sDeg / 30) % 12;
+        const _signsD = ["Bélier","Taureau","Gémeaux","Cancer","Lion","Vierge","Balance","Scorpion","Sagittaire","Capricorne","Verseau","Poissons"];
+        const _sSign = _signsD[_sSignIdx];
+        const nordData = cleanedPlanetes["Nœud Nord"];
+        const nordHouse = nordData ? parseInt(nordData.house, 10) : 0;
+        const _sHouse = nordHouse > 0 ? ((nordHouse + 5) % 12) + 1 : "?";
+        cleanedPlanetes["Nœud Sud"] = { sign: _sSign, house: _sHouse, deg: `${((_sDeg??0) % 30).toFixed(2)}° ${_sSign}`, retro: "", fullDegree: _sDeg };
+    }
+    progressionsRaw.planetes = cleanedPlanetes;
+}
+
+const progByHouse = {};
+items.forEach(it => {
+    if (it.progressions_planetes?.length && it.maison >= 1 && it.maison <= 12) {
+        const cleaned = it.progressions_planetes
+            .filter(p => !_SKIP_PROG_D.has(p.name))
+            .map(p => ({ ...p, name: _RENAME_PROG_D[p.name] || p.name }));
+        if (cleaned.length) progByHouse[it.maison] = cleaned;
+    }
+});
+if (!Object.keys(progByHouse).length && progressionsRaw?.planetes) {
+    Object.entries(progressionsRaw.planetes).forEach(([pName, pd]) => {
+        const h = parseInt(pd.house, 10);
+        if (h >= 1 && h <= 12) {
+            if (!progByHouse[h]) progByHouse[h] = [];
+            progByHouse[h].push({ name: pName, deg: (pd.deg || '?').replace(/°.*/, ''), sign: pd.sign || '?', retro: pd.retro });
+        }
+    });
+}
+
+/** Lignes ☀ ARC SOLAIRE du flux progressionsRaw → tableau dédié (évite doublon dans « Aspects progressés »). */
+const _solarArcRows = [];
+if (progressionsRaw?.aspects?.length) {
+    const _saRe = /^☀ ARC SOLAIRE :\s*(.+?)\s+dirigé\s+\(([^,]+),\s*M(\d+)\)\s+en\s+(.+?)\s+avec\s+(.+?)\s+natal\s+\(M(\d+)\)\s+—\s+orbe\s+([\d.]+)°\s*([\s\S]*)$/;
+    progressionsRaw.aspects.forEach(a => {
+        if (typeof a !== 'string' || a.indexOf('ARC SOLAIRE') === -1) return;
+        const m = a.match(_saRe);
+        if (m) {
+            let note = (m[8] || '').trim()
+                .replace(/^\([^)]*\)\s*/, '')
+                .replace(/\[poids\s+[\d.]+\]\.?\s*/i, '')
+                .replace(/\s*Direction lente et structurante[^.]*\.?\s*/gi, '')
+                .replace(/^[\s.…—\-]+/, '')
+                .trim();
+            _solarArcRows.push({
+                directed: m[1].trim(),
+                dirSign: m[2].trim(),
+                dirHouse: m[3],
+                aspect: m[4].trim(),
+                target: m[5].trim(),
+                targetHouse: m[6],
+                orbRaw: m[7],
+                note
+            });
+        } else {
+            _solarArcRows.push({ fallback: a });
+        }
+    });
+}
+
+/** N8N Prev Repport : pas de chaînes « ☀ ARC SOLAIRE » dans progressionsRaw.aspects — données dans chaque item .arcs_solaires { pSA, pNat, aspect, orbe, saSign, saHouse }. */
+if (_solarArcRows.length === 0 && maisons?.length) {
+    const _saSeen = new Set();
+    maisons.forEach(it => {
+        (it.arcs_solaires || []).forEach(a => {
+            const orbN = typeof a.orbe === 'number' ? a.orbe : parseFloat(a.orbe);
+            const orbKey = Number.isFinite(orbN) ? orbN.toFixed(3) : String(a.orbe ?? '');
+            const key = `${a.pSA}|${a.pNat}|${a.aspect}|${orbKey}`;
+            if (_saSeen.has(key)) return;
+            _saSeen.add(key);
+            const orb = Number.isFinite(orbN) ? orbN : 0;
+            let note = '';
+            if (orb < 0.15) note = isEN ? 'Near-exact arc' : 'Arc quasi-exact';
+            else if (orb < 0.4) note = isEN ? 'Tight arc' : 'Arc serré';
+            _solarArcRows.push({
+                directed: a.pSA,
+                dirSign: a.saSign || '—',
+                dirHouse: String(a.saHouse ?? '?'),
+                aspect: a.aspect,
+                target: a.pNat,
+                targetHouse: String(it.maison),
+                orbRaw: orb.toFixed(2),
+                note
+            });
+        });
+    });
+}
+
+// ── NETTOYAGE MÉMOIRE Phase 1 — Supprimer les champs lourds extraits + duplications ──
+let _heatData = null;
+for (const _it of items) { if (_it.heatmapData) { _heatData = _it.heatmapData; break; } }
+if (!_heatData) { for (const nn of ["Analyseur Technique v","Super noeud2","N8N Prev","Merge","Merge1"]) { try { const d = $(nn).first()?.json?.heatmapData; if (d) { _heatData = d; break; } } catch(e) {} } }
+for (const _it of items) {
+    delete _it.prompt_user;
+    delete _it.prompt_system;
+    delete _it.contexte_natal_prompt;
+    delete _it.progressionsRaw;
+    delete _it._rsRaw;
+    delete _it._rlRaw;
+    delete _it._tpRaw;
+    delete _it._primaryDirections;
+    delete _it.firdariaActive;
+    delete _it.helioConditions;
+    delete _it.chartRulerTrad;
+    delete _it.progressions_planetes;
+    delete _it.convergenceTechs;
+    delete _it.double_activation_texte;
+    delete _it.progressions_texte;
+    delete _it.declinaisons_texte_raw;
+    delete _it._hm_arcs_solaires;
+    delete _it._hm_etoiles;
+    delete _it._hm_eclipse_natal_active;
+    delete _it._hm_ingress;
+    delete _it._hm_midpoints;
+    delete _it._hm_antiscia;
+    delete _it.arcs_solaires_texte;
+    delete _it.midpoints_texte;
+    delete _it.antiscia_texte;
+    delete _it.etoiles_texte;
+    delete _it.heatmapData;
+    delete _it.eventSignatures;
+    delete _it.compoundEvents;
+    delete _it.ageMilestones;
+    delete _it._planetaryReturns;
+    delete _it._boundProfection;
+    delete _it._lunarReturnsScoring;
+    delete _it._codeVersion;
+    delete _it.reponse_texte;
+    delete _it.natalAspects;
+    delete _it.natalHouses;
+    delete _it.sensitivityProfile;
+    delete _it.chartShape;
+    delete _it.interceptedSigns;
+    delete _it.sabianData;
+    delete _it.dispositorTree;
+    delete _it.accidentalDignity;
+    delete _it.paranResults;
+    delete _it.stats;
+}
+
+const renderFenetresStellairesTrans = (list) => {
+    if (!list?.length) return "";
+    const html = list.map(txt => {
+        const isRoyal = txt.includes('[ÉTOILE ROYALE]');
+        const col = isRoyal ? "#b8860b" : "#ffb300";
+        const bg  = isRoyal ? "#fff8e1" : "#fffbeb";
+        return `<div class="timeline-item" style="border-left-color:${col};background:${bg}">
+            <div class="event-text" style="font-size:0.9rem">
+                <span style="display:inline-block;background:#fff8e1;color:#5d4037;font-size:0.85em;padding:3px 10px;border-radius:4px;border:1px solid #ffb300;font-weight:bold;margin-right:6px">${isRoyal?'★★':'★'} ${isRoyal?L.etoileRoyale:L.etoileFixe}</span>
+                ${txt}
+            </div>
+        </div>`;
+    }).join("");
+    return `<div class="section-title" style="color:#5d4037">★ Fenêtres Stellaires — Transits sur zones stellaires natales</div>${html}`;
+};
+
+const renderDeclinaisons = (list) => {
+    if (!list?.length) return "";
+    const filtered = list.filter(txt => {
+        const isOOB = txt.includes("OOB") || txt.includes("HORS LIMITES");
+        if (isOOB) return true;
+        const orbMatch = txt.match(/orbe\s*[:=]?\s*([\d.]+)/i) || txt.match(/([\d.]+)°?\s*(?:d['']orbe|orbe)/i);
+        if (orbMatch && parseFloat(orbMatch[1]) <= 0.5) return true;
+        if (txt.includes("exact") || txt.includes("EXACT")) return true;
+        return false;
+    });
+    if (!filtered.length) return "";
+    const html = filtered.map(txt => {
+        const isOOB = txt.includes("OOB") || txt.includes("HORS LIMITES");
+        const isPara = txt.includes("PARALLÈLE") || txt.includes("parallèle");
+        const isContra = txt.includes("CONTRA") || txt.includes("contre-parallèle");
+        const col = isOOB ? "#831843" : isContra ? "#1F3864" : isPara ? "#2E5FA3" : "#1F3864";
+        const bg  = isOOB ? "#fdf2f8" : isContra ? "#e8f0fe" : isPara ? "#eef2fb" : "#f0f4ff";
+        return `<div class="timeline-item" style="border-left-color:${col};background:${bg}">
+            <div class="event-text" style="font-size:0.9rem">${txt}</div>
+        </div>`;
+    }).join("");
+    return `<div class="section-title" style="color:#1F3864">📐 Déclinaisons — Parallèles, Contre-Parallèles &amp; OOB en Transit</div>${html}`;
+};
+
+const renderEclipseNataleResonance = (list) => {
+    if (!list?.length) return "";
+    const html = list.map(txt =>
+        `<div class="timeline-item eclipse-item" style="border-left-color:#7c2d12;background:#fff0e6">
+            <div class="event-text"><span class="eclipse-icon" style="color:#7c2d12">⚡</span>
+                <span class="eclipse-badge" style="color:#7c2d12;background:#fde8d8;border-color:#7c2d12">RÉSONANCE ÉCLIPSE NATALE</span>
+                ${txt}
+            </div>
+        </div>`
+    ).join("");
+    return `<div class="section-title" style="color:#7c2d12">⚡ Résonances Écliptiques Natales</div>${html}`;
+};
+
+const renderProgressions = (num) => {
+    const progHere = progByHouse[num] || [];
+    if (!progHere.length) return "";
+    const html = progHere.map(p =>
+        `<div class="timeline-item" style="border-left-color:#2E5FA3;background:#eef2fb">
+            <div class="date-box" style="color:#2E5FA3">${dateEntreeStr} ➔ ${dateSortieStr}</div>
+            <div class="event-text">${glyphs[p.name]||"🔮"} <strong style="color:#1F3864">${p.name}</strong> prog. traverse ${signGlyphs[p.sign]||""} <strong>${p.sign}</strong> à ${p.deg}°${p.retro ? ' <span style="color:#ef4444">℞</span>' : ''}</div>
+        </div>`
+    ).join("");
+    return `<div class="section-title" style="color:#2E5FA3">🔮 ${L.planProgPresence}</div>${html}`;
+};
+
+const renderProgressionAspects = (num) => {
+    const aspHere = maisons.filter(h => h.maison === num).flatMap(h => h.progressions_aspects || []);
+    if (!aspHere.length) return "";
+    const html = aspHere.map(a =>
+        `<div class="timeline-item" style="border-left-color:#1F3864;background:#eef2fb">
+            <div class="event-text">${glyphs[a.pProg]||"🔮"} <strong style="color:#1F3864">${a.pProg} prog.</strong> ${a.aspect} ${glyphs[a.pNat]||""} <strong>${a.pNat}</strong> natal (${a.exactitude}°)</div>
+        </div>`
+    ).join("");
+    return `<div class="section-title" style="color:#1F3864">🎯 ${L.aspectsProg}</div>${html}`;
+};
+
+const renderHouseBlock = (m) => {
+    const num  = m.maison;
+    const segs = houseSegments[num] || m.structure_natale || [];
+
+    const segHTML = segs.map(s =>
+        `<div class="structure-item">${signGlyphs[s.signe]||""} ${s.signe} (${((s.degre_debut??0)).toFixed(1)}°)</div>`
+    ).join("");
+
+    const natalHere = planetsByHouse[num] || [];
+    const natalHTML = natalHere.map(p => {
+        const cls = p.isAngle ? "natal-planet-item angle-natal-item" : "natal-planet-item";
+        const starsTags = getEtoilesForPlanet(p.name).map(em => {
+            const prec = (em.precision || '').includes('forte') ? '★★' : '★';
+            return `<span class="natal-star-item">${prec} ${em.etoile}</span>`;
+        }).join("");
+        return `<div class="${cls}">
+            <span class="natal-glyph">${glyphs[p.name]||""}</span>
+            <span class="natal-name">${p.name}</span>
+            <span class="natal-pos">${p.deg}° ${p.sign}</span>
+        </div>${starsTags}`;
+    }).join("");
+
+    const cuspStarsHTML = (etoileCuspNatH.filter(ec => (ec.maison || ec.house) === num)).map(ec => {
+        const prec = (ec.precision || '').includes('forte') ? '★★' : '★';
+        return `<span class="natal-star-item">${prec} ${ec.etoile} (Cuspide)</span>`;
+    }).join("");
+    const allNatalHTML = natalHTML + cuspStarsHTML;
+
+    const structureBar = `<div class="structure-bar">
+        <div class="structure-signs">${segHTML}</div>
+        ${(natalHere.length || cuspStarsHTML) ? `<div class="structure-divider"></div><div class="structure-natal">${allNatalHTML}</div>` : ""}
+    </div>`;
+
+    const angleBadge = ANGLE_BY_HOUSE[num]
+        ? (() => { const ak=ANGLE_BY_HOUSE[num]; const ac=ANGLE_COLORS[ak]; return `<span class="angle-banner-badge" style="background:${ac.bg};color:${ac.text};border-color:${ac.border}">${ak}</span>`; })()
+        : "";
+
+    const extraBadges = [
+        angleBadge,
+        m.passages_angles?.length   ? `<span class="extra-badge angle-cnt-badge">⊕ ${m.passages_angles.length} passage${m.passages_angles.length>1?"s":""}</span>` : "",
+        m.translations_lumiere?.length ? `<span class="extra-badge tl-badge2">⟿ ${m.translations_lumiere.length}</span>` : "",
+        m.profection                    ? `<span class="extra-badge prof-badge2">✶</span>` : "",
+        m.ingress?.length               ? `<span class="extra-badge ing-badge2">➤ ${m.ingress.length}</span>` : "",
+        m.cycles_vie?.length            ? `<span class="extra-badge cyc-badge2">⧗</span>` : "",
+        receptionsR.some(r=>r.maisA===num||r.maisB===num) ? `<span class="extra-badge recep-badge2">↔</span>` : "",
+        m.stations_retro?.length    ? `<span class="extra-badge retro-badge">${m.stations_retro.length} station${m.stations_retro.length>1?"s":""}</span>` : "",
+        m.fenetre_stellaire?.length   ? `<span class="extra-badge" style="color:#5d4037;border-color:#ffb300;background:#fff8e1">★ ${m.fenetre_stellaire.length}</span>` : "",
+        m.eclipse_natal_active?.length ? `<span class="extra-badge" style="color:#7c2d12;border-color:#7c2d12">⚡ Écl.Nat</span>` : "",
+        m.lunaisons?.length         ? `<span class="extra-badge lunai-badge2">${m.lunaisons.length} lunaison${m.lunaisons.length>1?"s":""}</span>` : "",
+        m.eclipses?.length          ? `<span class="extra-badge ecl-badge">⚠ ${m.eclipses.length} éclipse${m.eclipses.length>1?"s":""}</span>` : ""
+    ].filter(Boolean).join("");
+
+    const s1 = `<div class="section-title slow-title">${L.presenceLentes}</div>
+        ${renderTransits(m.transits_lentes, L.noLente)}`;
+    const s2 = `<div class="section-title slow-title">${L.aspectsLentes}</div>
+        ${renderAspects(m.aspects_lentes, L.noAspLente)}`;
+
+    let s3 = "", s4 = "";
+    if (showRapides) {
+        s3 = `<div class="section-title fast-title">${L.presenceRapides}</div>
+            ${renderTransits(m.transits_rapides, L.noRapide)}`;
+        s4 = `<div class="section-title fast-title">${L.aspectsRapides}</div>
+            ${renderAspects(m.aspects_rapides, L.noAspRapide)}`;
+    }
+
+    const sAngles    = renderPassagesAngles(m.passages_angles, num);
+    const sStations  = renderStations(m.stations_retro);
+    const sLunai     = renderLunaisons(m.lunaisons);
+    const sEcl       = renderEclipses(m.eclipses);
+    const sFenetresStellair = renderFenetresStellairesTrans(m.fenetre_stellaire);
+    const sEclNatale      = renderEclipseNataleResonance(m.eclipse_natal_active);
+    const sAxe       = renderAxeMaitrises(num);
+    const sRecep     = renderReceptionsMutuelles(num);
+    const sFN        = renderFiguresNatales(num, m.aspects_lentes);
+    const sDig       = renderDignitesActives(m.aspects_lentes);
+    const sTL        = renderTranslationsLumiere(m.translations_lumiere);
+    const sProf      = renderProfection(m.profection);
+    const sIng       = renderIngress(m.ingress);
+    const sCyc       = renderCyclesVie(m.cycles_vie);
+    const sDecl      = renderDeclinaisons(m.declinaisons_texte);
+    const sProg      = renderProgressions(num);
+    const sProgAsp   = renderProgressionAspects(num);
+
+    return `
+    <div class="house-block${ANGLE_BY_HOUSE[num] ? " angular-house" : ""}">
+        <div class="house-banner">
+            <div class="house-title">${L.maison} ${num}</div>
+            <div class="house-meta">
+                <span class="type-badge" style="background:${tc.badge};color:${tc.badgeTxt}">${labelType}</span>
+                <span class="periode-label">${dateEntreeStr} → ${dateSortieStr}</span>
+                ${extraBadges}
+            </div>
+        </div>
+        ${structureBar}
+        <div class="house-content">
+            ${sEclNatale}${sFenetresStellair}${sProf}${sProg}${sProgAsp}${sCyc}${sAxe}${sRecep}${sEcl}${sLunai}${sAngles}${sStations}${sIng}${sTL}${sDig}${sFN}${sDecl}${s1}${s2}${s3}${s4}
+        </div>
+    </div>`;
+};
+
+// ── Bloc contexte natal avancé (harmonisation avec le rapport Thème) ──
+let natalAdvancedHTML = '';
+if (dispositorTreeH?.finalDispositors?.length > 0 || accidentalDignityH.length > 0 || hayzPlanetsH.length > 0 || besiegedPlanetsH.length > 0 || moonVOCH) {
+    natalAdvancedHTML = `<div class="house-block" style="page-break-before:always;margin-bottom:45px">
+        <div class="house-banner" style="background:${tc.bg}">
+            <div class="house-title">🔬 ${L.ctxNatal}</div>
+            <div class="house-meta"><span class="type-badge" style="background:${tc.badge};color:${tc.badgeTxt}">${L.techClassiques}</span></div>
+        </div>
+        <div class="house-content">`;
+    if (dispositorTreeH?.finalDispositors?.length > 0) {
+        natalAdvancedHTML += `<div class="section-title" style="color:#1e40af;margin-bottom:8px">${L.arbreDisp}</div>
+            <div style="background:#dbeafe;padding:10px 14px;border-radius:6px;margin-bottom:12px;font-size:0.95rem">
+            <strong>${L.dispFinaux}</strong> ${dispositorTreeH.finalDispositors.join(', ')}
+            <span style="color:#64748b;font-size:0.85em;display:block;margin-top:4px">${L.dispDesc}</span></div>`;
+    }
+    if (accidentalDignityH.length > 0) {
+        const topRows = accidentalDignityH.slice(0, 5).map((d, i) => {
+            const color = d.score >= 15 ? '#166534' : d.score >= 8 ? '#1e40af' : d.score >= 0 ? '#475569' : '#991b1b';
+            const bg = i % 2 === 0 ? '#fafafa' : '#ffffff';
+            return `<tr style="background:${bg}"><td style="padding:6px 12px;font-weight:700">${glyphs[d.planet]||''} ${d.planet}</td><td style="padding:6px 12px;text-align:center;font-weight:bold;color:${color};font-size:1.05em">${d.score}</td><td style="padding:6px 12px;font-size:0.85em;color:#64748b">${d.details.join(' · ')}</td></tr>`;
+        }).join('');
+        natalAdvancedHTML += `<div class="section-title" style="color:#1e40af;margin-top:14px;margin-bottom:8px">${L.forcePlan}</div>
+            <table style="width:100%;border-collapse:collapse;font-size:0.9rem;margin-bottom:10px">
+            <tr style="background:${tc.bg};color:white"><th style="padding:7px 12px;text-align:left">${L.planete}</th><th style="padding:7px 12px;text-align:center">${L.score}</th><th style="padding:7px 12px;text-align:left">${L.detail}</th></tr>
+            ${topRows}</table>`;
+    }
+    if (hayzPlanetsH.length > 0) {
+        natalAdvancedHTML += `<div class="section-title" style="color:#2E5FA3;margin-top:14px;margin-bottom:8px">✦ Hayz</div>` +
+            hayzPlanetsH.map(h => `<div style="padding:5px 12px;margin:3px 0;background:#eef2fb;border-left:3px solid #2E5FA3;border-radius:4px;font-size:0.88rem">${h.description}</div>`).join('');
+    }
+    if (besiegedPlanetsH.length > 0) {
+        natalAdvancedHTML += `<div class="section-title" style="color:#dc2626;margin-top:14px;margin-bottom:8px">⚠ ${L.assiege}</div>` +
+            besiegedPlanetsH.map(b => `<div style="padding:5px 12px;margin:3px 0;background:#fef2f2;border-left:3px solid #dc2626;border-radius:4px;font-size:0.88rem">${b.description}</div>`).join('');
+    }
+    if (moonVOCH) {
+        natalAdvancedHTML += `<div class="section-title" style="color:#1F3864;margin-top:14px;margin-bottom:8px">◯ ${L.luneVOC}</div>
+            <div style="padding:5px 12px;background:#e8f0fe;border-left:3px solid #1F3864;border-radius:4px;font-size:0.88rem">${moonVOCH.description}</div>`;
+    }
+    if (stationaryPlanetsH.length > 0) {
+        natalAdvancedHTML += `<div class="section-title" style="color:#2E5FA3;margin-top:14px;margin-bottom:8px">⏸ ${L.planStation}</div>`;
+        stationaryPlanetsH.forEach(sp => {
+            natalAdvancedHTML += `<div style="padding:5px 12px;margin:3px 0;background:#eef2fb;border-left:3px solid #2E5FA3;border-radius:4px;font-size:0.88rem">
+                <strong>${sp.planet}</strong> — ${sp.direction} ${L.en} ${sp.sign} (M${sp.house}) — ${L.vitesse} ${sp.speed}°/${isEN?'day':'jour'} (${L.seuil} ${sp.threshold}°/${isEN?'day':'jour'}). ${L.energieConc}</div>`;
+        });
+    }
+    natalAdvancedHTML += `</div></div>`;
+}
+
+// ── Forme du thème (Jones) + Signes interceptés ──
+let chartShapeHTML = '';
+if (chartShapeH.shape || interceptedSignsH.length > 0 || natalStatsH.almutem_figuris) {
+    chartShapeHTML = `<div class="house-block" style="margin-bottom:30px"><div class="house-banner" style="background:${tc.bg}">
+        <div class="house-title">📐 ${L.structTheme}</div>
+        <div class="house-meta"><span class="type-badge" style="background:${tc.badge};color:${tc.badgeTxt}">${L.gouvFormeInt}</span></div>
+    </div><div class="house-content">`;
+    if (natalStatsH.chart_ruler || natalStatsH.almutem_figuris || natalStatsH.sect) {
+        const _csRows = [];
+        if (natalStatsH.chart_ruler) _csRows.push({icon:'♛', label:L.gouverneur, value:natalStatsH.chart_ruler, bg:'#f0fdf4', border:'#16a34a', color:'#14532d'});
+        if (natalStatsH.almutem_figuris) _csRows.push({icon:'⚜', label:'Almutem Figuris', value:natalStatsH.almutem_figuris, bg:'#fef3c7', border:'#d97706', color:'#78350f'});
+        if (natalStatsH.sect) _csRows.push({icon:'☀', label:'Sect', value:natalStatsH.sect, bg:'#fdf2f8', border:'#db2777', color:'#831843'});
+        chartShapeHTML += `<table style="width:100%;border-collapse:collapse;margin-bottom:16px">${_csRows.map(r =>
+            `<tr><td style="padding:10px 14px;background:${r.bg};border-left:4px solid ${r.border};border-bottom:3px solid white;border-radius:4px;width:50%"><span style="font-size:1.05em">${r.icon}</span> <strong style="color:${r.color}">${r.label}</strong></td><td style="padding:10px 14px;background:${r.bg};border-bottom:3px solid white;font-weight:700;color:${r.color};font-size:1.05em">${glyphs[r.value]||''} ${r.value}</td></tr>`
+        ).join('')}</table>`;
+    }
+    if (chartShapeH.shape) {
+        chartShapeHTML += `<div style="padding:14px 18px;background:#f0f9ff;border-left:4px solid #0284c7;border-radius:6px;margin-bottom:12px">
+            <div style="font-weight:700;color:#0369a1;font-size:1.02em;margin-bottom:6px">🔷 <span style="color:#0369a1">${L.formeTheme}</span> <span style="color:#0369a1;font-weight:700">${chartShapeH.shape}</span></div>
+            <div style="font-size:0.9em;color:#475569;line-height:1.5">${chartShapeH.description || ''}</div></div>`;
+    }
+    if (interceptedSignsH.length > 0) {
+        chartShapeHTML += `<div style="padding:14px 18px;background:#e8f0fe;border-left:4px solid #1F3864;border-radius:6px">
+            <div style="font-weight:700;color:#1F3864;font-size:1.02em;margin-bottom:8px">🔒 ${L.signesInt}</div>
+            ${interceptedSignsH.map(is => `<div style="padding:8px 12px;margin-bottom:6px;background:rgba(255,255,255,0.6);border-radius:4px;border-left:3px solid #7c3aed;font-size:0.9em;color:#3b1f6e;line-height:1.5">${is.description}</div>`).join('')}</div>`;
+    }
+    chartShapeHTML += `</div></div>`;
+}
+
+// ── Degrés Sabian — SUPPRIMÉ du rapport Prévisions (déjà présent dans le DHN) ──
+
+// ── Profil de sensibilité ──
+let sensitivityHTML = '';
+if (sensitivityProfileH) {
+    sensitivityHTML = `<div class="house-block" style="margin-bottom:30px"><div class="house-banner" style="background:#1F3864">
+        <div class="house-title">🎯 ${L.sensibilite}</div>
+        <div class="house-meta"><span class="type-badge" style="background:#2E5FA3;color:white">${L.receptTransits}</span></div>
+    </div><div class="house-content">
+        ${sensitivityProfileH.split('\n').filter(Boolean).map(line => {
+            const isVuln = line.includes('VULNÉRABILITÉ');
+            const isFam = line.includes('FAMILIARITÉ');
+            const bg = isVuln ? '#fef2f2' : isFam ? '#eef2fb' : '#f0f4ff';
+            const border = isVuln ? '#dc2626' : isFam ? '#2E5FA3' : '#1F3864';
+            return `<div style="padding:8px 14px;margin:4px 0;background:${bg};border-left:3px solid ${border};border-radius:4px;font-size:0.9rem">${line}</div>`;
+        }).join('')}
+    </div></div>`;
+}
+
+// ── F2 : HEATMAP D'INTENSITÉ — rendu depuis données centralisées (Analyseur Technique) ──
+const _renderHeatmap = (hd, bgColor, badgeBg, badgeTxt) => {
+    if (!hd?.grid?.length) return "";
+    const grid = hd.grid, labels = hd.colLabels, maxI = hd.maxIntensity || 1;
+    const norm = hd.normalized || [];
+    const top3 = hd.top3 || [];
+    const getHC = (v) => { const r = v / maxI; if (r === 0) return '#f8fafc'; if (r < 0.25) return '#dbeafe'; if (r < 0.5) return '#93c5fd'; if (r < 0.75) return '#3b82f6'; return '#1e40af'; };
+    const getTC = (v) => v / maxI >= 0.5 ? '#fff' : '#1e3a8a';
+    const _nBg = (n) => n >= 75 ? '#1e40af' : n >= 50 ? '#3b82f6' : n >= 25 ? '#93c5fd' : '#dbeafe';
+    const _nTc = (n) => n >= 50 ? '#fff' : '#1e3a8a';
+    let h = `<div class="house-block" style="margin-bottom:45px"><div class="house-banner" style="background:${bgColor}"><div class="house-title">${hd.title}</div><div class="house-meta"><span class="type-badge" style="background:${badgeBg};color:${badgeTxt}">${hd.subtitle}</span>`;
+    if (hd.profLord) h += `<span class="type-badge" style="background:#fff8e1;color:#8b6914;margin-left:8px">♛ ${hd.profLord} (${L.seigneur}) ×1.5</span>`;
+    if (hd.firdMajor) h += `<span class="type-badge" style="background:#e8f0fe;color:#1F3864;margin-left:8px">⏳ ${hd.firdMajor} (${L.firdaria}) ×1.3</span>`;
+    h += `</div></div><div class="house-content">`;
+    const _gr = hd.granularity || "annual";
+    const _grFR = {daily:"pour cette journée",weekly:"par jour sur la semaine",monthly:"par semaine sur le mois",annual:"par mois sur l'année"};
+    const _grEN = {daily:"for this day",weekly:"per day over the week",monthly:"per week over the month",annual:"per month over the year"};
+    const _pedagDT = isEN
+        ? `<strong>💡 How to read this heatmap?</strong><br>This heat map synthesizes the <strong>density of astrological activations</strong> per house ${_grEN[_gr]}. Each cell is a weighted score combining: <strong>planetary weight</strong> (Pluto ×5, Neptune/Uranus/Saturn ×4…), <strong>aspect type</strong> (Conjunction ×1.3, Square/Opposition ×1.2, Trine ×0.8, Sextile ×0.7), <strong>angular house bonus</strong> (Houses 1/4/7/10 ×1.2, cadent ×0.85), and <strong>time-lord amplification</strong> (Annual Lord ×1.5, Firdaria ×1.3). Long transits are <em>distributed</em> over their full duration, repeat passages are reduced (×0.8), and eclipses are capped at 2 per cell. The <strong style="color:#991b1b">Tension</strong> column sums hard aspects (□ ☍ ☌ ⚻), while <strong style="color:#1e40af">Support</strong> sums soft aspects (△ ⚹). <strong>Score</strong> normalizes each house on a 0–100 scale.`
+        : `<strong>💡 Comment lire cette heatmap ?</strong><br>Cette carte thermique synthétise la <strong>densité d'activations astrologiques</strong> par maison ${_grFR[_gr]}. Chaque cellule est un score pondéré combinant : <strong>poids planétaire</strong> (Pluton ×5, Neptune/Uranus/Saturne ×4…), <strong>type d'aspect</strong> (Conjonction ×1.3, Carré/Opposition ×1.2, Trigone ×0.8, Sextile ×0.7), <strong>bonus maisons angulaires</strong> (M1/4/7/10 ×1.2, cadentes ×0.85), et <strong>amplification temporelle</strong> (Seigneur de l'année ×1.5, Firdaria ×1.3). Les transits longs sont <em>distribués</em> sur toute leur durée, les passages multiples (rétrogradation) sont réduits (×0.8), et les éclipses sont plafonnées à 2 par cellule. La colonne <strong style="color:#991b1b">Tension</strong> totalise les aspects durs (□ ☍ ☌ ⚻), tandis que <strong style="color:#1e40af">Support</strong> totalise les aspects doux (△ ⚹). <strong>Score</strong> normalise chaque maison sur une échelle 0-100.`;
+    h += `<div style="background:#f0f7ff;border:1px solid #d0daf0;border-radius:8px;padding:14px 18px;margin:0 0 16px;font-size:0.84rem;color:#334155;line-height:1.55">${_pedagDT}</div>`;
+    h += `<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:0.72rem;text-align:center"><tr style="background:${bgColor};color:white"><th style="padding:4px 4px;text-align:left">${isEN ? 'House' : 'Maison'}</th>`;
+    labels.forEach(l => { h += `<th style="padding:4px 2px">${l}</th>`; });
+    const tenT = hd.tensionTotals || [];
+    const supT = hd.supportTotals || [];
+    h += `<th style="padding:4px 4px">${isEN ? 'Tension' : 'Tension'}</th><th style="padding:4px 4px">${isEN ? 'Support' : 'Support'}</th><th style="padding:4px 4px">Total</th><th style="padding:4px 4px">Score</th></tr>`;
+    grid.forEach((row, i) => {
+        const total = row.reduce((a, b) => a + b, 0);
+        const nVal = norm[i] !== undefined ? norm[i] : 0;
+        const isTop = top3.includes(i + 1);
+        const tV = tenT[i] || 0, sV = supT[i] || 0;
+        h += `<tr><td style="padding:3px 4px;font-weight:700;text-align:left;white-space:nowrap">${isTop ? '🔥 ' : ''}M${i + 1}</td>`;
+        row.forEach(v => { h += `<td style="padding:3px 2px;background:${getHC(v)};color:${getTC(v)};font-weight:${v > 0 ? '700' : '400'}">${v > 0 ? Math.round(v) : '·'}</td>`; });
+        h += `<td style="padding:3px 4px;background:#fef2f2;color:#991b1b;font-weight:700">${Math.round(tV)}</td>`;
+        h += `<td style="padding:3px 4px;background:#eff6ff;color:#1e40af;font-weight:700">${Math.round(sV)}</td>`;
+        const tBg = total / maxI >= 0.5 ? '#1e3a8a' : total > 0 ? '#dbeafe' : '#f8fafc';
+        h += `<td style="padding:3px 4px;background:${tBg};color:${total / maxI >= 0.5 ? '#fff' : '#1e3a8a'};font-weight:700">${Math.round(total)}</td>`;
+        h += `<td style="padding:3px 4px;background:${_nBg(nVal)};color:${_nTc(nVal)};font-weight:700">${nVal}/100</td></tr>`;
+    });
+    h += `</table></div>`;
+    if (top3.length > 0) h += `<div style="margin-top:10px;font-size:0.82rem;color:#1e3a8a;font-weight:600">🏆 ${isEN ? 'Most activated houses: ' : 'Maisons les plus sollicitées : '}${top3.map(m => 'M' + m).join(', ')}</div>`;
+    h += `<div style="display:flex;flex-wrap:wrap;gap:10px;margin-top:10px;font-size:0.78rem;color:#64748b;align-items:center"><span>${isEN ? 'Legend:' : 'Légende :'}</span><span style="background:#f8fafc;padding:2px 8px;border:1px solid #e2e8f0;border-radius:3px">${isEN ? 'Calm' : 'Calme'}</span><span style="background:#dbeafe;padding:2px 8px;border-radius:3px;color:#1e3a8a">${isEN ? 'Low' : 'Faible'}</span><span style="background:#93c5fd;padding:2px 8px;border-radius:3px;color:#1e3a8a">${isEN ? 'Moderate' : 'Modéré'}</span><span style="background:#3b82f6;padding:2px 8px;border-radius:3px;color:white">${isEN ? 'Strong' : 'Fort'}</span><span style="background:#1e40af;padding:2px 8px;border-radius:3px;color:white">${isEN ? 'Intense' : 'Intense'}</span><span style="margin-left:8px">|</span><span style="background:#fef2f2;padding:2px 8px;border-radius:3px;color:#991b1b">${isEN ? 'Tension' : 'Tension'}</span><span style="background:#eff6ff;padding:2px 8px;border-radius:3px;color:#1e40af">${isEN ? 'Support' : 'Support'}</span></div>`;
+    h += `</div></div>`;
+    if (hd.eventSignatures && hd.eventSignatures.length > 0) {
+        const _sB = {high:'#fef2f2',medium:'#fffbeb',low:'#f0fdf4'};
+        const _sR = {high:'#fca5a5',medium:'#fcd34d',low:'#86efac'};
+        const _sT = {high:'#991b1b',medium:'#92400e',low:'#166534'};
+        const _rB = (r) => r==="SOLIDE"?L.fiable:r==="PROBABLE"?L.probable:r==="POSSIBLE"?L.possible:L.fragile;
+        const _rC = (r) => r==="SOLIDE"?'#166534':r==="PROBABLE"?'#1e40af':r==="POSSIBLE"?'#854d0e':'#94a3b8';
+        h += `<div style="page-break-before:always;break-before:page;margin-top:16px;padding:14px 18px;background:#fafbff;border:1px solid #d0daf0;border-radius:8px"><div style="font-size:0.85rem;font-weight:700;color:#1e3a8a;margin-bottom:10px">${isEN ? '🔍 Event Signatures' : '🔍 Signatures Événementielles'}</div>`;
+        hd.eventSignatures.forEach((sig, idx) => {
+            const bg=_sB[sig.level]||_sB.low, brd=_sR[sig.level]||_sR.low, tx=_sT[sig.level]||_sT.low;
+            const dl = sig.qualifiedLabel && sig.qualifiedLabel !== sig.label ? sig.qualifiedLabel : sig.label;
+            h += `<div style="margin-bottom:10px;padding:10px 14px;background:${bg};border-left:4px solid ${brd};border-radius:4px">`;
+            h += `<div style="display:flex;justify-content:space-between;align-items:center"><span style="font-size:0.85rem;color:${tx};font-weight:700">${sig.icon} ${dl}</span><span style="font-size:0.8rem;font-weight:700;color:${tx}">${sig.confidence}%</span></div>`;
+            h += `<div style="margin-top:4px;font-size:0.7rem;color:${_rC(sig.robustnessLabel)};font-weight:600">${_rB(sig.robustnessLabel)}`;
+            if (sig.convergence >= 4) h += ` · ${sig.convergence}/12 techniques`;
+            if (sig.safetyOverride) h += ` <span style="color:#dc2626;font-size:0.62rem">🔒 ${L.reinsSec}</span>`;
+            h += `</div>`;
+            if (sig.pnaTier) { const _pC = {PRIMAIRE:'#991b1b',SECONDAIRE:'#1e40af',TERTIAIRE:'#94a3b8'}; h += `<div style="margin-top:2px;font-size:0.65rem;color:${_pC[sig.pnaTier]||'#94a3b8'}">🧬 ${L.profilNat} ${sig.pnaTier === 'PRIMAIRE' ? L.domPrioritaire : sig.pnaTier === 'SECONDAIRE' ? L.domSecondaire : L.domMineur} (${L.poids} ${sig.pnaWeight||'—'})</div>`; }
+            if (sig.progMoonMonths?.length > 0) h += `<div style="margin-top:1px;font-size:0.62rem;color:#7c3aed">🌙 ${L.luneProg} ${sig.progMoonMonths.join(', ')}</div>`;
+            if (sig.maleficOverride?.length > 0) h += `<div style="margin-top:1px;font-size:0.62rem;color:#dc2626">⚠️ ${sig.maleficOverride.join(', ')} → ${L.penalite} ×${sig.maleficPenalty||'?'}</div>`;
+            if (sig.nodalReturn) h += `<div style="margin-top:1px;font-size:0.62rem;color:#7c3aed">☊ ${sig.nodalReturn}</div>`;
+            if (sig.natalConfigBoost?.length > 0) h += `<div style="margin-top:1px;font-size:0.62rem;color:#059669">🔗 ${L.configNat} ${sig.natalConfigBoost.join(', ')}</div>`;
+            if (sig.eclipseReactivation?.length > 0) h += `<div style="margin-top:1px;font-size:0.62rem;color:#6d28d9">🌑 ${L.eclReactivee} ${sig.eclipseReactivation.slice(0,2).join('; ')}</div>`;
+            if (sig.aspectPhase) h += `<div style="margin-top:1px;font-size:0.62rem;color:#0369a1">🎯 ${sig.aspectPhase === 'applying' ? L.enApplication : L.enSeparation}</div>`;
+            if (sig.progAspects?.length > 0) h += `<div style="margin-top:1px;font-size:0.62rem;color:#b45309">🔮 ${sig.progAspects.slice(0,3).join('; ')}</div>`;
+            if (sig.progStations?.length > 0) h += `<div style="margin-top:1px;font-size:0.62rem;color:#7c3aed">🔄 ${sig.progStations.join('; ')}</div>`;
+            if (sig.progSignChanges?.length > 0) h += `<div style="margin-top:1px;font-size:0.62rem;color:#059669">♈ ${sig.progSignChanges.join('; ')}</div>`;
+            if (sig.arcAspects?.length > 0) h += `<div style="margin-top:1px;font-size:0.62rem;color:#dc2626">☀ ${sig.arcAspects.slice(0,3).join('; ')}</div>`;
+            if (sig.dpConfirmed?.length > 0) h += `<div style="margin-top:1px;font-size:0.62rem;color:#7e22ce;font-weight:600">🏛️ ${isEN ? 'Primary Dir.' : 'Dir. primaire'} : ${sig.dpConfirmed.slice(0,2).join('; ')}</div>`;
+            if (sig.firdConfirmed) h += `<div style="margin-top:1px;font-size:0.62rem;color:#b45309">⏳ ${isEN ? 'Time-lord' : 'Chronocrateur'} : ${sig.firdConfirmed}</div>`;
+            if ((sig.pyramidLevel||0) >= 2) { const _pyrBg = sig.pyramidLevel >= 3 ? '#fef3c7' : '#ede9fe'; const _pyrTx = sig.pyramidLevel >= 3 ? '#92400e' : '#5b21b6'; const _pyrLbl = sig.pyramidLevel >= 3 ? (isEN ? '🔺 Full Pyramid' : '🔺 Pyramide complète') : (isEN ? '🏛️ Primary Dir. confirmed' : '🏛️ Dir. primaire confirmée'); h += `<div style="margin-top:2px;display:inline-block;padding:1px 6px;background:${_pyrBg};border-radius:3px;font-size:0.6rem;font-weight:700;color:${_pyrTx}">${_pyrLbl}</div>`; }
+            if (sig.counterIndicators > 0) h += `<div style="margin-top:1px;font-size:0.62rem;color:#d97706">🛡️ ${sig.counterIndicators} ${L.contreInd}${sig.counterDetails?.length > 0 ? ' : ' + sig.counterDetails.slice(0,2).join('; ') : ''}</div>`;
+            if (sig.peakWindow) {
+              const dispDates = (sig.triggerDates?.length > 0 ? sig.triggerDates : sig.peakWindow?.peakDates || []).slice(0,4).map(d => d?.slice(5)).filter(Boolean);
+              h += `<div style="margin-top:3px;font-size:0.68rem;color:#64748b">📌 ${sig.peakWindow.start?.slice(5)||''} → ${sig.peakWindow.end?.slice(5)||''}${dispDates.length > 0 ? ' · ⚡ ' + dispDates.join(', ') : ''}</div>`;
+            }
+            if (sig.guidance) h += `<div style="margin-top:4px;font-size:0.7rem;color:#475569;font-style:italic">${sig.guidance}</div>`;
+            h += `</div>`;
+        });
+        if (hd.compoundEvents && hd.compoundEvents.length > 0) {
+            h += `<div style="margin-top:8px;padding:8px 12px;background:#faf5ff;border-left:3px solid #c084fc;border-radius:4px"><div style="font-size:0.72rem;font-weight:700;color:#7c3aed;margin-bottom:3px">⚡ ${isEN ? 'Composite Events' : 'Croisements de signatures'}</div>`;
+            hd.compoundEvents.forEach(ce => { h += `<div style="font-size:0.68rem;color:#6b21a8;margin:1px 0">${ce.icon} ${ce.label} (${ce.confidence}%)${ce.peakWindow ? ' · ' + (ce.peakWindow.start||'').slice(5) + '→' + (ce.peakWindow.end||'').slice(5) : ''}</div>`; });
+            h += `</div>`;
+        }
+        if (hd.ageMilestones && hd.ageMilestones.length > 0) {
+            h += `<div style="margin-top:6px;padding:6px 12px;background:#fffbeb;border-left:3px solid #f59e0b;border-radius:4px"><div style="font-size:0.68rem;color:#b45309">🎯 ${hd.ageMilestones.map(m => m.label + ' (' + m.theme + ')').join(' · ')}</div></div>`;
+        }
+        h += `</div>`;
+    }
+    return h;
+};
+const heatmapHTML = _heatData ? _renderHeatmap(_heatData, tc.bg, tc.badge, tc.badgeTxt) : "";
+const _repportVersion = _heatData?._codeVersion || "UNKNOWN";
+_heatData = null;
+
+
+// ── Section globale : Aspects Mondiaux T→T (dédupliqués) ──
+const allMondiaux = [];
+const _mondSeen = new Set();
+maisons.forEach(m => {
+    (m.aspects_mondiaux || []).forEach(a => {
+        const key = `${a.p1}_${a.type}_${a.p2}_${a.debut}`;
+        if (!_mondSeen.has(key)) { _mondSeen.add(key); allMondiaux.push(a); }
+    });
+});
+allMondiaux.sort((a, b) => (a.debut || "").localeCompare(b.debut || ""));
+let mondiauxGlobalHTML = "";
+if (allMondiaux.length > 0) {
+    const llG = allMondiaux.filter(a => a.cat === "lente_lente");
+    const rlG = allMondiaux.filter(a => a.cat === "rapide_lente");
+    const renderMondG = (items, bgRow) => items.map(a => {
+        const c = aspectColors[a.type] || defaultColor;
+        return `<div class="timeline-item mondial-item" style="border-left-color:${c.border};background:${bgRow}">
+            <div class="date-box">${a.debut} ➔ ${a.fin}</div>
+            <div class="event-text">
+                ${g(a.p1)} <strong>${a.p1}</strong> <span class="mondial-sign">${signGlyphs[a.signe1]||""}</span>
+                ${badge(a.type, false)}
+                ${g(a.p2)} <strong>${a.p2}</strong> <span class="mondial-sign">${signGlyphs[a.signe2]||""}</span>
+                <span class="mondial-cat-badge ${a.cat==="lente_lente"?"ll-badge":"rl-badge"}">${a.cat==="lente_lente"?"Cycle":"Activation"}</span>
+                <span class="dual-house">M${a.maison}↔M${a.maison2}</span>
+            </div>
+        </div>`;
+    }).join("");
+    const llGH = llG.length ? `<div class="mondial-sub">${L.cyclesLL}</div>${renderMondG(llG,"#fafafa")}` : "";
+    const rlGH = rlG.length ? `<div class="mondial-sub activation-sub">${L.activationsRL}</div>${renderMondG(rlG,"#eef2fb")}` : "";
+    mondiauxGlobalHTML = `<div class="house-block" style="margin-bottom:45px">
+        <div class="house-banner" style="background:${tc.bg}">
+            <div class="house-title">⊛ ${L.aspectsMond2}</div>
+            <div class="house-meta"><span class="type-badge" style="background:${tc.badge};color:${tc.badgeTxt}">${allMondiaux.length} ${L.aspCyclesAll}</span></div>
+        </div>
+        <div class="house-content">${llGH}${rlGH}</div>
+    </div>`;
+}
+
+const blocsMaisons = maisons.map(renderHouseBlock).join("\n");
+
+// ── NETTOYAGE MÉMOIRE Phase 2 — Libérer les données sources après rendu ──
+for (const _m of maisons) {
+    delete _m.transits_lentes; delete _m.transits_rapides;
+    delete _m.aspects_lentes; delete _m.aspects_rapides;
+    delete _m.aspects_mondiaux; delete _m.passages_angles;
+    delete _m.translations_lumiere; delete _m.lunaisons;
+    delete _m.eclipses; delete _m.stations_retro;
+    delete _m.fenetre_stellaire; delete _m.eclipse_natal_active;
+    delete _m.declinaisons_texte; delete _m.ingress;
+    delete _m.cycles_vie; delete _m.profection;
+    delete _m.signes_presents;
+}
+
+const html = `<!DOCTYPE html>
+<html lang="${isEN ? 'en' : 'fr'}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>${titrePrincipal}</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Source+Sans+3:ital,wght@0,400;0,600;0,700;1,400&display=swap');
+        
+        body{font-family:'Segoe UI',system-ui,sans-serif;background:#ffffff;color:#1e293b;margin:0;padding:40px}
+        .report-container{max-width:1100px;margin:auto;background:white;padding:40px;border-radius:12px;box-shadow:0 10px 15px -3px rgba(0,0,0,0.1)}
+        
+        .main-header { background: ${tc.bg} !important; padding: 45px 30px 40px; color: white; text-align: center; border-radius: 12px; margin-bottom: 40px; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        .main-header h1 { font-family: 'Playfair Display', Georgia, serif; font-size: 34px; font-weight: 700; letter-spacing: 0.3px; color: #ffffff; margin: 0 0 10px; line-height: 1.35; }
+        .main-header p.subtitle { font-family: 'Source Sans 3', 'Segoe UI', sans-serif; font-size: 14px; font-weight: 400; letter-spacing: 1px; color: #8ab4f8; margin: 0 0 6px; }
+        .main-header p.details { font-family: 'Source Sans 3', 'Segoe UI', sans-serif; font-size: 14.5px; font-weight: 400; color: rgba(255,255,255,0.9); letter-spacing: 0.5px; margin: 8px 0 0; }
+        
+        .house-block{margin-bottom:45px;border-radius:12px;border:1px solid #e2e8f0;overflow:hidden}
+        .angular-house{box-shadow:0 0 0 2px rgba(30,58,138,0.08)}
+        .house-banner{background:${tc.bg};color:white;padding:16px 25px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px}
+        .house-title{font-size:1.5rem;font-weight:800}
+        .house-meta{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+        .type-badge{padding:3px 12px;border-radius:12px;font-size:0.78rem;font-weight:800}
+        .periode-label{font-size:0.82rem;color:rgba(255,255,255,0.75);font-weight:600}
+        .extra-badge{padding:2px 10px;border-radius:10px;font-size:0.72rem;font-weight:800;border:1px solid currentColor}
+        .retro-badge{color:#a5b4fc;border-color:#a5b4fc}
+        .lunai-badge2{color:#fcd34d;border-color:#fcd34d}
+        .ecl-badge{color:#fca5a5;border-color:#fca5a5}
+        .angle-cnt-badge{color:#6ee7b7;border-color:#6ee7b7}
+        .mondial-badge{color:#f0abfc;border-color:#f0abfc}
+        .angle-banner-badge{padding:3px 12px;border-radius:12px;font-size:0.82rem;font-weight:900;border:1px solid currentColor;letter-spacing:0.05em}
+        .structure-bar{background:#fff;padding:12px 25px;border-bottom:1px solid #f1f5f9;display:flex;flex-direction:column;gap:10px}
+        .structure-signs,.structure-natal{display:flex;flex-wrap:wrap;gap:8px}
+        .structure-divider{height:1px;background:#f1f5f9;margin:2px 0}
+        .structure-item{background:#f8fafc;color:#334155;padding:5px 14px;border-radius:20px;font-size:0.85rem;font-weight:700;border:1px solid #e2e8f0}
+        .natal-planet-item{display:flex;align-items:center;gap:5px;background:#eef2fb;border:1px solid #a3bfdb;border-radius:20px;padding:4px 12px;font-size:0.82rem}
+        .angle-natal-item{background:#e8f0fe;border-color:#1F3864}
+        .natal-glyph{font-size:1.1rem;color:#2E5FA3}
+        .angle-natal-item .natal-glyph{color:#1F3864}
+        .natal-name{font-weight:700;color:#1F3864}
+        .angle-natal-item .natal-name,.angle-natal-item .natal-pos{color:#1F3864}
+        .natal-pos{color:#2E5FA3;font-size:0.77rem}
+        .natal-star-item{display:inline-block;background:#fff8e1;color:#5d4037;font-size:0.78rem;font-weight:600;padding:3px 10px;border-radius:20px;margin:2px 3px;border:1px solid #ffb300}
+        .house-content{padding:25px}
+        .section-title{font-size:0.72rem;text-transform:uppercase;font-weight:800;margin-top:22px;margin-bottom:12px;letter-spacing:0.06em;display:flex;align-items:center;gap:6px}
+        .section-title::after{content:"";flex:1;margin-left:6px;height:1px}
+        .slow-title{color:#1e3a8a}.slow-title::after{background:#dbeafe}
+        .fast-title{color:#2E5FA3}.fast-title::after{background:#dbeafe}
+        .station-title{color:#1F3864}.station-title::after{background:#e8f0fe}
+        .lunai-title{color:#1e40af}.lunai-title::after{background:#dbeafe}
+        .eclipse-title{color:#b91c1c}.eclipse-title::after{background:#fee2e2}
+        .angle-title{color:#2E5FA3;font-size:0.74rem}.angle-title::after{background:#e8f0fe}
+        .mondial-title{color:#1F3864}.mondial-title::after{background:#eef2fb}
+        .mondial-sub{font-size:0.68rem;text-transform:uppercase;font-weight:700;color:#2E5FA3;letter-spacing:0.08em;margin:10px 0 6px 0;padding-left:4px}
+        .activation-sub{color:#2E5FA3}
+        .timeline-item{display:flex;align-items:flex-start;padding:14px 15px;margin:6px 0;border-radius:10px;background:#fff;border:1px solid #f1f5f9;border-left:5px solid #cbd5e1;transition:all 0.2s ease;gap:12px}
+        .timeline-item:hover{background:#fafafa;transform:translateX(4px)}
+        .angle-passage-item{background:#eef2fb}
+        .angle-row{background:#f0f4ff}
+        .eclipse-item{background:#fffbeb}
+        .mondial-item{}
+        .date-box{min-width:190px;font-family:monospace;font-size:0.88rem;font-weight:700;color:#64748b;padding-top:2px}
+        .event-text{flex:1;color:#334155;font-size:0.97rem;line-height:1.5;display:flex;align-items:center;flex-wrap:wrap;gap:5px}
+        .glyph{font-size:1.3rem;vertical-align:middle;color:#1e3a8a}
+        .aspect-badge{padding:2px 10px;border-radius:6px;font-size:0.72rem;font-weight:800;text-transform:uppercase;border:1px solid currentColor;white-space:nowrap}
+        .angle-aspect-badge{font-weight:900}
+        .angle-pill{padding:1px 8px;border-radius:10px;font-size:0.75rem;font-weight:900;background:#e8f0fe;color:#1F3864;border:1px solid #2E5FA3}
+        .station-badge,.lunai-badge,.eclipse-badge,.conj-badge,.angle-key-badge{padding:2px 10px;border-radius:6px;font-size:0.78rem;font-weight:800;border:1px solid currentColor;white-space:nowrap}
+        .eclipse-badge{font-size:0.75rem;font-weight:900;letter-spacing:0.05em;padding:3px 12px}
+        .eclipse-icon{font-size:1.4rem}
+        .conj-badge{background:#e8f0fe;color:#1F3864;border-color:#2E5FA3;font-size:0.72rem;text-transform:uppercase}
+        .angle-key-badge{font-size:0.85rem;font-weight:900;letter-spacing:0.06em}
+        .angle-full-name{font-weight:600;color:#374151;font-size:0.9rem}
+        .mondial-sign{font-size:1.1rem}
+        .mondial-cat-badge{padding:2px 10px;border-radius:10px;font-size:0.7rem;font-weight:800;border:1px solid currentColor;white-space:nowrap}
+        .ll-badge{color:#2E5FA3;background:#eef2fb;border-color:#a3bfdb}
+        .rl-badge{color:#1F3864;background:#e8f0fe;border-color:#1F3864}
+        .dual-house{font-size:0.75rem;color:#94a3b8;font-weight:700;background:#f1f5f9;padding:1px 8px;border-radius:8px}
+        .empty{font-style:italic;color:#cbd5e1;padding:8px 4px;font-size:0.9rem}
+        @media print{
+            body{padding:0;background:white}
+            .report-container{box-shadow:none;padding:20px}
+            .main-header { padding: 35px 25px; margin-bottom: 30px; }
+            .main-header h1 { font-size: 28px; }
+            .house-block { page-break-after: always; break-after: page; }
+            .house-block:last-child { page-break-after: auto; break-after: auto; }
+            @page { margin-bottom: 20mm; @bottom-center { content: counter(page) " / " counter(pages); font-size: 9pt; color: #888; } }
+        }
+        /* C1 Figures natales */
+        .fn-title{color:#1F3864}.fn-title::after{background:#e8f0fe}
+        .fn-group{background:#f0f4ff;border:1px solid #d0daf0;border-radius:8px;padding:12px 15px;margin:6px 0}
+        .fn-header{font-weight:700;color:#1F3864;margin-bottom:8px;font-size:0.92rem}
+        .fn-link{display:flex;align-items:center;gap:6px;padding:4px 0;font-size:0.88rem;color:#374151}
+        .fn-asp{font-size:0.72rem;font-weight:800;text-transform:uppercase;padding:1px 7px;border-radius:4px;border:1px solid currentColor}
+        .fn-meta{color:#94a3b8;font-size:0.78rem}.fn-dig{font-size:0.72rem;font-weight:700;padding:1px 7px;border-radius:8px;border:1px solid currentColor}
+        .dig-fort{color:#15803d;background:#f0fdf4;border-color:#6ee7b7}.dig-faible{color:#b91c1c;background:#fff1f2;border-color:#fca5a5}.dig-chute{color:#7f1d1d;background:#fef2f2;border-color:#f87171}.dig-neutre{color:#94a3b8}
+        /* C2 Axe maîtrises */
+        .axe-title{color:#1e40af;font-size:0.73rem}.axe-title::after{background:#bfdbfe}
+        .axe-chain{display:flex;align-items:center;flex-wrap:wrap;gap:6px;padding:10px 15px;background:#eff6ff;border-radius:8px;border:1px solid #bfdbfe;margin:6px 0}
+        .axe-label{font-weight:700;color:#1e3a8a;font-size:0.82rem}.axe-arrow{color:#93c5fd;font-weight:900}
+        .axe-node{display:flex;align-items:center;gap:4px;background:white;padding:4px 10px;border-radius:6px;border:1px solid #dbeafe;font-size:0.85rem}
+        .axe-planet{font-weight:700;color:#1e3a8a}.axe-retro{color:#2E5FA3;font-weight:900;font-size:0.9rem}.axe-pos{color:#64748b;font-size:0.78rem}
+        .axe-dig{font-size:0.72rem;font-weight:800;padding:1px 8px;border-radius:8px;border:1px solid currentColor}
+        .axe-warnings{padding:8px 15px}.axe-warn{font-size:0.83rem;color:#2E5FA3;margin:3px 0}
+        /* C3 Dignités */
+        .dig-title{color:#b91c1c}.dig-title::after{background:#fee2e2}
+        .dig-item{}.dig-badge{padding:2px 10px;border-radius:6px;font-size:0.78rem;font-weight:800;border:1px solid currentColor;white-space:nowrap}
+        /* C4 Réceptions */
+        .recep-title{color:#2E5FA3}.recep-title::after{background:#eef2fb}
+        .recep-item{}.recep-badge{padding:2px 10px;border-radius:6px;font-size:0.78rem;font-weight:800;border:1px solid currentColor;white-space:nowrap}
+        /* C5 Translations */
+        .tl-title{color:#0891b2}.tl-title::after{background:#cffafe}
+        .tl-item{background:#f0fdfe}.tl-badge{padding:2px 10px;border-radius:6px;font-size:0.72rem;font-weight:800;background:#cffafe;color:#0891b2;border:1px solid #67e8f9;white-space:nowrap}
+        .tl-badge2{color:#67e8f9;border-color:#67e8f9}.recep-badge2{color:#fcd34d;border-color:#fcd34d}
+        /* C7 Degrés critiques */
+        .dc-title{color:#2E5FA3}.dc-title::after{background:#eef2fb}
+        .dc-item{background:#f0f4ff}.dc-badge{padding:2px 9px;border-radius:6px;font-size:0.72rem;font-weight:800;background:#eef2fb;color:#2E5FA3;border:1px solid #a3bfdb;white-space:nowrap;margin-right:6px}
+        .dc-badge2{color:#a3bfdb;border-color:#a3bfdb}
+        /* C8 Profections */
+        .prof-block{display:flex;align-items:flex-start;gap:10px;padding:12px 16px;border-radius:10px;border-left:5px solid;margin:8px 0}
+        .prof-icon{font-size:1.4rem;line-height:1}.prof-text{font-size:0.9rem;color:#1e293b;line-height:1.5}
+        .prof-badge2{color:#2dd4bf;border-color:#2dd4bf}
+        /* C10 Antiscia */
+        .ant-title{color:#1F3864}.ant-title::after{background:#e8f0fe}
+        .ant-item{background:#f0f4ff}.ant-badge{padding:2px 9px;border-radius:6px;font-size:0.72rem;font-weight:800;background:#e8f0fe;color:#1F3864;border:1px solid #a3bfdb;white-space:nowrap;margin-right:6px}
+        .ant-badge2{color:#a3bfdb;border-color:#a3bfdb}
+        /* C9 Ingress */
+        .ing-title{color:#2E5FA3}.ing-title::after{background:#dbeafe}
+        .ing-item{background:#eef2fb}.ing-badge{padding:2px 9px;border-radius:6px;font-size:0.72rem;font-weight:800;background:#dbeafe;color:#2E5FA3;border:1px solid #a3bfdb;white-space:nowrap;margin-right:6px}
+        .ing-badge2{color:#a3bfdb;border-color:#a3bfdb}
+        /* C11 Cycles de vie */
+        .cyc-title{color:#2E5FA3;font-size:0.76rem}.cyc-title::after{background:#dbeafe}
+        .cyc-block{display:flex;align-items:flex-start;gap:10px;padding:10px 16px;border-radius:10px;border-left:5px solid #2E5FA3;background:#eef2fb;margin:6px 0}
+        .cyc-icon{font-size:1.5rem;color:#2E5FA3;line-height:1}.cyc-text{font-size:0.88rem;color:#1e293b;font-weight:600;line-height:1.5}
+        .cyc-badge2{color:#a3bfdb;border-color:#a3bfdb}
+    </style>
+</head>
+<body>
+<div class="report-container">
+    <div class="main-header">
+        <h1>${L.titre} —<br>${prenomNom}</h1>
+        <p class="subtitle">${_lumHeaderDP}</p>
+        <p class="details">${labelType.toUpperCase()} &middot; ${dateEntreeStr} ➔ ${dateSortieStr}</p>
+    </div>
+    ${(() => {
+        const helioLines = [];
+        if (helioConditions) {
+            Object.entries(helioConditions).forEach(([name, v]) => {
+                if (v.condition) {
+                    const orient = v.orientation ? ` · ${v.orientation}` : '';
+                    const isCazimi = v.condition.includes('CAZIMI');
+                    const isCombuste = v.condition.includes('COMBUSTE');
+                    const color = isCazimi ? '#1F3864' : isCombuste ? '#dc2626' : '#6b7280';
+                    const icon = isCazimi ? '☀️' : isCombuste ? '🔥' : '🌤️';
+                    helioLines.push(`<div style="display:flex;align-items:center;gap:8px;padding:4px 0"><span>${icon}</span><span style="font-weight:700">${glyphs[name]||''} ${name}</span> <span style="color:${color};font-size:0.9em">${v.condition}${orient}</span></div>`);
+                }
+            });
+        }
+        if (helioLines.length === 0 && !chartRulerTrad) return '';
+        let html = '<div style="background:#eef2fb;border:1px solid #2E5FA3;border-radius:10px;padding:14px 18px;margin:0 0 20px">';
+        if (chartRulerTrad) {
+            html += `<div style="font-weight:700;color:#1F3864;margin-bottom:8px;font-size:1em">👑 ${L.coMaitre} <strong>${chartRulerTrad}</strong></div>`;
+        }
+        if (helioLines.length > 0) {
+            html += `<div style="font-weight:700;color:#1F3864;margin-bottom:6px;font-size:0.95em">☀ ${L.condHelio}</div>`;
+            html += helioLines.join('');
+        }
+        html += '</div>';
+        return html;
+    })()}
+    ${eclipseNatalH ? `<div style="background:linear-gradient(135deg,#fff0e6,#fff8f5);border:2px solid #7c2d12;border-radius:10px;padding:14px 18px;margin:0 0 20px;"><div style="color:#7c2d12;font-weight:700;font-size:1.05em;margin-bottom:6px">⚡ ${L.neeSousEcl}</div><div>${L.eclipse} <strong>${eclipseNatalH.type}</strong> ${L.de} <strong>${eclipseNatalH.astre}</strong> ${L.en} <strong>${eclipseNatalH.sign}</strong> — ${L.maison} <strong>${eclipseNatalH.house}</strong> (${((eclipseNatalH.degree??0)%30).toFixed(1)}°). ${L.eclNatDesc}${eclipseNatalH.house} ${L.eclNatDesc2}</div></div>` : ""}
+    ${(etoileMatchesNatH.length || etoileCuspNatH.length) ? `<div style="background:#fff8e1;border:1px solid #ffb300;border-radius:8px;padding:10px 16px;margin:0 0 16px;color:#5d4037">★ ${L.themeStellair} ${[...new Set([...etoileMatchesNatH.map(e=>e.etoile),...etoileCuspNatH.map(e=>e.etoile)])].join(' · ')} ${L.voirSection}</div>` : ""}
+    ${"" /* Parans Brady — SUPPRIMÉ du rapport Prévisions (déjà présent dans le DHN) */}
+    ${_primaryDirections && _primaryDirections.length > 0 ? (() => {
+        const aspGlyph = {"Conjonction":"☌","Opposition":"☍","Carré":"□","Trigone":"△","Sextile":"⚹"};
+        const dpRows = _primaryDirections.map((dp, i) => {
+            const bg = i % 2 === 0 ? '#faf5ff' : '#ffffff';
+            const orbCol = dp.orbYears <= 0.3 ? '#991b1b' : dp.orbYears <= 0.7 ? '#b45309' : '#4b5563';
+            const orbBold = dp.orbYears <= 0.5 ? 'font-weight:700' : '';
+            return `<tr style="background:${bg}"><td style="padding:7px 12px;font-weight:600">${glyphs[dp.promissor]||''}  ${dp.promissor}</td><td style="padding:7px 12px;text-align:center;font-size:1.1em">${aspGlyph[dp.aspect]||dp.aspect}</td><td style="padding:7px 12px;font-weight:600">${glyphs[dp.significator]||''} ${dp.significator}</td><td style="padding:7px 12px;text-align:center;font-size:0.85em;color:#6b7280">${dp.direction}</td><td style="padding:7px 12px;text-align:center">${dp.exactAge.toFixed(1)} ans</td><td style="padding:7px 12px;text-align:center;color:${orbCol};${orbBold}">${dp.orbYears.toFixed(2)} an${dp.orbYears >= 2 ? 's' : ''}</td><td style="padding:7px 12px;text-align:center;font-size:0.85em">M${dp.promHouse||'?'} → M${dp.sigHouse||'?'}</td></tr>`;
+        }).join('');
+        return `<div class="house-block" style="page-break-before:always;margin-bottom:30px">
+            <div class="house-banner" style="background:linear-gradient(135deg,#4a1d96,#7c3aed)">
+                <div class="house-title" style="color:white">🔱 ${L.dirPrimaires}</div>
+                <div class="house-meta"><span class="type-badge" style="background:#fbbf24;color:#1a1a2e;font-weight:700">${_primaryDirections.length} ${_primaryDirections.length>1?L.dirsActives:L.dirActive}</span><span class="type-badge" style="background:rgba(255,255,255,0.2);color:white;margin-left:6px">${L.methodeDP}</span></div>
+            </div>
+            <div class="house-content">
+                <div style="background:#faf5ff;border:2px solid #7c3aed;border-radius:8px;padding:12px 16px;margin-bottom:14px;color:#4a1d96;font-size:0.9em">
+                    ${L.dpWarning}
+                </div>
+                <table style="width:100%;border-collapse:collapse;font-size:0.9rem">
+                    <tr style="background:linear-gradient(135deg,#4a1d96,#7c3aed);color:white"><th style="padding:8px 12px;text-align:left">${L.promisseur}</th><th style="padding:8px 12px;text-align:center">${L.aspect}</th><th style="padding:8px 12px;text-align:left">${L.significateur}</th><th style="padding:8px 12px;text-align:center">${L.type}</th><th style="padding:8px 12px;text-align:center">${L.ageExact}</th><th style="padding:8px 12px;text-align:center">${L.orbe}</th><th style="padding:8px 12px;text-align:center">${L.maisons_pl}</th></tr>
+                    ${dpRows}
+                </table>
+                ${firdariaActive ? `<div style="margin-top:16px;padding:12px 16px;background:#faf5ff;border:1px solid #c4b5fd;border-radius:8px;font-size:0.88rem;line-height:1.55;color:#5b21b6;text-align:left;hyphens:none">${L.dpFirdBridge}</div>` : ''}
+            </div>
+        </div>`;
+    })() : ''}
+    ${_solarArcRows.length > 0 ? (() => {
+        const aspGlyphSA = {"Conjonction":"☌","Opposition":"☍","Carré":"□","Trigone":"△","Sextile":"⚹","Quinconce":"⚻"};
+        const escSA = (t) => String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+        const saRows = _solarArcRows.map((row, i) => {
+            if (row.fallback) {
+                return `<tr style="background:${i % 2 ? '#ffffff' : '#fff7ed'}"><td colspan="6" style="padding:8px 12px;font-size:0.85rem">${escSA(row.fallback)}</td></tr>`;
+            }
+            const bg = i % 2 === 0 ? '#fff7ed' : '#ffffff';
+            const orbDisp = (isEN ? row.orbRaw : String(row.orbRaw).replace('.', ',')) + '°';
+            const gDir = glyphs[row.directed] || '';
+            const gTgt = glyphs[row.target] || '';
+            const noteCell = row.note ? escSA(row.note) : '—';
+            return `<tr style="background:${bg}"><td style="padding:7px 10px;font-weight:600">${gDir} ${escSA(row.directed)}<div style="font-size:0.72rem;color:#9a3412;font-weight:500">${escSA(row.dirSign)} · M${row.dirHouse}</div></td><td style="padding:7px 10px;text-align:center;font-size:1.05em">${aspGlyphSA[row.aspect] || row.aspect}</td><td style="padding:7px 10px;font-weight:600">${gTgt} ${escSA(row.target)}</td><td style="padding:7px 10px;text-align:center;font-weight:600">M${row.targetHouse}</td><td style="padding:7px 10px;text-align:center;font-weight:600">${orbDisp}</td><td style="padding:7px 10px;font-size:0.82rem;color:#57534e">${noteCell}</td></tr>`;
+        }).join('');
+        return `<div class="house-block" style="page-break-before:always;break-before:page;margin-bottom:30px">
+            <div class="house-banner" style="background:linear-gradient(135deg,#9a3412,#ea580c)">
+                <div class="house-title" style="color:white">☀ ${L.solarArcTitle}</div>
+                <div class="house-meta"><span class="type-badge" style="background:#ffedd5;color:#9a3412;font-weight:700">${_solarArcRows.length} ${L.solarArcCountLbl}</span><span class="type-badge" style="background:rgba(255,255,255,0.22);color:white;margin-left:6px">${L.solarArcBadge}</span></div>
+            </div>
+            <div class="house-content">
+                <div style="background:#fff7ed;border:1px solid #fdba74;border-radius:8px;padding:10px 14px;margin-bottom:12px;color:#7c2d12;font-size:0.88rem;line-height:1.5">${L.saIntro}</div>
+                <table style="width:100%;border-collapse:collapse;font-size:0.88rem">
+                    <tr style="background:linear-gradient(135deg,#9a3412,#ea580c);color:white"><th style="padding:8px 10px;text-align:left">${L.saDirected}</th><th style="padding:8px 10px;text-align:center">${L.aspect}</th><th style="padding:8px 10px;text-align:left">${L.saTarget}</th><th style="padding:8px 10px;text-align:center">${L.saHouseTgt}</th><th style="padding:8px 10px;text-align:center">${L.saOrb}</th><th style="padding:8px 10px;text-align:left">${L.saNote}</th></tr>
+                    ${saRows}
+                </table>
+            </div>
+        </div>`;
+    })() : ''}
+    ${firdariaActive ? `<div class="house-block" style="${((_primaryDirections && _primaryDirections.length > 0) || _solarArcRows.length > 0) ? 'page-break-before:always;break-before:page;' : ''}margin-bottom:30px">
+        <div class="house-banner" style="background:${tc.bg}">
+            <div class="house-title">⏳ ${L.firdariaTitle}</div>
+            <div class="house-meta"><span class="type-badge" style="background:${tc.badge};color:${tc.badgeTxt}">${L.periodeMaj} ${firdariaActive.major}</span></div>
+        </div>
+        <div class="house-content">
+            <div class="timeline-item" style="border-left-color:#2E5FA3;background:#eef2fb">
+                <div class="event-text" style="font-size:0.95rem">
+                    <strong>${L.chronoMaj}</strong> ${firdariaActive.major} (${L.age} ${firdariaActive.startAge}–${firdariaActive.endAge})<br>
+                    <strong>${L.sousPeriode}</strong> ${firdariaActive.sub}<br>
+                    <span style="color:#64748b;font-size:0.9em;margin-top:6px;display:block">${L.firdariaDesc} <strong>${firdariaActive.major}</strong> ${isEN?'and':'et'} <strong>${firdariaActive.sub}</strong> ${L.firdariaDesc2}</span>
+                </div>
+            </div>
+        </div>
+    </div>` : ''}
+    ${progressionsRaw ? (() => {
+        const progAge = typeof progressionsRaw.age === 'number' ? progressionsRaw.age.toFixed(0) : '?';
+        const progPlanetsHTML = Object.entries(progressionsRaw.planetes || {}).map(([pName, pd], i) => {
+            const bg = i % 2 === 0 ? '#fafafa' : '#ffffff';
+            return `<tr style="background:${bg}"><td style="padding:7px 14px;font-weight:700">${glyphs[pName]||''} ${pName}</td><td style="padding:7px 14px">${pd.deg||'?'}</td><td style="padding:7px 14px;text-align:center">${signGlyphs[pd.sign]||''} ${pd.sign||'?'}</td><td style="padding:7px 14px;text-align:center">M${pd.house||'?'}</td><td style="padding:7px 14px;text-align:center">${pd.retro ? '℞' : '—'}</td></tr>`;
+        }).join('');
+        const _progAspNoSA = (progressionsRaw.aspects || []).filter(a => typeof a !== 'string' || a.indexOf('ARC SOLAIRE') === -1);
+        const progAspectsHTML = _progAspNoSA.length > 0
+            ? `<div class="section-title" style="color:#2E5FA3;margin-top:18px;page-break-before:always">🔮 ${L.aspEvtProg}</div>` +
+              _progAspNoSA.map(a => { const txt = typeof a === 'string' ? a : `${a.pProg || '?'} en ${a.aspect || '?'} à ${a.pNat || '?'} natal (M${a.maisonNat || '?'}) — orbe ${a.exactitude || '?'}°`; return `<div class="timeline-item" style="border-left-color:#2E5FA3;background:#eef2fb"><div class="event-text" style="font-size:0.9rem">${txt}</div></div>`; }).join('')
+            : '';
+        return `<div class="house-block" style="margin-bottom:45px">
+            <div class="house-banner" style="background:${tc.bg}">
+                <div class="house-title">🔮 ${L.progSec}</div>
+                <div class="house-meta"><span class="type-badge" style="background:${tc.badge};color:${tc.badgeTxt}">${L.age} ~${progAge} ${L.ans}</span></div>
+            </div>
+            <div class="house-content">
+                <table style="width:100%;border-collapse:collapse;font-size:0.9rem;margin-bottom:10px">
+                    <tr style="background:${tc.bg};color:white"><th style="padding:8px 14px;text-align:left">${L.planete}</th><th style="padding:8px 14px;text-align:left">${L.position}</th><th style="padding:8px 14px;text-align:center">${L.signe}</th><th style="padding:8px 14px;text-align:center">${L.maison}</th><th style="padding:8px 14px;text-align:center">${L.retro}</th></tr>
+                    ${progPlanetsHTML}
+                </table>
+                ${progAspectsHTML}
+            </div>
+        </div>`;
+    })() : ''}
+    ${_rsRaw ? (() => {
+        const escH = (t) => String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+        const rsLines = (_rsRaw.text || '').split('\n').filter(l => l.trim());
+        const rsItemsHTML = rsLines.map(l => `<div class="timeline-item" style="border-left-color:#e8a735;background:#fffbeb"><div class="event-text" style="font-size:0.9rem">${escH(l)}</div></div>`).join('');
+        return `<div class="house-block" style="margin-bottom:45px">
+            <div class="house-banner" style="background:#b8860b">
+                <div class="house-title">🌞 ${L.revSolaire}</div>
+                <div class="house-meta"><span class="type-badge" style="background:#fff8e1;color:#8b6914">${L.date} : ${_rsRaw.date || '?'}</span>${_rsRaw.ascSign ? `<span class="type-badge" style="background:#fff8e1;color:#8b6914;margin-left:8px">${L.ascRS} ${_rsRaw.ascSign} → M${_rsRaw.ascHouse || '?'}</span>` : ''}</div>
+            </div>
+            <div class="house-content">${rsItemsHTML}</div>
+        </div>`;
+    })() : ''}
+    ${_rlRaw ? (() => {
+        const escH = (t) => String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+        const rlItemsHTML = (_rlRaw.lines || []).map(l => `<div class="timeline-item" style="border-left-color:#7c3aed;background:#f5f3ff"><div class="event-text" style="font-size:0.85rem">${escH(l)}</div></div>`).join('');
+        return `<div class="house-block" style="margin-bottom:45px">
+            <div class="house-banner" style="background:#5b21b6">
+                <div class="house-title">🌙 ${L.revLunaires}</div>
+                <div class="house-meta"><span class="type-badge" style="background:#ede9fe;color:#5b21b6">${_rlRaw.count || '?'} ${L.retLunaires}</span></div>
+            </div>
+            <div class="house-content">${rlItemsHTML}</div>
+        </div>`;
+    })() : ''}
+    ${_tpRaw?.length > 0 ? (() => {
+        const escH = (t) => String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+        const tpItemsHTML = _tpRaw.map(t => {
+            const isPrecise = t.includes('📌') || t.includes('★');
+            const bg = isPrecise ? '#eef2fb' : '#f8fafc';
+            const bc = isPrecise ? '#1d4ed8' : '#64748b';
+            return `<div class="timeline-item" style="border-left-color:${bc};background:${bg}"><div class="event-text" style="font-size:0.85rem">${escH(t)}</div></div>`;
+        }).join('');
+        return `<div class="house-block" style="margin-bottom:45px">
+            <div class="house-banner" style="background:#1e40af">
+                <div class="house-title">🎯 ${L.transitsProg}</div>
+                <div class="house-meta"><span class="type-badge" style="background:#dbeafe;color:#1e40af">${_tpRaw.length} aspect(s)</span></div>
+            </div>
+            <div class="house-content">${tpItemsHTML}</div>
+        </div>`;
+    })() : ''}
+    ${chartShapeHTML}
+    ${heatmapHTML}
+    ${natalAdvancedHTML}
+    ${sensitivityHTML}
+    ${mondiauxGlobalHTML}
+    ${blocsMaisons}
+</div>
+</body>
+</html>`;
+
+const safeFilename = titrePrincipal
+    .normalize("NFD").replace(/[\u0300-\u036f]/g,"")
+    .replace(/[^a-zA-Z0-9_\-]/g,"_").replace(/_+/g,"_").replace(/^_|_$/g,"");
+
+return [{
+    json: { 
+        titre: titrePrincipal, 
+        typeRapport, 
+        prenomNom, 
+        desiredFilename: _desiredPdfName + ".pdf",
+        filename: safeFilename + ".html"
+    },
+    binary: {
+        html_file: {
+            data: Buffer.from(html,"utf8").toString("base64"),
+            mimeType: "text/html",
+            fileName: "index.html" // Requis par Gotenberg
+        }
+    }
+}];
