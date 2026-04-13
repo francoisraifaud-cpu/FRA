@@ -1,0 +1,176 @@
+// ══════════════════════════════════════════════════════════════════════
+// VALIDATEUR POST-LLM — THÈME NATAL (noeud silencieux)
+// ══════════════════════════════════════════════════════════════════════
+// Ce noeud vérifie la cohérence des textes LLM avec les données natales.
+// Il ne produit AUCUN affichage — son output JSON est consultable
+// dans les logs d'exécution n8n et peut alimenter un noeud d'alerte
+// (Slack, email, webhook) si des anomalies sont détectées.
+// ══════════════════════════════════════════════════════════════════════
+
+const items = $input.all();
+const astroData = $("Enrichissement Astrologique").first().json;
+
+// ── 1. CARTE DE RÉFÉRENCE DES POSITIONS NATALES ──
+const natalPlanets = (astroData.planetes || []);
+const natalMaisons = (astroData.maisons || []);
+const planetHouseMap = {};
+const planetSignMap  = {};
+
+natalPlanets.forEach(p => {
+    const name = p.planet?.fr;
+    if (!name) return;
+    const sign = p.zodiac_sign?.name?.fr;
+    if (sign) planetSignMap[name] = sign;
+    const house = natalMaisons.find(m =>
+        (m.segments || []).some(s => s.locataires?.some(l => l.planete === name))
+    );
+    if (house) planetHouseMap[name] = house.maison;
+});
+
+// ── 2. VOCABULAIRE D'EXCLUSION (contexte transit / rhétorique) ──
+const TRANSIT_VERBS = [
+    "transite", "traverse", "entre en", "arrive en", "quitte la",
+    "passage de", "passage en", "passage du", "transit de", "transit du",
+    "se déplace en", "progresse en", "arc solaire",
+    "contrairement à", "tandis que", "alors que", "par opposition à",
+    "à la différence de", "en comparaison", "imaginons",
+    "en général", "généralement", "traditionnellement", "dans l'absolu",
+    "l'entrée", "entre dans", "éclipse", "saros", "en transit",
+    "transit ", "progression de", "lunation", "pleine lune", "nouvelle lune",
+    "sera en", "serait en", "entrera en", "ira en", "retour de",
+    "ingress", "entrée en", "passage vers", "quand il entre", "quand elle entre"
+];
+
+const CORE_PLANETS = ["Soleil","Lune","Mercure","Vénus","Mars","Jupiter","Saturne","Uranus","Neptune","Pluton"];
+
+// ── 3. VALIDATION CONTEXTUELLE (phrase par phrase) ──
+const splitSentences = (text) => {
+    return text.replace(/\n/g, '. ').split(/(?<=[.!?…])\s+/).filter(s => s.length > 5);
+};
+
+const isTransitContext = (sentence) => {
+    const lc = sentence.toLowerCase();
+    return TRANSIT_VERBS.some(v => lc.includes(v));
+};
+
+const matchWithBoundary = (text, pattern) => {
+    const idx = text.indexOf(pattern);
+    if (idx === -1) return false;
+    const after = text[idx + pattern.length];
+    if (after && /\d/.test(after)) return false;
+    return true;
+};
+
+const validateHouseText = (text, houseNum) => {
+    const warnings = [];
+    if (!text) return warnings;
+    const sentences = splitSentences(text);
+
+    CORE_PLANETS.forEach(name => {
+        const correctHouse = planetHouseMap[name];
+        if (!correctHouse) return;
+        const nameLc = name.toLowerCase();
+
+        sentences.forEach(sentence => {
+            if (isTransitContext(sentence)) return;
+            const lc = sentence.toLowerCase();
+            for (let h = 1; h <= 12; h++) {
+                if (h === correctHouse) continue;
+                const patterns = [
+                    `${nameLc} en maison ${h}`,
+                    `${nameLc} dans la maison ${h}`,
+                    `${nameLc} en m${h}`,
+                    `${nameLc} (m${h}`,
+                    `${nameLc}, planète de la maison ${h}`,
+                    `${nameLc} réside en m${h}`,
+                    `${nameLc} se trouve en m${h}`,
+                    `${nameLc} natal en m${h}`,
+                    `${nameLc} natale en m${h}`
+                ];
+                if (patterns.some(pat => matchWithBoundary(lc, pat))) {
+                    warnings.push({
+                        planet: name,
+                        claimedHouse: h,
+                        correctHouse: correctHouse,
+                        excerpt: sentence.substring(0, 120),
+                        type: "house_mismatch"
+                    });
+                }
+            }
+        });
+    });
+    return warnings;
+};
+
+const validateSignText = (text) => {
+    const warnings = [];
+    if (!text) return warnings;
+    const sentences = splitSentences(text);
+
+    CORE_PLANETS.forEach(name => {
+        const correctSign = planetSignMap[name];
+        if (!correctSign) return;
+        const nameLc = name.toLowerCase();
+        const signLc = correctSign.toLowerCase();
+        const allSigns = ["bélier","taureau","gémeaux","cancer","lion","vierge","balance","scorpion","sagittaire","capricorne","verseau","poissons"];
+
+        sentences.forEach(sentence => {
+            if (isTransitContext(sentence)) return;
+            const lc = sentence.toLowerCase();
+            allSigns.forEach(sign => {
+                if (sign === signLc) return;
+                const patterns = [
+                    `${nameLc} en ${sign}`,
+                    `${nameLc} dans le ${sign}`,
+                    `${nameLc} dans la ${sign}`,
+                    `${nameLc} dans les ${sign}`
+                ];
+                if (patterns.some(pat => lc.includes(pat))) {
+                    if (!lc.includes("transite") && !lc.includes("transit") && !lc.includes("progresse")) {
+                        warnings.push({
+                            planet: name,
+                            claimedSign: sign,
+                            correctSign: correctSign,
+                            excerpt: sentence.substring(0, 120),
+                            type: "sign_mismatch"
+                        });
+                    }
+                }
+            });
+        });
+    });
+    return warnings;
+};
+
+// ── 4. EXÉCUTION SUR CHAQUE MAISON ──
+const results = { timestamp: new Date().toISOString(), totalWarnings: 0, houses: {}, signWarnings: [] };
+let vars = {};
+try { vars = $('Extract Variables').first()?.json || {}; } catch(e) {}
+results.subject = `${vars.prenom || ''} ${vars.nom || ''}`.trim();
+
+items.forEach((item, index) => {
+    const txt = item.json.output || item.json.text || "";
+    if (index < 12) {
+        const hNum = index + 1;
+        const houseWarnings = validateHouseText(txt, hNum);
+        const signWarnings  = validateSignText(txt);
+        if (houseWarnings.length > 0 || signWarnings.length > 0) {
+            results.houses[`M${hNum}`] = { houseWarnings, signWarnings };
+            results.totalWarnings += houseWarnings.length + signWarnings.length;
+        }
+    } else {
+        const synthWarnings = validateHouseText(txt, 0);
+        const synthSignWarn = validateSignText(txt);
+        if (synthWarnings.length > 0 || synthSignWarn.length > 0) {
+            results.houses["synthese"] = { houseWarnings: synthWarnings, signWarnings: synthSignWarn };
+            results.totalWarnings += synthWarnings.length + synthSignWarn.length;
+        }
+    }
+});
+
+results.status = results.totalWarnings === 0 ? "CLEAN" : "WARNINGS_DETECTED";
+results.summary = results.totalWarnings === 0
+    ? "Aucune incohérence détectée entre les textes LLM et les données natales."
+    : `${results.totalWarnings} incohérence(s) potentielle(s) détectée(s). Vérifier les détails dans houses.`;
+
+return [{ json: results }];

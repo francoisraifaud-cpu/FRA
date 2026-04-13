@@ -1,0 +1,149 @@
+// ==========================================
+// NŒUD PREPARE DATA v8
+// Normalise les données planètes quel que soit le format source :
+//   Format A (ancien) : { fullDegree, isRetro, signe }
+//   Format B (nouveau) : { longitude_absolue, est_retrograde, signe, ... }
+// Chiron + astéroïdes inclus dans transits_complet_2026.json
+// Nouveau v8 : progressionsData + eclipsesProgressees + lune enrichie
+// ==========================================
+
+const allItems = $input.all();
+
+let transitsRaw = null, eclipsesRaw = null, luneRaw = null;
+let progressionsRaw = null, eclipsesProgRaw = null;
+
+for (const item of allItems) {
+    const d = item.json;
+    const arr = Array.isArray(d) ? d : (d.data || []);
+    if (!arr.length) continue;
+    const first = arr[0];
+
+    if (first.age_annees !== undefined && first.planetes) {
+        // Progressions secondaires : { date, age_annees, jd_progresse, planetes }
+        progressionsRaw = arr;
+    } else if (first.date_vie !== undefined) {
+        // Éclipses progressées : { date_vie, date_progresse, age_annees, ... }
+        eclipsesProgRaw = arr;
+    } else if (first.date && first.planetes) {
+        transitsRaw = arr;
+    } else if (first.date_heure && first.lune) {
+        luneRaw = arr;
+    } else if (first.astre && first.type && first.date_maximum) {
+        eclipsesRaw = arr;
+    }
+}
+
+if (!transitsRaw)  throw new Error("transits introuvable — vérifier Extract from File");
+if (!eclipsesRaw)  eclipsesRaw = [];
+if (!luneRaw)      luneRaw = [];
+
+// ---- Normalisation d'une entrée planète ----
+// Gère les 2 formats : fullDegree OU longitude_absolue
+const normalizePlanet = (p) => {
+    if (!p || typeof p !== "object") return p;
+    // Déjà normalisé (Format A)
+    if (p.fullDegree !== undefined) return p;
+    // Format B → convertir (le spread ...p passe TOUS les champs y compris
+    // latitude, distance_ua, vitesse_longitude, declinaison)
+    return {
+        ...p,
+        fullDegree : p.longitude_absolue,
+        isRetro    : p.est_retrograde === "True" || p.est_retrograde === true ? "True" : "False",
+        signe      : p.signe || null
+    };
+};
+
+// ---- 1. NORMALISER toutes les planètes dans transitsData ----
+const transitsNormalized = transitsRaw.map(day => {
+    if (!day?.planetes) return day;
+    const normalizedPlanetes = {};
+    for (const [planetName, planetData] of Object.entries(day.planetes)) {
+        normalizedPlanetes[planetName] = normalizePlanet(planetData);
+    }
+    return { ...day, planetes: normalizedPlanetes };
+});
+
+// ---- 2. LUNE HAUTE PRÉCISION : indexer par date ----
+// v8 : ajout latitude, distanceUA, declinaison (null-safe)
+const luneByDate = {};
+luneRaw.forEach(entry => {
+    const date = entry.date_heure.substring(0, 10);
+    if (!luneByDate[date]) luneByDate[date] = [];
+    luneByDate[date].push({
+        heure      : entry.date_heure.substring(11, 16),
+        fullDegree : entry.lune.longitude_absolue,
+        signe      : entry.lune.signe,
+        degInSign  : entry.lune.degre_dans_signe,
+        vitesse    : entry.lune.vitesse_journaliere,
+        latitude   : entry.lune.latitude    ?? null,
+        distanceUA : entry.lune.distance_ua  ?? null,
+        declinaison: entry.lune.declinaison  ?? null
+    });
+});
+
+// ---- 3. ÉCLIPSES NATALES ----
+const eclipses = eclipsesRaw.map(e => {
+    const obj = {
+        astre : e.astre,
+        type  : e.type,
+        date  : e.date_maximum.substring(0, 10),
+        heure : e.date_maximum.substring(11, 16),
+        label : `Éclipse ${e.type} de ${e.astre} le ${e.date_maximum.substring(0, 10)}`
+    };
+    if (e.saros_number)       obj.saros_number       = e.saros_number;
+    if (e.saros_type_eclipse) obj.saros_type_eclipse  = e.saros_type_eclipse;
+    if (e.saros_theme)        obj.saros_theme         = e.saros_theme;
+    if (e.saros_keywords)     obj.saros_keywords      = e.saros_keywords;
+    return obj;
+});
+
+// ---- 4. ÉCLIPSES PROGRESSÉES (optionnelles — [] si aucune dans la période) ----
+const eclipsesProgressees = (eclipsesProgRaw || []).map(e => ({
+    dateVie       : e.date_vie,
+    dateProgresse : e.date_progresse,
+    ageAnnees     : e.age_annees,
+    astre         : e.astre         || null,
+    type          : e.type          || null,
+    magnitude     : e.magnitude     || null,
+    signe         : e.signe         || null,
+    degre         : e.degre         || null,
+    visible       : e.visible_lieu_naissance ?? null
+}));
+
+// ---- 5. PROGRESSIONS SECONDAIRES (optionnelles) ----
+// Planètes normalisées avec le même normalizePlanet que transits
+const progressionsNormalized = (progressionsRaw || []).map(day => {
+    if (!day?.planetes) return day;
+    const normalizedPlanetes = {};
+    for (const [planetName, planetData] of Object.entries(day.planetes)) {
+        normalizedPlanetes[planetName] = normalizePlanet(planetData);
+    }
+    return { ...day, planetes: normalizedPlanetes };
+});
+
+// ---- 6. VÉRIFICATION présence astéroïdes ----
+const samplePlanetes = transitsNormalized[0]?.planetes || {};
+const asteroidsOK = {};
+for (const a of ["Chiron", "Lilith", "Ceres", "Pallas", "Junon", "Vesta"]) {
+    asteroidsOK[a] = !!(samplePlanetes[a]?.fullDegree);
+}
+
+// ---- 7. OUTPUT ----
+return [{
+    json: {
+        transitsData          : transitsNormalized,
+        luneData              : luneByDate,
+        eclipsesData          : eclipses,
+        progressionsData      : progressionsNormalized,
+        eclipsesProgressees   : eclipsesProgressees,
+        _meta: {
+            nbJours              : transitsNormalized.length,
+            nbLune               : luneRaw.length,
+            nbEclipses           : eclipses.length,
+            nbProgressions       : progressionsNormalized.length,
+            nbEclipsesProgressees: eclipsesProgressees.length,
+            asteroidsOK          : asteroidsOK,
+            formatDetecte        : (transitsRaw[0]?.planetes?.Soleil?.fullDegree !== undefined) ? "A" : "B"
+        }
+    }
+}];

@@ -1,0 +1,2524 @@
+const input = $input.first()?.json;
+if (!input?.planetes?.output || !input?.maisons?.output?.Houses) return [{ json: { error: "Données manquantes" } }];
+
+// 0. CAPTURE DES INFOS PERSOS
+let perso = {};
+try { perso = $("Extract Variables").first()?.json || {}; } catch(e){}
+
+// ---- Sprint 5 — Paramètres forme & accessibilité (v6.4) ----
+const consigneRedaction = perso.consigne_redaction || 'Tu';
+const genreConsultant = perso.genre || 'M';
+const langueRapport = perso.langue || 'Français';
+
+// Étoiles fixes (transmises depuis 3c. via 4. Fusion Données)
+const etoilesFixesRaw = (input.etoilesFixes?.output || []);
+
+// 1. FILTRAGE ET NOMMAGE SÉCURISÉ DES NŒUDS
+let rawPlanetes = input.planetes.output;
+let hasTrueNode = rawPlanetes.some(p => {
+    let n = (p.planet.en || p.planet.fr || "").toLowerCase();
+    return n.includes("true") || n.includes("vrai");
+});
+let planetes = rawPlanetes.filter(p => {
+    let n = (p.planet.en || p.planet.fr || "").toLowerCase();
+    if (hasTrueNode && (n.includes("mean") || n.includes("moyen"))) return false;
+    return true;
+});
+planetes = JSON.parse(JSON.stringify(planetes));
+
+planetes.forEach(p => {
+    let n = (p.planet.en || p.planet.fr || "").toLowerCase();
+    if ((n.includes("node") || n.includes("nœud") || n.includes("noeud")) && !n.includes("anti")) {
+        p.planet.fr = "Nœud Nord";
+        p.planet.en = "North Node";
+    }
+});
+
+let maisons = JSON.parse(JSON.stringify(input.maisons.output.Houses));
+
+const signs = [
+    {id:0,fr:"Bélier",ruler:"Mars"},{id:1,fr:"Taureau",ruler:"Vénus"},{id:2,fr:"Gémeaux",ruler:"Mercure"},{id:3,fr:"Cancer",ruler:"Lune"},
+    {id:4,fr:"Lion",ruler:"Soleil"},{id:5,fr:"Vierge",ruler:"Mercure"},{id:6,fr:"Balance",ruler:"Vénus"},{id:7,fr:"Scorpion",ruler:"Pluton"},
+    {id:8,fr:"Sagittaire",ruler:"Jupiter"},{id:9,fr:"Capricorne",ruler:"Saturne"},{id:10,fr:"Verseau",ruler:"Uranus"},{id:11,fr:"Poissons",ruler:"Neptune"}
+];
+
+// Décans Chaldéens — ordre planétaire descendant (Saturne→Jupiter→Mars→Soleil→Vénus→Mercure→Lune)
+const CHALDEAN_DECANS = {
+    "Bélier":["Mars","Soleil","Vénus"],"Taureau":["Mercure","Lune","Saturne"],
+    "Gémeaux":["Jupiter","Mars","Soleil"],"Cancer":["Vénus","Mercure","Lune"],
+    "Lion":["Saturne","Jupiter","Mars"],"Vierge":["Soleil","Vénus","Mercure"],
+    "Balance":["Lune","Saturne","Jupiter"],"Scorpion":["Mars","Soleil","Vénus"],
+    "Sagittaire":["Mercure","Lune","Saturne"],"Capricorne":["Jupiter","Mars","Soleil"],
+    "Verseau":["Vénus","Mercure","Lune"],"Poissons":["Saturne","Jupiter","Mars"]
+};
+
+// Termes Égyptiens (Bounds) — 5 termes par signe [planète, degré_fin]
+const EGYPTIAN_TERMS = {
+    "Bélier":[["Jupiter",6],["Vénus",12],["Mercure",20],["Mars",25],["Saturne",30]],
+    "Taureau":[["Vénus",8],["Mercure",14],["Jupiter",22],["Saturne",27],["Mars",30]],
+    "Gémeaux":[["Mercure",6],["Jupiter",12],["Vénus",17],["Mars",24],["Saturne",30]],
+    "Cancer":[["Mars",7],["Vénus",13],["Mercure",19],["Jupiter",26],["Saturne",30]],
+    "Lion":[["Jupiter",6],["Vénus",11],["Saturne",18],["Mercure",24],["Mars",30]],
+    "Vierge":[["Mercure",7],["Vénus",17],["Jupiter",21],["Mars",28],["Saturne",30]],
+    "Balance":[["Saturne",6],["Mercure",14],["Jupiter",21],["Vénus",28],["Mars",30]],
+    "Scorpion":[["Mars",7],["Vénus",11],["Mercure",19],["Jupiter",24],["Saturne",30]],
+    "Sagittaire":[["Jupiter",12],["Vénus",17],["Mercure",21],["Saturne",26],["Mars",30]],
+    "Capricorne":[["Mercure",7],["Jupiter",14],["Vénus",22],["Saturne",26],["Mars",30]],
+    "Verseau":[["Mercure",7],["Vénus",13],["Jupiter",20],["Mars",25],["Saturne",30]],
+    "Poissons":[["Vénus",12],["Jupiter",16],["Mercure",19],["Mars",28],["Saturne",30]]
+};
+const getTermRuler = (sign, deg) => {
+    const terms = EGYPTIAN_TERMS[sign];
+    if (!terms) return null;
+    const d = deg % 30;
+    for (const [ruler, boundary] of terms) { if (d < boundary) return ruler; }
+    return terms[terms.length - 1][0];
+};
+
+const planetRulerships = {
+    "Soleil":["Lion"],"Lune":["Cancer"],"Mercure":["Gémeaux","Vierge"],"Vénus":["Taureau","Balance"],
+    "Mars":["Bélier","Scorpion"],"Jupiter":["Sagittaire","Poissons"],"Saturne":["Capricorne","Verseau"],
+    "Uranus":["Verseau"],"Neptune":["Poissons"],"Pluton":["Scorpion"]
+};
+
+const dignities = {
+    "Soleil":   { dom:["Lion"],                    exa:["Bélier"],    exi:["Verseau"],               chu:["Balance"] },
+    "Lune":     { dom:["Cancer"],                  exa:["Taureau"],   exi:["Capricorne"],             chu:["Scorpion"] },
+    "Mercure":  { dom:["Gémeaux","Vierge"],        exa:["Vierge"],    exi:["Sagittaire","Poissons"],  chu:["Poissons"] },
+    "Vénus":    { dom:["Taureau","Balance"],        exa:["Poissons"],  exi:["Scorpion","Bélier"],      chu:["Vierge"] },
+    "Mars":     { dom:["Bélier","Scorpion"],        exa:["Capricorne"],exi:["Balance","Taureau"],      chu:["Cancer"] },
+    "Jupiter":  { dom:["Sagittaire","Poissons"],    exa:["Cancer"],    exi:["Gémeaux","Vierge"],       chu:["Capricorne"] },
+    "Saturne":  { dom:["Capricorne","Verseau"],     exa:["Balance"],   exi:["Cancer","Lion"],          chu:["Bélier"] },
+    "Uranus":   { dom:["Verseau"],                  exa:["Scorpion"],  exi:["Lion"],                   chu:["Taureau"] },
+    "Neptune":  { dom:["Poissons"],                 exa:["Cancer"],    exi:["Vierge"],                 chu:["Capricorne"] },
+    "Pluton":   { dom:["Scorpion"],                 exa:["Lion"],      exi:["Taureau"],                chu:["Verseau"] }
+};
+
+const getDignity = (planet, sign) => {
+    if (!["Soleil","Lune","Mercure","Vénus","Mars","Jupiter","Saturne","Uranus","Neptune","Pluton"].includes(planet)) return "-";
+    let d = dignities[planet]; if (!d) return "-";
+    if (d.dom.includes(sign)) return "Domicile";
+    if (d.exa.includes(sign)) return "Exaltation";
+    if (d.exi.includes(sign)) return "Exil";
+    if (d.chu.includes(sign)) return "Chute";
+    return "Pérégrine";
+};
+
+const elements = {
+    "Feu":   ["Bélier","Lion","Sagittaire"],
+    "Terre": ["Taureau","Vierge","Capricorne"],
+    "Air":   ["Gémeaux","Balance","Verseau"],
+    "Eau":   ["Cancer","Scorpion","Poissons"]
+};
+const modes = {
+    "Cardinal": ["Bélier","Cancer","Balance","Capricorne"],
+    "Fixe":     ["Taureau","Lion","Scorpion","Verseau"],
+    "Mutable":  ["Gémeaux","Vierge","Sagittaire","Poissons"]
+};
+
+// 2. STATS ÉLÉMENTS & MODES
+let stats = { elements: { Feu:0, Terre:0, Air:0, Eau:0 }, modes: { Cardinal:0, Fixe:0, Mutable:0 } };
+let mainPoints = ["Soleil","Lune","Mercure","Vénus","Mars","Jupiter","Saturne","Uranus","Neptune","Pluton","Ascendant","Milieu du Ciel"];
+planetes.forEach(p => {
+    p.retroStr = p.isRetro?.toLowerCase().includes('true') ? " [Rétrograde]" : "";
+    let name = p.planet.fr || p.planet.en;
+    if (mainPoints.includes(name)) {
+        let sign = p.zodiac_sign?.name?.fr;
+        if (sign) {
+            let el = Object.keys(elements).find(e => elements[e].includes(sign)); if(el) stats.elements[el]++;
+            let mo = Object.keys(modes).find(m => modes[m].includes(sign)); if(mo) stats.modes[mo]++;
+        }
+    }
+});
+
+// 3. MAISONS UTILS
+maisons.sort((a,b) => a.House - b.House);
+function getHouseNumber(deg) {
+    deg = ((deg % 360) + 360) % 360;
+    for(let i=0; i<12; i++){
+        let h1=maisons[i].degree, h2=maisons[(i+1)%12].degree;
+        if((h1<h2 && deg>=h1 && deg<h2) || (h1>=h2 && (deg>=h1 || deg<h2))) return maisons[i].House;
+    }
+    return 1;
+}
+
+function angularDiff(a, b) {
+    let d = Math.abs(a - b);
+    return d > 180 ? 360 - d : d;
+}
+
+// 4. SECTE, NŒUD SUD, PART DE FORTUNE ET LOT DE L'ESPRIT
+let asc  = planetes.find(p => p.planet.fr === "Ascendant");
+let sun  = planetes.find(p => p.planet.fr === "Soleil");
+let moon = planetes.find(p => p.planet.fr === "Lune");
+
+let sunHouse  = sun ? getHouseNumber(sun.fullDegree) : 1;
+// Calcul géométrique de la secte (plus précis que par numéro de maison)
+// arc = ((sunDeg - ascDeg) + 360) % 360
+//   arc < 180° → Soleil entre ASC et DSC (Maisons 1–6) = SOUS l'horizon → Nocturne
+//   arc > 180° → Soleil entre DSC et ASC (Maisons 7–12) = AU-DESSUS de l'horizon → Diurne
+let isDayChart;
+if (asc && sun) {
+    const arcSoleilDepuisAsc = ((sun.fullDegree - asc.fullDegree) + 360) % 360;
+    isDayChart = arcSoleilDepuisAsc > 180;
+} else {
+    isDayChart = [7,8,9,10,11,12].includes(Number(sunHouse)); // fallback par maison
+}
+let sectStr = isDayChart ? "Diurne (Soleil au-dessus de l'horizon)" : "Nocturne (Soleil sous l'horizon)";
+stats.sect = sectStr;
+stats.sectLight   = isDayChart ? "Soleil" : "Lune";
+stats.sectBenefic = isDayChart ? "Jupiter" : "Vénus";
+stats.sectMalefic = isDayChart ? "Saturne" : "Mars";
+stats.contraSectMalefic = isDayChart ? "Mars" : "Saturne";
+
+// Triplicité — seigneurs diurne/nocturne (Ptolémée/Dorothée), utilisé par locataires + Almutem
+const TRIPLIC_DAY_EARLY = {
+    "Bélier":"Soleil","Lion":"Soleil","Sagittaire":"Soleil",
+    "Taureau":"Vénus","Vierge":"Vénus","Capricorne":"Vénus",
+    "Gémeaux":"Saturne","Balance":"Saturne","Verseau":"Saturne",
+    "Cancer":"Vénus","Scorpion":"Vénus","Poissons":"Vénus"
+};
+const TRIPLIC_NIGHT_EARLY = {
+    "Bélier":"Jupiter","Lion":"Jupiter","Sagittaire":"Jupiter",
+    "Taureau":"Lune","Vierge":"Lune","Capricorne":"Lune",
+    "Gémeaux":"Mercure","Balance":"Mercure","Verseau":"Mercure",
+    "Cancer":"Mars","Scorpion":"Mars","Poissons":"Mars"
+};
+const TRIPLIC_PART_EARLY = {
+    "Bélier":"Saturne","Lion":"Saturne","Sagittaire":"Saturne",
+    "Taureau":"Mars","Vierge":"Mars","Capricorne":"Mars",
+    "Gémeaux":"Jupiter","Balance":"Jupiter","Verseau":"Jupiter",
+    "Cancer":"Lune","Scorpion":"Lune","Poissons":"Lune"
+};
+const getTriplicityRuler = (sign) => isDayChart ? (TRIPLIC_DAY_EARLY[sign] || null) : (TRIPLIC_NIGHT_EARLY[sign] || null);
+const getTriplicityParticipant = (sign) => TRIPLIC_PART_EARLY[sign] || null;
+
+if (asc && sun && moon) {
+    // Part de Fortune : diurne = ASC + Lune - Soleil ; nocturne = inverse
+    let pofDeg = isDayChart
+        ? (asc.fullDegree + moon.fullDegree - sun.fullDegree)
+        : (asc.fullDegree + sun.fullDegree  - moon.fullDegree);
+    pofDeg = ((pofDeg % 360) + 360) % 360;
+    planetes.push({ planet:{fr:"Part de Fortune",en:"Part of Fortune"}, fullDegree:pofDeg, normDegree:pofDeg%30, retroStr:"", isRetro:"False", zodiac_sign:{name:{fr:signs[Math.floor(pofDeg/30)].fr}} });
+
+    // Lot de l'Esprit : inverse de Fortune
+    let posDeg = isDayChart
+        ? (asc.fullDegree + sun.fullDegree  - moon.fullDegree)
+        : (asc.fullDegree + moon.fullDegree - sun.fullDegree);
+    posDeg = ((posDeg % 360) + 360) % 360;
+    planetes.push({ planet:{fr:"Lot de l'Esprit",en:"Lot of Spirit"}, fullDegree:posDeg, normDegree:posDeg%30, retroStr:"", isRetro:"False", zodiac_sign:{name:{fr:signs[Math.floor(posDeg/30)].fr}} });
+
+    // Sprint 7 — Action 6 : Lots hermétiques supplémentaires
+    const mars = planetes.find(p => p.planet.fr === "Mars");
+    const venus = planetes.find(p => p.planet.fr === "Vénus");
+    const jupiter = planetes.find(p => p.planet.fr === "Jupiter");
+    const saturn = planetes.find(p => p.planet.fr === "Saturne");
+    const mercury = planetes.find(p => p.planet.fr === "Mercure");
+
+    const lotCalc = (a, b, c) => (((a + b - c) % 360) + 360) % 360;
+    const lotCalcInverse = (a, b, c) => (((a + c - b) % 360) + 360) % 360;
+    const pushLot = (frName, enName, deg) => {
+        planetes.push({ planet:{fr:frName,en:enName}, fullDegree:deg, normDegree:deg%30, retroStr:"", isRetro:"False", zodiac_sign:{name:{fr:signs[Math.floor(deg/30)].fr}} });
+    };
+
+    // Lot de Nécessité (Ananke) : diurne = ASC + Fortune - Mercure ; nocturne = inverse
+    if (mercury) {
+        const necDeg = isDayChart ? lotCalc(asc.fullDegree, pofDeg, mercury.fullDegree) : lotCalcInverse(asc.fullDegree, pofDeg, mercury.fullDegree);
+        pushLot("Lot de Nécessité", "Lot of Necessity", necDeg);
+    }
+    // Lot d'Éros : diurne = ASC + Vénus - Esprit ; nocturne = inverse
+    if (venus) {
+        const erosDeg = isDayChart ? lotCalc(asc.fullDegree, venus.fullDegree, posDeg) : lotCalcInverse(asc.fullDegree, venus.fullDegree, posDeg);
+        pushLot("Lot d'Éros", "Lot of Eros", erosDeg);
+    }
+    // Lot de Courage (Tolma) : diurne = ASC + Fortune - Mars ; nocturne = inverse
+    if (mars) {
+        const courDeg = isDayChart ? lotCalc(asc.fullDegree, pofDeg, mars.fullDegree) : lotCalcInverse(asc.fullDegree, pofDeg, mars.fullDegree);
+        pushLot("Lot de Courage", "Lot of Courage", courDeg);
+    }
+    // Lot de Némésis : diurne = ASC + Fortune - Saturne ; nocturne = inverse
+    if (saturn) {
+        const nemDeg = isDayChart ? lotCalc(asc.fullDegree, pofDeg, saturn.fullDegree) : lotCalcInverse(asc.fullDegree, pofDeg, saturn.fullDegree);
+        pushLot("Lot de Némésis", "Lot of Nemesis", nemDeg);
+    }
+    // Lot de Basis : ASC + Fortune - Esprit (invariant sect)
+    const basisDeg = lotCalc(asc.fullDegree, pofDeg, posDeg);
+    pushLot("Lot de Basis", "Lot of Basis", basisDeg);
+
+    // Lot d'Exaltation : ASC + (degré exalt Soleil 19°Bélier) - Soleil
+    const exaltSunDeg = 19; // 19° Bélier
+    const exaltDeg = lotCalc(asc.fullDegree, exaltSunDeg, sun.fullDegree);
+    pushLot("Lot d'Exaltation", "Lot of Exaltation", exaltDeg);
+
+    // Lot du Daemon : diurne = ASC + Soleil - Esprit ; nocturne = inverse
+    const daemonDeg = isDayChart ? lotCalc(asc.fullDegree, sun.fullDegree, posDeg) : lotCalcInverse(asc.fullDegree, sun.fullDegree, posDeg);
+    pushLot("Lot du Daemon", "Lot of Daemon", daemonDeg);
+
+    // ── C7 : Parts Arabes élargies (Vettius Valens, Paulus Alexandrinus, Firmicus Maternus) ──
+    // Lot de Victoire (Nikè) : diurne = ASC + Jupiter - Esprit ; nocturne = inverse
+    if (jupiter) {
+        const vicDeg = isDayChart ? lotCalc(asc.fullDegree, jupiter.fullDegree, posDeg) : lotCalcInverse(asc.fullDegree, jupiter.fullDegree, posDeg);
+        pushLot("Lot de Victoire", "Lot of Victory", vicDeg);
+    }
+    // Lot du Père : diurne = ASC + Saturne - Soleil ; nocturne = inverse
+    if (saturn) {
+        const pereDeg = isDayChart ? lotCalc(asc.fullDegree, saturn.fullDegree, sun.fullDegree) : lotCalcInverse(asc.fullDegree, saturn.fullDegree, sun.fullDegree);
+        pushLot("Lot du Père", "Lot of Father", pereDeg);
+    }
+    // Lot de la Mère : diurne = ASC + Lune - Vénus ; nocturne = inverse
+    if (venus) {
+        const mereDeg = isDayChart ? lotCalc(asc.fullDegree, moon.fullDegree, venus.fullDegree) : lotCalcInverse(asc.fullDegree, moon.fullDegree, venus.fullDegree);
+        pushLot("Lot de la Mère", "Lot of Mother", mereDeg);
+    }
+    // Lot de Maladie (Valens) : diurne = ASC + Mars - Saturne ; nocturne = inverse
+    if (mars && saturn) {
+        const malDeg = isDayChart ? lotCalc(asc.fullDegree, mars.fullDegree, saturn.fullDegree) : lotCalcInverse(asc.fullDegree, mars.fullDegree, saturn.fullDegree);
+        pushLot("Lot de Maladie", "Lot of Illness", malDeg);
+    }
+    // Lot du Mariage : diurne = ASC + DSC - Vénus ; nocturne = inverse (formule universelle Valens)
+    const dsc = maisons.find(m => m.House === 7);
+    if (venus && dsc) {
+        const mariDeg = isDayChart ? lotCalc(asc.fullDegree, dsc.degree, venus.fullDegree) : lotCalcInverse(asc.fullDegree, dsc.degree, venus.fullDegree);
+        pushLot("Lot du Mariage", "Lot of Marriage", mariDeg);
+    }
+    // Lot des Enfants (Valens) : diurne = ASC + Jupiter - Saturne ; nocturne = inverse
+    if (jupiter && saturn) {
+        const enfDeg = isDayChart ? lotCalc(asc.fullDegree, jupiter.fullDegree, saturn.fullDegree) : lotCalcInverse(asc.fullDegree, jupiter.fullDegree, saturn.fullDegree);
+        pushLot("Lot des Enfants", "Lot of Children", enfDeg);
+    }
+    // Lot de Voyage (Firmicus) : diurne = ASC + Mars - Saturne renversé pour cette formule ≠ maladie
+    // → Firmicus : ASC + 9e cuspide - maître du 9e ; simplifié → ASC + Saturne - Jupiter (éloignement)
+    if (jupiter && saturn) {
+        const voyDeg = isDayChart ? lotCalc(asc.fullDegree, saturn.fullDegree, jupiter.fullDegree) : lotCalcInverse(asc.fullDegree, saturn.fullDegree, jupiter.fullDegree);
+        pushLot("Lot de Voyage", "Lot of Travel", voyDeg);
+    }
+}
+
+let nn = planetes.find(p => p.planet.fr === "Nœud Nord");
+if (nn) {
+    let sd = (nn.fullDegree + 180) % 360;
+    const sudDecl = typeof nn.declinaison === 'number' ? -nn.declinaison : undefined;
+    planetes.push({ planet:{fr:"Nœud Sud",en:"South Node"}, fullDegree:sd, normDegree:sd%30, retroStr:nn.retroStr, isRetro:nn.isRetro, zodiac_sign:{name:{fr:signs[Math.floor(sd/30)].fr}}, declinaison:sudDecl });
+}
+
+// 5. ASPECTS MAJEURS + MINEURS
+const aspectTypes = [
+    {name:"Conjonction", deg:0,   orb:10, nodalOrb:8, smallOrb:8,  major:true},
+    {name:"Sextile",     deg:60,  orb:6,  nodalOrb:5, smallOrb:3,  major:true},
+    {name:"Carré",       deg:90,  orb:8,  nodalOrb:7, smallOrb:4,  major:true},
+    {name:"Trigone",     deg:120, orb:8,  nodalOrb:7, smallOrb:4,  major:true},
+    {name:"Opposition",  deg:180, orb:10, nodalOrb:8, smallOrb:6,  major:true},
+    {name:"Quinconce",   deg:150, orb:3,  nodalOrb:2, smallOrb:2,  major:false},
+    {name:"Semi-Sextile",deg:30,  orb:2,  nodalOrb:1, smallOrb:1,  major:false},
+    {name:"Semi-Carré",  deg:45,  orb:2,  nodalOrb:2, smallOrb:1,  major:false},
+    {name:"Quintile",    deg:72,  orb:2,  nodalOrb:2, smallOrb:1,  major:false},
+    {name:"Biquintile",  deg:144, orb:2,  nodalOrb:1, smallOrb:1,  major:false},
+    {name:"Sesqui-Carré",deg:135, orb:2,  nodalOrb:2, smallOrb:1,  major:false}
+];
+const smallBodies  = ["Chiron","Vesta","Cérès","Ceres","Pallas","Junon","Juno","Lilith"];
+const nodalBodies  = ["Nœud Nord","Nœud Sud","Part de Fortune","Part of Fortune","Lot de l'Esprit","Lot of Spirit","Lot de Nécessité","Lot of Necessity","Lot d'Éros","Lot of Eros","Lot de Courage","Lot of Courage","Lot de Némésis","Lot of Nemesis","Lot de Basis","Lot of Basis","Lot d'Exaltation","Lot of Exaltation","Lot du Daemon","Lot of Daemon"];
+
+// Facteur d'orbe planète-spécifique (Solar Fire standard)
+const PLANET_ORB_FACTOR = {
+    "Soleil":1.0, "Lune":1.0, "Ascendant":1.0, "Milieu du Ciel":1.0,
+    "Descendant":1.0, "Imum Coeli":1.0,
+    "Mercure":0.75, "Vénus":0.75, "Mars":0.75,
+    "Jupiter":0.65, "Saturne":0.65,
+    "Uranus":0.55, "Neptune":0.55, "Pluton":0.55,
+    "Chiron":0.55, "Nœud Nord":0.6, "Nœud Sud":0.6
+};
+
+const AXIS_PAIRS = [
+    new Set(["Milieu du Ciel", "Imum Coeli"]),
+    new Set(["Ascendant", "Descendant"]),
+    new Set(["Nœud Nord", "Nœud Sud"])
+];
+const isAxisPair = (n1, n2) => AXIS_PAIRS.some(pair => pair.has(n1) && pair.has(n2));
+
+let aspects = [];
+for(let i=0; i<planetes.length; i++) {
+    for(let j=i+1; j<planetes.length; j++) {
+        let p1=planetes[i], p2=planetes[j];
+        let name1 = p1.planet.fr || p1.planet.en;
+        let name2 = p2.planet.fr || p2.planet.en;
+        if (isAxisPair(name1, name2)) continue;
+        let isSmall  = smallBodies.includes(name1) || smallBodies.includes(name2);
+        let isNodal  = nodalBodies.includes(name1) || nodalBodies.includes(name2);
+        let activeType = isSmall ? "smallOrb" : (isNodal ? "nodalOrb" : "orb");
+        const f1 = PLANET_ORB_FACTOR[name1] ?? 0.5;
+        const f2 = PLANET_ORB_FACTOR[name2] ?? 0.5;
+        const orbModulator = Math.max(f1, f2);
+        let diff = Math.abs(p1.fullDegree - p2.fullDegree);
+        if(diff > 180) diff = 360 - diff;
+        aspectTypes.forEach(a => {
+            let activeOrb  = a[activeType] * orbModulator;
+            let exactitude = Math.abs(diff - a.deg);
+            if(exactitude <= activeOrb) {
+                aspects.push({ p1:name1, p2:name2, aspect:a.name, exactitude:exactitude.toFixed(2), isMajor:a.major });
+            }
+        });
+    }
+}
+
+// Fonctions d'affichage des aspects — utilisent les scores calculés en bloc 6k
+// (appelées en bloc 7+ quand les aspects sont déjà enrichis, triés et flaggés isPromoted)
+
+// ── Sprint 6 — Module A : Qualificatif d'orbe calculé ──
+const orbQualifier = (orb) => {
+    const o = typeof orb === "string" ? parseFloat(orb) : orb;
+    if (o < 1)   return "exact";
+    if (o < 3)   return "serré";
+    if (o < 5)   return "moyen";
+    return "large";
+};
+
+// ── Sprint 6 — Module B1+E2 : Natures planétaires ──
+const PLANET_NATURES = {
+    "Soleil":"luminaire","Lune":"luminaire",
+    "Mercure":"neutre","Vénus":"bénéfique","Mars":"maléfique",
+    "Jupiter":"bénéfique","Saturne":"maléfique",
+    "Uranus":"maléfique","Neptune":"dissolvant","Pluton":"maléfique",
+    "Chiron":"neutre","Nœud Nord":"neutre","Nœud Sud":"neutre",
+    "Lilith":"maléfique","Cérès":"neutre","Ceres":"neutre",
+    "Junon":"neutre","Juno":"neutre","Vesta":"neutre","Pallas":"neutre",
+    "Ascendant":"neutre","Milieu du Ciel":"neutre","Descendant":"neutre","Imum Coeli":"neutre"
+};
+
+const getNatureTag = (p1, p2) => {
+    const n1 = PLANET_NATURES[p1], n2 = PLANET_NATURES[p2];
+    if (!n1 || !n2 || n1 === "neutre" && n2 === "neutre") return "";
+    if (n1 === "dissolvant" || n2 === "dissolvant") {
+        const otherN = n1 === "dissolvant" ? n2 : n1;
+        if (otherN === "maléfique")  return " [Nature: dissolution de la tension — transcendance possible mais risque de confusion]";
+        if (otherN === "bénéfique")  return " [Nature: sublimation — inspiration élevée mais risque d'idéalisation]";
+        if (otherN === "luminaire")  return " [Nature: voile sur le luminaire — intuition amplifiée mais identité potentiellement floue]";
+        return "";
+    }
+    if (n1 === "bénéfique" && n2 === "bénéfique")  return " [Nature: synergie bénéfique — énergies qui s'emboîtent harmonieusement]";
+    if (n1 === "maléfique" && n2 === "maléfique")  return " [Nature: friction maléfique — tension intensifiée, potentiel d'obstacle]";
+    if ((n1==="bénéfique"&&n2==="maléfique")||(n1==="maléfique"&&n2==="bénéfique"))
+        return " [Nature: mixte — le bénéfique tempère le maléfique, mais sous tension]";
+    if (n1 === "luminaire" || n2 === "luminaire") {
+        const otherN = n1 === "luminaire" ? n2 : n1;
+        if (otherN === "bénéfique")  return " [Nature: luminaire + bénéfique — vitalité amplifiée et soutenue]";
+        if (otherN === "maléfique")  return " [Nature: luminaire + maléfique — vitalité mise au défi]";
+        if (otherN === "dissolvant") return " [Nature: voile sur le luminaire — intuition amplifiée mais identité potentiellement floue]";
+    }
+    return "";
+};
+
+// ── Sprint 6 — Module E1 : Appliquant / Séparant (aspects nataux) ──
+const PLANET_SPEED_RANK = {
+    "Lune":1,"Mercure":2,"Vénus":3,"Soleil":4,"Mars":5,
+    "Jupiter":6,"Saturne":7,"Uranus":8,"Neptune":9,"Pluton":10,
+    "Chiron":7.5,"Lilith":4.5,"Cérès":5.5,"Ceres":5.5,"Junon":5.2,"Juno":5.2,"Vesta":5.3,"Pallas":5.4,
+    "Nœud Nord":7.2,"Nœud Sud":7.2
+};
+const getAppSepTag = (pFaster, pSlower, aspDeg, exactitude) => {
+    const r1 = PLANET_SPEED_RANK[pFaster], r2 = PLANET_SPEED_RANK[pSlower];
+    if (!r1 || !r2) return "";
+    const fast = r1 < r2 ? pFaster : pSlower;
+    const slow = r1 < r2 ? pSlower : pFaster;
+    const pFast = planetes.find(p => p.planet.fr === fast);
+    const pSlow = planetes.find(p => p.planet.fr === slow);
+    if (!pFast || !pSlow) return "";
+    const fastRetro = pFast.isRetro === "True" || pFast.isRetro === true;
+    const diff = ((pFast.fullDegree - pSlow.fullDegree) + 360) % 360;
+    let approaching, separating;
+    if (aspDeg === 0) {
+        approaching = diff > 180;
+        separating  = diff <= 180 && diff > 0;
+    } else {
+        approaching = diff > aspDeg && diff < aspDeg + 15;
+        separating  = diff < aspDeg || diff > aspDeg + 345;
+    }
+    if (fastRetro) {
+        const tmp = approaching;
+        approaching = separating;
+        separating = tmp;
+    }
+    if (approaching) return " [appliquant]";
+    if (separating)  return " [séparant]";
+    return "";
+};
+const ASP_DEG_MAP = {"Conjonction":0,"Opposition":180,"Carré":90,"Trigone":120,"Sextile":60,"Quinconce":150,"Semi-Sextile":30,"Semi-Carré":45,"Quintile":72,"Biquintile":144,"Sesqui-Carré":135};
+
+const MINOR_ASPECT_MEANINGS = {
+    "Quintile":     "harmonie créatrice, don structurel",
+    "Biquintile":   "harmonie créatrice avancée, talent latent",
+    "Semi-Sextile": "irritant mineur, ajustement progressif entre signes adjacents",
+    "Semi-Carré":   "friction légère, micro-tension de développement",
+    "Sesqui-Carré": "tension de friction constructive",
+    "Quinconce":    "ajustement obligatoire, tension inconsciente"
+};
+
+const getMajorAspectsStr = (pName) => {
+    let asps = aspects.filter(a => a.isMajor && (a.p1===pName || a.p2===pName));
+    if (!asps.length) return "Aucun aspect majeur";
+    return asps.map(a => {
+        const partner = a.p1===pName ? a.p2 : a.p1;
+        const prefix  = a.prioriteEmoji ? `${a.prioriteEmoji} ${a.prioriteLabel} — ` : "";
+        const oq = orbQualifier(a.exactitude);
+        const nt = getNatureTag(pName, partner);
+        const aspDeg = ASP_DEG_MAP[a.aspect] ?? 0;
+        const appSep = getAppSepTag(a.p1, a.p2, aspDeg, parseFloat(a.exactitude));
+        return `${prefix}${a.aspect} avec ${partner} (${a.exactitude}° — ${oq})${appSep}${nt}`;
+    }).join(" | ");
+};
+
+// Aspects mineurs promus (score ≥ seuil Option B) — traités comme des aspects majeurs par le LLM
+const getPromotedMinorAspectsStr = (pName) => {
+    let asps = aspects.filter(a => !a.isMajor && a.isPromoted && (a.p1===pName || a.p2===pName));
+    if (!asps.length) return null;
+    return asps.map(a => {
+        const partner  = a.p1===pName ? a.p2 : a.p1;
+        const meaning  = MINOR_ASPECT_MEANINGS[a.aspect] ? ` — nature : ${MINOR_ASPECT_MEANINGS[a.aspect]}` : "";
+        const oq = orbQualifier(a.exactitude);
+        const nt = getNatureTag(pName, partner);
+        const aspDeg = ASP_DEG_MAP[a.aspect] ?? 0;
+        const appSep = getAppSepTag(a.p1, a.p2, aspDeg, parseFloat(a.exactitude));
+        return `   ${a.prioriteEmoji} ${a.prioriteLabel} — ${a.aspect} avec ${partner} (${a.exactitude}° — ${oq})${appSep}${meaning}${nt}`;
+    }).join("\n");
+};
+
+// Aspects mineurs non promus (tous les autres aspects mineurs)
+const getMinorAspectsStr = (pName) => {
+    let asps = aspects.filter(a => !a.isMajor && !a.isPromoted && (a.p1===pName || a.p2===pName))
+        .sort((a,b) => parseFloat(a.exactitude) - parseFloat(b.exactitude)).slice(0, 5);
+    if (!asps.length) return null;
+    return asps.map(a => {
+        const partner = a.p1===pName ? a.p2 : a.p1;
+        const prefix  = a.prioriteEmoji ? `${a.prioriteEmoji} ${a.prioriteLabel} — ` : "";
+        return `${prefix}${a.aspect} avec ${partner} (${a.exactitude}°)`;
+    }).join(" | ");
+};
+
+// ─────────────────────────────────────────────────────────────────
+// 6. NOUVELLES TECHNIQUES
+// ─────────────────────────────────────────────────────────────────
+
+// 6a. CONDITIONS HÉLIOCENTRIQUES (Cazimi / Combuste / Sous les rayons / Oriental / Occidental)
+const helioConditions = {};
+if (sun) {
+    const inferiorPlanets  = ["Mercure","Vénus"];
+    const helioTargets     = ["Lune","Mercure","Vénus","Mars","Jupiter","Saturne","Uranus","Neptune","Pluton","Chiron"];
+    planetes.forEach(p => {
+        let name = p.planet.fr || p.planet.en;
+        if (!helioTargets.includes(name)) return;
+        let diff = p.fullDegree - sun.fullDegree;
+        while (diff >  180) diff -= 360;
+        while (diff < -180) diff += 360;
+        let absDiff = Math.abs(diff);
+        let condition = null;
+        const isLune = name === "Lune";
+        if (absDiff <= 0.283)   condition = isLune
+            ? "CAZIMI LUNAIRE — Nouvelle Lune exacte au cœur du Soleil (fusion lumière/émotion, puissance exceptionnelle)"
+            : "CAZIMI — au cœur du Soleil (force exceptionnelle)";
+        else if (absDiff <= 8)  condition = isLune
+            ? `NOUVELLE LUNE (conjonction Soleil-Lune à ${absDiff.toFixed(1)}°) — phase d'ensemencement, intériorisation émotionnelle intense, énergie tournée vers le subconscient`
+            : `COMBUSTE — brûlé par le Soleil à ${absDiff.toFixed(1)}° (affaibli, principe planétaire neutralisé)`;
+        else if (absDiff <= 15) condition = isLune
+            ? (diff > 0
+                ? `LUNE CROISSANT (${absDiff.toFixed(1)}° après le Soleil) — début de cycle, émergence émotionnelle progressive, volonté d'action instinctive`
+                : `LUNE BALSAMIQUE (${absDiff.toFixed(1)}° avant le Soleil) — fin de cycle, introspection profonde, lâcher-prise et sagesse distillée`)
+            : `SOUS LES RAYONS — à ${absDiff.toFixed(1)}° du Soleil (diminué, agit en coulisse)`;
+
+        let orientation = null;
+        if (inferiorPlanets.includes(name)) {
+            if (absDiff <= 15) {
+                orientation = diff < 0 ? "Oriental — étoile du matin (se lève avant le Soleil)" : "Occidental — étoile du soir (se couche après le Soleil)";
+            } else {
+                orientation = diff < 0 ? "Oriental (élongation Ouest, étoile du matin)" : "Occidental (élongation Est, étoile du soir)";
+            }
+        }
+        if (condition || orientation) helioConditions[name] = { condition, orientation };
+    });
+}
+
+// 6a-bis. PLANÈTES STATIONNAIRES (vitesse quotidienne quasi-nulle)
+// Seuils en °/jour — sous ce seuil, la planète est considérée stationnaire
+const STATION_THRESHOLDS = {
+    "Mercure": 0.3, "Vénus": 0.15, "Mars": 0.08,
+    "Jupiter": 0.02, "Saturne": 0.01, "Uranus": 0.005,
+    "Neptune": 0.003, "Pluton": 0.002, "Chiron": 0.01
+};
+const stationaryPlanets = [];
+Object.keys(STATION_THRESHOLDS).forEach(name => {
+    const p = planetes.find(x => (x.planet.fr || x.planet.en) === name);
+    if (!p) return;
+    const speed = p.vitesse_longitude ?? p.speed ?? p.daily_motion ?? null;
+    if (speed === null || speed === undefined) return;
+    const absSpeed = Math.abs(parseFloat(speed));
+    const threshold = STATION_THRESHOLDS[name];
+    if (absSpeed <= threshold) {
+        const isRetro = p.retroStr || (p.isRetro === "True" || p.isRetro === true);
+        const direction = isRetro ? "Station Rétrograde (SR)" : "Station Directe (SD)";
+        stationaryPlanets.push({
+            planet: name, speed: absSpeed.toFixed(4), threshold,
+            direction, house: getHouseNumber(p.fullDegree),
+            sign: p.zodiac_sign?.name?.fr
+        });
+    }
+});
+
+// 6b. PLANÈTES ANGULAIRES (within 5° of ASC / DSC / MC / IC)
+const angleNames    = ["Ascendant","Descendant","Milieu du Ciel","Imum Coeli"];
+const corePlanets   = ["Soleil","Lune","Mercure","Vénus","Mars","Jupiter","Saturne","Uranus","Neptune","Pluton","Chiron"];
+const angularPlanets = [];
+corePlanets.forEach(name => {
+    let p = planetes.find(x => x.planet.fr === name); if (!p) return;
+    angleNames.forEach(angleName => {
+        let angleP = planetes.find(a => a.planet.fr === angleName); if (!angleP) return;
+        let diff = angularDiff(p.fullDegree, angleP.fullDegree);
+        if (diff <= 5) angularPlanets.push({ planet:name, angle:angleName, orb:diff.toFixed(2), house:getHouseNumber(p.fullDegree), sign:p.zodiac_sign?.name?.fr });
+    });
+});
+
+// 6c. DEGRÉS CRITIQUES (29° Anarète, 0° Ingress, degrés critiques par modalité)
+const criticalDegConfig = { cardinal:[0,13,26], fixed:[8,9,21,22], mutable:[4,17] };
+const cardinalSigns = ["Bélier","Cancer","Balance","Capricorne"];
+const fixedSigns    = ["Taureau","Lion","Scorpion","Verseau"];
+const mutableSigns  = ["Gémeaux","Vierge","Sagittaire","Poissons"];
+const criticalPlanets = [];
+corePlanets.forEach(name => {
+    let p = planetes.find(x => x.planet.fr === name); if (!p) return;
+    let deg  = p.normDegree;
+    let sign = p.zodiac_sign?.name?.fr;
+    let flags = [];
+    if (deg >= 29)    flags.push("29° Anarète — degré de fin de cycle, tension et urgence");
+    if (deg < 1)      flags.push("0° Ingress — énergie brute non encore filtrée, commencement absolu");
+    if (cardinalSigns.includes(sign)) criticalDegConfig.cardinal.forEach(cd => { if (Math.abs(deg-cd) < 1) flags.push(`Degré critique cardinal ${cd}° (crise et tournant)`); });
+    if (fixedSigns.includes(sign))    criticalDegConfig.fixed.forEach(cd   => { if (Math.abs(deg-cd) < 1) flags.push(`Degré critique fixe ${cd}° (tension accumulée)`); });
+    if (mutableSigns.includes(sign))  criticalDegConfig.mutable.forEach(cd => { if (Math.abs(deg-cd) < 1) flags.push(`Degré critique mutable ${cd}° (carrefour de choix)`); });
+    if (flags.length > 0) criticalPlanets.push({ planet:name, sign, degree:deg.toFixed(2), flags });
+});
+
+// 6d. RÉCEPTIONS MUTUELLES
+const receptionPlanets  = ["Soleil","Lune","Mercure","Vénus","Mars","Jupiter","Saturne","Uranus","Neptune","Pluton"];
+const mutualReceptions  = [];
+for (let i=0; i<receptionPlanets.length; i++) {
+    for (let j=i+1; j<receptionPlanets.length; j++) {
+        let nA=receptionPlanets[i], nB=receptionPlanets[j];
+        let pA=planetes.find(p=>p.planet.fr===nA), pB=planetes.find(p=>p.planet.fr===nB);
+        if (!pA || !pB) continue;
+        let sA=pA.zodiac_sign?.name?.fr, sB=pB.zodiac_sign?.name?.fr;
+        let aInBDom = dignities[nA] && dignities[nB]?.dom?.includes(sA);
+        let bInADom = dignities[nB] && dignities[nA]?.dom?.includes(sB);
+        if (aInBDom && bInADom) {
+            mutualReceptions.push({ p1:nA, sign1:sA, house1:getHouseNumber(pA.fullDegree), p2:nB, sign2:sB, house2:getHouseNumber(pB.fullDegree), type:"domicile" });
+        }
+        let aInBExa = dignities[nA] && dignities[nB]?.exa?.includes(sA);
+        let bInAExa = dignities[nB] && dignities[nA]?.exa?.includes(sB);
+        if (aInBExa && bInAExa && !(aInBDom && bInADom)) {
+            mutualReceptions.push({ p1:nA, sign1:sA, house1:getHouseNumber(pA.fullDegree), p2:nB, sign2:sB, house2:getHouseNumber(pB.fullDegree), type:"exaltation" });
+        }
+        // Réception mixte : A en domicile de B + B en exaltation de A (ou inverse)
+        if (!(aInBDom && bInADom) && !(aInBExa && bInAExa)) {
+            if ((aInBDom && bInAExa) || (aInBExa && bInADom)) {
+                mutualReceptions.push({ p1:nA, sign1:sA, house1:getHouseNumber(pA.fullDegree), p2:nB, sign2:sB, house2:getHouseNumber(pB.fullDegree), type:"mixte" });
+            }
+        }
+    }
+}
+
+// 6e. CONFIGURATIONS NATALES (Stellium, Grand Trigone, T-Carré, Grand Carré, Yod, Cerf-Volant)
+// confPlanets inclut les 10 planètes + Chiron + les 4 Angles (ASC, MC, DSC, IC).
+// Les Angles sont construits depuis les maisons si absents du payload API.
+// Sans cette extension, le bonus +40 "Si Angle impliqué" serait du code mort
+// et des configurations majeures (ex: T-Carré avec l'ASC comme apex) seraient manquées.
+const CONF_ANGLES_SET = new Set(["Ascendant","Milieu du Ciel","Descendant","Imum Coeli"]);
+const confPlanetsBase = planetes.filter(p => corePlanets.includes(p.planet.fr || p.planet.en));
+const angleObjectsConf = ["Ascendant","Milieu du Ciel","Descendant","Imum Coeli"].map(angleName => {
+    let existing = planetes.find(p => p.planet.fr === angleName);
+    if (existing) return existing;
+    const houseNum = angleName === "Descendant" ? 7 : angleName === "Imum Coeli" ? 4 : null;
+    if (!houseNum) return null;
+    const m = maisons.find(m => m.House === houseNum);
+    if (!m) return null;
+    return { planet:{fr:angleName,en:angleName}, fullDegree:m.degree, normDegree:m.degree%30, retroStr:"", isRetro:"False", zodiac_sign:{name:{fr:signs[Math.floor(m.degree/30)%12].fr}} };
+}).filter(Boolean);
+const confPlanets = [...confPlanetsBase];
+angleObjectsConf.forEach(ao => {
+    const aoName = ao.planet.fr || ao.planet.en;
+    if (!confPlanets.find(p => (p.planet.fr || p.planet.en) === aoName)) confPlanets.push(ao);
+});
+const configurations = [];
+
+// Stellium : 3+ planètes dans le même signe
+let signGroups = {};
+confPlanets.forEach(p => {
+    let sign = p.zodiac_sign?.name?.fr;
+    if (!signGroups[sign]) signGroups[sign] = [];
+    signGroups[sign].push(p.planet.fr || p.planet.en);
+});
+Object.entries(signGroups).forEach(([sign, pList]) => {
+    if (pList.length >= 3 && pList.filter(p => CONF_ANGLES_SET.has(p)).length < 3) {
+        configurations.push({ type:"Stellium", planets:pList, description:`${pList.join(", ")} regroupés en ${sign} — concentration d'énergie ${sign} très intense` });
+    }
+});
+
+// Stellium par Maison : 3+ planètes dans la même maison (complémentaire du Stellium par signe)
+// Pertinent quand un Stellium s'étale sur deux signes dans une maison large ou interceptée.
+const houseGroupsStellium = {};
+confPlanets.forEach(p => {
+    const house = getHouseNumber(p.fullDegree);
+    if (!houseGroupsStellium[house]) houseGroupsStellium[house] = [];
+    const pName = p.planet.fr || p.planet.en;
+    if (!houseGroupsStellium[house].includes(pName)) houseGroupsStellium[house].push(pName);
+});
+Object.entries(houseGroupsStellium).forEach(([house, pList]) => {
+    if (pList.length >= 3) {
+        const alreadyCovered = configurations.some(c =>
+            c.type === "Stellium" && c.planets.length === pList.length && c.planets.every(p => pList.includes(p))
+        );
+        if (!alreadyCovered && pList.filter(p => CONF_ANGLES_SET.has(p)).length < 3) {
+            configurations.push({ type:"Stellium", planets:pList, description:`${pList.join(", ")} concentrés en Maison ${house} — Stellium de maison, thématiques de M${house} hyper-activées` });
+        }
+    }
+});
+
+// Grand Trigone : 3 planètes à ~120° (orbe 8°)
+const grandTrigoneSets = [];
+for (let i=0; i<confPlanets.length; i++) {
+    for (let j=i+1; j<confPlanets.length; j++) {
+        for (let k=j+1; k<confPlanets.length; k++) {
+            let d12=angularDiff(confPlanets[i].fullDegree,confPlanets[j].fullDegree);
+            let d23=angularDiff(confPlanets[j].fullDegree,confPlanets[k].fullDegree);
+            let d13=angularDiff(confPlanets[i].fullDegree,confPlanets[k].fullDegree);
+            if (Math.abs(d12-120)<=8 && Math.abs(d23-120)<=8 && Math.abs(d13-120)<=8) {
+                let n1=confPlanets[i].planet.fr, n2=confPlanets[j].planet.fr, n3=confPlanets[k].planet.fr;
+                grandTrigoneSets.push([n1,n2,n3]);
+                configurations.push({ type:"Grand Trigone", planets:[n1,n2,n3], description:`${n1} — ${n2} — ${n3} : grande harmonie et facilité, risque d'inertie sans effort conscient` });
+            }
+        }
+    }
+}
+
+// T-Carré : 2 planètes en opposition + une troisième en carré aux deux
+let tcarreKeys = new Set();
+for (let i=0; i<confPlanets.length; i++) {
+    for (let j=i+1; j<confPlanets.length; j++) {
+        if (Math.abs(angularDiff(confPlanets[i].fullDegree,confPlanets[j].fullDegree)-180)>10) continue;
+        for (let k=0; k<confPlanets.length; k++) {
+            if (k===i||k===j) continue;
+            let dik=angularDiff(confPlanets[i].fullDegree,confPlanets[k].fullDegree);
+            let djk=angularDiff(confPlanets[j].fullDegree,confPlanets[k].fullDegree);
+            if (Math.abs(dik-90)<=8 && Math.abs(djk-90)<=8) {
+                let n1=confPlanets[i].planet.fr, n2=confPlanets[j].planet.fr, nk=confPlanets[k].planet.fr;
+                let key=[n1,n2,nk].sort().join("|");
+                if (!tcarreKeys.has(key) && !isAxisPair(n1, n2) && ![n1,n2,nk].every(n => CONF_ANGLES_SET.has(n))) {
+                    tcarreKeys.add(key);
+                    configurations.push({ type:"T-Carré", planets:[n1,n2,nk], description:`${n1} opposition ${n2}, tous deux en carré à ${nk} (apex) — tension persistante, moteur de dépassement de soi` });
+                }
+            }
+        }
+    }
+}
+
+// Grand Carré : 4 planètes en carré/opposition mutuels
+let grandcarreKeys = new Set();
+for (let i=0; i<confPlanets.length; i++) for (let j=i+1; j<confPlanets.length; j++) for (let k=j+1; k<confPlanets.length; k++) for (let l=k+1; l<confPlanets.length; l++) {
+    let ps=[confPlanets[i],confPlanets[j],confPlanets[k],confPlanets[l]];
+    let sorted=[...ps].sort((a,b)=>a.fullDegree-b.fullDegree);
+    let d01=angularDiff(sorted[0].fullDegree,sorted[1].fullDegree);
+    let d12=angularDiff(sorted[1].fullDegree,sorted[2].fullDegree);
+    let d23=angularDiff(sorted[2].fullDegree,sorted[3].fullDegree);
+    let d30=angularDiff(sorted[3].fullDegree,sorted[0].fullDegree);
+    if ([d01,d12,d23,d30].every(d=>Math.abs(d-90)<=10)) {
+        let names=ps.map(p=>p.planet.fr); let key=names.slice().sort().join("|");
+        if (!grandcarreKeys.has(key) && names.filter(n => CONF_ANGLES_SET.has(n)).length < 3) {
+            grandcarreKeys.add(key);
+            configurations.push({ type:"Grand Carré", planets:names, description:`${names.join(", ")} : tension quadrilatérale maximale, défi de vie structurant et formateur` });
+        }
+    }
+}
+
+// Yod : 2 planètes en sextile, toutes deux en quinconce à un apex
+let yodKeys = new Set();
+for (let i=0; i<confPlanets.length; i++) {
+    for (let j=i+1; j<confPlanets.length; j++) {
+        if (Math.abs(angularDiff(confPlanets[i].fullDegree,confPlanets[j].fullDegree)-60)>6) continue;
+        for (let k=0; k<confPlanets.length; k++) {
+            if (k===i||k===j) continue;
+            let dik=angularDiff(confPlanets[i].fullDegree,confPlanets[k].fullDegree);
+            let djk=angularDiff(confPlanets[j].fullDegree,confPlanets[k].fullDegree);
+            if (Math.abs(dik-150)<=3 && Math.abs(djk-150)<=3) {
+                let n1=confPlanets[i].planet.fr, n2=confPlanets[j].planet.fr, nk=confPlanets[k].planet.fr;
+                let key=[n1,n2,nk].sort().join("|");
+                if (!yodKeys.has(key)) {
+                    yodKeys.add(key);
+                    configurations.push({ type:"Yod — Doigt de Dieu", planets:[n1,n2,nk], description:`${n1} sextile ${n2}, tous deux en quinconce à ${nk} (apex) — mission de vie, ajustement karmique obligatoire` });
+                }
+            }
+        }
+    }
+}
+
+// Cerf-Volant (Kite) : Grand Trigone + opposition + 2 sextiles depuis un 4e point
+let kiteKeys = new Set();
+grandTrigoneSets.forEach(([n1,n2,n3]) => {
+    confPlanets.forEach(p => {
+        let pk=p.planet.fr; if ([n1,n2,n3].includes(pk)) return;
+        let triPs = [n1,n2,n3].map(tn => confPlanets.find(x=>(x.planet.fr||x.planet.en)===tn)).filter(Boolean);
+        let oppIdx = triPs.findIndex(tp => Math.abs(angularDiff(p.fullDegree,tp.fullDegree)-180)<=8);
+        if (oppIdx === -1) return;
+        let sextileCount = triPs.filter((tp,idx) => idx!==oppIdx && Math.abs(angularDiff(p.fullDegree,tp.fullDegree)-60)<=6).length;
+        if (sextileCount >= 2) {
+            let key=[n1,n2,n3,pk].sort().join("|");
+            if (!kiteKeys.has(key)) {
+                kiteKeys.add(key);
+                configurations.push({ type:"Cerf-Volant (Kite)", planets:[n1,n2,n3,pk], description:`Grand Trigone ${n1}-${n2}-${n3} avec ${pk} en opposition à ${triPs[oppIdx].planet.fr} — talent exceptionnel canalisé, potentiel actionnable` });
+            }
+        }
+    });
+});
+
+// 6e-bis. CROIX MODALE (Cardinale / Fixe / Mutable)
+// 4+ planètes dans les 4 signes d'un même mode, reliées par des oppositions et carrés
+const MODE_SIGNS = {
+    "Cardinal": ["Bélier","Cancer","Balance","Capricorne"],
+    "Fixe":     ["Taureau","Lion","Scorpion","Verseau"],
+    "Mutable":  ["Gémeaux","Vierge","Sagittaire","Poissons"]
+};
+const crossKeys = new Set();
+Object.entries(MODE_SIGNS).forEach(([modeName, mSigns]) => {
+    const inMode = confPlanets.filter(p => mSigns.includes(p.zodiac_sign?.name?.fr));
+    if (inMode.length < 4) return;
+    const signsCovered = new Set(inMode.map(p => p.zodiac_sign?.name?.fr));
+    if (signsCovered.size < 3) return;
+    const names = inMode.map(p => p.planet.fr);
+    let hasOpp = false, hasSq = false;
+    for (let i = 0; i < inMode.length && (!hasOpp || !hasSq); i++) {
+        for (let j = i+1; j < inMode.length; j++) {
+            let diff = Math.abs(inMode[i].fullDegree - inMode[j].fullDegree);
+            if (diff > 180) diff = 360 - diff;
+            if (Math.abs(diff - 180) <= 10) hasOpp = true;
+            if (Math.abs(diff - 90) <= 8) hasSq = true;
+        }
+    }
+    if (hasOpp && hasSq) {
+        const key = names.slice().sort().join("|");
+        if (!crossKeys.has(key)) {
+            crossKeys.add(key);
+            const modeDesc = modeName === "Cardinal" ? "action, initiative, crise" : modeName === "Fixe" ? "persévérance, résistance au changement, endurance" : "adaptabilité, dispersion, versatilité";
+            configurations.push({ type:`Croix ${modeName}`, planets:names, description:`${names.join(", ")} : axe ${modeName} activé (${modeDesc}) — dynamique de tension structurante sur le mode ${modeName}` });
+        }
+    }
+});
+
+// 6e-ter. RECTANGLE MYSTIQUE : 2 oppositions reliées par 2 sextiles et 2 trigones
+let rectMystiqueKeys = new Set();
+for (let i=0; i<confPlanets.length; i++) {
+    for (let j=i+1; j<confPlanets.length; j++) {
+        if (Math.abs(angularDiff(confPlanets[i].fullDegree,confPlanets[j].fullDegree)-180)>10) continue;
+        for (let k=0; k<confPlanets.length; k++) {
+            if (k===i||k===j) continue;
+            for (let l=k+1; l<confPlanets.length; l++) {
+                if (l===i||l===j) continue;
+                if (Math.abs(angularDiff(confPlanets[k].fullDegree,confPlanets[l].fullDegree)-180)>10) continue;
+                const ds = [
+                    angularDiff(confPlanets[i].fullDegree,confPlanets[k].fullDegree),
+                    angularDiff(confPlanets[i].fullDegree,confPlanets[l].fullDegree),
+                    angularDiff(confPlanets[j].fullDegree,confPlanets[k].fullDegree),
+                    angularDiff(confPlanets[j].fullDegree,confPlanets[l].fullDegree)
+                ];
+                const sextiles = ds.filter(d => Math.abs(d-60)<=6).length;
+                const trigones = ds.filter(d => Math.abs(d-120)<=8).length;
+                if (sextiles >= 2 && trigones >= 2) {
+                    const names = [confPlanets[i],confPlanets[j],confPlanets[k],confPlanets[l]].map(p=>p.planet.fr);
+                    const key = names.slice().sort().join("|");
+                    if (!rectMystiqueKeys.has(key)) {
+                        rectMystiqueKeys.add(key);
+                        configurations.push({ type:"Rectangle Mystique", planets:names, description:`${names.join(", ")} : double opposition harmonisée par sextiles et trigones — talent de médiation, capacité à résoudre les paradoxes` });
+                    }
+                }
+            }
+        }
+    }
+}
+
+// 6e-quater. GRAND SEXTILE (Étoile de David) : 6 planètes à ~60° l'une de l'autre
+let grandSextileKeys = new Set();
+if (confPlanets.length >= 6) {
+    for (let i=0; i<confPlanets.length; i++) {
+        const candidates = [confPlanets[i]];
+        let lastDeg = confPlanets[i].fullDegree;
+        const sorted = confPlanets.filter((_,idx)=>idx!==i).sort((a,b) => {
+            const da = ((a.fullDegree - lastDeg + 360) % 360);
+            const db = ((b.fullDegree - lastDeg + 360) % 360);
+            return da - db;
+        });
+        for (const p of sorted) {
+            const dFromLast = angularDiff(candidates[candidates.length-1].fullDegree, p.fullDegree);
+            if (Math.abs(dFromLast - 60) <= 6) candidates.push(p);
+            if (candidates.length === 6) break;
+        }
+        if (candidates.length === 6) {
+            const dClose = angularDiff(candidates[5].fullDegree, candidates[0].fullDegree);
+            if (Math.abs(dClose - 60) <= 6) {
+                const names = candidates.map(p => p.planet.fr);
+                const key = names.slice().sort().join("|");
+                if (!grandSextileKeys.has(key)) {
+                    grandSextileKeys.add(key);
+                    configurations.push({ type:"Grand Sextile (Étoile de David)", planets:names, description:`${names.join(", ")} : hexagramme parfait — flux d'énergie circulaire, potentiel exceptionnel et multifacette (configuration extrêmement rare)` });
+                }
+            }
+        }
+    }
+}
+
+// 6e-sext. FORME DU THÈME (Jones Patterns)
+const computeChartShape = () => {
+    const core10 = ["Soleil","Lune","Mercure","Vénus","Mars","Jupiter","Saturne","Uranus","Neptune","Pluton"];
+    const pDegs = core10.map(n => ({ name: n, deg: planetes.find(p => p.planet.fr === n)?.fullDegree })).filter(pd => pd.deg !== undefined).sort((a,b) => a.deg - b.deg);
+    const n = pDegs.length;
+    if (n < 7) return { shape: "Indéterminé", description: "Pas assez de planètes pour classifier" };
+    const gaps = [];
+    for (let i = 0; i < n; i++) {
+        gaps.push(((pDegs[(i+1) % n].deg - pDegs[i].deg) + 360) % 360);
+    }
+    const maxGap = Math.max(...gaps);
+    const maxGapIdx = gaps.indexOf(maxGap);
+    const minGap = Math.min(...gaps);
+    const spread = 360 - maxGap;
+
+    const findSingleton = () => {
+        const sorted = gaps.map((g,i) => ({g,i})).sort((a,b) => b.g - a.g);
+        const g1i = sorted[0].i, g2i = sorted[1].i;
+        let setA = [], setB = [];
+        let idx = (g1i + 1) % n;
+        while (idx !== (g2i + 1) % n) { setA.push(pDegs[idx].name); idx = (idx + 1) % n; }
+        idx = (g2i + 1) % n;
+        while (idx !== (g1i + 1) % n) { setB.push(pDegs[idx].name); idx = (idx + 1) % n; }
+        return setA.length <= setB.length ? setA : setB;
+    };
+
+    const findLeading = () => pDegs[(maxGapIdx + 1) % n].name;
+
+    if (spread <= 120) return { shape: "Bundle (Paquet)", description: "Toutes les planètes concentrées dans 120° — spécialiste intensif, vision focalisée mais limitée" };
+    if (spread <= 180) return { shape: "Bowl (Bol)", description: `Planètes dans 180° — une moitié du zodiaque est vide, orientation unilatérale et conscience d'un manque` };
+    if (spread > 180 && maxGap >= 60 && maxGap <= 120) {
+        const singleton = findSingleton();
+        const sName = singleton.join(" et ");
+        return { shape: "Bucket (Seau)", description: `${sName} isolé${singleton.length > 1 ? "s" : ""} face au groupe — singleton qui focalise et canalise toute l'énergie`, singleton: sName };
+    }
+    if (maxGap <= 40 && minGap >= 15) return { shape: "Splash (Éclaboussure)", description: "Planètes réparties dans tout le zodiaque — polyvalence, dispersion possible, touche-à-tout" };
+    const largeGaps = gaps.filter(g => g >= 60);
+    if (largeGaps.length === 2 && largeGaps.every(g => g <= 120)) return { shape: "Seesaw (Balançoire)", description: "Deux groupes de planètes opposés — dualité permanente, oscillation entre deux pôles de vie" };
+    if (maxGap >= 60 && maxGap <= 90) {
+        const leading = findLeading();
+        return { shape: "Locomotive", description: `Grand vide de ${maxGap.toFixed(0)}° — élan puissant, ambition motrice. ${leading} en tête tire le train` };
+    }
+    if (spread > 250 && maxGap > 90) return { shape: "Splay (Éventail)", description: "Distribution irrégulière avec accents marqués — individualiste, talents particuliers, résistance au conformisme" };
+    return { shape: "Splay (Éventail)", description: "Distribution irrégulière — profil individualiste et diversifié" };
+};
+const chartShape = computeChartShape();
+
+// 6f. ANTISCIA & CONTRA-ANTISCIA (miroir axe 0°Cancer/0°Capricorne)
+// antiscia_deg = (180 - fullDeg + 360) % 360
+const ANTISCIA_ORB = 1.5;
+const antisciaPlanets = ["Soleil","Lune","Mercure","Vénus","Mars","Jupiter","Saturne","Uranus","Neptune","Pluton"];
+const antiscia = [];
+for (let i=0; i<antisciaPlanets.length; i++) {
+    for (let j=i+1; j<antisciaPlanets.length; j++) {
+        let pA=planetes.find(p=>p.planet.fr===antisciaPlanets[i]);
+        let pB=planetes.find(p=>p.planet.fr===antisciaPlanets[j]);
+        if (!pA||!pB) continue;
+        let antisciaDegA      = (180 - pA.fullDegree + 360) % 360;
+        let contraAntisciaDegA = (antisciaDegA + 180) % 360;
+        let diffA = angularDiff(antisciaDegA, pB.fullDegree);
+        let diffC = angularDiff(contraAntisciaDegA, pB.fullDegree);
+        if (diffA <= ANTISCIA_ORB) antiscia.push({ p1:antisciaPlanets[i], p2:antisciaPlanets[j], type:"Antiscia",        orb:diffA.toFixed(2) });
+        if (diffC <= ANTISCIA_ORB) antiscia.push({ p1:antisciaPlanets[i], p2:antisciaPlanets[j], type:"Contra-antiscia", orb:diffC.toFixed(2) });
+    }
+}
+
+// 6g. MIDPOINTS (10 planètes majeures) + détection des activateurs
+const midpointPlanets = ["Soleil","Lune","Mercure","Vénus","Mars","Jupiter","Saturne","Uranus","Neptune","Pluton"];
+const midpoints = {};
+for (let i=0; i<midpointPlanets.length; i++) {
+    for (let j=i+1; j<midpointPlanets.length; j++) {
+        let pA=planetes.find(p=>p.planet.fr===midpointPlanets[i]);
+        let pB=planetes.find(p=>p.planet.fr===midpointPlanets[j]);
+        if (!pA||!pB) continue;
+        let diff = pB.fullDegree - pA.fullDegree;
+        if (diff < 0) diff += 360;
+        if (diff > 180) diff -= 360;
+        let mp = ((pA.fullDegree + diff/2) % 360 + 360) % 360;
+        let mpFar = (mp + 180) % 360;
+        midpoints[`${midpointPlanets[i]}/${midpointPlanets[j]}`] = {
+            near: mp, far: mpFar,
+            sign: signs[Math.floor(mp/30)].fr, deg: (mp%30).toFixed(1)
+        };
+    }
+}
+const midpointActivations = [];
+Object.entries(midpoints).forEach(([key, mp]) => {
+    let [mpP1, mpP2] = key.split("/");
+    planetes.forEach(p => {
+        let name = p.planet.fr || p.planet.en;
+        if (name === mpP1 || name === mpP2) return;
+        if (["Part de Fortune","Lot de l'Esprit","Nœud Sud","Lot de Nécessité","Lot d'Éros","Lot de Courage","Lot de Némésis","Lot de Basis","Lot d'Exaltation","Lot du Daemon"].includes(name)) return;
+        let dNear = angularDiff(p.fullDegree, mp.near);
+        let dFar  = angularDiff(p.fullDegree, mp.far);
+        let best  = Math.min(dNear, dFar);
+        if (best <= 1.5) {
+            midpointActivations.push({ activator:name, midpoint:key, type:dNear<=dFar?"direct":"miroir", orb:best.toFixed(2) });
+        }
+    });
+});
+
+// 6h. ÉTOILES FIXES — Conjonctions avec les planètes natales
+// Orbes différenciés :
+//   ±2° — étoiles royales/majeures : Aldébaran, Sirius, Régulus, Spica, Antarès
+//   ±1° — autres étoiles : Algol, Pléiades, Véga, Fomalhaut
+const ETOILE_ORBS = {
+    "Aldébaran": 2.0, "Sirius": 2.0, "Régulus": 2.0, "Spica": 2.0, "Antarès": 2.0,
+    "Algol": 1.0, "Pléiades": 1.0, "Véga": 1.0, "Fomalhaut": 1.0,
+    "Rigel": 1.5, "Bételgeuse": 1.5, "Castor": 1.0, "Pollux": 1.5,
+    "Procyon": 1.5, "Canopus": 1.5, "Arcturus": 1.5, "Deneb Algedi": 1.0,
+    "Vindemiatrix": 1.0, "Scheat": 1.0, "Zubenelgenubi": 1.0,
+    "Zubeneschamali": 1.0, "Achernar": 1.0, "Deneb": 1.0,
+    "Wega": 1.0, "Alcyone": 1.0
+};
+const ETOILE_DESC = {
+    "Algol":     "Étoile de la Méduse (nature Saturne/Mars) : violence, catastrophe, perte irréversible — mais aussi courage absolu face au danger extrême, capacité à transformer la destruction en renaissance",
+    "Pléiades":  "Cluster des Pléiades / Alcyone (nature Lune/Mars) : deuil, larmes, mystère, liens ancestraux et spiritualité profonde — sensibilité exacerbée aux cycles et à la mémoire collective",
+    "Alcyone":   "Cluster des Pléiades / Alcyone (nature Lune/Mars) : deuil, larmes, mystère, liens ancestraux et spiritualité profonde — sensibilité exacerbée aux cycles et à la mémoire collective",
+    "Aldébaran": "Étoile Royale de l'Est — Œil du Taureau (nature Mars/Mercure) : honneur, intégrité, intelligence vive, vigilance stratégique. L'une des 4 Royales : succès durable si l'intégrité est maintenue",
+    "Sirius":    "Étoile du Grand Chien (nature Jupiter/Mars) : gloire, richesse, fidélité ardente, passion dévorante — nature solaire intense conférant rayonnement et leadership magnétique",
+    "Régulus":   "Étoile Royale du Cœur du Lion (nature Mars/Jupiter) : royauté, leadership naturel, succès fulgurant, ambition. L'une des 4 Royales : grandeur et chute si la vengeance supplante la noblesse",
+    "Spica":     "Épi de la Vierge (nature Vénus/Mars) : don artistique, chance remarquable, raffinement intellectuel, richesse créative — l'une des étoiles les plus bénéfiques du zodiaque",
+    "Antarès":   "Étoile Royale du Cœur du Scorpion (nature Mars/Jupiter) : courage, témérité, passion dévorante, succès militaire ou compétitif. L'une des 4 Royales : rival de Mars, intensité maximale",
+    "Véga":      "Étoile de la Lyre (nature Vénus/Mercure) : charisme magnétique irrésistible, dons artistiques et musicaux exceptionnels, raffinement spirituel et sens du beau transcendant",
+    "Wega":      "Étoile de la Lyre (nature Vénus/Mercure) : charisme magnétique irrésistible, dons artistiques et musicaux exceptionnels, raffinement spirituel et sens du beau transcendant",
+    "Fomalhaut": "Étoile Royale du Sud (nature Vénus/Mercure) : idéalisme visionnaire, rêve créateur, inspiration mystique, sens du sacré. L'une des 4 Royales : grandeur par la vision hors du commun",
+    "Rigel":     "Pied d'Orion (nature Jupiter/Saturne) : ambition intellectuelle, enseignement, capacité de construction à grande échelle — fortune par l'effort persistant et la vision à long terme",
+    "Bételgeuse":"Épaule d'Orion (nature Mars/Mercure) : honneur martial, audace créatrice, succès par l'action directe — énergie colossale mais risque de blessures ou de renversements soudains",
+    "Castor":    "Alpha Gémeaux (nature Mercure) : brillance intellectuelle, écriture, communication — mais vulnérabilité aux blessures ou violence, dualité créative entre lumière et ombre",
+    "Pollux":    "Beta Gémeaux (nature Mars) : force sportive, audace, compétitivité — caractère intrépide mais risque de cruauté ou de témérité excessive",
+    "Procyon":   "Étoile du Petit Chien (nature Mercure/Mars) : activité fébrile, succès rapide mais instable — intelligence vive et capacité d'adaptation, mais attention à la dispersion",
+    "Canopus":   "Étoile du Navire Argo (nature Saturne/Jupiter) : voyage, navigation de la vie, connaissance ancienne — l'une des plus lumineuses : érudition et sagesse acquise par l'expérience lointaine",
+    "Arcturus":  "Gardien de l'Ourse (nature Mars/Jupiter) : prospérité par le voyage ou l'innovation, leadership par la voie non conventionnelle — force de caractère et indépendance d'esprit",
+    "Deneb Algedi":"Queue du Capricorne (nature Saturne/Jupiter) : justice, probité, sens de la loi — réussite par la droiture et la persévérance, mais risque de rigidité morale",
+    "Vindemiatrix":"La Vendangeuse (nature Saturne/Mercure) : veuvage symbolique, perte, sacrifice nécessaire — mais aussi discernement tranchant et capacité de détachement libérateur",
+    "Scheat":    "Épaule de Pégase (nature Mars/Mercure) : naufrage, catastrophe maritime (symbolique), extrême sensibilité — mais imagination sans limites et capacité à transcender le réel",
+    "Zubenelgenubi":"Plateau Sud de la Balance (nature Saturne/Mars) : justice implacable, karma, conséquences inévitables — poids du passé mais capacité de rééquilibrage par l'action juste",
+    "Zubeneschamali":"Plateau Nord de la Balance (nature Jupiter/Mercure) : fortune sociale, intelligence diplomatique, élévation par le mérite et la finesse relationnelle",
+    "Achernar":  "Fin du Fleuve Éridan (nature Jupiter) : bonheur spirituel, succès ecclésiastique ou philosophique, sens du sacré — transformation profonde par l'immersion dans le courant de la vie",
+    "Deneb":     "Queue du Cygne (nature Vénus/Mercure) : don artistique ingénieux, capacité de synthèse entre technique et esthétique — intelligence subtile et charme magnétique"
+};
+
+// Construire la liste complète des points à vérifier :
+// planètes de naissance + DSC et IC s'ils ne sont pas déjà fournis par l'API
+const pointsEtoiles = [...planetes];
+const ANGLES_LABELS = { "Ascendant":"ASC (Cuspide M1)", "Milieu du Ciel":"MC (Cuspide M10)", "Descendant":"DSC (Cuspide M7)", "Imum Coeli":"IC (Cuspide M4)" };
+if (!pointsEtoiles.find(p => p.planet.fr === "Descendant" || p.planet.en === "Descendant")) {
+    const m7 = maisons.find(m => m.House === 7);
+    if (m7) pointsEtoiles.push({ planet:{fr:"Descendant",en:"Descendant"}, fullDegree:m7.degree, normDegree:m7.degree%30, zodiac_sign:{name:{fr:signs[Math.floor(m7.degree/30)%12].fr}} });
+}
+if (!pointsEtoiles.find(p => p.planet.fr === "Imum Coeli" || p.planet.en === "Imum Coeli")) {
+    const m4 = maisons.find(m => m.House === 4);
+    if (m4) pointsEtoiles.push({ planet:{fr:"Imum Coeli",en:"Imum Coeli"}, fullDegree:m4.degree, normDegree:m4.degree%30, zodiac_sign:{name:{fr:signs[Math.floor(m4.degree/30)%12].fr}} });
+}
+
+const LOTS_MATHEMATIQUES = new Set(["Part de Fortune","Lot de l'Esprit","Lot de Nécessité","Lot d'Éros","Lot de Courage","Lot de Némésis","Lot de Basis","Lot d'Exaltation","Lot du Daemon","Lot de Victoire","Lot du Père","Lot de la Mère","Lot de Maladie","Lot du Mariage","Lot des Enfants","Lot de Voyage"]);
+const etoileMatches = [];
+pointsEtoiles.forEach(planet => {
+    const pName = planet.planet.fr || planet.planet.en;
+    if (LOTS_MATHEMATIQUES.has(pName)) return;
+    etoilesFixesRaw.forEach(etoile => {
+        const eName = etoile.name?.fr;
+        if (!eName) return;
+        const orbMax = ETOILE_ORBS[eName] ?? 1.0;
+        const diff = angularDiff(planet.fullDegree, etoile.fullDegree);
+        if (diff <= orbMax) {
+            const house = getHouseNumber(planet.fullDegree);
+            etoileMatches.push({
+                planete:   pName,
+                etoile:    eName,
+                etoile_en: etoile.name?.en || eName,
+                orb:       Math.round(diff * 100) / 100,
+                orbMax,
+                precision: diff <= 1.0 ? "forte (≤1°)" : "notable (≤2°)",
+                maison:    house,
+                signe:     planet.zodiac_sign?.name?.fr,
+                isAngle:   !!ANGLES_LABELS[pName],
+                desc:      ETOILE_DESC[eName] || ""
+            });
+        }
+    });
+});
+
+// Conjonctions étoiles fixes sur les 4 angles (M1 ASC / M4 IC / M7 DSC / M10 MC)
+const ANGULAR_HOUSES = new Set([1, 4, 7, 10]);
+const ANGLE_LABELS   = { 1:"ASC", 4:"IC", 7:"DSC", 10:"MC" };
+const etoileCuspMatches = [];
+maisons.filter(m => ANGULAR_HOUSES.has(m.House)).forEach(m => {
+    etoilesFixesRaw.forEach(etoile => {
+        const eName = etoile.name?.fr;
+        if (!eName) return;
+        const orbMax = ETOILE_ORBS[eName] ?? 1.0;
+        const diff = angularDiff(m.degree, etoile.fullDegree);
+        if (diff <= orbMax) {
+            const cuspSign = signs[Math.floor(m.degree / 30) % 12].fr;
+            etoileCuspMatches.push({
+                maison:    m.House,
+                angle:     ANGLE_LABELS[m.House],
+                etoile:    eName,
+                etoile_en: etoile.name?.en || eName,
+                orb:       Math.round(diff * 100) / 100,
+                orbMax,
+                precision: diff <= 1.0 ? "forte (≤1°)" : "notable (≤2°)",
+                signe:     cuspSign,
+                desc:      ETOILE_DESC[eName] || ""
+            });
+        }
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────
+// 6h-bis. PARANS D'ÉTOILES FIXES (méthode Brady — co-angularité)
+// Un paran se forme quand une étoile est sur un angle (lever/coucher/culmination)
+// au même moment qu'une planète est sur un angle, évalué par le RAMC commun.
+// ─────────────────────────────────────────────────────────────────
+const PARAN_ORB = 1.5;
+const OBLIQUITY = 23.4393;
+const DEG = Math.PI / 180;
+
+const geoLat = parseFloat(perso.latitude) || 0;
+const paranResults = [];
+
+if (Math.abs(geoLat) > 0.1) {
+    const tanPhi = Math.tan(geoLat * DEG);
+
+    function hourAngle(dec) {
+        const tanDec = Math.tan(dec * DEG);
+        const cosH = -tanPhi * tanDec;
+        if (cosH < -1 || cosH > 1) return null;
+        return Math.acos(cosH) / DEG;
+    }
+
+    function bodyAngles(ra, dec) {
+        const H = hourAngle(dec);
+        const angles = [];
+        angles.push({ type: "Culmination", ramc: ((ra % 360) + 360) % 360 });
+        angles.push({ type: "Anti-culmination", ramc: ((ra + 180) % 360 + 360) % 360 });
+        if (H !== null) {
+            angles.push({ type: "Lever", ramc: ((ra - H) % 360 + 360) % 360 });
+            angles.push({ type: "Coucher", ramc: ((ra + H) % 360 + 360) % 360 });
+        }
+        return angles;
+    }
+
+    function eclToEq(lon, lat) {
+        const L = lon * DEG, B = (lat || 0) * DEG, E = OBLIQUITY * DEG;
+        const ra = Math.atan2(Math.sin(L) * Math.cos(E) - Math.tan(B) * Math.sin(E), Math.cos(L));
+        const dec = Math.asin(Math.sin(B) * Math.cos(E) + Math.cos(B) * Math.sin(E) * Math.sin(L));
+        return { ra: ((ra / DEG) % 360 + 360) % 360, dec: dec / DEG };
+    }
+
+    const PARAN_PLANETS = new Set(["Soleil","Lune","Mercure","Vénus","Mars","Jupiter","Saturne","Uranus","Neptune","Pluton","Chiron","Ascendant","Milieu du Ciel","Descendant","Imum Coeli"]);
+
+    const planetAnglesMap = [];
+    pointsEtoiles.forEach(p => {
+        const pName = p.planet.fr || p.planet.en;
+        if (!PARAN_PLANETS.has(pName)) return;
+        if (LOTS_MATHEMATIQUES.has(pName)) return;
+        let pRa, pDec;
+        if (typeof p.declinaison === "number") {
+            pDec = p.declinaison;
+            const lonR = p.fullDegree * DEG, E = OBLIQUITY * DEG;
+            const sinBeta = (Math.sin(pDec * DEG) - Math.sin(E) * Math.sin(lonR)) / Math.cos(E);
+            const beta = Math.abs(sinBeta) <= 1 ? Math.asin(sinBeta) : 0;
+            const raRad = Math.atan2(Math.sin(lonR) * Math.cos(E) - Math.tan(beta) * Math.sin(E), Math.cos(lonR));
+            pRa = ((raRad / DEG) + 360) % 360;
+        } else {
+            const eq = eclToEq(p.fullDegree, 0);
+            pRa = eq.ra;
+            pDec = eq.dec;
+        }
+        const angles = bodyAngles(pRa, pDec);
+        planetAnglesMap.push({ name: pName, ra: pRa, dec: pDec, angles });
+    });
+
+    const PARAN_LABELS = {
+        "Culmination-Culmination": "co-culmination (les deux au MC)",
+        "Culmination-Lever": "étoile culmine quand la planète se lève",
+        "Lever-Lever": "co-lever (les deux à l'horizon Est)",
+        "Lever-Culmination": "planète se lève quand l'étoile culmine",
+        "Coucher-Coucher": "co-coucher (les deux à l'horizon Ouest)",
+        "Culmination-Coucher": "étoile culmine quand la planète se couche",
+        "Coucher-Culmination": "planète se couche quand l'étoile culmine",
+        "Lever-Coucher": "étoile se lève quand la planète se couche",
+        "Coucher-Lever": "étoile se couche quand la planète se lève",
+    };
+
+    etoilesFixesRaw.forEach(star => {
+        const sName = star.name?.fr;
+        if (!sName) return;
+        const sDec = star.declination_j2000;
+        const sRa = star.ra_j2000;
+        if (sDec == null || sRa == null) return;
+        const starAngles = bodyAngles(sRa, sDec);
+
+        planetAnglesMap.forEach(pEntry => {
+            pEntry.angles.forEach(pAngle => {
+                starAngles.forEach(sAngle => {
+                    let diff = Math.abs(pAngle.ramc - sAngle.ramc);
+                    if (diff > 180) diff = 360 - diff;
+                    if (diff <= PARAN_ORB) {
+                        const comboKey = `${sAngle.type}-${pAngle.type}`;
+                        paranResults.push({
+                            planete: pEntry.name,
+                            etoile: sName,
+                            etoile_desc: ETOILE_DESC[sName] || "",
+                            angle_etoile: sAngle.type,
+                            angle_planete: pAngle.type,
+                            orb: Math.round(diff * 100) / 100,
+                            interpretation: PARAN_LABELS[comboKey] || `${sAngle.type} de l'étoile / ${pAngle.type} de la planète`,
+                            maison: getHouseNumber(etoilesFixesRaw.find(e => e.name?.fr === sName)?.fullDegree ?? 0),
+                            signe_planete: planetes.find(x => (x.planet?.fr || x.planet?.en) === pEntry.name)?.zodiac_sign?.name?.fr || ""
+                        });
+                    }
+                });
+            });
+        });
+    });
+}
+
+// ─────────────────────────────────────────────────────────────────
+// 6i. DÉCLINAISONS — Hors Limites (OOB), Parallèles, Contre-Parallèles
+// ─────────────────────────────────────────────────────────────────
+const OOB_THRESHOLD      = OBLIQUITY;
+const DECL_ORB_STANDARD  = 1.0;
+const DECL_ORB_LUMINAIRE = 1.5;
+const LUMINAIRES_DECL    = new Set(["Soleil", "Lune"]);
+
+// Tous les objets ayant un champ declinaison numérique (planètes, Chiron, petits corps, nœuds…)
+const planetesDeclinees = planetes.filter(p => typeof p.declinaison === 'number');
+
+// A. Planètes / Objets Hors Limites (OOB)
+const planeteOOB = [];
+planetesDeclinees.forEach(p => {
+    const name = p.planet.fr || p.planet.en;
+    if (Math.abs(p.declinaison) > OOB_THRESHOLD) {
+        planeteOOB.push({
+            planete:     name,
+            declinaison: p.declinaison,
+            hemisphere:  p.declinaison > 0 ? "Nord" : "Sud",
+            depassement: parseFloat((Math.abs(p.declinaison) - OOB_THRESHOLD).toFixed(2))
+        });
+    }
+});
+
+// B. Parallèles (//) et Contre-Parallèles (#)
+const paralleles       = [];
+const contreParalleles = [];
+for (let i = 0; i < planetesDeclinees.length; i++) {
+    for (let j = i + 1; j < planetesDeclinees.length; j++) {
+        const pA = planetesDeclinees[i], pB = planetesDeclinees[j];
+        const nameA = pA.planet.fr || pA.planet.en;
+        const nameB = pB.planet.fr || pB.planet.en;
+        const hasLuminaire = LUMINAIRES_DECL.has(nameA) || LUMINAIRES_DECL.has(nameB);
+        const orb = hasLuminaire ? DECL_ORB_LUMINAIRE : DECL_ORB_STANDARD;
+        const sameHemi = Math.sign(pA.declinaison) === Math.sign(pB.declinaison);
+        if (sameHemi) {
+            const diff = Math.abs(pA.declinaison - pB.declinaison);
+            if (diff <= orb) paralleles.push({
+                p1: nameA, decl1: pA.declinaison,
+                p2: nameB, decl2: pB.declinaison,
+                orb: parseFloat(diff.toFixed(2)), hasLuminaire,
+                hemisphere: pA.declinaison > 0 ? "Nord" : "Sud"
+            });
+        } else {
+            const diff = Math.abs(Math.abs(pA.declinaison) - Math.abs(pB.declinaison));
+            if (diff <= orb) contreParalleles.push({
+                p1: nameA, decl1: pA.declinaison,
+                p2: nameB, decl2: pB.declinaison,
+                orb: parseFloat(diff.toFixed(2)), hasLuminaire
+            });
+        }
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────
+// 6j. SCORE DE PUISSANCE DES CONFIGURATIONS (tri multi-critères)
+// ─────────────────────────────────────────────────────────────────
+const OOB_NAMES_SET         = new Set(planeteOOB.map(p => p.planete));
+const ETOILE_CONJ_NAMES_SET = new Set(etoileMatches.map(em => em.planete));
+const PARA_PAIRS_SET        = new Set([
+    ...paralleles.map(p => [p.p1, p.p2].sort().join("|")),
+    ...contreParalleles.map(p => [p.p1, p.p2].sort().join("|"))
+]);
+const ANGLES_POWER_SET = new Set(["Ascendant", "Milieu du Ciel", "Descendant", "Imum Coeli"]);
+const HIERARCHY_BASE_SCORE = {
+    "Stellium": 30, "Grand Carré": 30, "Grand Trigone": 30,
+    "T-Carré": 20, "Cerf-Volant (Kite)": 20, "Yod — Doigt de Dieu": 20,
+    "Croix Cardinal": 25, "Croix Fixe": 25, "Croix Mutable": 25
+};
+
+configurations.forEach(c => {
+    let score = HIERARCHY_BASE_SCORE[c.type] || 10;
+    const pList = c.planets || [];
+    // Facteur Luminaires
+    if (pList.some(p => LUMINAIRES_DECL.has(p)))        score += 50;
+    // Facteur Angles
+    if (pList.some(p => ANGLES_POWER_SET.has(p)))       score += 40;
+    // Facteur Étoile Fixe conjointe
+    if (pList.some(p => ETOILE_CONJ_NAMES_SET.has(p)))  score += 30;
+    // Facteur OOB
+    if (pList.some(p => OOB_NAMES_SET.has(p)))          score += 20;
+    // Facteur Parallèle/Contre-Parallèle (double validation — max +20 par figure)
+    let paraBonus = false;
+    for (let i = 0; i < pList.length && !paraBonus; i++)
+        for (let j = i + 1; j < pList.length && !paraBonus; j++)
+            if (PARA_PAIRS_SET.has([pList[i], pList[j]].sort().join("|"))) paraBonus = true;
+    if (paraBonus) score += 20;
+    // Facteur d'exactitude : orbe moyen des aspects internes à la figure
+    const figAspects = aspects.filter(a => pList.includes(a.p1) && pList.includes(a.p2));
+    if (figAspects.length > 0) {
+        const orbeMoyen = figAspects.reduce((s, a) => s + parseFloat(a.exactitude), 0) / figAspects.length;
+        score += Math.max(0, Math.round(10 - orbeMoyen * 2));
+    }
+    c.puissanceScore = score;
+    c.prioriteLabel  = score >= 120 ? "PRIORITÉ ABSOLUE" : score >= 80 ? "Majeure" : score >= 50 ? "Significative" : "Mineure";
+});
+// Tri par score décroissant — les figures les plus puissantes en premier
+configurations.sort((a, b) => (b.puissanceScore || 0) - (a.puissanceScore || 0));
+
+// ─────────────────────────────────────────────────────────────────
+// 6j-bis. DÉDUPLICATION POST-CALCUL (marquage non-destructif)
+// Identifie les sous-configurations géométriquement contenues dans une figure parente.
+// Règles : Grand Carré ⊃ T-Carré | Cerf-Volant ⊃ Grand Trigone
+// N'affecte ni les scores, ni les aspects, ni le calcul — post-processing uniquement.
+// ─────────────────────────────────────────────────────────────────
+const PARENT_CHILD_RULES = [
+    { parent: "Grand Carré",       child: "T-Carré" },
+    { parent: "Cerf-Volant (Kite)", child: "Grand Trigone" }
+];
+// Passe 1 : relations hiérarchiques (T-Carré ⊂ Grand Carré, Grand Trigone ⊂ Cerf-Volant)
+configurations.forEach(child => {
+    if (child.subConfigOf) return;
+    configurations.forEach(parent => {
+        if (child === parent || !parent.planets || !child.planets) return;
+        if (!child.planets.every(p => parent.planets.includes(p))) return;
+        const rule = PARENT_CHILD_RULES.find(r => r.parent === parent.type && r.child === child.type);
+        if (rule) { child.subConfigOf = parent.type; child.subConfigType = "child"; }
+    });
+});
+
+// Passe 2 : variantes du même type (ex: deux Grand Carrés partageant 3 planètes sur 4)
+// Règles de seuil par type :
+//   Stellium  → threshold = min (sous-ensemble strict : toutes les planètes du plus petit dans le plus grand)
+//   Autres    → threshold = min - 1 (N-1 planètes communes suffisent)
+// Pour Stellium : on garde le PLUS GRAND (plus de planètes). Pour les autres : le mieux scoré.
+const OVERLAP_TYPES = new Set(["Stellium", "Grand Carré", "T-Carré", "Grand Trigone", "Yod", "Cerf-Volant (Kite)"]);
+const confByType = {};
+configurations.forEach(c => {
+    if (!OVERLAP_TYPES.has(c.type) || c.subConfigOf) return;
+    (confByType[c.type] = confByType[c.type] || []).push(c);
+});
+Object.values(confByType).forEach(group => {
+    if (group.length < 2) return;
+    for (let i = 0; i < group.length; i++) {
+        for (let j = i + 1; j < group.length; j++) {
+            const a = group[i], b = group[j];
+            if (!a.planets || !b.planets || a.subConfigOf || b.subConfigOf) continue;
+            const shared = a.planets.filter(p => b.planets.includes(p));
+            const isStellium = a.type === "Stellium";
+            // Stellium : threshold = taille du plus petit (sous-ensemble complet requis)
+            // Autres   : threshold = min - 1
+            const threshold = isStellium
+                ? Math.min(a.planets.length, b.planets.length)
+                : Math.min(a.planets.length, b.planets.length) - 1;
+            if (shared.length >= threshold) {
+                let redundant;
+                if (isStellium) {
+                    // Garder le plus grand Stellium (plus de planètes = plus d'information)
+                    redundant = a.planets.length >= b.planets.length ? b : a;
+                } else {
+                    // Garder le mieux scoré
+                    [, redundant] = (a.puissanceScore || 0) >= (b.puissanceScore || 0) ? [a, b] : [b, a];
+                }
+                redundant.subConfigOf = a.type;
+                redundant.subConfigType = "variant";
+                redundant.sharedPlanets = shared.length;
+            }
+        }
+    }
+});
+
+// ─────────────────────────────────────────────────────────────────
+// 6k. SCORE DE PUISSANCE DES ASPECTS INDIVIDUELS (post-enrichissement)
+// Calculé ici (après 6b, 6h, 6i) pour avoir accès à tous les contextes :
+// angularPlanets, etoileMatches, OOB_NAMES_SET, LUMINAIRES_DECL
+// v4.0.0 : modulations rétrogradation, stationnaire, dignité, réception
+// ─────────────────────────────────────────────────────────────────
+const ASPECT_BASE_SCORES = {
+    "Conjonction": 10, "Opposition": 9, "Carré": 8, "Trigone": 7, "Sextile": 6,
+    "Quinconce": 3, "Semi-Carré": 2, "Quintile": 2, "Sesqui-Carré": 2,
+    "Semi-Sextile": 1, "Biquintile": 1
+};
+const _stationarySet = new Set(stationaryPlanets.map(sp => sp.planet));
+const _receptionPairsAsp = new Set(mutualReceptions.map(mr => [mr.p1, mr.p2].sort().join("|")));
+const _uniReceptionMap = {};
+["Soleil","Lune","Mercure","Vénus","Mars","Jupiter","Saturne","Uranus","Neptune","Pluton"].forEach(name => {
+    const p = planetes.find(x => x.planet.fr === name);
+    if (!p) return;
+    const sign = p.zodiac_sign?.name?.fr;
+    if (!sign) return;
+    Object.entries(dignities).forEach(([otherPlanet, digs]) => {
+        if (otherPlanet === name) return;
+        if (digs.dom.includes(sign)) {
+            if (!_uniReceptionMap[name]) _uniReceptionMap[name] = new Set();
+            _uniReceptionMap[name].add(otherPlanet);
+        }
+    });
+});
+aspects.forEach(a => {
+    const base       = ASPECT_BASE_SCORES[a.aspect] || 1;
+    const exactBonus = Math.max(0, Math.round(10 - parseFloat(a.exactitude) * 1.5));
+    let bonus = 0;
+    if (LUMINAIRES_DECL.has(a.p1)         || LUMINAIRES_DECL.has(a.p2))         bonus += 8;
+    if (ANGLES_POWER_SET.has(a.p1)        || ANGLES_POWER_SET.has(a.p2))        bonus += 6;
+    if (OOB_NAMES_SET.has(a.p1)           || OOB_NAMES_SET.has(a.p2))           bonus += 4;
+    if (ETOILE_CONJ_NAMES_SET.has(a.p1)   || ETOILE_CONJ_NAMES_SET.has(a.p2))  bonus += 5;
+    const n1 = PLANET_NATURES[a.p1], n2 = PLANET_NATURES[a.p2];
+    if (n1 === "bénéfique" && n2 === "bénéfique") bonus += 2;
+    else if (n1 === "maléfique" && n2 === "maléfique") bonus -= 1;
+
+    const _p1Obj = planetes.find(x => (x.planet.fr || x.planet.en) === a.p1);
+    const _p2Obj = planetes.find(x => (x.planet.fr || x.planet.en) === a.p2);
+
+    // v4.0 — Rétrogradation : aspect avec planète rétrograde = énergie internalisée, plus significatif
+    const _r1 = _p1Obj && (_p1Obj.isRetro === "True" || _p1Obj.isRetro === true);
+    const _r2 = _p2Obj && (_p2Obj.isRetro === "True" || _p2Obj.isRetro === true);
+    if (_r1 || _r2) { bonus += (_r1 && _r2) ? 3 : 2; a._retroMod = true; }
+
+    // v4.0 — Stationnaire : planète quasi immobile = concentration d'énergie exceptionnelle
+    const _st1 = _stationarySet.has(a.p1), _st2 = _stationarySet.has(a.p2);
+    if (_st1 || _st2) { bonus += (_st1 && _st2) ? 6 : 4; a._stationMod = true; }
+
+    // v4.0 — Dignité essentielle : seule la dignité forte (Domicile/Exaltation) bonifie le score ; Exil/Chute annoté sans bonus (pérégrin = baseline)
+    const _s1 = _p1Obj?.zodiac_sign?.name?.fr, _s2 = _p2Obj?.zodiac_sign?.name?.fr;
+    const _d1 = _s1 ? getDignity(a.p1, _s1) : "-", _d2 = _s2 ? getDignity(a.p2, _s2) : "-";
+    if (_d1 === "Domicile" || _d1 === "Exaltation") { bonus += 2; a._digMod1 = _d1; }
+    if (_d2 === "Domicile" || _d2 === "Exaltation") { bonus += 2; a._digMod2 = _d2; }
+    if ((_d1 === "Exil" || _d1 === "Chute")) { a._digMod1 = a._digMod1 || _d1; }
+    if ((_d2 === "Exil" || _d2 === "Chute")) { a._digMod2 = a._digMod2 || _d2; }
+
+    // v4.0 — Réception : les deux planètes en réception mutuelle (domicile) → adoucissement, constructivité
+    const _aspPairKey = [a.p1, a.p2].sort().join("|");
+    if (_receptionPairsAsp.has(_aspPairKey)) { bonus += 3; a._receptionMutual = true; }
+    else {
+        const _uni1 = _uniReceptionMap[a.p1]?.has(a.p2);
+        const _uni2 = _uniReceptionMap[a.p2]?.has(a.p1);
+        if (_uni1 || _uni2) { bonus += 1; a._receptionUni = true; }
+    }
+
+    a.score        = base + exactBonus + bonus;
+    a.prioriteLabel = a.score >= 30 ? "CAPITAL" : a.score >= 20 ? "FORT" : a.score >= 12 ? "MODÉRÉ" : "MINEUR";
+    a.prioriteEmoji = a.score >= 30 ? "🔴" : a.score >= 20 ? "🟠" : a.score >= 12 ? "🟡" : "⚪";
+});
+// Tri global en place — toutes les fonctions avales héritent de cet ordre
+aspects.sort((a, b) => b.score - a.score);
+
+// Flag isPromoted — Option B : seuil différencié petits corps vs planètes majeures
+// Si au moins UNE des deux planètes est un corps majeur → seuil 20 (FORT)
+// Si les DEUX sont des petits corps → seuil 28 (évite le bruit interprétatif)
+const SMALL_BODIES_PROMO    = new Set(["Vesta","Cérès","Ceres","Pallas","Junon","Juno","Lilith"]);
+const PROMO_THRESHOLD_CORE  = 20;
+const PROMO_THRESHOLD_SMALL = 28;
+aspects.forEach(a => {
+    if (a.isMajor !== false) { a.isPromoted = false; return; }
+    const bothSmall = SMALL_BODIES_PROMO.has(a.p1) && SMALL_BODIES_PROMO.has(a.p2);
+    const threshold = bothSmall ? PROMO_THRESHOLD_SMALL : PROMO_THRESHOLD_CORE;
+    a.isPromoted = a.score >= threshold;
+});
+
+// ─────────────────────────────────────────────────────────────────
+// 7. MAISONS ET DISPOSITIONS
+// ─────────────────────────────────────────────────────────────────
+let signToHouses = {}; signs.forEach(s => signToHouses[s.fr] = []);
+maisons.forEach((m, i) => {
+    let end = maisons[(i+1)%12].degree; if (end < m.degree) end += 360;
+    for (let s = Math.floor(m.degree/30); s <= Math.floor(end/30); s++) {
+        if (!signToHouses[signs[s%12].fr].includes(m.House)) signToHouses[signs[s%12].fr].push(m.House);
+    }
+});
+
+let fiches_maisons = [], prompts = {};
+maisons.forEach((m, i) => {
+    let nextM=maisons[(i+1)%12], start=m.degree, end=nextM.degree; if (end<start) end+=360;
+    let s_start=Math.floor(start/30), s_end=Math.floor(end/30);
+    let segments = [];
+
+    for (let s=s_start; s<=s_end; s++) {
+        let signId  = s % 12;
+        let signObj = signs[signId];
+        let type    = s===s_start ? "Cuspide" : (s===s_end ? "Fin de Maison" : "Intercepté / Suite");
+        let degDebut     = s===s_start ? m.normDegree : 0;
+        let decanCuspide = type==="Cuspide" ? (Math.min(Math.floor(degDebut/10),2)+1) : null;
+
+        let rulerP = planetes.find(p => p.planet.fr === signObj.ruler);
+        let proprioData = null;
+        if (rulerP) {
+            let p_sign   = rulerP.zodiac_sign?.name?.fr || "Bélier";
+            const _signObj = signs.find(sgn=>sgn.fr===p_sign);
+            if (!_signObj) continue;
+            let patronName = _signObj.ruler;
+            let patronP    = planetes.find(p=>p.planet.fr===patronName);
+            let patronData = (patronName!==signObj.ruler && patronP) ? { planete:patronName, maison:getHouseNumber(patronP.fullDegree), signe:patronP.zodiac_sign?.name?.fr || "" } : null;
+            proprioData = {
+                planete:signObj.ruler, retro:rulerP.retroStr, signe:p_sign, degre:rulerP.normDegree,
+                maison:getHouseNumber(rulerP.fullDegree), patron:patronData,
+                dignite:getDignity(signObj.ruler,p_sign),
+                helio: helioConditions[signObj.ruler] || null
+            };
+        }
+
+        let locs = planetes.filter(p => {
+            let inHouse = (start<nextM.degree) ? (p.fullDegree>=start && p.fullDegree<nextM.degree) : (p.fullDegree>=start || p.fullDegree<nextM.degree);
+            let inSign  = Math.floor(p.fullDegree/30) === signId;
+            return inHouse && inSign;
+        });
+
+        let locatairesData = locs.map(loc => {
+            let name    = loc.planet.fr;
+            let importH = [];
+            (planetRulerships[name]||[]).forEach(rs => (signToHouses[rs]||[]).forEach(h => { if(!importH.includes(h)) importH.push(h); }));
+            let dIndex       = Math.min(Math.floor(loc.normDegree/10), 2);
+            let p_sign       = signs[signId].fr;
+            let patronName   = signObj.ruler;
+            let patronP      = planetes.find(p=>p.planet.fr===patronName);
+            let patronData   = (patronName!==name && patronP) ? { nom:patronName, maison:getHouseNumber(patronP.fullDegree) } : null;
+            let decanRulerName  = CHALDEAN_DECANS[signs[signId].fr][dIndex];
+            let decanRulerP     = planetes.find(p=>p.planet.fr===decanRulerName);
+            let decanRulerHouse = decanRulerP ? getHouseNumber(decanRulerP.fullDegree) : "?";
+            let isAngular   = angularPlanets.find(ap=>ap.planet===name);
+            let isCritical  = criticalPlanets.find(cp=>cp.planet===name);
+            let minorStr    = getMinorAspectsStr(name);
+            const oobInfo   = planeteOOB.find(o => o.planete === name) || null;
+            const declAspects = [
+                ...paralleles.filter(p => p.p1 === name || p.p2 === name).map(p => ({
+                    type: "//", autre: p.p1 === name ? p.p2 : p.p1, orb: p.orb, hasLuminaire: p.hasLuminaire
+                })),
+                ...contreParalleles.filter(p => p.p1 === name || p.p2 === name).map(p => ({
+                    type: "#", autre: p.p1 === name ? p.p2 : p.p1, orb: p.orb, hasLuminaire: p.hasLuminaire
+                }))
+            ];
+            const termLord = getTermRuler(p_sign, loc.normDegree);
+            const termLordHouse = termLord ? getHouseNumber(planetes.find(pp => pp.planet.fr === termLord)?.fullDegree ?? 0) : null;
+            const triplicityRuler = getTriplicityRuler(p_sign);
+            const triplicityHouse = triplicityRuler ? getHouseNumber(planetes.find(pp => pp.planet.fr === triplicityRuler)?.fullDegree ?? 0) : null;
+            const triplicityPart = getTriplicityParticipant(p_sign);
+            const triplicityPartHouse = triplicityPart ? getHouseNumber(planetes.find(pp => pp.planet.fr === triplicityPart)?.fullDegree ?? 0) : null;
+            return {
+                planete:name, retro:loc.retroStr, degre:loc.normDegree, dignite:getDignity(name,p_sign),
+                sac_a_dos:{ signes:planetRulerships[name]||[], maisons:importH },
+                patron:patronData,
+                termLord: termLord ? { nom: termLord, maison: termLordHouse } : null,
+                triplicityRuler: triplicityRuler ? { nom: triplicityRuler, maison: triplicityHouse } : null,
+                triplicityParticipant: triplicityPart ? { nom: triplicityPart, maison: triplicityPartHouse } : null,
+                decan:{ num:dIndex+1, maitre:decanRulerName, maitreHouse:decanRulerHouse },
+                aspectsStr:         getMajorAspectsStr(name),
+                promotedAspectsStr: getPromotedMinorAspectsStr(name),
+                minorAspectsStr:    minorStr,
+                helio:       helioConditions[name] || null,
+                angular:     isAngular  ? `PLANÈTE ANGULAIRE — à ${isAngular.orb}° de ${isAngular.angle} (priorité maximale)` : null,
+                criticalDeg: isCritical ? isCritical.flags.join(" | ") : null,
+                oob:         oobInfo,
+                declAspects,
+                planetName:  name
+            };
+        });
+        segments.push({ signe:signObj.fr, type, degre_debut:degDebut, decan:decanCuspide, maitre:proprioData, locataires:locatairesData });
+    }
+    fiches_maisons.push({ maison:m.House, segments });
+
+    // Vérifie si TOUS les segments de cette maison sont sans locataires
+    const isMaisonEntierementVide = segments.every(seg => seg.locataires.length === 0);
+
+    // ── PROMPT IA pour cette maison ──
+    const HOUSE_SIGNIF = {
+        1:  "Identité, corps physique, tempérament, vitalité, apparence, comportement instinctif, vie en général",
+        2:  "Ressources personnelles, argent gagné, valeurs, talents innés, rapport à la matière et à la possession",
+        3:  "Communication, fratrie, déplacements courts, apprentissage, environnement immédiat, écriture, pensée quotidienne",
+        4:  "Foyer, famille, racines ancestrales, fin de vie, héritage psychique, parent nocturne (mère tradition moderne)",
+        5:  "Créativité, enfants, amour romantique, jeux, loisirs, spéculation, expression authentique du Moi",
+        6:  "Santé, travail quotidien, service rendu, hygiène de vie, animaux domestiques, subordination, routines",
+        7:  "Partenariat amoureux et professionnel, contrats, l'Autre comme miroir, mariage, adversaires déclarés",
+        8:  "Transformation, mort, héritage reçu, sexualité, ressources partagées, dette, l'occulte, crises régénératrices",
+        9:  "Voyages lointains, philosophie, spiritualité, enseignement supérieur, loi, étranger, quête de sens",
+        10: "Vocation, carrière, statut social, réputation publique, autorité, parent diurne (père tradition moderne), MC",
+        11: "Collectif, amis et réseaux, projets d'avenir, idéaux sociaux, associations, soutien reçu",
+        12: "Monde caché, retraite volontaire ou forcée, karma, épreuves, ennemis cachés, institutions, inconscient profond"
+    };
+    let p = `Tu es un astrologue expert. Analyse la Maison ${m.House} en respectant strictement cette chronologie d'énergies.\n`;
+    p += `Registre thématique (cadrage interprétatif uniquement — ne pas décrire la maison de façon générique) : ${HOUSE_SIGNIF[m.House]}.\n`;
+    p += `INSTRUCTION : Utilise ce registre comme filtre pour ancrer chaque placement planétaire dans la vie concrète de cet individu. Ne pas expliquer ce que "représente" la Maison ${m.House} — les rapports descriptifs existent déjà en aval. Toute phrase doit être personnalisée (ex : "ta relation à l'autorité est structurée par Saturne..." plutôt que "la Maison 10 représente la carrière...").\n`;
+    p += `Règles : 1) Maîtrises modernes (Pluton=Scorpion). 2) Décans Chaldéens.\n`;
+    p += `\n[SECT DU THÈME — Filtre interprétatif obligatoire]\nType : ${sectStr}. Luminaire directeur = ${stats.sectLight}. Bénéfique de secte = ${stats.sectBenefic} (agit en pleine puissance). Maléfique tempéré (IN-secte) = ${stats.sectMalefic}. Maléfique HORS-secte (contra-secte, aggravé) = ${stats.contraSectMalefic}.\n→ Appliquer ce filtre : si ${stats.sectBenefic} est dans cette maison, il y exerce sa bienveillance maximale. Si ${stats.contraSectMalefic} y est, ses tensions sont exacerbées.\n⛔ Ne JAMAIS dire "${stats.contraSectMalefic} est le maléfique de ta secte" — ${stats.contraSectMalefic} est HORS-secte = aggravé.\n`;
+    const rmHere = mutualReceptions.filter(r => r.house1 === m.House || r.house2 === m.House);
+    if (rmHere.length > 0) {
+        p += `\n[RÉCEPTIONS MUTUELLES EN M${m.House}]\n`;
+        rmHere.forEach(r => {
+            const typeLabel = r.type === "domicile" ? "par domicile (puissante)" : r.type === "exaltation" ? "par exaltation" : "mixte (domicile/exaltation)";
+            p += `- ${r.p1} (${r.sign1}, M${r.house1}) ↔ ${r.p2} (${r.sign2}, M${r.house2}) : réception mutuelle ${typeLabel} — coopération renforcée entre ces deux planètes, chacune dignifie l'autre.\n`;
+        });
+    }
+
+    // Configurations actives dans cette maison
+    let houseConfs = configurations.filter(c => segments.some(seg => seg.locataires.some(l => c.planets && c.planets.includes(l.planete))));
+    if (houseConfs.length > 0) {
+        p += `\n=== CONFIGURATIONS NATALES (planètes de cette maison impliquées, triées par Score de Puissance) ===\n`;
+        p += `⚠ Ces configurations sont calculées par ASPECT ou par SIGNE — leurs planètes peuvent résider dans des maisons DIFFÉRENTES. Un "Stellium ${segments[0]?.signe || ""}" ne signifie PAS que toutes ses planètes sont dans M${m.House}. Seuls les LOCATAIRES listés ci-dessus résident physiquement dans cette maison.\n`;
+        const houseSubConfs = houseConfs.filter(c => c.subConfigOf);
+        if (houseSubConfs.length > 0) p += `NOTE : Configurations marquées [composante de X] = planètes partagées avec la figure parente. Ne pas les traiter comme des événements indépendants.\n`;
+        houseConfs.forEach(c => {
+            const scoreLabel = c.puissanceScore !== undefined ? ` [Score: ${c.puissanceScore} — ${c.prioriteLabel}]` : "";
+            const subNote    = c.subConfigOf
+                ? c.subConfigType === "variant"
+                    ? ` [variante du ${c.subConfigOf} — ${c.sharedPlanets} planètes communes — interpréter comme facette, ne pas doubler]`
+                    : ` [composante du ${c.subConfigOf} — même planètes, ne pas doubler l'interprétation]`
+                : "";
+            p += `  [${c.type}]${scoreLabel} ${c.description}${subNote}\n`;
+        });
+    }
+
+    segments.forEach((seg, idx) => {
+        let mHStr   = seg.maitre?.dignite !== "-" ? ` — État: ${seg.maitre.dignite}` : "";
+        let mHelio  = seg.maitre?.helio?.condition ? ` ⚠ ÉTAT SOLAIRE: ${seg.maitre.helio.condition}` : "";
+        if (seg.type === "Cuspide") {
+            p += `\n1. OUVERTURE (Cuspide) : ${seg.signe} à ${seg.degre_debut.toFixed(2)}°, Décan ${seg.decan} Chaldéen.\n`;
+            // Étoiles fixes sur la pointe (cuspide) de cette maison
+            const cuspStars = etoileCuspMatches.filter(ec => ec.maison === m.House);
+            if (cuspStars.length > 0) {
+                cuspStars.forEach(ec => {
+                    p += `   ★ ÉTOILE FIXE SUR L'ANGLE ${ec.angle} (M${m.House}) : ${ec.etoile} (${ec.etoile_en}) — orbe ${ec.orb}°, ${ec.precision}\n`;
+                    p += `     → ${ec.desc}\n`;
+                    p += `     → INSTRUCTION : Cette étoile fixe teinte l'identité FONDAMENTALE de l'angle ${ec.angle} (Maison ${m.House}). Son influence est permanente et structure en profondeur tous les thèmes de cet angle, qu'il y ait ou non des locataires.\n`;
+                });
+            }
+            p += `   Maître du signe de la cuspide : ${seg.maitre.planete}${seg.maitre.retro} en M${seg.maitre.maison} (${seg.maitre.signe}${mHStr})${mHelio}. [NB : ce "Maître" est le ruler du signe ${seg.signe} — à ne PAS confondre avec le Gouverneur du thème ni l'Almutem Figuris]\n`;
+            p += `   Aspects du maître : ${getMajorAspectsStr(seg.maitre.planete)}.\n`;
+            if (seg.maitre.patron) p += `   Chaîne : ${seg.signe} → M${seg.maitre.maison} → finalité M${seg.maitre.patron.maison} (${seg.maitre.patron.planete}).\n`;
+            else                   p += `   Chaîne : énergie de ${seg.signe} trouve sa finalité en M${seg.maitre.maison} (${seg.maitre.planete} en domicile).\n`;
+        } else {
+            p += `\n${idx+1}. SUITE (${seg.type}) : ${seg.signe}. Maître du signe : ${seg.maitre.planete}${seg.maitre.retro} (M${seg.maitre.maison}${mHStr})${mHelio}. Aspects : ${getMajorAspectsStr(seg.maitre.planete)}.\n`;
+        }
+        if (seg.locataires.length > 0) {
+            p += `   LOCATAIRES EN ${seg.signe.toUpperCase()} :\n`;
+            seg.locataires.forEach(l => {
+                const isLot = LOTS_MATHEMATIQUES.has(l.planete);
+                let digStr = l.dignite !== "-" ? ` (${l.dignite})` : "";
+                p += `      * ${l.planete}${l.retro} à ${l.degre.toFixed(2)}°${isLot ? "" : digStr}`;
+                if (isLot) {
+                    p += `\n        - Aspects majeurs : ${l.aspectsStr}.\n`;
+                } else {
+                    if (l.angular)     p += `\n        ⭐ ${l.angular}`;
+                    if (l.criticalDeg) p += `\n        ⚠ DEGRÉ CRITIQUE : ${l.criticalDeg}`;
+                    if (l.retro && l.retro.includes("Rétrograde")) p += `\n        ↩ RÉTROGRADE : principe intériorisé, expression différée ou révisée`;
+                    if (l.helio?.condition)   p += `\n        ☀ ÉTAT SOLAIRE : ${l.helio.condition}`;
+                    if (l.helio?.orientation) p += ` | ${l.helio.orientation}`;
+                    if (l.oob) p += `\n        ⚡ OOB : ${l.oob.declinaison.toFixed(2)}° ${l.oob.hemisphere} (+${l.oob.depassement}°)`;
+                    if (l.declAspects?.length > 0) l.declAspects.forEach(da => {
+                        const typeLabel = da.type === "//" ? "// PARALLÈLE" : "# CONTRE-PARALLÈLE";
+                        const lumTag    = da.hasLuminaire ? " [LUMINAIRE]" : "";
+                        p += `\n        ${typeLabel} avec ${da.autre} (orbe ${da.orb}°)${lumTag}`;
+                    });
+                    const etoilesLoc = etoileMatches.filter(em => em.planete === l.planete);
+                    if (etoilesLoc.length > 0) {
+                        etoilesLoc.forEach(em => {
+                            p += `\n        ★ ÉTOILE FIXE : ${em.etoile} (${em.etoile_en}), orbe ${em.orb}°, ${em.precision}`;
+                            p += `\n          → ${em.desc}`;
+                        });
+                    }
+                    p += `\n`;
+                    p += `        - Décan Chaldéen ${l.decan.num}, co-gouverné par ${l.decan.maitre} (M${l.decan.maitreHouse}).\n`;
+                    if (l.termLord) p += `        - Terme : ${l.termLord.nom} (M${l.termLord.maison}).\n`;
+                    if (l.triplicityRuler) p += `        - Triplicité : ${l.triplicityRuler.nom} (M${l.triplicityRuler.maison}).\n`;
+                    if (l.triplicityParticipant) p += `        - Triplicité participante : ${l.triplicityParticipant.nom} (M${l.triplicityParticipant.maison}).\n`;
+                    p += `        - Sac à dos : ${l.sac_a_dos.maisons.length > 0 ? "M" + l.sac_a_dos.maisons.join(" et M") : "(aucune maîtrise)"}.\n`;
+                    p += `        - Patron : ${l.patron ? l.patron.nom+" en M"+l.patron.maison : "Domicile"}.\n`;
+                    p += `        - Aspects majeurs : ${l.aspectsStr}.\n`;
+                    if (l.promotedAspectsStr) {
+                        p += `\n        ⚠ ASPECTS MINEURS PROMUS :\n${l.promotedAspectsStr}\n`;
+                    }
+                }
+            });
+        } else {
+            p += `   Aucun locataire physique dans ce segment (${seg.signe}).\n`;
+            if (isMaisonEntierementVide) {
+                p += `   → INSTRUCTION LLM : Cette maison est entièrement vide. Sa dynamique est régie EXCLUSIVEMENT par le maître du signe de sa cuspide (${seg.maitre.planete}). Pivoter directement vers sa position en M${seg.maitre.maison}${seg.maitre.dignite && seg.maitre.dignite !== "-" ? ` (${seg.maitre.dignite})` : ""}, ses aspects et son propre maître de signe. Ne pas commenter l'absence de planète.\n`;
+            }
+        }
+    });
+    const locCount = segments.reduce((n,s) => n + (s.locataires?.length || 0), 0);
+    const aspCount = segments.reduce((n,s) => n + s.locataires.reduce((a,l) => a + (l.aspectsStr?.split(",").length || 0), 0), 0);
+    if (isMaisonEntierementVide) {
+        p += `\n[TOKEN BUDGET : 15-25 lignes — maison vide, pivoter sur le Maître]`;
+    } else if (locCount >= 3 || aspCount >= 8) {
+        p += `\n[TOKEN BUDGET : 40-60 lignes — maison très chargée, développer en profondeur]`;
+    } else {
+        p += `\n[TOKEN BUDGET : 25-40 lignes — développement standard]`;
+    }
+    const rappelLines = ["Soleil","Lune","Mercure","Vénus","Mars","Jupiter","Saturne","Uranus","Neptune","Pluton","Chiron"].map(n => {
+        const pl = planetes.find(x => x.planet?.fr === n);
+        return pl ? `${n} M${getHouseNumber(pl.fullDegree)}(${pl.zodiac_sign?.name?.fr || "?"})` : null;
+    }).filter(Boolean);
+    p += `\n\n[RAPPEL FINAL — POSITIONS : ${rappelLines.join(" | ")}]\n⛔ Vérifier chaque mention de maison/signe avant de rédiger.`;
+    prompts[`maison_${m.House}`] = p;
+});
+
+// 6e-quint. SIGNES INTERCEPTÉS — détection explicite (post fiches_maisons)
+const interceptedSigns = [];
+fiches_maisons.forEach(fm => {
+    fm.segments.forEach(seg => {
+        if (seg.type === "Intercepté / Suite" || seg.type === "Intercepté") {
+            const planetsInIntercepted = planetes.filter(p => {
+                const pSign = p.zodiac_sign?.name?.fr;
+                const house = getHouseNumber(p.fullDegree);
+                return pSign === seg.signe && house === fm.maison;
+            }).map(p => p.planet?.fr || p.planet?.en || "");
+            interceptedSigns.push({
+                sign: seg.signe, house: fm.maison,
+                planets: planetsInIntercepted.filter(Boolean),
+                description: planetsInIntercepted.length > 0
+                    ? `${seg.signe} intercepté en M${fm.maison} — ${planetsInIntercepted.join(", ")} piégé(s) dans ce signe, énergie bloquée qui demande un effort conscient d'expression`
+                    : `${seg.signe} intercepté en M${fm.maison} — les thématiques de ce signe sont latentes et difficiles d'accès dans cette maison`
+            });
+        }
+    });
+});
+
+// ── Sprint 6 — Module B2 : Profil de sensibilité élémentaire/modale ──
+const ELEMENT_TRANSIT_MAP = {
+    "Feu":["Mars","Jupiter"],"Terre":["Saturne","Vénus"],
+    "Air":["Uranus","Mercure"],"Eau":["Neptune","Pluton"]
+};
+const computeSensitivityProfile = (elStats, moStats) => {
+    const total = Object.values(elStats).reduce((a,b)=>a+b,0) || 12;
+    const lines = [];
+    Object.entries(elStats).forEach(([element, count]) => {
+        const ratio = count / total;
+        const affiliated = ELEMENT_TRANSIT_MAP[element]?.join("/") || "";
+        if (ratio <= 0.15) {
+            lines.push(`VULNÉRABILITÉ ${element.toUpperCase()} (${count}/${total}) : les transits de ${affiliated} peuvent être particulièrement déstabilisants car le thème manque de récepteurs naturels dans cet élément. L'intégration demande un effort conscient.`);
+        } else if (ratio >= 0.35) {
+            lines.push(`FAMILIARITÉ ${element.toUpperCase()} (${count}/${total}) : les transits de ${affiliated} sont dans la "langue maternelle" du thème — leur énergie est reconnue et plus facilement intégrée, même si l'aspect est tendu.`);
+        }
+    });
+    if (moStats.Fixe >= 5) {
+        lines.push(`RÉSISTANCE AU CHANGEMENT (Fixe: ${moStats.Fixe}) : les transits d'Uranus et de Pluton sur les positions fixes seront vécus avec une intensité maximale — la structure résiste avant de céder brusquement.`);
+    }
+    if (moStats.Mutable >= 5) {
+        lines.push(`ADAPTABILITÉ ÉLEVÉE (Mutable: ${moStats.Mutable}) : bonne capacité d'intégration des transits, mais risque de dispersion ou de perte de cap sous Neptune.`);
+    }
+    if (lines.length === 0) return "";
+    return `\n=== PROFIL DE SENSIBILITÉ DU THÈME ===\n${lines.join("\n")}\n→ INSTRUCTION : module ton interprétation en tenant compte de ces sensibilités. Un transit "harmonique" dans un élément déficitaire peut quand même déstabiliser. Un transit "tendu" dans un élément familier sera mieux intégré que prévu.\n`;
+};
+const sensitivityProfileTheme = computeSensitivityProfile(stats.elements, stats.modes);
+
+// ─────────────────────────────────────────────────────────────────
+// 8. PROMPT SYNTHÈSE GLOBALE (Prompt 13)
+// ─────────────────────────────────────────────────────────────────
+let mc  = planetes.find(p => p.planet.fr === "Milieu du Ciel");
+let ns  = planetes.find(p => p.planet.fr === "Nœud Sud");
+let pof = planetes.find(p => p.planet.fr === "Part de Fortune");
+let pos = planetes.find(p => p.planet.fr === "Lot de l'Esprit");
+
+let ascSign       = asc?.zodiac_sign?.name?.fr || null;
+let chartRulerName = ascSign ? signs.find(s => s.fr === ascSign)?.ruler : null;
+let chartRuler    = chartRulerName ? planetes.find(p => p.planet.fr === chartRulerName) : null;
+stats.chart_ruler = chartRulerName || null;
+const MAITRES_TRAD_THEME = {
+    "Bélier":"Mars","Taureau":"Vénus","Gémeaux":"Mercure","Cancer":"Lune",
+    "Lion":"Soleil","Vierge":"Mercure","Balance":"Vénus","Scorpion":"Mars",
+    "Sagittaire":"Jupiter","Capricorne":"Saturne","Verseau":"Saturne","Poissons":"Jupiter"
+};
+let chartRulerTradName = ascSign ? MAITRES_TRAD_THEME[ascSign] : null;
+let chartRulerTrad = (chartRulerTradName && chartRulerTradName !== chartRulerName) ? planetes.find(p => p.planet.fr === chartRulerTradName) : null;
+stats.chart_ruler_trad = (chartRulerTradName && chartRulerTradName !== chartRulerName) ? chartRulerTradName : null;
+
+let pSynth = `Tu es un astrologue expert. Fais la synthèse globale de ce thème natal en utilisant les maîtrises modernes.\n\n`;
+
+pSynth += `=== IDENTITÉ DU THÈME ===\n`;
+pSynth += `Type : ${sectStr}.\n`;
+pSynth += `Éléments : Feu(${stats.elements.Feu}) Terre(${stats.elements.Terre}) Air(${stats.elements.Air}) Eau(${stats.elements.Eau}).\n`;
+pSynth += `Modes : Cardinal(${stats.modes.Cardinal}) Fixe(${stats.modes.Fixe}) Mutable(${stats.modes.Mutable}).\n`;
+pSynth += `Secte : Luminaire = ${stats.sectLight}, Bénéfique de secte = ${stats.sectBenefic}, Maléfique tempéré = ${stats.sectMalefic}, Maléfique aggravé (contra-secte) = ${stats.contraSectMalefic}.\n`;
+pSynth += `→ INSTRUCTION : Le ${stats.sectLight} est le luminaire directeur (${sectStr}). ${stats.sectBenefic} agit en pleine puissance bénéfique, ${stats.sectMalefic} est le maléfique tempéré (IN-secte). ${stats.contraSectMalefic} est le maléfique HORS-secte (contra-secte) = le plus nuisible.\n`;
+pSynth += `⛔ TERMINOLOGIE OBLIGATOIRE : ${stats.sectMalefic} = "maléfique tempéré" ou "maléfique de secte". ${stats.contraSectMalefic} = "maléfique hors-secte" ou "maléfique aggravé (contra-secte)". Ne JAMAIS dire "${stats.contraSectMalefic} est le maléfique de ta secte" — c'est FAUX, ${stats.contraSectMalefic} est HORS de la secte ${sectStr.split(" ")[0].toLowerCase()}.\n`;
+
+if (sensitivityProfileTheme) pSynth += sensitivityProfileTheme;
+
+if (configurations.length > 0) {
+    pSynth += `\n=== CONFIGURATIONS NATALES MAJEURES (triées par Score de Puissance décroissant) ===\n`;
+    pSynth += `Légende scores : PRIORITÉ ABSOLUE ≥120 | Majeure ≥80 | Significative ≥50 | Mineure <50\n`;
+    const hasSubs = configurations.some(c => c.subConfigOf);
+    const hasVariants = configurations.some(c => c.subConfigType === "variant");
+    if (hasSubs) pSynth += `INSTRUCTION : Les configurations marquées [composante de X] sont géométriquement contenues dans la figure parente — interpréter comme facettes, NON comme événements distincts.\n`;
+    if (hasVariants) pSynth += `INSTRUCTION : Les configurations marquées [variante de X] partagent la majorité de leurs planètes avec une figure de même type déjà listée — ne pas doubler l'interprétation.\n`;
+    configurations.forEach(c => {
+        const scoreLabel = c.puissanceScore !== undefined ? ` [Score: ${c.puissanceScore} — ${c.prioriteLabel}]` : "";
+        const subNote    = c.subConfigOf
+            ? c.subConfigType === "variant"
+                ? ` [variante du ${c.subConfigOf} — ${c.sharedPlanets} planètes communes — ne pas doubler l'interprétation]`
+                : ` [composante du ${c.subConfigOf} — ne pas doubler l'interprétation]`
+            : "";
+        pSynth += `  [${c.type}]${scoreLabel} ${c.description}${subNote}\n`;
+    });
+}
+if (stationaryPlanets.length > 0) {
+    pSynth += `\n=== PLANÈTES STATIONNAIRES (énergie concentrée, marqueur de premier ordre) ===\n`;
+    stationaryPlanets.forEach(sp => { pSynth += `  ${sp.planet} ${sp.direction} en ${sp.sign} (M${sp.house}) — vitesse ${sp.speed}°/jour (seuil ${sp.threshold}°/jour)\n`; });
+}
+if (angularPlanets.length > 0) {
+    pSynth += `\n=== PLANÈTES ANGULAIRES (priorité maximale d'interprétation) ===\n`;
+    angularPlanets.forEach(ap => { pSynth += `  ${ap.planet} à ${ap.orb}° de ${ap.angle} (M${ap.house}, ${ap.sign})\n`; });
+}
+if (criticalPlanets.length > 0) {
+    pSynth += `\n=== DEGRÉS CRITIQUES ===\n`;
+    criticalPlanets.forEach(cp => { pSynth += `  ${cp.planet} à ${cp.degree}° ${cp.sign} : ${cp.flags.join(" | ")}\n`; });
+}
+if (mutualReceptions.length > 0) {
+    pSynth += `\n=== RÉCEPTIONS MUTUELLES ===\n`;
+    mutualReceptions.forEach(mr => {
+        const mrDesc = mr.type === "exaltation"
+            ? "réception mutuelle par EXALTATION — coopération inspirée, élan créateur mutuel"
+            : "réception mutuelle par DOMICILE — coopération profonde, échange de ressources structurel";
+        pSynth += `  ${mr.p1} (${mr.sign1}, M${mr.house1}) ↔ ${mr.p2} (${mr.sign2}, M${mr.house2}) : ${mrDesc}\n`;
+    });
+}
+if (interceptedSigns.length > 0) {
+    pSynth += `\n=== SIGNES INTERCEPTÉS (énergie bloquée, latence) ===\n`;
+    interceptedSigns.forEach(is => { pSynth += `  ${is.description}\n`; });
+}
+pSynth += `\n=== FORME DU THÈME (Jones Pattern) ===\n  ${chartShape.shape} : ${chartShape.description}\n`;
+if (chartShape.singleton) {
+    const singletonPlanet = planetes.find(p => p.planet.fr === chartShape.singleton);
+    const singletonHouse = singletonPlanet ? getHouseNumber(singletonPlanet.fullDegree) : "?";
+    const singletonSign = singletonPlanet?.zodiac_sign?.name?.fr || "?";
+    const singletonRetro = singletonPlanet?.retroStr || "";
+    pSynth += `→ INSTRUCTION PRIORITAIRE : Le singleton ${chartShape.singleton}${singletonRetro} en M${singletonHouse} (${singletonSign}) est le CANAL PRINCIPAL par lequel toute l'énergie planétaire du thème est focalisée et exprimée. Ce singleton doit être traité comme un PILIER INTERPRÉTATIF MAJEUR, au même titre que le Gouverneur et l'Almutem. Sa maison (M${singletonHouse}), son signe, ses aspects et sa dignité déterminent COMMENT le natif distribue et concentre ses forces vitales. Ne JAMAIS omettre le singleton dans la synthèse.\n`;
+}
+if (antiscia.length > 0) {
+    pSynth += `\n=== ANTISCIA & CONTRA-ANTISCIA (connexions cachées) ===\n`;
+    antiscia.slice(0, 10).forEach(a => { pSynth += `  ${a.p1} — ${a.p2} : ${a.type} (orbe ${a.orb}°)\n`; });
+}
+if (midpointActivations.length > 0) {
+    pSynth += `\n=== MIDPOINTS ACTIVÉS ===\n`;
+    midpointActivations.slice(0,12).forEach(ma => { pSynth += `  ${ma.activator} active le midpoint ${ma.midpoint} (${ma.type}, orbe ${ma.orb}°)\n`; });
+}
+let helioAlerts = Object.keys(helioConditions).filter(k => helioConditions[k].condition);
+if (helioAlerts.length > 0) {
+    pSynth += `\n=== CONDITIONS HÉLIOCENTRIQUES (rapport au Soleil natal) ===\n`;
+    helioAlerts.forEach(k => { pSynth += `  ${k} : ${helioConditions[k].condition}\n`; });
+}
+
+if (planeteOOB.length > 0) {
+    pSynth += `\n=== ⚡ PLANÈTES / OBJETS HORS LIMITES (Out of Bounds — OOB) ===\n`;
+    pSynth += `Seuil : déclinaison > ±${OOB_THRESHOLD}°. Ces objets échappent symboliquement à l'autorité du Soleil.\n`;
+    planeteOOB.forEach(o => {
+        pSynth += `  ⚡ ${o.planete} : ${o.declinaison.toFixed(2)}° ${o.hemisphere} (dépasse le seuil de +${o.depassement}°) — énergie exacerbée, imprévisible, électron libre\n`;
+    });
+    pSynth += `→ INSTRUCTION : Interpréter le principe de chaque objet OOB comme amplifié et hors-normes. Son expression peut être géniale, excessive ou disruptive selon le reste du thème. Les OOB sont des marqueurs de singularité psychologique forte.\n`;
+}
+pSynth += `\n⭐ ÉTOILES ROYALES : seules 4 étoiles portent ce titre — Aldébaran, Régulus, Antarès, Fomalhaut. Toute autre étoile (Bételgeuse, Spica, Sirius, Algol, etc.) est une "Étoile Fixe majeure", JAMAIS "Royale".\n`;
+
+if (paralleles.length > 0 || contreParalleles.length > 0) {
+    pSynth += `\n=== PARALLÈLES & CONTRE-PARALLÈLES DE DÉCLINAISON (3e dimension équatoriale) ===\n`;
+    pSynth += `Orbes appliqués : ${DECL_ORB_STANDARD}° standard | ${DECL_ORB_LUMINAIRE}° si Luminaire impliqué.\n`;
+    if (paralleles.length > 0) {
+        const topPar = paralleles.sort((a,b) => (a.hasLuminaire?0:1)-(b.hasLuminaire?0:1) || a.orb-b.orb).slice(0, 10);
+        pSynth += `PARALLÈLES (//) — Top ${topPar.length} (conjonctions profondes) :\n`;
+        topPar.forEach(p => {
+            const h = p.hemisphere.charAt(0);
+            const lumTag = p.hasLuminaire ? " ★ LUMINAIRE" : "";
+            pSynth += `  // ${p.p1} (${p.decl1.toFixed(2)}°${h}) // ${p.p2} (${p.decl2.toFixed(2)}°${h}) — orbe ${p.orb}°${lumTag}\n`;
+        });
+    }
+    if (contreParalleles.length > 0) {
+        const topCP = contreParalleles.sort((a,b) => (a.hasLuminaire?0:1)-(b.hasLuminaire?0:1) || a.orb-b.orb).slice(0, 8);
+        pSynth += `CONTRE-PARALLÈLES (#) — Top ${topCP.length} (oppositions profondes) :\n`;
+        topCP.forEach(p => {
+            const h1 = p.decl1 > 0 ? "N" : "S", h2 = p.decl2 > 0 ? "N" : "S";
+            const lumTag = p.hasLuminaire ? " ★ LUMINAIRE" : "";
+            pSynth += `  # ${p.p1} (${p.decl1.toFixed(2)}°${h1}) # ${p.p2} (${p.decl2.toFixed(2)}°${h2}) — orbe ${p.orb}°${lumTag}\n`;
+        });
+    }
+    pSynth += `→ INSTRUCTION : Un parallèle fusionne les principes des deux planètes (comme une conjonction). Un contre-parallèle crée une tension entre eux (comme une opposition). Ces aspects opèrent dans la dimension équatoriale, souvent plus profonds psychologiquement que leurs homologues en longitude. Ils renforcent ou complexifient les aspects en longitude existants entre les mêmes planètes.\n`;
+}
+
+pSynth += `\n=== PILIERS DU THÈME ===\n`;
+if (sun) {
+    pSynth += `Cœur (Soleil) en ${sun.zodiac_sign?.name?.fr || "?"} (M${sunHouse}). Aspects majeurs : ${getMajorAspectsStr("Soleil")}\n`;
+    const sunPromo = getPromotedMinorAspectsStr("Soleil");
+    if (sunPromo) pSynth += `   ⚠ Aspects mineurs promus du Soleil :\n${sunPromo}\n`;
+}
+if (moon) {
+    pSynth += `Émotion (Lune) en ${moon.zodiac_sign?.name?.fr || "?"} (M${getHouseNumber(moon.fullDegree)}). Aspects majeurs : ${getMajorAspectsStr("Lune")}\n`;
+    const moonPromo = getPromotedMinorAspectsStr("Lune");
+    if (moonPromo) pSynth += `   ⚠ Aspects mineurs promus de la Lune :\n${moonPromo}\n`;
+}
+if (asc)       pSynth += `Ascendant en ${ascSign}. Aspects : ${getMajorAspectsStr("Ascendant")}\n`;
+if (mc)        pSynth += `MC en ${mc.zodiac_sign?.name?.fr || "?"}. Aspects : ${getMajorAspectsStr("Milieu du Ciel")}\n`;
+if (chartRuler) {
+    let cr_sign   = chartRuler.zodiac_sign?.name?.fr || "?";
+    let cr_dig    = getDignity(chartRulerName, cr_sign);
+    let cr_digStr = cr_dig !== "-" ? ` — ${cr_dig}` : "";
+    let cr_helio  = helioConditions[chartRulerName]?.condition ? ` | ☀ ${helioConditions[chartRulerName].condition}` : "";
+    pSynth += `GOUVERNEUR DU THÈME (moderne) : ${chartRulerName}${chartRuler.retroStr} en M${getHouseNumber(chartRuler.fullDegree)} (${cr_sign}${cr_digStr})${cr_helio}. Aspects majeurs : ${getMajorAspectsStr(chartRulerName)}.\n`;
+    const crPromo = getPromotedMinorAspectsStr(chartRulerName);
+    if (crPromo) pSynth += `   ⚠ Aspects mineurs promus du gouverneur :\n${crPromo}\n`;
+    if (chartRulerTrad) {
+        let crt_sign   = chartRulerTrad.zodiac_sign?.name?.fr || "?";
+        let crt_dig    = getDignity(chartRulerTradName, crt_sign);
+        let crt_digStr = crt_dig !== "-" ? ` — ${crt_dig}` : "";
+        let crt_helio  = helioConditions[chartRulerTradName]?.condition ? ` | ☀ ${helioConditions[chartRulerTradName].condition}` : "";
+        pSynth += `CO-MAÎTRE TRADITIONNEL : ${chartRulerTradName}${chartRulerTrad.retroStr} en M${getHouseNumber(chartRulerTrad.fullDegree)} (${crt_sign}${crt_digStr})${crt_helio}. Aspects : ${getMajorAspectsStr(chartRulerTradName)}.\n`;
+    }
+}
+if (pof) pSynth += `PART DE FORTUNE (abondance/réussite) : ${pof.zodiac_sign?.name?.fr || "?"} (M${getHouseNumber(pof.fullDegree)}). Aspects : ${getMajorAspectsStr("Part de Fortune")}\n`;
+if (pos) pSynth += `LOT DE L'ESPRIT (vocation/conscience) : ${pos.zodiac_sign?.name?.fr || "?"} (M${getHouseNumber(pos.fullDegree)}). Aspects : ${getMajorAspectsStr("Lot de l'Esprit")}\n`;
+
+// Sprint 7 — Action 6 : Lots hermétiques dans la synthèse
+const LOTS_META = [
+    {fr:"Lot de Nécessité", desc:"contraintes, épreuves inévitables, karma"},
+    {fr:"Lot d'Éros", desc:"passion, attraction, élan vital"},
+    {fr:"Lot de Courage", desc:"audace, initiative, affirmation combative"},
+    {fr:"Lot de Némésis", desc:"épreuves saturniennes, leçons, limites structurantes"},
+    {fr:"Lot de Basis", desc:"fondement matériel, socle existentiel"},
+    {fr:"Lot d'Exaltation", desc:"dignité, ambition, élévation"},
+    {fr:"Lot du Daemon", desc:"génie personnel, vocation profonde, daimon socratique"}
+];
+LOTS_META.forEach(lm => {
+    const lotP = planetes.find(p => p.planet.fr === lm.fr);
+    if (lotP) {
+        const h = getHouseNumber(lotP.fullDegree);
+        const asp = getMajorAspectsStr(lm.fr);
+        pSynth += `${lm.fr.toUpperCase()} (${lm.desc}) : ${lotP.zodiac_sign?.name?.fr || "?"} (M${h})${asp ? ". Aspects : " + asp : ""}\n`;
+    }
+});
+
+if (nn && ns)  pSynth += `AXE KARMIQUE : Nœud Sud ${ns.zodiac_sign?.name?.fr || "?"} (M${getHouseNumber(ns.fullDegree)}) → Nœud Nord ${nn.zodiac_sign?.name?.fr || "?"} (M${getHouseNumber(nn.fullDegree)}).\n`;
+
+if (etoileMatches.length > 0) {
+    pSynth += `\n=== ÉTOILES FIXES — CONJONCTIONS PLANÈTES NATALES ===\n`;
+    etoileMatches.forEach(em => {
+        const angleTag = em.isAngle ? " [ANGLE]" : "";
+        pSynth += `  ★ ${em.planete}${angleTag} (M${em.maison}, ${em.signe}) conjoint ${em.etoile} — orbe ${em.orb}°, ${em.precision}\n`;
+    });
+    pSynth += `→ INSTRUCTION : Signatures stellaires permanentes — marqueurs de destin (détail dans les prompts maison).\n`;
+}
+if (etoileCuspMatches.length > 0) {
+    pSynth += `\n=== ÉTOILES FIXES — ANGLES (ASC/IC/DSC/MC) ===\n`;
+    etoileCuspMatches.forEach(ec => {
+        pSynth += `  ★ ${ec.angle} M${ec.maison} conjoint ${ec.etoile} — orbe ${ec.orb}°, ${ec.precision}\n`;
+    });
+    pSynth += `→ INSTRUCTION : Étoile sur un angle = influence déterminante sur ce pilier du thème.\n`;
+}
+
+if (paranResults.length > 0) {
+    const topParans = paranResults.sort((a,b) => a.orb - b.orb).slice(0, 10);
+    pSynth += `\n=== PARANS D'ÉTOILES FIXES — TOP ${topParans.length} (co-angularité — méthode Brady) ===\n`;
+    pSynth += `Un paran se forme quand une étoile fixe et une planète sont simultanément sur un angle cardinal. Latitude ${geoLat.toFixed(2)}° prise en compte.\n`;
+    topParans.forEach(pr => {
+        pSynth += `  ★ PARAN : ${pr.etoile} (${pr.angle_etoile}) ↔ ${pr.planete} (${pr.angle_planete}) — orbe ${pr.orb}° RAMC\n`;
+        pSynth += `    ${pr.interpretation}\n`;
+    });
+    pSynth += `→ INSTRUCTION : Les parans créent un LIEN SYMBOLIQUE étoile↔planète. Lever = début de vie ; Coucher = maturité ; Culmination = réalisation publique. Interpréter comme des résonances de destin.\n`;
+}
+
+pSynth += `\nSynthétise ces dynamiques en identifiant les 3 à 5 grandes thématiques de vie de ce thème : les tensions majeures, les talents naturels, la configuration karmique, et l'orientation générale de l'énergie vitale. Intègre la secte, les configurations, les planètes angulaires, les conditions héliocentriques, les étoiles fixes et les parans comme filtres interprétatifs principaux.`;
+
+pSynth += `\n\n[⛔ CHARTE ANTI-HALLUCINATION — OBLIGATIONS STRICTES]
+1. ORBES & EXACTITUDE : Ne JAMAIS écrire "conjonction exacte" si l'orbe est > 0.5°. Utiliser le qualificatif fourni. "Exactement" = RÉSERVÉ aux orbes ≤ 0.5°.
+2. ÉTOILES FIXES : Une étoile est conjointe UNIQUEMENT si listée dans les données. Ne JAMAIS inférer une conjonction stellaire non fournie ni attribuer la nature d'une étoile à un point non conjoint.
+3. FIDÉLITÉ AUX DONNÉES : Toute affirmation factuelle DOIT provenir des données. Ne JAMAIS inférer une donnée astronomique absente.
+4. CONFIGURATIONS & MAISONS : Stellium par signe ≠ même maison. Vérifier le MÉMO POSITIONS.
+5. INTERDICTION D'EXTRAPOLATION : Ne PAS combiner des données séparées pour créer un lien non fourni.\n`;
+
+prompts["synthese_globale"] = pSynth;
+
+// ─────────────────────────────────────────────────────────────────
+// 9. ÉCLIPSE À LA NAISSANCE (données optionnelles depuis Fusion Données)
+// ─────────────────────────────────────────────────────────────────
+const eclipseNatal = input.eclipseNatal || null;
+let eclipseNatalData = null;
+if (eclipseNatal && (eclipseNatal.type || eclipseNatal.eclipse_type || eclipseNatal.typeEclipse)) {
+    const eclipseDeg = typeof eclipseNatal.fullDegree === 'number' ? eclipseNatal.fullDegree
+                     : typeof eclipseNatal.degree     === 'number' ? eclipseNatal.degree
+                     : typeof eclipseNatal.degre      === 'number' ? eclipseNatal.degre
+                     : null;
+    if (eclipseDeg !== null) {
+        const normalizedDeg = ((eclipseDeg % 360) + 360) % 360;
+        const eclipseHouse  = getHouseNumber(normalizedDeg);
+        const eclipseSign   = signs[Math.floor(normalizedDeg / 30) % 12].fr;
+        const eclipseType   = eclipseNatal.type || eclipseNatal.eclipse_type || eclipseNatal.typeEclipse || "Solaire";
+        const eclipseAstre  = eclipseNatal.astre || (eclipseType.includes("Lunaire") ? "Lune" : "Soleil");
+        const eclipseLabel  =
+            `⚡ ÉCLIPSE À LA NAISSANCE (${eclipseType} de ${eclipseAstre}) en ${eclipseSign} à ${(normalizedDeg % 30).toFixed(1)}° — Maison ${eclipseHouse}. ` +
+            `Cet individu est né le jour même d'une éclipse : les thèmes de la Maison ${eclipseHouse} sont chargés d'une mission de transformation profonde. ` +
+            `Cette éclipse amplifie toutes les lectures de la Maison ${eclipseHouse} et confère une sensibilité karmatique permanente sur ce degré.`;
+
+        if (eclipseHouse >= 1 && eclipseHouse <= 12) {
+            prompts[`maison_${eclipseHouse}`] +=
+                `\n\n=== ⚡ ÉCLIPSE À LA NAISSANCE ===\n${eclipseLabel}\n` +
+                `→ INSTRUCTION : Les thèmes de cette maison doivent être traités comme PRIORITAIRES et AMPLIFIÉS. ` +
+                `L'éclipse natale confère une mission, une blessure-catalyseur ou une rupture fondatrice sur ces thèmes. ` +
+                `Tout transit futur sur ce degré (${(normalizedDeg % 30).toFixed(1)}° ${eclipseSign}) réactivera cette éclipse natale.`;
+        }
+        prompts["synthese_globale"] +=
+            `\n\n=== ⚡ ÉCLIPSE À LA NAISSANCE ===\n${eclipseLabel}\n` +
+            `→ INSTRUCTION : Intégrer cette éclipse natale comme signature karmique centrale du thème. ` +
+            `L'individu porte en lui l'archétype de la rupture/transformation dans les thèmes de la Maison ${eclipseHouse}.`;
+
+        eclipseNatalData = {
+            type: eclipseType, astre: eclipseAstre, sign: eclipseSign,
+            house: eclipseHouse, degree: normalizedDeg, label: eclipseLabel
+        };
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────
+// 10. EMPHASE HÉMISPHÉRIQUE & ORIENTATION DU THÈME
+// ─────────────────────────────────────────────────────────────────
+const coreForHemis = ["Soleil","Lune","Mercure","Vénus","Mars","Jupiter","Saturne","Uranus","Neptune","Pluton"];
+let hemisN=0, hemisS=0, hemisE=0, hemisW=0;
+coreForHemis.forEach(name => {
+    const p = planetes.find(x => x.planet.fr === name); if (!p) return;
+    const house = Number(getHouseNumber(p.fullDegree));
+    if ([1,2,3,4,5,6].includes(house))    hemisN++; else hemisS++;  // M1-M6 = sous l'horizon (privé/intérieur), M7-M12 = au-dessus (public/extérieur)
+    if ([10,11,12,1,2,3].includes(house)) hemisE++; else hemisW++;
+});
+stats.hemispheres = { "Sous l'horizon (M1-M6)": hemisN, "Au-dessus (M7-M12)": hemisS, Est: hemisE, Ouest: hemisW };
+
+// ─────────────────────────────────────────────────────────────────
+// 11. PLANÈTE DOMINANTE (score multi-critères)
+// ─────────────────────────────────────────────────────────────────
+const dominanceScore = {};
+coreForHemis.forEach(name => { dominanceScore[name] = 0; });
+angularPlanets.forEach(ap => { if (dominanceScore[ap.planet] !== undefined) dominanceScore[ap.planet] += 3; });
+coreForHemis.forEach(name => {
+    const p = planetes.find(x => x.planet.fr === name); if (!p) return;
+    const dig = getDignity(name, p.zodiac_sign?.name?.fr);
+    if (dig === "Domicile")   dominanceScore[name] += 2;
+    if (dig === "Exaltation") dominanceScore[name] += 1;
+    if (helioConditions[name]?.condition?.includes("CAZIMI")) dominanceScore[name] += 2;
+});
+coreForHemis.forEach(name => {
+    const count = aspects.filter(a => a.isMajor && (a.p1 === name || a.p2 === name)).length;
+    dominanceScore[name] += Math.min(count, 5);
+});
+// Bonus OOB : planète hors limites = énergie exacerbée (+3 pts)
+coreForHemis.forEach(name => {
+    if (OOB_NAMES_SET.has(name)) dominanceScore[name] += 3;
+});
+// Bonus Station : planète stationnaire = concentration d'énergie exceptionnelle (+4 pts)
+stationaryPlanets.forEach(sp => {
+    if (dominanceScore[sp.planet] !== undefined) dominanceScore[sp.planet] += 4;
+});
+const ascSignForDom = asc ? asc.zodiac_sign?.name?.fr : null;
+const chartRulerForDom = ascSignForDom ? signs.find(s => s.fr === ascSignForDom)?.ruler : null;
+if (chartRulerForDom && dominanceScore[chartRulerForDom] !== undefined) dominanceScore[chartRulerForDom] += 2;
+const chartRulerTradForDom = ascSignForDom ? MAITRES_TRAD_THEME[ascSignForDom] : null;
+if (chartRulerTradForDom && chartRulerTradForDom !== chartRulerForDom && dominanceScore[chartRulerTradForDom] !== undefined) dominanceScore[chartRulerTradForDom] += 1;
+fiches_maisons.forEach(fm => {
+    fm.segments.forEach(seg => {
+        if (seg.locataires.length > 0 && seg.maitre?.planete && dominanceScore[seg.maitre.planete] !== undefined)
+            dominanceScore[seg.maitre.planete] += 1;
+    });
+});
+const dominanteSorted = Object.entries(dominanceScore).sort((a,b) => b[1] - a[1]);
+stats.planete_dominante    = dominanteSorted[0]?.[0] || null;
+stats.dominance_scores     = dominanteSorted;
+
+// ─────────────────────────────────────────────────────────────────
+// 12. ALMUTEM FIGURIS (planète avec le plus de dignités essentielles sur ASC, Sol, Lune, Part de Fortune)
+// ─────────────────────────────────────────────────────────────────
+const keyPoints = [
+    asc   ? { name:"ASC",   deg:asc.fullDegree,   sign:asc.zodiac_sign?.name?.fr }   : null,
+    sun   ? { name:"Sol",   deg:sun.fullDegree,   sign:sun.zodiac_sign?.name?.fr }   : null,
+    moon  ? { name:"Lune",  deg:moon.fullDegree,  sign:moon.zodiac_sign?.name?.fr }  : null,
+    planetes.find(p=>p.planet.fr==="Part de Fortune") ? {
+        name:"PartFort", deg:planetes.find(p=>p.planet.fr==="Part de Fortune").fullDegree,
+        sign:planetes.find(p=>p.planet.fr==="Part de Fortune").zodiac_sign?.name?.fr } : null,
+    mc    ? { name:"MC",    deg:mc.fullDegree,    sign:mc.zodiac_sign?.name?.fr }    : null
+].filter(Boolean);
+
+// Triplicité (Ptolémée/Dorothée) — seigneurs diurnes et nocturnes par élément
+// Triplicités Ptolémée/Dorothée — tous les signes d'un même élément partagent les mêmes seigneurs
+// Feu: Soleil(J) / Jupiter(N) | Terre: Vénus(J) / Lune(N) | Air: Saturne(J) / Mercure(N) | Eau: Vénus(J) / Mars(N)
+const TRIPLIC_DAY = {
+    "Bélier":"Soleil", "Lion":"Soleil",    "Sagittaire":"Soleil",
+    "Taureau":"Vénus", "Vierge":"Vénus",   "Capricorne":"Vénus",
+    "Gémeaux":"Saturne","Balance":"Saturne","Verseau":"Saturne",
+    "Cancer":"Vénus",  "Scorpion":"Vénus", "Poissons":"Vénus"
+};
+const TRIPLIC_NIGHT = {
+    "Bélier":"Jupiter","Lion":"Jupiter",   "Sagittaire":"Jupiter",
+    "Taureau":"Lune",  "Vierge":"Lune",    "Capricorne":"Lune",
+    "Gémeaux":"Mercure","Balance":"Mercure","Verseau":"Mercure",
+    "Cancer":"Mars",   "Scorpion":"Mars",  "Poissons":"Mars"
+};
+
+const almutemScore = {};
+coreForHemis.forEach(name => {
+    almutemScore[name] = 0;
+    keyPoints.forEach(kp => {
+        const dig = getDignity(name, kp.sign);
+        if (dig === "Domicile")   almutemScore[name] += 5;
+        if (dig === "Exaltation") almutemScore[name] += 4;
+        if (dig === "Exil")       almutemScore[name] -= 5;
+        if (dig === "Chute")      almutemScore[name] -= 4;
+        // Triplicité (+3) — seigneur selon la secte du thème
+        const triplRuler = isDayChart ? TRIPLIC_DAY[kp.sign] : TRIPLIC_NIGHT[kp.sign];
+        if (name === triplRuler) almutemScore[name] += 3;
+        // Triplicité participante (+1.5) — 3e seigneur Dorothéen, actif quelle que soit la secte
+        const triplPart = TRIPLIC_PART_EARLY[kp.sign];
+        if (name === triplPart && name !== triplRuler) almutemScore[name] += 1.5;
+        // Terme égyptien (+2)
+        const termRuler = getTermRuler(kp.sign, kp.deg);
+        if (name === termRuler) almutemScore[name] += 2;
+        // Face / Décan chaldéen (+1)
+        const decanIdx  = Math.min(Math.floor((kp.deg % 30) / 10), 2);
+        const faceRuler = CHALDEAN_DECANS[kp.sign]?.[decanIdx];
+        if (name === faceRuler) almutemScore[name] += 1;
+    });
+});
+const almutemSorted = Object.entries(almutemScore).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]);
+stats.almutem_figuris = almutemSorted[0]?.[0] || null;
+stats.almutem_scores  = almutemSorted;
+
+// ─────────────────────────────────────────────────────────────────
+// 12b. TECHNIQUES AVANCÉES — Dispositeur final, Dignité accidentelle, Hayz, Assiégée, VOC Lune
+// ─────────────────────────────────────────────────────────────────
+
+// ── C2 : ARBRE DES DISPOSITIONS & DISPOSITEUR FINAL ──
+const SIGN_RULER_MAP = {
+    "Bélier":"Mars","Taureau":"Vénus","Gémeaux":"Mercure","Cancer":"Lune",
+    "Lion":"Soleil","Vierge":"Mercure","Balance":"Vénus","Scorpion":"Pluton",
+    "Sagittaire":"Jupiter","Capricorne":"Saturne","Verseau":"Uranus","Poissons":"Neptune"
+};
+const DISPOSITOR_PLANETS = ["Soleil","Lune","Mercure","Vénus","Mars","Jupiter","Saturne","Uranus","Neptune","Pluton"];
+const dispositorTree = {};
+DISPOSITOR_PLANETS.forEach(name => {
+    const chain = [];
+    let current = name;
+    const visited = new Set();
+    while (current && !visited.has(current)) {
+        visited.add(current);
+        const p = planetes.find(x => x.planet.fr === current);
+        if (!p) break;
+        const sign = p.zodiac_sign?.name?.fr;
+        if (!sign) break;
+        const ruler = SIGN_RULER_MAP[sign];
+        const isInDomicile = getDignity(current, sign) === "Domicile";
+        chain.push({ planet: current, sign, ruler, inDomicile: isInDomicile });
+        if (isInDomicile) break;
+        current = ruler;
+    }
+    dispositorTree[name] = {
+        chain,
+        finalDispositor: chain.find(c => c.inDomicile)?.planet || null,
+        isLoop: !chain.some(c => c.inDomicile)
+    };
+});
+const finalDispositors = [...new Set(
+    Object.values(dispositorTree).map(d => d.finalDispositor).filter(Boolean)
+)];
+const dispositorStr = finalDispositors.length > 0
+    ? `Dispositeur(s) final(aux) : ${finalDispositors.join(", ")} — planète(s) en domicile concentrant le pouvoir de la chaîne de maîtrise. Toute la carte est ultimement « commandée » par ${finalDispositors.length === 1 ? 'cette planète' : 'ces planètes'}.`
+    : `Aucun dispositeur final unique — chaîne(s) de disposition en boucle (réceptions mutuelles ou orbite fermée), indiquant un réseau de pouvoir distribué plutôt qu'une seule planète directrice.`;
+
+// ── C3 : DIGNITÉ ACCIDENTELLE (Table de Lilly simplifiée) ──
+const ANGULAR_HOUSES_SET = new Set([1, 10]);
+const STRONG_HOUSES_SET  = new Set([7, 4]);
+const SUCCEDENT_HOUSES   = new Set([2, 5, 8, 11]);
+const CADENT_WEAK_HOUSES = new Set([6, 12]);
+const MASCULINE_SIGNS    = new Set(["Bélier","Gémeaux","Lion","Balance","Sagittaire","Verseau"]);
+const FEMININE_SIGNS     = new Set(["Taureau","Cancer","Vierge","Scorpion","Capricorne","Poissons"]);
+const DIURNAL_PLANETS    = new Set(["Soleil","Jupiter","Saturne"]);
+const NOCTURNAL_PLANETS  = new Set(["Lune","Vénus","Mars"]);
+const MALEFICS_TRAD      = new Set(["Mars","Saturne"]);
+const BENEFICS_TRAD      = new Set(["Jupiter","Vénus"]);
+
+const accidentalDignityScores = {};
+DISPOSITOR_PLANETS.forEach(name => {
+    const p = planetes.find(x => x.planet.fr === name);
+    if (!p) return;
+    const house = getHouseNumber(p.fullDegree);
+    const isRetro = p.isRetro?.toLowerCase?.() === 'true' || p.isRetro === true;
+    const sign = p.zodiac_sign?.name?.fr;
+    let score = 0;
+    const details = [];
+
+    if (ANGULAR_HOUSES_SET.has(house))  { score += 5; details.push(`M${house} angulaire +5`); }
+    else if (STRONG_HOUSES_SET.has(house)) { score += 4; details.push(`M${house} angulaire +4`); }
+    else if (SUCCEDENT_HOUSES.has(house))  { score += 3; details.push(`M${house} succédente +3`); }
+    else if (CADENT_WEAK_HOUSES.has(house)){ score -= 5; details.push(`M${house} cadente faible -5`); }
+    else { score += 2; details.push(`M${house} cadente +2`); }
+
+    if (isRetro) { score -= 5; details.push("Rétrograde -5"); }
+    else         { score += 4; details.push("Direct +4"); }
+
+    const helio = helioConditions[name];
+    if (helio?.condition?.includes("CAZIMI"))    { score += 5; details.push("Cazimi +5"); }
+    else if (helio?.condition?.includes("COMBUSTE")) { score -= 5; details.push("Combuste -5"); }
+    else if (helio?.condition?.includes("SOUS LES RAYONS")) { score -= 4; details.push("Sous les rayons -4"); }
+    else if (name !== "Soleil" && name !== "Lune") { score += 5; details.push("Libre du Soleil +5"); }
+
+    const inMutualReception = mutualReceptions.some(mr =>
+        (mr.p1 === name || mr.p2 === name) && mr.type === "domicile"
+    );
+    if (inMutualReception) { score += 5; details.push("Réception mutuelle domicile +5"); }
+
+    const essentialDig = getDignity(name, sign);
+    const essentialScore = essentialDig === "Domicile" ? 5 : essentialDig === "Exaltation" ? 4
+        : essentialDig === "Exil" ? -5 : essentialDig === "Chute" ? -4 : 0;
+    if (essentialScore !== 0) details.push(`${essentialDig} ${essentialScore > 0 ? '+' : ''}${essentialScore}`);
+    score += essentialScore;
+
+    // Bonus/malus aspects reçus de bénéfiques/maléfiques (Lilly)
+    const BENEFICS = new Set(["Jupiter","Vénus"]);
+    const MALEFICS = new Set(["Saturne","Mars"]);
+    const aspFromBen = aspects.filter(a => a.isMajor && ((a.p1 === name && BENEFICS.has(a.p2)) || (a.p2 === name && BENEFICS.has(a.p1))));
+    const aspFromMal = aspects.filter(a => a.isMajor && ((a.p1 === name && MALEFICS.has(a.p2)) || (a.p2 === name && MALEFICS.has(a.p1))));
+    if (aspFromBen.length > 0) { const b = Math.min(aspFromBen.length, 2) * 2; score += b; details.push(`Aspect(s) bénéfique(s) reçu(s) +${b}`); }
+    if (aspFromMal.length > 0) { const m = Math.min(aspFromMal.length, 2) * -2; score += m; details.push(`Aspect(s) maléfique(s) reçu(s) ${m}`); }
+
+    // Bonus station
+    if (stationaryPlanets.some(sp => sp.planet === name)) { score += 3; details.push("Stationnaire +3"); }
+
+    accidentalDignityScores[name] = { score, details, house, sign, isRetro, essentialDig };
+});
+const dignityRanking = Object.entries(accidentalDignityScores)
+    .sort((a, b) => b[1].score - a[1].score)
+    .map(([name, data]) => ({ planet: name, ...data }));
+
+// ── C4a : HAYZ (condition de secte optimale) ──
+const hayzPlanets = [];
+DISPOSITOR_PLANETS.forEach(name => {
+    const p = planetes.find(x => x.planet.fr === name); if (!p) return;
+    const sign = p.zodiac_sign?.name?.fr;
+    const house = getHouseNumber(p.fullDegree);
+    const aboveHorizon = [7,8,9,10,11,12].includes(house);
+    const isMasculine = MASCULINE_SIGNS.has(sign);
+    let inHayz = false, desc = "";
+    if (isDayChart && DIURNAL_PLANETS.has(name) && aboveHorizon && isMasculine) {
+        inHayz = true; desc = `${name} diurne, au-dessus de l'horizon, en signe masculin (${sign}) de jour — condition de HAYZ parfaite : la planète opère dans son élément naturel avec une efficacité maximale.`;
+    } else if (!isDayChart && NOCTURNAL_PLANETS.has(name) && !aboveHorizon && !isMasculine) {
+        inHayz = true; desc = `${name} nocturne, sous l'horizon, en signe féminin (${sign}) de nuit — condition de HAYZ parfaite : la planète opère dans son élément naturel avec une efficacité maximale.`;
+    }
+    if (inHayz) hayzPlanets.push({ planet: name, description: desc });
+});
+
+// ── C4b : PLANÈTES ASSIÉGÉES (entre deux maléfiques) ──
+const besiegedPlanets = [];
+const sortedByDeg = DISPOSITOR_PLANETS
+    .map(name => ({ name, deg: planetes.find(x => x.planet.fr === name)?.fullDegree }))
+    .filter(p => p.deg !== undefined)
+    .sort((a, b) => a.deg - b.deg);
+sortedByDeg.forEach((p, idx) => {
+    if (MALEFICS_TRAD.has(p.name) || BENEFICS_TRAD.has(p.name)) return;
+    const prev = sortedByDeg[(idx - 1 + sortedByDeg.length) % sortedByDeg.length];
+    const next = sortedByDeg[(idx + 1) % sortedByDeg.length];
+    if (MALEFICS_TRAD.has(prev.name) && MALEFICS_TRAD.has(next.name)) {
+        // Vérifier si un bénéfique intercepte le besiegement (atténuation)
+        const pDeg = p.deg, prevDeg = prev.deg, nextDeg = next.deg;
+        const beneficIntervenes = sortedByDeg.some(bp => {
+            if (!BENEFICS_TRAD.has(bp.name)) return false;
+            if (prevDeg < nextDeg) return bp.deg > prevDeg && bp.deg < nextDeg;
+            return bp.deg > prevDeg || bp.deg < nextDeg;
+        });
+        const severity = beneficIntervenes ? "ATTÉNUÉE" : "STRICTE";
+        besiegedPlanets.push({
+            planet: p.name,
+            between: [prev.name, next.name],
+            severity,
+            description: beneficIntervenes
+                ? `${p.name} est assiégée entre ${prev.name} et ${next.name}, mais un bénéfique intervient — pression atténuée.`
+                : `${p.name} est ASSIÉGÉE entre ${prev.name} et ${next.name} — contrainte, pression, empêchement. L'énergie de ${p.name} est entravée par les deux maléfiques traditionnels.`
+        });
+    }
+});
+
+// ── C4c : VIDE DE COURSE DE LA LUNE ──
+let moonVoidOfCourse = null;
+if (moon) {
+    const moonDeg = moon.fullDegree;
+    const moonSign = moon.zodiac_sign?.name?.fr;
+    const moonSignEnd = (Math.floor(moonDeg / 30) + 1) * 30;
+    const majorAspDegs = [0, 60, 90, 120, 180];
+    let hasApplyingAspect = false;
+    DISPOSITOR_PLANETS.filter(n => n !== "Lune").forEach(name => {
+        const p = planetes.find(x => x.planet.fr === name); if (!p) return;
+        majorAspDegs.forEach(aspDeg => {
+            const targetDeg = (p.fullDegree + aspDeg) % 360;
+            const targetDeg2 = (p.fullDegree - aspDeg + 360) % 360;
+            [targetDeg, targetDeg2].forEach(td => {
+                if (td > moonDeg && td < moonSignEnd) hasApplyingAspect = true;
+            });
+        });
+    });
+    if (!hasApplyingAspect) {
+        moonVoidOfCourse = {
+            active: true,
+            sign: moonSign,
+            description: `Lune VIDE DE COURSE en ${moonSign} — la Lune ne forme plus d'aspect majeur appliquant avant de quitter le signe. Indique un tempérament qui fonctionne « hors cadre », par intuition pure plutôt que par connexion directe. Les projets initiés peuvent manquer d'écho immédiat mais mûrissent de façon non conventionnelle.`
+        };
+    }
+}
+
+// ── C2 : DEGRÉS SABIAN (symboles pour chaque planète) ──
+const SABIAN_SYMBOLS = [
+"Une femme surgit de l'océan ; un phoque l'enlace","Un comédien divertit un groupe","Le camée d'un profil d'homme dans l'ombre d'une pièce","Deux amoureux se promènent dans un chemin isolé",
+"Un triangle avec des ailes","Un carré illuminé de côtés","Un homme réussit à exprimer simultanément deux tempéraments","Un chapeau à large bord ventilé par l'est",
+"Un cristal dans lequel miroite un monde abstrait","Un professeur regarde ses élèves à travers des verres épais","Le souverain d'une nation","Un troupeau d'oies sauvages",
+"Une bombe qui n'a pas explosé révèle une réserve de courage inutilisée","Un serpent enroulé autour d'un homme et d'une femme","Un Indien tisse un panier cérémoniel","Des enfants du quartier jouent avec vivacité",
+"Deux dignitaires austères assis côte à côte","Un hamac vide tendu entre deux arbres joyeux","Le filet magique de la chasse donnant du pouvoir","Une jeune fille nourrissant des oiseaux en hiver",
+"Un boxeur entre dans le ring","La porte vers le jardin de tous les désirs","Une femme enceinte en robe légère","Le vent d'est gonfle des rideaux d'une chambre ouverte",
+"Un enfant potelé chevauchant un cheval de bois","Un homme possédant plus de dons qu'il ne peut développer","À travers l'imagination, la perception de la valeur perdue revient","Un grand jardin public","Deux têtes au-dessus de leurs corps",
+"Un canard et ses canetons","La quête en vue d'un savoir inatteignable","Un défilé militaire","Terrain de jeu rempli d'enfants","Une fontaine d'eau dans un jardin tropical",
+"La musique des sphères","Un oiseau royal et sa compagne","Un homme tombé du ciel","Le nouveau Rachel","Un soldat en deuil pour un camarade",
+"Un enfant du soleil accroupi dans les eaux","Nombreux petits oiseaux sur la branche d'un gros arbre","Un arc-en-ciel sur fond de ciel d'orage","Deux personnes projetées loin par l'électricité","Un homme tondu",
+"Un gardien monte la garde","Un vieux maître de sagesse","Un gouffre en formation dans le désert","Un moine porte un sac de riz","Un combattant de taureaux bravant un danger",
+"Un rivière charrie du bois","Un garçon sur un hobby-horse","Un vieil arbre cassé au milieu, scié en bûches","Les nains au travail à l'intérieur de la terre","Un paon majestueux se pavane",
+"Un peintre face à un tableau vide","Un chien blanc pourchasse un lapin","Une tête coiffée d'un turban divin","Les dix bûches sous un arche","Illuminés par la lumière de la Lune, deux fées",
+"Une ligne de téléphone","Le héros d'une parabole","Les jeunes arbres entourés d'un grillage contre le vent","Noël arbre décoré","Des enfants jouent sur la plage, avec des chapeaux en forme de têtes de moustache",
+"Le vieux pont de pierre enjambant un cours d'eau sans prétention","Une conversation téléphonique","Un réfugié se rapproche de la terre promise","Révolutions se succédant","Un ruisseau coule, entouré de fleurs sauvages",
+"Une famille en voiture","L'extraction du caoutchouc d'un arbre","Un papillon parfait émerge de la chrysalide","Le roi des fées approche ses sujets","Un homme se prépare à écrire un message inspiré à l'humanité",
+"Un verre prisme décompose la lumière en arc-en-ciel","Indigènes montant une échelle raide et brute","Des scouts défilent","Vénus en Scorpion est affichée","Deux fées sur une nuit de lune",
+"En phase d'approche, une automobile est ruinée par un train","Les graines dans le terreau germent","Un gros diamant dans les premiers stades de la taille","Une jeune femme avait vu un signe mystérieux, croyait au surnaturel","Marée du matin",
+"Les storcs sur le toit d'un bâtiment","Un groupe de savants faisant des recherches","La maternité gracieuse","Un vieil homme grisonnant fait face à une vaste sombre espace au nord-est","Un chameau en traversée difficile du désert",
+"Un drapeau de croisade","Un cortège royal","Après l'orage, un arc-en-ciel","Un garçon hors-la-loi","Le coup de tonnerre",
+"Un paon expose ses plumes","La Lune brille sur un lac","Une danseuse exotique", "Une jeune femme de Memphis lui répond","Des bateaux à voile entrant dans un port",
+"Un vieux capitaine","Deux anges apportant la protection","Un homme tête nue défiant la tempête","L'union Jack","Premiers signes de l'automne",
+"Un soleil doré sur un lever d'aube","Un cerf-volant contre le vent","Les moissonneurs se reposent après le labeur","Deux gardes du corps marchent avec un enfant","Venus au bain",
+"Un vieil homme face à un crépuscule glorieux","Des anges descendant","La Sphinge et les pyramides","Un lion de cirque apprivoisé", "Des pèlerins montent un escalier",
+"Tôt le matin, la rosée brille", "La cérémonie du thé", "Un capitaine pirate", "Enfants faisant des châteaux de sable", "Un dragon et un tigre",
+"Un cortège de dames à la cour","De jolies danseuses","Le bois au crépuscule","Un professeur d'anatomie","Un char d'assaut en action",
+"Des enfants riant alors qu'ils jouent dans un toboggan","Un repas de Thanksgiving","Un âne et une charge","Mer calme, bateaux aux voiles","Un phare dans le brouillard",
+"La préparation d'un bateau pour un voyage","Un volcan en éruption","Des enfants jouent dans un champ de maïs","Un alpiniste victorieux","Un cygne blanc",
+"Marie et son agneau","Un général acceptant la défaite","Le soleil brille à travers les nuages après un gros orage","Un coq perché sur un vieil arbre se livre à un chant","L'étoile du matin brille dans le ciel sans nuages de l'aube",
+"Un briseur de chevaux","Chandeleur","Un homme debout avec les mains sur les hanches","Un mécanicien teste une voiture","Un amiral retiré",
+"Deux hommes placés sous bonne garde","Un char de guerre attend le combat","Un arbre d'hiver offre sa forme découpée au ciel","Trois monticules de connaissances","Un maître enseignant à ses disciples",
+"Deux hommes jouant aux échecs","Une femme lit les feuilles de thé","Les pèlerins remontant des marches étroites","La tombe ouverte d'un héros","Un lapin métamorphosé en esprits de la nature",
+"Des faisans sur un chemin privé","Un chef qui met un masque d'humilité","Trois veilles dans un vieux château","Dixièmement, un albatros","L'enfant Jésus dans la crèche",
+"Un grand aviaire","Bois pétrifiée","Un garçon moulé en idéal pour devenir homme","Un soldat recevant deux distinctions","À marée basse, les baigneurs s'amusent",
+"Cupidon à la porte d'un bordel","Une nonne","La flamme de la révélation physique","Des enfants dans des tenues d'Halloween","Un aigle et un gros poisson blanc",
+"Le garçon de la rue à Broadway","Un vieux pont","Des sages chinois parlent","Le petit arbre de Noël de l'enfant","Un papillon avec une troisième aile",
+"Officier de marine","Un marin prêt à hisser un nouveau pavillon","Les gitans de la forêt","Lumière qui se brise en couleurs à travers un prisme","Un beau salon et ses invités",
+"L'aube d'un nouveau jour, tout a changé","Un professeur d'alchimie","Un homme né la nuit","Un groupe sur un petit bateau","Une étoile à cinq branches lumineuse",
+"Un orage électrique","Une fontaine de soda","Une foule de personnes assises sur la plage","Un gros diamant pas encore coupé","Troupeau de moutons baignés dans la lumière froide",
+"Des gens découpant de la glace","Le grand livre de la nature","Bois pétrifiée et papillons","Un garçon sculpté de glace","Une femme remplissant une cruche de la fontaine",
+"Sous la direction d'un sergent, des soldats exécutent des exercices militaires","Mineurs remontant d'une mine de charbon","Une voiture chargée de bagages","Indiens et une terre vierge","Le crépuscule, des fées et des lutins dansent",
+"Un gros paon blanc","Un garçon debout sur les marches","Deux esprits octroyant des faveurs","Les papillons et les abeilles rendent la moisson joyeuse","Les enfants jouent autour de cinq monticules de sable",
+"Le sphinx et les pyramides, dans un panorama","À travers un voile de brouillard, un bateau","Une mère conduit l'enfant étape par étape","Un groupe indien qui demande la reconnaissance","Un génie du feu",
+"Un buste de femme","Une église illuminée","L'aube du printemps","Un homme à la barre de son navire","Un nouveau continent qui émerge de l'océan",
+"Une danse sacrée par les prêtresses égyptiennes","Le trésor le plus important de l'homme","Un marché animé","Un loup en fourrure de mouton","Un garçon et une fille baignés de lumière",
+"Un festival de la moisson","Un chat noir assis sur une clôture chinoise","Des enfants se jettent des boules de neige","Le carnaval","Des membres d'un club assis à un banquet",
+"L'arc de l'alliance","Un guerrier gaulois","Un coq chantant l'aurore","Un campement militaire","Le crépuscule, un ciel cramoisi",
+"Un feu de chemin ouverte dans un espace de ranch","Un enfant et un chien qui se prodiguent des marques de tendresse","Un sculpteur au travail", "Trois vieilles femmes assises sur un canapé","Un totem indien",
+"Une diseuse de bonne aventure","La purification du temple des marchands d'argent","Un drapeau renvoyé en berne","Un homme coupe une haie de buis","Un sauveteur",
+"L'éruption de lave d'un volcan","Un papillon émerge de la chrysalide","Un défilé militaire","Des enfants jouant avec des bulles de savon","L'aurore boréale",
+"Les pèlerins escaladant les marches menant à un sanctuaire sur une montagne","Des enfants jouent au-dessus d'un ancien tombeau","Un grand oiseau blanc","Un chat miaulant d'oisiveté sur un coussin","La récolte de la lune",
+"Un ferry-boat","Une foule rassemblée pour une cérémonie","Des papillons nocturnes","Un soldat blessé","Des serviteurs préparent un banquet",
+"Un guerrier clairvoyant","Un géant et un nain jouant aux échecs","Après avoir étudié l'arc-en-ciel, l'homme le place en pensée","Une belle sirène","Un homme agenouillé — il capte des lumières",
+"Un drapeau qui se transforme en aigle","L'étoile brillante dans le ciel sombre","Un feu de camp éclatant","Un gros diamant taillé mais sans monture","Un coucher de soleil somptueux"
+];
+const getSabian = (fullDegree) => {
+    const idx = Math.floor(((fullDegree % 360) + 360) % 360);
+    return SABIAN_SYMBOLS[idx] || null;
+};
+const sabianData = {};
+["Soleil","Lune","Mercure","Vénus","Mars","Jupiter","Saturne","Uranus","Neptune","Pluton","Ascendant","Milieu du Ciel"].forEach(name => {
+    const p = planetes.find(x => (x.planet.fr || x.planet.en) === name);
+    if (!p) return;
+    const symbol = getSabian(p.fullDegree);
+    if (symbol) {
+        const degInSign = Math.floor(p.fullDegree % 30) + 1;
+        sabianData[name] = { degree: degInSign, sign: p.zodiac_sign?.name?.fr, symbol };
+    }
+});
+
+// ── Injection C2/C3/C4 dans la synthèse (après calcul des techniques avancées) ──
+pSynth += `\n=== ARBRE DES DISPOSITIONS ===\n`;
+pSynth += dispositorStr + "\n";
+DISPOSITOR_PLANETS.forEach(name => {
+    const d = dispositorTree[name]; if (!d || d.chain.length <= 1) return;
+    pSynth += `  ${name} → ${d.chain.map(c => c.planet === name ? `[${c.planet}]` : c.planet).join(" → ")}${d.finalDispositor ? ` ◆ ${d.finalDispositor}` : " ∞ boucle"}\n`;
+});
+
+if (dignityRanking.length > 0) {
+    pSynth += `\n=== FORCE PLANÉTAIRE (Dignité essentielle + accidentelle — Lilly) ===\n`;
+    dignityRanking.slice(0, 10).forEach(d => {
+        pSynth += `  ${d.planet} : Score ${d.score} (${d.details.join(", ")})\n`;
+    });
+    pSynth += `→ INSTRUCTION : Les planètes à score élevé (>15) sont les acteurs les plus efficaces du thème. Les planètes à score négatif sont empêchées — leur principe s'exprime avec difficulté.\n`;
+}
+if (hayzPlanets.length > 0) {
+    pSynth += `\n=== HAYZ (condition de secte optimale) ===\n`;
+    hayzPlanets.forEach(h => { pSynth += `  ✦ ${h.description}\n`; });
+}
+if (besiegedPlanets.length > 0) {
+    pSynth += `\n=== PLANÈTES ASSIÉGÉES ===\n`;
+    besiegedPlanets.forEach(b => { pSynth += `  ⚠ ${b.description}\n`; });
+}
+if (moonVoidOfCourse) {
+    pSynth += `\n=== LUNE VIDE DE COURSE ===\n`;
+    pSynth += `  ${moonVoidOfCourse.description}\n`;
+}
+if (Object.keys(sabianData).length > 0) {
+    pSynth += `\n=== DEGRÉS SABIAN (symboles du degré — interprétation imagée) ===\n`;
+    pSynth += `INSTRUCTION : Chaque symbole Sabian est une image poétique associée au degré exact d'une planète. Intègre-les comme des nuances symboliques SUBTILES dans ton interprétation — une touche de couleur, pas un développement majeur. Un symbole Sabian ne remplace JAMAIS une analyse technique.\n`;
+    Object.entries(sabianData).forEach(([name, data]) => {
+        pSynth += `  ${name} à ${data.degree}° ${data.sign} : « ${data.symbol} »\n`;
+    });
+}
+
+// ── ASSEMBLAGE : injection dans stats et fiches ──
+stats.dispositor = { tree: dispositorTree, finalDispositors, description: dispositorStr };
+stats.accidentalDignity = dignityRanking;
+stats.hayz = hayzPlanets;
+stats.besieged = besiegedPlanets;
+stats.moonVOC = moonVoidOfCourse;
+stats.sabian = sabianData;
+
+// ─────────────────────────────────────────────────────────────────
+// 13. STRUCTURATION PROMPTS_LLM (system + user séparés — industrialisation)
+// ─────────────────────────────────────────────────────────────────
+const pronomMapTheme = {
+    'Tu': 'Tu tutoies systématiquement le consultant.',
+    'Vous': 'Tu vouvoies systématiquement le consultant.',
+    'Il': 'Tu rédiges à la troisième personne du singulier (Il) : il, son, sa, ses.',
+    'Elle': 'Tu rédiges à la troisième personne du singulier (Elle) : elle, sa, ses, son.'
+};
+const pronomInstrTheme = pronomMapTheme[consigneRedaction] || pronomMapTheme['Tu'];
+const genreAccordTheme = genreConsultant === 'F' ? ' Accorde au féminin (ex : motivée, inspirée, née).' : '';
+
+const SYSTEM_NATAL = [
+    "Tu es un astrologue expert de renommée mondiale, maîtrisant les techniques classiques (hellénistique, chaldéenne, arabe) et modernes.",
+    "Tu intègres : maîtrises modernes (Pluton→Scorpion), décans Chaldéens, dignités essentielles ET accidentelles (Lilly), arbre des dispositions, conditions héliocentriques (Cazimi, Combuste, Étoile du Matin/Soir), Hayz, planètes assiégées, Lune vide de course, degrés Sabian, configurations natales, réceptions mutuelles, antiscia, midpoints, étoiles fixes (23 étoiles majeures : Algol, Pléiades, Aldébaran, Rigel, Bételgeuse, Sirius, Canopus, Castor, Pollux, Procyon, Régulus, Spica, Arcturus, Vindemiatrix, Zubenelgenubi, Zubeneschamali, Antarès, Véga, Deneb Algedi, Fomalhaut, Scheat, Achernar, Deneb — dont les 4 Royales : Aldébaran, Régulus, Antarès, Fomalhaut), déclinaisons équatoriales (planètes Hors Limites/OOB, parallèles //, contre-parallèles #) et Lots hermétiques.",
+    pronomInstrTheme + genreAccordTheme + " Ne commence JAMAIS par une formule de salutation. Démarre immédiatement par l'analyse.",
+    "Toute planète marquée ANGULAIRE, CAZIMI, CONJOINTE À UNE ÉTOILE FIXE ou HORS LIMITES (OOB) est de PREMIER ORDRE interprétatif. Les déclinaisons révèlent la profondeur psychologique et les axes d'intensification : un parallèle (//) agit comme une conjonction profonde, un contre-parallèle (#) comme une opposition — dans la dimension équatoriale (3D). Intègre systématiquement les dignités composites et hiérarchise les figures par leur Score de Puissance.",
+    "FIDÉLITÉ AUX DONNÉES : Ne JAMAIS déplacer une planète hors de sa maison — un aspect vers une autre maison ne change PAS la maison de résidence. Ne jamais lister une planète de M10 parmi les occupants de M11 sous prétexte qu'elles partagent le même signe. Ne JAMAIS citer de degré sauf s'il est explicitement fourni. Ne JAMAIS inventer d'aspect ou généraliser une symétrie partielle. Utilise EXACTEMENT les termes d'aspect fournis (conjonction, sextile, carré, trigone, opposition, quinconce, semi-carré, sesqui-carré, semi-sextile, quintile, biquintile). HIÉRARCHIE : les aspects MAJEURS (conjonction, opposition, carré, trigone, sextile) structurent l'analyse — ils sont la colonne vertébrale du thème. Les aspects MINEURS (quinconce, semi-carré, etc.) apportent des nuances mais ne doivent JAMAIS dominer ni recevoir plus de développement qu'un aspect majeur. Les Lots hermétiques et les antiscia sont des techniques d'enrichissement — une phrase de contexte suffit, pas un paragraphe. DIGNITÉS : Pérégrin = neutre (aucune dignité), Exil = faiblesse active (signe opposé au domicile), Chute = faiblesse passive (signe opposé à l'exaltation). Ces trois termes ne sont PAS interchangeables — utilise UNIQUEMENT le terme fourni dans les données. ORBES : utilise le qualificatif d'orbe fourni entre parenthèses (exact <1°, serré <3°, moyen <5°, large ≥5°) — ne le recalcule pas. Au-delà de 8° en longitude, ce n'est PAS une conjonction. DÉCLINAISON vs LONGITUDE : un parallèle de déclinaison (//) agit COMME une conjonction en 3D mais n'EST PAS une conjonction zodiacale. Ne dis jamais 'conjoint à X' si seul un parallèle existe — dis 'en parallèle de déclinaison avec X' ou 'fusionné en 3D avec X'. NATURES PLANÉTAIRES : quand un tag [Nature: ...] est fourni, intègre-le dans ton interprétation. Une conjonction Jupiter-Vénus est fondamentalement plus douce qu'une conjonction Mars-Saturne à orbe identique. Mercure et Chiron adoptent la coloration de leur partenaire. APPLIQUANT/SÉPARANT : un aspect [appliquant] représente une énergie qui monte en puissance au cours de la vie ; un aspect [séparant] a déjà atteint son apogée à la naissance — la personne s'en libère progressivement. GOUVERNEUR & ALMUTEM : quand un tag [GOUVERNEUR DU THÈME] ou [ALMUTEM FIGURIS] est indiqué pour une planète, cette planète est d'importance structurelle maximale. Le gouverneur (maître de l'ASC) pilote l'identité — tout aspect le touchant façonne le parcours de vie. L'almutem figuris est la planète la plus dignifiée — elle détient le plus de pouvoir essentiel. Donne-leur un traitement interprétatif prioritaire. LOTS HERMÉTIQUES : les Lots (Nécessité, Éros, Courage, Némésis, Basis, Exaltation, Daemon) sont des points calculés qui révèlent des dimensions cachées du thème — besoins profonds, désirs, courage, ombre, fondation, aspiration, vocation spirituelle. Le signe et la maison du Lot donnent la coloration, ses aspects avec les planètes natales activent le thème. Interprète-les comme des SOUS-TEXTES de la personnalité — une phrase incisive par Lot pertinent, pas un développement encyclopédique. TRIPLICITÉ : quand le maître de triplicité (ruler of triplicity) est mentionné pour un segment de maison, il indique une couche de maîtrise SECONDAIRE après le maître principal du signe. Il nuance le registre : le maître du domicile DIRIGE, le maître de triplicité SOUTIENT. Ne le place jamais au même niveau d'importance que le maître du signe."
+].join(" ");
+
+const prompts_llm = {};
+Object.entries(prompts).forEach(([key, promptText]) => {
+    prompts_llm[key] = {
+        prompt_system: SYSTEM_NATAL,
+        prompt_user:   promptText
+    };
+});
+
+// ── MÉMO POSITIONS NATALES — Garde anti-hallucination à la source ──
+const MEMO_PLANETS = ["Soleil","Lune","Mercure","Vénus","Mars","Jupiter","Saturne","Uranus","Neptune","Pluton","Chiron","Nœud Nord","Nœud Sud","Ascendant","Milieu du Ciel"];
+const memoLines = MEMO_PLANETS.map(name => {
+    const p = planetes.find(x => (x.planet?.fr === name) || (x.planet?.en === name));
+    if (!p) return null;
+    const sign = p.zodiac_sign?.name?.fr || "?";
+    const isAngle = (name === "Ascendant" || name === "Milieu du Ciel");
+    const hNum = isAngle
+        ? (name === "Ascendant" ? 1 : 10)
+        : (() => { const h = fiches_maisons.find(m => (m.segments || []).some(s => (s.locataires || []).some(l => l.planete === name))); return h ? h.maison : "?"; })();
+    return `${name} M${hNum} (${sign})`;
+}).filter(Boolean);
+// Sprint 9 — Gardes anti-hallucination renforcées
+const houseRulersLines = fiches_maisons.map(fm => {
+    const cuspSeg = fm.segments.find(s => s.type === "Cuspide");
+    return cuspSeg ? `M${fm.maison}=${cuspSeg.maitre.planete}(${cuspSeg.signe})` : null;
+}).filter(Boolean);
+const oobMemoLine = planeteOOB.length > 0
+    ? `⚡ PLANÈTES OOB (Hors Limites) : ${planeteOOB.map(o => o.planete).join(", ")} — SEULES ces planètes sont OOB. Ne JAMAIS attribuer le statut OOB à une autre.\n`
+    : `⚡ AUCUNE planète n'est OOB dans ce thème.\n`;
+const interceptedMemoLine = interceptedSigns.length > 0
+    ? `♊ SIGNES INTERCEPTÉS : ${interceptedSigns.map(i => `${i.sign} en M${i.house}`).join(" | ")}. Un signe intercepté NE GOUVERNE PAS la maison — seul le signe de la CUSPIDE détermine le maître.\n`
+    : "";
+const positionMemo = `[MÉMO POSITIONS NATALES — RÉFÉRENCE ABSOLUE]\n${memoLines.join(" | ")}\n⛔ Ne JAMAIS écrire qu'une planète est en Maison X si ce mémo indique une autre maison.\n⛔ Ne JAMAIS écrire qu'une planète NATALE est dans un SIGNE différent de celui indiqué entre parenthèses ci-dessus.\n${stats.almutem_figuris ? `⚠ ALMUTEM FIGURIS de ce thème : ${stats.almutem_figuris} — seule planète au pouvoir essentiel maximal. Ne JAMAIS attribuer ce titre à une autre planète.\n` : ""}${chartRulerName ? `⚠ GOUVERNEUR DU THÈME : ${chartRulerName} (maître de l'ASC) — ne PAS confondre avec les "Maîtres" de cuspide de maison qui sont les rulers des signes.\n` : ""}[MAÎTRISES DE MAISONS — Le maître d'une maison = ruler du signe de sa CUSPIDE]\n${houseRulersLines.join(" | ")}\n⛔ Ne JAMAIS dire qu'une planète est "maître de la Maison X" si elle ne figure pas ci-dessus. Le maître est EXCLUSIVEMENT déterminé par le signe de la cuspide, PAS par un signe intercepté.\n${oobMemoLine}${interceptedMemoLine}`;
+
+Object.entries(prompts_llm).forEach(([key, obj]) => {
+    obj.prompt_user = positionMemo + "\n" + obj.prompt_user;
+});
+
+// Sprint 6 — D5 : Injecter les tags gouverneur/almutem/singleton dans chaque prompt de maison
+Object.entries(prompts_llm).forEach(([key, obj]) => {
+    if (key === "synthese_globale") return;
+    const rolePreamble = [];
+    if (chartRulerName)        rolePreamble.push(`[GOUVERNEUR DU THÈME (moderne) : ${chartRulerName}${chartRulerTradName && chartRulerTradName !== chartRulerName ? ` | Co-maître traditionnel : ${chartRulerTradName}` : ""} — tout aspect impliquant ces planètes est d'importance PRIORITAIRE pour l'identité du natif]`);
+    if (stats.almutem_figuris) rolePreamble.push(`[ALMUTEM FIGURIS : ${stats.almutem_figuris} — planète la plus dignifiée, pouvoir essentiel maximal — aspect prioritaire]`);
+    if (chartShape.singleton) {
+        const singletonP = planetes.find(p => p.planet.fr === chartShape.singleton);
+        const singletonH = singletonP ? getHouseNumber(singletonP.fullDegree) : "?";
+        const houseNum = parseInt(key.replace("maison_", ""));
+        if (houseNum === parseInt(singletonH)) {
+            rolePreamble.push(`[★ SINGLETON DU THÈME — Modèle ${chartShape.shape} : ${chartShape.singleton} dans cette maison est le point focal unique de toute l'énergie planétaire. Sa position, ses aspects et sa dignité canalisent l'ensemble des forces du thème. Priorité interprétative maximale.]`);
+        } else {
+            rolePreamble.push(`[SINGLETON DU THÈME : ${chartShape.singleton} en M${singletonH} — modèle ${chartShape.shape}. Tout aspect entre les planètes de cette maison et le singleton est un lien direct avec le canal focal du thème.]`);
+        }
+    }
+    if (rolePreamble.length > 0) obj.prompt_user = rolePreamble.join("\n") + "\n\n" + obj.prompt_user;
+});
+
+// Sprint 9 — Injection profil de sensibilité + gardes anti-hallucination dans chaque prompt per-house
+const royalStarsGuard = `⭐ ÉTOILES ROYALES : seules 4 étoiles portent ce titre — Aldébaran, Régulus, Antarès, Fomalhaut. Toute autre étoile (Bételgeuse, Spica, Sirius, Algol, etc.) est une "Étoile Fixe majeure", JAMAIS "Royale".\n`;
+Object.entries(prompts_llm).forEach(([key, obj]) => {
+    if (key === "synthese_globale") return;
+    let perHouseGuard = "";
+    if (sensitivityProfileTheme) perHouseGuard += sensitivityProfileTheme;
+    perHouseGuard += royalStarsGuard;
+    perHouseGuard += `[⛔ CHARTE ANTI-HALLUCINATION — OBLIGATIONS STRICTES]
+1. ORBES & EXACTITUDE : Ne JAMAIS écrire "conjonction exacte" ou "exactement sur" si l'orbe fourni est > 0.5°. Utiliser le qualificatif fourni (exact <1°, serré <3°, moyen <5°, large ≥5°). "Exactement" = RÉSERVÉ aux orbes ≤ 0.5° explicitement indiqués.
+2. ÉTOILES FIXES : Une étoile fixe est CONJOINTE à une planète/angle UNIQUEMENT si elle est listée dans la section ÉTOILES FIXES des données. Ne JAMAIS inférer une conjonction stellaire non fournie.
+3. FIDÉLITÉ AUX DONNÉES : Toute affirmation factuelle (maison, signe, aspect, dignité, orbe, OOB, dominante, Almutem, gouverneur) DOIT provenir des données fournies. Ne JAMAIS inférer une donnée astronomique absente.
+4. CONFIGURATIONS & MAISONS : Un stellium par SIGNE ne signifie PAS que toutes ses planètes sont dans la même MAISON. Vérifier la résidence maison de chaque planète dans le MÉMO POSITIONS.
+5. NATURES PLANÉTAIRES : Ne JAMAIS attribuer une qualité stellaire (ex: "courage absolu d'Algol") à une planète qui n'est PAS explicitement conjointe à cette étoile.
+6. INTERDICTION D'EXTRAPOLATION : Ne PAS combiner des données séparées pour créer un lien non fourni.\n`;
+    obj.prompt_user += `\n${perHouseGuard}`;
+});
+
+// Ajouter les infos clés condensées dans le system prompt de synthèse
+if (prompts_llm["synthese_globale"]) {
+    let sysEnhanced = SYSTEM_NATAL;
+    if (stats.planete_dominante) sysEnhanced += ` | Planète dominante calculée : ${stats.planete_dominante}.`;
+    if (stats.almutem_figuris)   sysEnhanced += ` | Almutem figuris : ${stats.almutem_figuris}.`;
+    if (configurations.length)   sysEnhanced += ` | ${configurations.length} configuration(s) natale(s) détectée(s).`;
+    prompts_llm["synthese_globale"].prompt_system = sysEnhanced;
+}
+
+// ---- Sprint 5 : Instruction de langue dynamique (v6.4) ----
+if (langueRapport !== 'Français') {
+    const langueInstrTheme = `[INSTRUCTION DE LANGUE — OBLIGATOIRE]\nRédige INTÉGRALEMENT ta réponse en ${langueRapport}. Tous les titres, analyses et descriptions doivent être en ${langueRapport}.\n\n`;
+    Object.keys(prompts_llm).forEach(key => {
+        prompts_llm[key].prompt_user = langueInstrTheme + prompts_llm[key].prompt_user;
+    });
+}
+
+
+return [{
+    json: {
+        planetes, maisons: fiches_maisons, aspects, configurations,
+        angularPlanets, criticalPlanets, stationaryPlanets, mutualReceptions, antiscia,
+        midpoints, midpointActivations, helioConditions,
+        interceptedSigns, chartShape,
+        stats, prompts, prompts_llm, perso,
+        eclipseNatal: eclipseNatalData,
+        etoileMatches,
+        etoileCuspMatches,
+        paranResults,
+        planeteOOB,
+        paralleles,
+        contreParalleles,
+        dispositorTree: { tree: dispositorTree, finalDispositors },
+        accidentalDignity: dignityRanking,
+        hayzPlanets,
+        besiegedPlanets,
+        moonVOC: moonVoidOfCourse,
+        sabianData,
+        sensitivityProfile: sensitivityProfileTheme
+    }
+}];

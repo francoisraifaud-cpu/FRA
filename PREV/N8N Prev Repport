@@ -1,0 +1,2540 @@
+// ==========================================
+// NŒUD ANALYSEUR TECHNIQUE v10.2
+// Enrichissements : Chiron, Lunaisons, Éclipses, Stations Rétro, Angles, Aspects T→T
+// + CORRECTION : Nœud Nord & Nœud Sud en transit (normalisation clés API)
+// + FIX v10.1 : Fenêtres stellaires sorties du bloc if(eclipsesByDate) [Bug #1]
+// + FIX v10.1 : stellarByAngleAT (IC/ASC/MC/DSC) désormais traité [Bug #2]
+// + FIX v10.2 : NODE_ENRICHISSEMENT en constante (robustesse nommage)
+// + FIX v10.2 : orbe Pleine Lune resserrée 170°-190° (cohérence v6)
+// ==========================================
+
+// v10.3 ISO : multi-input (Prepare Data + Super noeud)
+// Nettoyage mémoire : supprimer prompt_user/prompt_system (inutiles ici, très lourds)
+const _allInputItems = $input.all().map(i => {
+    const j = i.json;
+    delete j.prompt_user;
+    delete j.prompt_system;
+    delete j.contexte_natal_prompt;
+    return j;
+});
+const prepareOut    = _allInputItems.find(j => j.transitsData || j.data?.length > 0) || _allInputItems[0] || {};
+const transitsData  = prepareOut.transitsData || prepareOut.data || prepareOut;
+const luneData      = prepareOut.luneData     || {};
+const eclipsesData  = prepareOut.eclipsesData || [];
+
+// ISO : récupérer eventSignatures du Super noeud (source unique)
+let _prevEventSignatures = null;
+for (const _j of _allInputItems) {
+    if (_j.eventSignatures && _j.eventSignatures.length > 0) {
+        _prevEventSignatures = _j.eventSignatures;
+        break;
+    }
+}
+
+const NODE_ENRICHISSEMENT = "Enrichissement Astrologique";
+const enrichedData  = $(NODE_ENRICHISSEMENT).first()?.json || {};
+const natalPlanets  = enrichedData.planetes || [];
+const natalHouses   = enrichedData.maisons  || [];
+const perso         = enrichedData.perso || {};
+
+// v6 : données stellaires et éclipse natale
+const etoileMatchesNatal     = enrichedData.etoileMatches     || [];
+const etoileCuspMatchesNatal = enrichedData.etoileCuspMatches || [];
+const eclipseNatalData       = enrichedData.eclipseNatal      || null;
+const natalDispositorTreeAT  = enrichedData.dispositorTree    || {};
+const natalAccDignityAT      = enrichedData.accidentalDignity || [];
+const natalHayzAT            = enrichedData.hayzPlanets       || [];
+const natalBesiegedAT        = enrichedData.besiegedPlanets   || [];
+const natalMoonVOCAT         = enrichedData.moonVOC           || null;
+const natalSabianAT          = enrichedData.sabianData        || {};
+const natalStatsAT           = enrichedData.stats             || {};
+const stationaryPlanetsAT    = enrichedData.stationaryPlanets || [];
+let   chartShapeAT           = enrichedData.chartShape        || {};
+
+const interceptedSignsAT     = enrichedData.interceptedSigns  || [];
+const sensitivityProfileAT   = enrichedData.sensitivityProfile || "";
+const paranResultsAT         = enrichedData.paranResults      || [];
+const stellarByPlanetAT = {};
+etoileMatchesNatal.forEach(em => {
+    if (em.isAngle) return; // angles gérés par stellarByAngleAT — évite le double affichage
+    if (!stellarByPlanetAT[em.planete]) stellarByPlanetAT[em.planete] = [];
+    stellarByPlanetAT[em.planete].push(em);
+});
+const stellarByAngleAT = {};
+etoileCuspMatchesNatal.forEach(ec => { if (!stellarByAngleAT[ec.angle]) stellarByAngleAT[ec.angle] = []; stellarByAngleAT[ec.angle].push(ec); });
+const eclipticNatalAT = eclipseNatalData ? { degree:eclipseNatalData.degree, house:eclipseNatalData.house, sign:eclipseNatalData.sign, label:`ÉCLIPSE NATALE ${eclipseNatalData.type} de ${eclipseNatalData.astre} en ${eclipseNatalData.sign} à ${((eclipseNatalData.degree ?? 0)%30).toFixed(1)}° — M${eclipseNatalData.house}` } : null;
+const ETOILES_ROY_AT = new Set(["Aldébaran","Sirius","Régulus","Spica","Antarès","Fomalhaut"]);
+const ANGLE_MAIS_AT  = {"ASC":1,"IC":4,"DSC":7,"MC":10};
+let suiviStellairAT = {};
+const ORBE_STELL_AT = 1.0, ORBE_ECL_RES_AT = 3.0;
+
+const parseDate = (str) => {
+    if (!str) return null;
+    str = str.trim();
+    if (str.includes("/")) {
+        const [d, m, y] = str.split("/");
+        return new Date(`${y}-${m.padStart(2,"0")}-${d.padStart(2,"0")}`);
+    }
+    return new Date(str);
+};
+
+const annee       = perso.annee || String(new Date().getFullYear());
+let dStart      = parseDate(perso.date_entree);
+if (!dStart || isNaN(dStart.getTime())) dStart = new Date(`${annee}-01-01`);
+let dEnd        = parseDate(perso.date_sortie);
+if (!dEnd || isNaN(dEnd.getTime())) dEnd = new Date(`${annee}-12-31`);
+const typeRapport = (perso.rapport || "Annuel").trim();
+
+const allDays = Array.isArray(transitsData) ? transitsData : [transitsData];
+const days = allDays.filter(day => {
+    if (!day?.date) return false;
+    const d = new Date(day.date);
+    return d >= dStart && d <= dEnd;
+});
+if (days.length === 0) {
+    return [{ json: { error: true, message: `Aucun jour trouvé entre ${perso.date_entree} et ${perso.date_sortie}`, maison: 0 } }];
+}
+
+// ---- NORMALISATION DES CLÉS API ----
+// L'API retourne "Noeud_Nord" / "Noeud_Sud" (underscore, sans œ)
+// Le code utilise "Nœud Nord" / "Nœud Sud" (espace, avec œ)
+// On normalise une fois pour toutes ici
+days.forEach(day => {
+    if (!day?.planetes) return;
+    if (day.planetes["Noeud_Nord"] && !day.planetes["Nœud Nord"]) {
+        day.planetes["Nœud Nord"] = day.planetes["Noeud_Nord"];
+    }
+    if (day.planetes["Noeud_Sud"] && !day.planetes["Nœud Sud"]) {
+        day.planetes["Nœud Sud"] = day.planetes["Noeud_Sud"];
+    }
+});
+
+const signs = ["Bélier","Taureau","Gémeaux","Cancer","Lion","Vierge","Balance","Scorpion","Sagittaire","Capricorne","Verseau","Poissons"];
+
+const slowPlanets = ["Jupiter","Saturne","Uranus","Neptune","Pluton","Nœud Nord","Nœud Sud","Chiron","Lilith","Ceres","Pallas","Junon","Vesta"];
+const fastPlanetsMap = {
+    "Mensuel"      : ["Soleil","Mercure","Vénus","Mars"],
+    "Hebdomadaire" : ["Soleil","Lune","Mercure","Vénus","Mars"],
+    "Journalier"   : ["Soleil","Lune","Mercure","Vénus","Mars"]
+};
+const fastPlanets = fastPlanetsMap[typeRapport] || [];
+// Note : Nœud Nord et Nœud Sud ne sont PAS dans retroPlanets
+// car ils sont toujours en mouvement rétrograde moyen (par définition)
+const retroPlanets = ["Mercure","Vénus","Mars","Jupiter","Saturne","Uranus","Neptune","Pluton","Chiron","Lilith","Ceres","Pallas","Junon","Vesta"];
+
+// ---- ASPECTS MONDIAUX : paires T→T ----
+const TT_ASPECTS = { 0:"Conjonction", 60:"Sextile", 90:"Carré", 120:"Trigone", 150:"Quinconce", 180:"Opposition" };
+const ORBE_TT_LL = 2.0;
+const ORBE_TT_RL = 1.0;
+
+const buildTTPairs = () => {
+    const pairs = [];
+    for (let i = 0; i < slowPlanets.length; i++) {
+        for (let j = i + 1; j < slowPlanets.length; j++) {
+            pairs.push({ p1: slowPlanets[i], p2: slowPlanets[j], orbe: ORBE_TT_LL, cat: "lente_lente" });
+        }
+    }
+    if (fastPlanets.length > 0) {
+        for (const pr of fastPlanets) {
+            for (const pl of slowPlanets) {
+                if (pr !== pl) pairs.push({ p1: pr, p2: pl, orbe: ORBE_TT_RL, cat: "rapide_lente" });
+            }
+        }
+    }
+    return pairs;
+};
+const ttPairs = buildTTPairs();
+
+// ---- ANGLES NATALS ----
+const ANGLE_NAMES = {
+    "Ascendant"   : { key: "ASC", maison: 1 },
+    "Imum Coeli"  : { key: "IC",  maison: 4 },
+    "Descendant"  : { key: "DSC", maison: 7 },
+    "Milieu du Ciel": { key: "MC", maison: 10 }
+};
+const angleSet = new Set(Object.keys(ANGLE_NAMES));
+const natalAngles = {};
+natalPlanets.forEach(p => {
+    const name = p.planet?.fr || p.planet?.en || "";
+    if (angleSet.has(name)) natalAngles[name] = p.fullDegree;
+});
+
+// ---- STRUCTURE RAPPORT ----
+let rapportMaisons = Array.from({length: 12}, (_, i) => ({
+    maison          : i + 1,
+    structure_natale: [],
+    transits_lentes : [],
+    aspects_lentes  : [],
+    transits_rapides: [],
+    aspects_rapides : [],
+    stations_retro  : [],
+    lunaisons       : [],
+    eclipses        : [],
+    passages_angles : [],
+    aspects_mondiaux: [],
+    translations_lumiere: [],
+    midpoints: [],
+    degres_critiques: [],
+    profection: null,
+    antiscia: [],
+    ingress: [],
+    cycles_vie: [],
+    fenetre_stellaire    : [],
+    eclipse_natal_active : [],
+    _hm_etoiles          : [],
+    _hm_eclipse_natal_active : [],
+    _hm_ingress          : [],
+    _hm_midpoints        : [],
+    _hm_antiscia         : [],
+    arcs_solaires        : [],
+    _hm_arcs_solaires    : []
+}));
+
+natalHouses.forEach(h => {
+    (h.segments || []).forEach(seg => {
+        rapportMaisons[h.maison - 1].structure_natale.push({ signe: seg.signe, degre_debut: seg.degre_debut });
+    });
+});
+
+const getLocation = (deg) => {
+    const d = ((deg % 360) + 360) % 360;
+    for (let h of natalHouses) {
+        const _seg0 = h.segments?.[0] || { signe: "Bélier", degre_debut: 0 };
+        const h1 = (signs.indexOf(_seg0.signe) * 30 + _seg0.degre_debut + 360) % 360;
+        const nxt = natalHouses.find(nm => nm.maison === (h.maison % 12) + 1);
+        const _segN = nxt?.segments?.[0] || { signe: "Bélier", degre_debut: 0 };
+        const h2  = (signs.indexOf(_segN.signe) * 30 + _segN.degre_debut + 360) % 360;
+        const inside = h1 < h2 ? (d >= h1 && d < h2) : (d >= h1 || d < h2);
+        if (inside) return { maison: h.maison, signe: signs[Math.floor(d / 30) % 12] };
+    }
+    return { maison: 1, signe: signs[Math.floor(d / 30) % 12] };
+};
+
+const ANGLES_ASP = { 0:"Conjonction", 60:"Sextile", 90:"Carré", 120:"Trigone", 150:"Quinconce", 180:"Opposition" };
+const ORBE_L     = 2.0;
+const ORBE_R     = 1.0;
+const ORBE_ANGLE = 1.5;
+
+let suiviAngle = {};
+let suiviRetro = {};
+retroPlanets.forEach(p => { suiviRetro[p] = null; });
+let prevLuneSoleilDiff = null;
+const eclipsesByDate = {};
+eclipsesData.forEach(e => { eclipsesByDate[e.date] = e; });
+
+let suiviTT = {};
+
+const processGroup = (planets, suiviT, suiviA, sectionT, sectionA, orbe, days, idx, date, prevDay) => {
+    for (const pT of planets) {
+        if (!days[idx].planetes?.[pT]) continue;
+        const posT = days[idx].planetes[pT].fullDegree;
+        const loc  = getLocation(posT);
+        if (!suiviT[pT] || suiviT[pT].maison !== loc.maison || suiviT[pT].signe !== loc.signe) {
+            if (suiviT[pT]) {
+                const s = suiviT[pT];
+                rapportMaisons[s.maison-1][sectionT].push({ planete:pT, signe:s.signe, debut:s.debut, fin:prevDay });
+            }
+            suiviT[pT] = { ...loc, debut: date };
+        }
+        for (const pN of natalPlanets) {
+            const nameN = pN.planet?.fr || pN.planet?.en || "";
+            if (!nameN) continue;
+            let diff = Math.abs(posT - pN.fullDegree);
+            if (diff > 180) diff = 360 - diff;
+            for (const [degAng, type] of Object.entries(ANGLES_ASP)) {
+                const key = `${pT}_${type}_${nameN}`;
+                const orb = Math.abs(diff - Number(degAng));
+                if (orb <= orbe) {
+                    if (!suiviA[key]) {
+                        suiviA[key] = { type, pTransit:pT, pNatal:nameN, debut:date, maison:loc.maison, isAngle:angleSet.has(nameN), bestOrb:orb, peakDate:date };
+                    } else if (orb < suiviA[key].bestOrb) {
+                        suiviA[key].bestOrb = orb; suiviA[key].peakDate = date;
+                    }
+                } else if (suiviA[key]) {
+                    const asp = suiviA[key];
+                    rapportMaisons[asp.maison-1][sectionA].push({ ...asp, fin:prevDay });
+                    delete suiviA[key];
+                }
+            }
+        }
+    }
+};
+
+const processAngles = (allPlanets, idx, date, prevDay) => {
+    for (const pT of allPlanets) {
+        if (!days[idx].planetes?.[pT]) continue;
+        const posT = days[idx].planetes[pT].fullDegree;
+        for (const [angleName, angleDeg] of Object.entries(natalAngles)) {
+            let diff = Math.abs(posT - angleDeg);
+            if (diff > 180) diff = 360 - diff;
+            const key = `${pT}_angle_${angleName}`;
+            const inOrb = diff <= ORBE_ANGLE;
+            if (inOrb && !suiviAngle[key]) {
+                const maisAngle = ANGLE_NAMES[angleName]?.maison || 1;
+                const loc = getLocation(posT);
+                suiviAngle[key] = { planete:pT, angleName, angleKey:ANGLE_NAMES[angleName]?.key||angleName, debut:date, maison:maisAngle, maisTransit:loc.maison };
+            } else if (!inOrb && suiviAngle[key]) {
+                const a = suiviAngle[key];
+                const signe = signs[Math.floor(days[idx].planetes[pT].fullDegree / 30) % 12];
+                rapportMaisons[a.maison-1].passages_angles.push({ ...a, fin:prevDay, signe });
+                delete suiviAngle[key];
+            }
+        }
+    }
+};
+
+const processTransitTransit = (idx, date, prevDay) => {
+    for (const pair of ttPairs) {
+        const { p1, p2, orbe, cat } = pair;
+        if (!days[idx].planetes?.[p1] || !days[idx].planetes?.[p2]) continue;
+        const pos1 = days[idx].planetes[p1].fullDegree;
+        const pos2 = days[idx].planetes[p2].fullDegree;
+        let diff = Math.abs(pos1 - pos2);
+        if (diff > 180) diff = 360 - diff;
+
+        for (const [degAng, type] of Object.entries(TT_ASPECTS)) {
+            const key = `TT_${p1}_${type}_${p2}`;
+            const orb = Math.abs(diff - Number(degAng));
+            if (orb <= orbe && !suiviTT[key]) {
+                const loc1 = getLocation(pos1);
+                const loc2 = getLocation(pos2);
+                suiviTT[key] = { type, p1, p2, cat, debut:date, maison:loc1.maison, maison2:loc2.maison, signe1:signs[Math.floor(pos1/30)%12], signe2:signs[Math.floor(pos2/30)%12] };
+            } else if (orb > orbe && suiviTT[key]) {
+                const asp = suiviTT[key];
+                rapportMaisons[asp.maison-1].aspects_mondiaux.push({ ...asp, fin:prevDay });
+                delete suiviTT[key];
+            }
+        }
+    }
+};
+
+let suiviTL = {}, suiviAL = {}, suiviTR = {}, suiviAR = {};
+const allTransitPlanets = [...new Set([...slowPlanets, ...fastPlanets])];
+
+const TL_ASP_DEG_MAP = {0:"Conjonction",60:"Sextile",90:"Carré",120:"Trigone",180:"Opposition"};
+const TL_ORB = 2.0;
+let suiviTL_map = {};
+const chkTLAsp = (pos1, pos2) => {
+    let d = Math.abs(pos1 - pos2); if (d > 180) d = 360 - d;
+    for (const deg of [0,60,90,120,180]) { if (Math.abs(d-deg) <= TL_ORB) return deg; }
+    return null;
+};
+
+const ORBE_MP = 1.5;
+
+const natalDictLoc = {};
+natalPlanets.forEach(p => {
+    const name = p.planet?.fr || p.planet?.en || "";
+    if (!name) return;
+    const deg  = p.fullDegree;
+    const sign = p.zodiac_sign?.name?.fr || signs[Math.floor(deg/30)%12];
+    const house= getLocation(deg).maison;
+    natalDictLoc[name] = { deg, sign, house, declinaison:p.declinaison ?? null };
+});
+
+// D8 ISO: Auto-calcul Nœud Sud natal si absent (ISO N8N Prev)
+if (natalDictLoc["Nœud Nord"] && !natalDictLoc["Nœud Sud"]) {
+    const _nNordDeg = natalDictLoc["Nœud Nord"].deg;
+    const _nSudDeg  = (_nNordDeg + 180) % 360;
+    const _nnDecl = natalDictLoc["Nœud Nord"].declinaison;
+    natalDictLoc["Nœud Sud"] = {
+        deg   : _nSudDeg,
+        sign  : signs[Math.floor(_nSudDeg / 30) % 12],
+        house : getLocation(_nSudDeg).maison,
+        declinaison : _nnDecl != null ? -_nnDecl : null
+    };
+}
+
+// D7 ISO: Forçage maisons angulaires canoniques (ISO N8N Prev)
+if (natalDictLoc["Ascendant"])       natalDictLoc["Ascendant"].house       = 1;
+if (natalDictLoc["Imum Coeli"])      natalDictLoc["Imum Coeli"].house      = 4;
+if (natalDictLoc["Descendant"])      natalDictLoc["Descendant"].house      = 7;
+if (natalDictLoc["Milieu du Ciel"])  natalDictLoc["Milieu du Ciel"].house  = 10;
+
+// D9 ISO: Lots hermétiques (réplique exacte de N8N Prev section 7-ter)
+{
+    const _asc = natalDictLoc["Ascendant"], _sun = natalDictLoc["Soleil"], _moon = natalDictLoc["Lune"];
+    if (_asc && _sun && _moon) {
+        const ascDeg = _asc.deg, sunDeg = _sun.deg, moonDeg = _moon.deg;
+        const isDayChart = (() => { const arc = ((sunDeg - ascDeg) + 360) % 360; return arc > 180; })();
+        const lotCalc = (a,b,c) => (((a+b-c)%360)+360)%360;
+        const lotCalcInv = (a,b,c) => (((a+c-b)%360)+360)%360;
+        const pushLotA = (name, deg) => {
+            natalDictLoc[name] = { deg, sign: signs[Math.floor(deg/30)%12], house: getLocation(deg).maison, declinaison: null };
+        };
+        const pofDeg = isDayChart ? lotCalc(ascDeg,moonDeg,sunDeg) : lotCalc(ascDeg,sunDeg,moonDeg);
+        if (!natalDictLoc["Part de Fortune"]) pushLotA("Part de Fortune", pofDeg);
+        const posDeg = isDayChart ? lotCalc(ascDeg,sunDeg,moonDeg) : lotCalc(ascDeg,moonDeg,sunDeg);
+        if (!natalDictLoc["Lot de l'Esprit"]) pushLotA("Lot de l'Esprit", posDeg);
+        const _mars = natalDictLoc["Mars"], _venus = natalDictLoc["Vénus"], _jupiter = natalDictLoc["Jupiter"],
+              _saturn = natalDictLoc["Saturne"], _mercury = natalDictLoc["Mercure"];
+        if (_mars) {
+            if (_mercury && !natalDictLoc["Lot de Nécessité"]) {
+                const d = isDayChart ? lotCalc(ascDeg,pofDeg,_mercury.deg) : lotCalcInv(ascDeg,pofDeg,_mercury.deg);
+                pushLotA("Lot de Nécessité", d);
+            }
+            if (_venus && !natalDictLoc["Lot d'Éros"]) {
+                const d = isDayChart ? lotCalc(ascDeg,_venus.deg,posDeg) : lotCalcInv(ascDeg,_venus.deg,posDeg);
+                pushLotA("Lot d'Éros", d);
+            }
+            if (!natalDictLoc["Lot de Courage"]) {
+                const d = isDayChart ? lotCalc(ascDeg,pofDeg,_mars.deg) : lotCalcInv(ascDeg,pofDeg,_mars.deg);
+                pushLotA("Lot de Courage", d);
+            }
+            if (_saturn && !natalDictLoc["Lot de Némésis"]) {
+                const d = isDayChart ? lotCalc(ascDeg,pofDeg,_saturn.deg) : lotCalcInv(ascDeg,pofDeg,_saturn.deg);
+                pushLotA("Lot de Némésis", d);
+            }
+        }
+        if (!natalDictLoc["Lot de Basis"])      pushLotA("Lot de Basis", lotCalc(ascDeg,pofDeg,posDeg));
+        if (!natalDictLoc["Lot d'Exaltation"])  pushLotA("Lot d'Exaltation", lotCalc(ascDeg,19,sunDeg));
+        if (!natalDictLoc["Lot du Daemon"])     pushLotA("Lot du Daemon", isDayChart ? lotCalc(ascDeg,sunDeg,posDeg) : lotCalcInv(ascDeg,sunDeg,posDeg));
+    }
+}
+
+const NATAL_NAMES_A = Object.keys(natalDictLoc);
+const natalMidpointsA = [];
+const PLANETS_MAJ_A = new Set(["Soleil","Lune","Mercure","Vénus","Mars","Jupiter","Saturne","Uranus","Neptune","Pluton","Nœud Nord","Nœud Sud","Chiron","Ascendant","Milieu du Ciel"]);
+for (let i=0; i<NATAL_NAMES_A.length; i++) {
+    for (let j=i+1; j<NATAL_NAMES_A.length; j++) {
+        const pA=NATAL_NAMES_A[i], pB=NATAL_NAMES_A[j];
+        if (!PLANETS_MAJ_A.has(pA) && !PLANETS_MAJ_A.has(pB)) continue;
+        const dA=natalDictLoc[pA].deg, dB=natalDictLoc[pB].deg;
+        let mid1=(dA+dB)/2; let diff=Math.abs(dA-dB); if(diff>180)diff=360-diff;
+        let mid2=(mid1+180)%360;
+        if(diff>90){const t=mid1;mid1=mid2;mid2=t;}
+        mid1=((mid1%360)+360)%360; mid2=((mid2%360)+360)%360;
+        natalMidpointsA.push({key:`${pA}/${pB}`,pA,pB,mid1,mid2,maisA:natalDictLoc[pA].house,maisB:natalDictLoc[pB].house});
+    }
+}
+let suiviMP = {};
+
+const SIGNS_CARD=new Set(["Bélier","Cancer","Balance","Capricorne"]);
+const SIGNS_FIXE=new Set(["Taureau","Lion","Scorpion","Verseau"]);
+const SIGNS_MUT =new Set(["Gémeaux","Vierge","Sagittaire","Poissons"]);
+const getCritDeg = (degAbs) => {
+    const signe=signs[Math.floor(degAbs/30)%12], deg=degAbs%30, r=[];
+    if(deg>=28.5) r.push("Anarète 29°");
+    if(deg<0.5)   r.push("Ingress 0°");
+    if(SIGNS_CARD.has(signe)&&(Math.abs(deg-13)<0.5||Math.abs(deg-26)<0.5)) r.push(`${Math.round(deg)}° ${signe} crit.`);
+    if(SIGNS_FIXE.has(signe)&&((deg>=8&&deg<9.5)||(deg>=21&&deg<22.5))) r.push(`${Math.round(deg)}° ${signe} crit.`);
+    if(SIGNS_MUT.has(signe)&&(Math.abs(deg-4)<0.5||Math.abs(deg-17)<0.5)) r.push(`${Math.round(deg)}° ${signe} crit.`);
+    return r;
+};
+const dcNataux = {};
+Object.keys(natalDictLoc).forEach(p => { const c=getCritDeg(natalDictLoc[p].deg); if(c.length) dcNataux[p]=c; });
+
+const dateNaissA = parseDate(perso.date);
+const anneeRpA   = parseInt(perso.annee || dStart.getFullYear());
+let profectionsA = null;
+if (dateNaissA && !isNaN(dateNaissA)) {
+    const MAITRES_TRAD_A = {"Bélier":"Mars","Taureau":"Vénus","Gémeaux":"Mercure","Cancer":"Lune","Lion":"Soleil","Vierge":"Mercure","Balance":"Vénus","Scorpion":"Mars","Sagittaire":"Jupiter","Capricorne":"Saturne","Verseau":"Saturne","Poissons":"Jupiter"};
+    const moisNaissA  = dateNaissA.getMonth() + 1;
+    const jourNaissA  = dateNaissA.getDate();
+    const dStartMonA  = dStart.getMonth() + 1;
+    const dStartDayA  = dStart.getDate();
+    const ageYearDiffA = anneeRpA - dateNaissA.getFullYear();
+    const bdayPassedA  = (dStartMonA > moisNaissA) || (dStartMonA === moisNaissA && dStartDayA >= jourNaissA);
+    const ageA         = bdayPassedA ? ageYearDiffA : ageYearDiffA - 1;
+    const maisAnn  = ((ageA % 12) + 12) % 12 + 1;
+    const ascSignA = natalDictLoc["Ascendant"]?.sign;
+    const ascIdxA  = ascSignA ? signs.indexOf(ascSignA) : -1;
+    const signeProfA = ascIdxA >= 0 ? signs[(ascIdxA + maisAnn - 1) % 12] : (natalHouses.find(h=>h.maison===maisAnn)?.segments[0]?.signe || null);
+    const seigneur = signeProfA ? MAITRES_TRAD_A[signeProfA] : null;
+    const seignNd  = seigneur ? natalDictLoc[seigneur] : null;
+    const moisDeb  = dStartMonA;
+    const dec      = ((moisDeb - moisNaissA + 12) % 12);
+    const maisMens = ((maisAnn - 1 + dec) % 12) + 1;
+
+    const ageNext     = ageA + 1;
+    const maisNext    = ((ageNext % 12) + 12) % 12 + 1;
+    const signeNext   = ascIdxA >= 0 ? signs[(ascIdxA + maisNext - 1) % 12] : (natalHouses.find(h=>h.maison===maisNext)?.segments[0]?.signe || null);
+    const seigneurNext = signeNext ? MAITRES_TRAD_A[signeNext] : null;
+    const seignNdNext  = seigneurNext ? natalDictLoc[seigneurNext] : null;
+    const bdayInRange  = dStart <= new Date(anneeRpA, dateNaissA.getMonth(), jourNaissA) &&
+                         new Date(anneeRpA, dateNaissA.getMonth(), jourNaissA) <= dEnd;
+    const bascule = bdayInRange ? {
+        date: `${jourNaissA}/${String(moisNaissA).padStart(2,"0")}/${anneeRpA}`,
+        ageNext, maisNext, signeNext, seigneurNext,
+        seignMaisonNext: seignNdNext?.house || null
+    } : null;
+
+    profectionsA = { age:ageA, maisAnn, seigneur, seignMaison:seignNd?.house, signeCusp:signeProfA, maisMens, bascule };
+    if (maisAnn >= 1 && maisAnn <= 12)
+        rapportMaisons[maisAnn-1].profection = { role:"annuelle", age:ageA, seigneur, seignMaison:seignNd?.house, bascule };
+    if (maisMens >= 1 && maisMens <= 12 && maisMens !== maisAnn && typeRapport !== "Annuel")
+        rapportMaisons[maisMens-1].profection = { role:"mensuelle", maisAnn };
+    if (seignNd?.house >= 1 && seignNd?.house <= 12 && seignNd.house !== maisAnn)
+        rapportMaisons[seignNd.house-1].profection = Object.assign({}, rapportMaisons[seignNd.house-1].profection || {}, { seigneurIci:seigneur, maisAnn });
+    if (bascule && maisNext >= 1 && maisNext <= 12 && maisNext !== maisAnn)
+        rapportMaisons[maisNext-1].profection = Object.assign({}, rapportMaisons[maisNext-1].profection || {}, { role:"bascule", bascule });
+    if (bascule && seignNdNext?.house >= 1 && seignNdNext?.house <= 12 && seignNdNext.house !== maisAnn && seignNdNext.house !== (seignNd?.house || -1))
+        rapportMaisons[seignNdNext.house-1].profection = Object.assign({}, rapportMaisons[seignNdNext.house-1].profection || {}, { seigneurNextIci:seigneurNext, maisNext });
+}
+
+const calcAntA = (d) => ((180 - d) + 360) % 360;
+const calcConA = (d) => (360 - d) % 360;
+const natalAntisciaA = Object.keys(natalDictLoc).map(p => ({
+    pNatal: p, deg: natalDictLoc[p].deg,
+    antiscion: calcAntA(natalDictLoc[p].deg),
+    contra: calcConA(natalDictLoc[p].deg),
+    maison: natalDictLoc[p].house
+}));
+const ORBE_ANT_A = 1.5;
+let suiviAntA = {};
+
+// Cycles de vie (C11) — inclut Nœud Nord
+const CYCLES_PL = {
+    "Saturne" : { periode:29.5, phases:[{frac:1/4,label:"Carré Saturne ~7 ans"},{frac:1/2,label:"Opposition Saturne ~15 ans"},{frac:3/4,label:"Carré Saturne ~22 ans"},{frac:1,label:"Retour Saturne ~30 ans"},{frac:3/2,label:"Opposition 2e cycle ~44 ans"},{frac:2,label:"2e Retour Saturne ~59 ans"}]},
+    "Jupiter" : { periode:11.86, phases:[{frac:1/2,label:"Opposition Jupiter ~6 ans"},{frac:1,label:"Retour Jupiter ~12 ans"},{frac:3/2,label:"Opposition Jupiter ~18 ans"},{frac:2,label:"Retour Jupiter ~24 ans"},{frac:5/2,label:"Retour Jupiter ~30 ans"},{frac:3,label:"Retour Jupiter ~36 ans"},{frac:7/2,label:"Opposition Jupiter ~42 ans"},{frac:4,label:"Retour Jupiter ~48 ans"}]},
+    "Uranus"  : { periode:84,   phases:[{frac:1/4,label:"Carré Uranus ~21 ans"},{frac:1/2,label:"Opposition Uranus ~42 ans (mi-vie)"},{frac:3/4,label:"Carré Uranus ~63 ans"},{frac:1,label:"Retour Uranus ~84 ans"}]},
+    "Chiron"  : { periode:50.7, phases:[{frac:1/2,label:"Opposition Chiron ~25 ans"},{frac:1,label:"Retour Chiron ~51 ans"}]},
+    "Nœud Nord":{ periode:18.6, phases:[{frac:1/2,label:"Opposition Nœuds ~9 ans"},{frac:1,label:"Retour Nœud ~19 ans"},{frac:3/2,label:"Opposition Nœuds ~28 ans"},{frac:2,label:"Retour Nœud ~37 ans"}]},
+};
+const dateNaissCyc = parseDate(perso.date);
+const cyclesActifsA = [];
+if (dateNaissCyc && !isNaN(dateNaissCyc)) {
+    const MS_AN = 365.25 * 24 * 3600 * 1000;
+    const ageDebA = (dStart - dateNaissCyc) / MS_AN;
+    const ageFnA  = (dEnd   - dateNaissCyc) / MS_AN;
+    for (const [pl, cyc] of Object.entries(CYCLES_PL)) {
+        for (const ph of cyc.phases) {
+            const ageP = cyc.periode * ph.frac;
+            if (ageP >= ageDebA - 0.5 && ageP <= ageFnA + 0.5) {
+                const dp = new Date(dateNaissCyc.getTime() + ageP * MS_AN);
+                const m  = natalDictLoc[pl]?.house;
+                cyclesActifsA.push({ planete:pl, label:ph.label, age:(ageP ?? 0).toFixed(1), date:dp.toISOString().split("T")[0], maison:m });
+            }
+        }
+    }
+}
+cyclesActifsA.forEach(c => {
+    if (c.maison >= 1 && c.maison <= 12)
+        rapportMaisons[c.maison-1].cycles_vie.push(`${c.label} — approx. ${c.date} (âge ~${c.age} ans).`);
+});
+
+// Ingress planétaires (C9) — inclut Nœud Nord et Nœud Sud
+const slowPl_A = ["Jupiter","Saturne","Uranus","Neptune","Pluton","Nœud Nord","Nœud Sud","Chiron"];
+let prevSignesA = {};
+
+// =====================================================================
+// BOUCLE PRINCIPALE JOURS
+// =====================================================================
+days.forEach((day, idx) => {
+    const date    = day.date;
+    const prevDay = idx > 0 ? days[idx-1].date : date;
+
+    processGroup(slowPlanets, suiviTL, suiviAL, "transits_lentes",  "aspects_lentes",  ORBE_L, days, idx, date, prevDay);
+    processGroup(fastPlanets, suiviTR, suiviAR, "transits_rapides", "aspects_rapides", ORBE_R, days, idx, date, prevDay);
+    processAngles(allTransitPlanets, idx, date, prevDay);
+    processTransitTransit(idx, date, prevDay);
+
+    // Translation de lumière
+    for (const pF of allTransitPlanets.filter(p => fastPlanets.includes ? fastPlanets.includes(p) : ["Soleil","Lune","Mercure","Vénus","Mars"].includes(p))) {
+        if (!days[idx].planetes?.[pF]) continue;
+        const posF = days[idx].planetes[pF].fullDegree;
+        for (let i = 0; i < slowPlanets.length; i++) {
+            for (let j = i+1; j < slowPlanets.length; j++) {
+                const pS1 = slowPlanets[i], pS2 = slowPlanets[j];
+                if (!days[idx].planetes?.[pS1] || !days[idx].planetes?.[pS2]) continue;
+                const posS1 = days[idx].planetes[pS1].fullDegree, posS2 = days[idx].planetes[pS2].fullDegree;
+                let dS = Math.abs(posS1-posS2); if (dS>180) dS=360-dS;
+                if ([0,60,90,120,180].some(d => Math.abs(dS-d)<=3)) continue;
+                const d1 = chkTLAsp(posF, posS1), d2 = chkTLAsp(posF, posS2);
+                const key = `TL_${pF}_${pS1}_${pS2}`;
+                if (d1!==null && d2!==null && !suiviTL_map[key]) {
+                    suiviTL_map[key] = { pF, pS1, pS2, asp1:TL_ASP_DEG_MAP[d1], asp2:TL_ASP_DEG_MAP[d2], debut:date, maisS1:getLocation(posS1).maison, maisS2:getLocation(posS2).maison, signeF:signs[Math.floor(posF/30)%12] };
+                } else if ((d1===null || d2===null) && suiviTL_map[key]) {
+                    const tl = suiviTL_map[key];
+                    [...new Set([tl.maisS1, tl.maisS2])].forEach(m => {
+                        if (m>=1 && m<=12) rapportMaisons[m-1].translations_lumiere.push({...tl, fin:prevDay});
+                    });
+                    delete suiviTL_map[key];
+                }
+            }
+        }
+    }
+
+    // Stations rétrogrades (Nœud Nord/Sud exclus car toujours rétrogrades par définition)
+    for (const p of retroPlanets) {
+        if (!day.planetes?.[p]) continue;
+        const rawRetro = day.planetes[p].isRetro;
+        const isRetro  = rawRetro === "True" || rawRetro === true;
+        if (suiviRetro[p] !== null && suiviRetro[p] !== isRetro) {
+            const posT = day.planetes[p].fullDegree;
+            const loc  = getLocation(posT);
+            rapportMaisons[loc.maison-1].stations_retro.push({ planete:p, type:isRetro ? "Station rétrograde" : "Station directe", date, signe:signs[Math.floor(posT/30)%12], maison:loc.maison, fullDegree:posT });
+        }
+        suiviRetro[p] = isRetro;
+    }
+
+    // Lunaisons
+    let luneDeg = null;
+    const luneEntries = luneData[date];
+    if (luneEntries?.length > 0) {
+        const midi = luneEntries.find(e => e.heure >= "12:00") || luneEntries[0];
+        luneDeg = midi.fullDegree;
+    } else if (day.planetes?.Lune) { luneDeg = day.planetes.Lune.fullDegree; }
+    const soleilDeg = day.planetes?.Soleil?.fullDegree;
+    if (luneDeg !== null && soleilDeg !== undefined) {
+        const diff = ((luneDeg - soleilDeg) + 360) % 360;
+        if (prevLuneSoleilDiff !== null) {
+            if (diff < 20 && prevLuneSoleilDiff > 340) {
+                const loc = getLocation(luneDeg);
+                rapportMaisons[loc.maison-1].lunaisons.push({ type:"Nouvelle Lune", date, signe:signs[Math.floor(luneDeg/30)%12], degre:luneDeg, maison:loc.maison });
+            } else if (diff >= 170 && diff <= 190 && prevLuneSoleilDiff < 170) {
+                const loc = getLocation(luneDeg);
+                rapportMaisons[loc.maison-1].lunaisons.push({ type:"Pleine Lune", date, signe:signs[Math.floor(luneDeg/30)%12], degre:luneDeg, maison:loc.maison });
+            } else if (diff >= 80 && diff <= 100 && prevLuneSoleilDiff < 80) {
+                const loc = getLocation(luneDeg);
+                rapportMaisons[loc.maison-1].lunaisons.push({ type:"Premier Quartier", date, signe:signs[Math.floor(luneDeg/30)%12], degre:luneDeg, maison:loc.maison });
+            } else if (diff >= 260 && diff <= 280 && prevLuneSoleilDiff < 260) {
+                const loc = getLocation(luneDeg);
+                rapportMaisons[loc.maison-1].lunaisons.push({ type:"Dernier Quartier", date, signe:signs[Math.floor(luneDeg/30)%12], degre:luneDeg, maison:loc.maison });
+            }
+        }
+        prevLuneSoleilDiff = diff;
+    }
+
+    // =====================================================================
+    // FIX BUG #1 — Fenêtres stellaires sorties du bloc if(eclipsesByDate)
+    // FIX BUG #2 — Ajout de stellarByAngleAT (IC, ASC, MC, DSC)
+    // Ce bloc try s'exécute désormais CHAQUE JOUR, indépendamment des éclipses
+    // =====================================================================
+    try {
+        const allTP2_st = [...new Set([...slowPlanets,...fastPlanets])];
+
+        // --- Planètes natales conjointes à une étoile fixe (inchangé) ---
+        for (const [pN, etoiles] of Object.entries(stellarByPlanetAT)) {
+            const nData = natalDictLoc[pN]; if (!nData) continue;
+            for (const em of etoiles) {
+                if (em.etoile_degree === undefined) continue;
+                for (const pT of allTP2_st) {
+                    if (!day?.planetes?.[pT]) continue;
+                    let dS = Math.abs(day.planetes[pT].fullDegree - em.etoile_degree); if (dS>180) dS=360-dS;
+                    const key = 'STAT_'+pT+'|||'+em.etoile+'|||'+pN;
+                    if (dS <= ORBE_STELL_AT && !suiviStellairAT[key]) {
+                        suiviStellairAT[key] = { pT, etoile:em.etoile, pN, maison:nData.house, debut:date, isRoyal:ETOILES_ROY_AT.has(em.etoile), desc:em.desc };
+                    } else if (dS > ORBE_STELL_AT && suiviStellairAT[key]) {
+                        const s = suiviStellairAT[key];
+                        const descSnippet = (s.desc || '').substring(0,100);
+                        const txt = '★ ' + (s.isRoyal ? 'FENÊTRE ROYALE' : 'Fenêtre stellaire') + ' — Du ' + s.debut + ' au ' + date + ' : ' + s.pT + ' active ' + s.etoile + (s.isRoyal?' [ÉTOILE ROYALE]':'') + ', conjointe à ' + s.pN + ' natal (M' + s.maison + '). Nature : ' + descSnippet + '…';
+                        if (s.maison>=1&&s.maison<=12) { rapportMaisons[s.maison-1].fenetre_stellaire.push(txt); rapportMaisons[s.maison-1]._hm_etoiles.push({date: s.debut, isRoyal: !!s.isRoyal}); }
+                        delete suiviStellairAT[key];
+                    }
+                }
+            }
+        }
+
+        // --- FIX BUG #2 : Angles nataux conjoints à une étoile fixe (IC, ASC, MC, DSC) ---
+        const ANGLE_KEY_TO_FULL = { "ASC":"Ascendant", "IC":"Imum Coeli", "DSC":"Descendant", "MC":"Milieu du Ciel" };
+        for (const [angleKey, etoiles] of Object.entries(stellarByAngleAT)) {
+            const fullName    = ANGLE_KEY_TO_FULL[angleKey] || angleKey;
+            const angleDeg    = natalAngles[fullName];
+            const angleMaison = ANGLE_MAIS_AT[angleKey] || 1;
+            if (angleDeg === undefined) continue;
+            for (const em of etoiles) {
+                if (em.etoile_degree === undefined) continue;
+                for (const pT of allTP2_st) {
+                    if (!day?.planetes?.[pT]) continue;
+                    let dS = Math.abs(day.planetes[pT].fullDegree - em.etoile_degree); if (dS>180) dS=360-dS;
+                    const key = 'STAT_'+pT+'|||'+em.etoile+'|||angle_'+angleKey;
+                    if (dS <= ORBE_STELL_AT && !suiviStellairAT[key]) {
+                        suiviStellairAT[key] = { pT, etoile:em.etoile, pN:'angle '+angleKey, maison:angleMaison, debut:date, isRoyal:ETOILES_ROY_AT.has(em.etoile), desc:em.desc };
+                    } else if (dS > ORBE_STELL_AT && suiviStellairAT[key]) {
+                        const s = suiviStellairAT[key];
+                        const descSnippetA = (s.desc || '').substring(0,100);
+                        const txt = '★ ' + (s.isRoyal ? 'FENÊTRE ROYALE' : 'Fenêtre stellaire') + ' — Du ' + s.debut + ' au ' + date + ' : ' + s.pT + ' active ' + s.etoile + (s.isRoyal?' [ÉTOILE ROYALE]':'') + ', conjointe à l\'angle ' + angleKey + ' natal (M' + s.maison + '). Nature : ' + descSnippetA + '…';
+                        if (s.maison>=1&&s.maison<=12) { rapportMaisons[s.maison-1].fenetre_stellaire.push(txt); rapportMaisons[s.maison-1]._hm_etoiles.push({date: s.debut, isRoyal: !!s.isRoyal}); }
+                        delete suiviStellairAT[key];
+                    }
+                }
+            }
+        }
+    } catch(eS) { console.warn("[Fenêtres stellaires] Erreur jour " + date + " :", eS.message); }
+    // =====================================================================
+    // FIN DES CORRECTIONS
+    // =====================================================================
+
+    // Éclipses (bloc conservé identique, l'ancien code stellaire a été retiré d'ici)
+    if (eclipsesByDate[date]) {
+        const e = eclipsesByDate[date];
+        const refDeg = (e.astre === "Soleil") ? (day.planetes?.Soleil?.fullDegree || 0) : (luneDeg ?? day.planetes?.Lune?.fullDegree ?? 0);
+        const loc = getLocation(refDeg);
+        const eclObj = { astre:e.astre, type:e.type, date:e.date, heure:e.heure, label:e.label, signe:signs[Math.floor(refDeg/30)%12], maison:loc.maison, fullDegree:refDeg };
+        if (e.saros_number)       eclObj.saros_number       = e.saros_number;
+        if (e.saros_type_eclipse) eclObj.saros_type_eclipse  = e.saros_type_eclipse;
+        if (e.saros_theme)        eclObj.saros_theme         = e.saros_theme;
+        if (e.saros_keywords)     eclObj.saros_keywords      = e.saros_keywords;
+        rapportMaisons[loc.maison-1].eclipses.push(eclObj);
+
+        // Résonance éclipse natale (reste dans le bloc éclipse — c'est logique)
+        if (eclipticNatalAT) {
+            const eRN  = eclipsesByDate[date];
+            const refD2 = eRN.astre === 'Soleil' ? (day.planetes?.Soleil?.fullDegree||0) : (luneDeg ?? day.planetes?.Lune?.fullDegree ?? 0);
+            let dE2 = Math.abs(refD2 - eclipticNatalAT.degree); if (dE2>180) dE2=360-dE2;
+            if (dE2 <= ORBE_ECL_RES_AT) {
+                const txt = '⚡ RÉSONANCE ÉCLIPTIQUE NATALE — ' + eRN.date + ' : éclipse à ' + (dE2 ?? 0).toFixed(1) + '° du degré natal (' + eclipticNatalAT.label + '). Transformation amplifiée × 2.';
+                [eclipticNatalAT.house, getLocation(refD2).maison].filter((h,i,a)=>h>=1&&h<=12&&a.indexOf(h)===i).forEach(h => { rapportMaisons[h-1].eclipse_natal_active.push(txt); rapportMaisons[h-1]._hm_eclipse_natal_active.push({date: eRN.date}); });
+            }
+        }
+    }
+});
+
+// =====================================================================
+// BOUCLE SECONDAIRE : Midpoints & Degrés critiques & Antiscia
+// (identique à l'original)
+// =====================================================================
+days.forEach(day => {
+    if (!day?.date || !day?.planetes) return;
+    const date = day.date;
+    const allTP2 = [...new Set([...slowPlanets,...fastPlanets])];
+    for (const pT of allTP2) {
+        if (!day.planetes[pT]) continue;
+        const posT = day.planetes[pT].fullDegree;
+        for (const mp of natalMidpointsA) {
+            for (const midDeg of [mp.mid1, mp.mid2]) {
+                let diff=Math.abs(posT-midDeg); if(diff>180)diff=360-diff;
+                const key=`MP_${pT}_${mp.key}_${midDeg>mp.mid1+1?"o":"c"}`;
+                if(diff<=ORBE_MP && !suiviMP[key]) {
+                    suiviMP[key]={pTransit:pT,mp,debut:date,maison:getLocation(posT).maison,maisA:mp.maisA,maisB:mp.maisB};
+                } else if(diff>ORBE_MP && suiviMP[key]) {
+                    const s=suiviMP[key];
+                    const txt=`${s.debut===date?s.debut:`Du ${s.debut} au ${date}`} : ${s.pTransit} active midpoint ${s.mp.key} → ${s.mp.pA} (M${s.mp.maisA}) ↔ ${s.mp.pB} (M${s.mp.maisB}).`;
+                    [...new Set([s.maison,s.maisA,s.maisB])].forEach(m=>{if(m>=1&&m<=12){ rapportMaisons[m-1].midpoints.push(txt); rapportMaisons[m-1]._hm_midpoints.push({date: s.debut}); }});
+                    delete suiviMP[key];
+                }
+            }
+        }
+        const crits=getCritDeg(posT);
+        if(crits.length) {
+            for(const [pN,critsN] of Object.entries(dcNataux)) {
+                let dN=Math.abs(posT-natalDictLoc[pN].deg); if(dN>180)dN=360-dN;
+                if(dN<=2) {
+                    const m=natalDictLoc[pN].house;
+                    if(m>=1&&m<=12) rapportMaisons[m-1].degres_critiques.push(`${date} : ${pT} (${crits.join(", ")}) sur ${pN} natal (${critsN.join(", ")}) — double degré critique.`);
+                }
+            }
+        }
+        // Antiscia (C10)
+        for (const ant of natalAntisciaA) {
+            for (const [aType, aDeg] of [["antiscion", ant.antiscion], ["contra", ant.contra]]) {
+                let dA=Math.abs(posT-aDeg); if(dA>180)dA=360-dA;
+                const key=`ANT_${pT}_${ant.pNatal}_${aType}`;
+                if(dA<=ORBE_ANT_A && !suiviAntA[key]) {
+                    suiviAntA[key]={debut:date,pTransit:pT,pNatal:ant.pNatal,type:aType,maison:ant.maison,aDeg};
+                } else if(dA>ORBE_ANT_A && suiviAntA[key]) {
+                    const s=suiviAntA[key];
+                    const sAnt=signs[Math.floor(s.aDeg/30)%12];
+                    const txt=`${s.debut===date?s.debut:`Du ${s.debut} au ${date}`} : ${s.pTransit} active le ${s.type} de ${s.pNatal} natal (miroir en ${sAnt}) — M${s.maison} activé silencieusement.`;
+                    if(s.maison>=1&&s.maison<=12) { rapportMaisons[s.maison-1].antiscia.push(txt); rapportMaisons[s.maison-1]._hm_antiscia.push({date: s.debut}); }
+                    delete suiviAntA[key];
+                }
+            }
+        }
+    }
+});
+
+// =====================================================================
+// CLÔTURE DES SUIVIS OUVERTS (identique à l'original)
+// =====================================================================
+const lastDate = days[days.length-1].date;
+const lastDay  = days[days.length-1];
+
+Object.keys(suiviTL).forEach(pT => { const s=suiviTL[pT]; rapportMaisons[s.maison-1].transits_lentes.push({planete:pT,signe:s.signe,debut:s.debut,fin:lastDate}); });
+Object.keys(suiviAL).forEach(key => { const a=suiviAL[key]; rapportMaisons[a.maison-1].aspects_lentes.push({...a,fin:lastDate}); });
+Object.keys(suiviTR).forEach(pT => { const s=suiviTR[pT]; rapportMaisons[s.maison-1].transits_rapides.push({planete:pT,signe:s.signe,debut:s.debut,fin:lastDate}); });
+Object.keys(suiviAR).forEach(key => { const a=suiviAR[key]; rapportMaisons[a.maison-1].aspects_rapides.push({...a,fin:lastDate}); });
+Object.keys(suiviAngle).forEach(key => {
+    const a=suiviAngle[key];
+    const signe = a.planete && lastDay.planetes?.[a.planete] ? signs[Math.floor(lastDay.planetes[a.planete].fullDegree/30)%12] : "?";
+    rapportMaisons[a.maison-1].passages_angles.push({...a,fin:lastDate,signe});
+});
+
+// Détecter les ingress — inclut Nœud Nord et Nœud Sud
+days.forEach(day => {
+    if (!day?.date || !day?.planetes) return;
+    const date = day.date;
+    for (const pT of slowPl_A) {
+        if (!day.planetes[pT]) continue;
+        const posT  = day.planetes[pT].fullDegree;
+        const signT = signs[Math.floor(posT/30)%12];
+        const houseT= getLocation(posT).maison;
+        if (prevSignesA[pT] && prevSignesA[pT] !== signT) {
+            const isRetro = day.planetes[pT].isRetro === "True" || day.planetes[pT].isRetro === true;
+            const txt = `${date} : ${pT} entre en ${signT}${isRetro?" (℞ ré-entrée)":""} — ingress M${houseT}.`;
+            if (houseT >= 1 && houseT <= 12) { rapportMaisons[houseT-1].ingress.push(txt); rapportMaisons[houseT-1]._hm_ingress.push({date}); }
+        }
+        prevSignesA[pT] = signT;
+    }
+});
+
+Object.keys(suiviTT).forEach(key => {
+    const a = suiviTT[key];
+    rapportMaisons[a.maison-1].aspects_mondiaux.push({...a,fin:lastDate});
+});
+Object.keys(suiviTL_map).forEach(key => {
+    const tl = suiviTL_map[key];
+    [...new Set([tl.maisS1, tl.maisS2])].forEach(m => {
+        if (m>=1 && m<=12) rapportMaisons[m-1].translations_lumiere.push({...tl, fin:lastDate});
+    });
+});
+
+Object.keys(suiviMP).forEach(key => {
+    const s=suiviMP[key];
+    const txt=`Du ${s.debut} au ${lastDate} : ${s.pTransit} active midpoint ${s.mp.key} → ${s.mp.pA} (M${s.mp.maisA}) ↔ ${s.mp.pB} (M${s.mp.maisB}).`;
+    [...new Set([s.maison,s.maisA,s.maisB])].forEach(m=>{if(m>=1&&m<=12){ rapportMaisons[m-1].midpoints.push(txt); rapportMaisons[m-1]._hm_midpoints.push({date: s.debut}); }});
+});
+
+Object.keys(suiviAntA).forEach(key => {
+    const s=suiviAntA[key];
+    const sAnt=signs[Math.floor(s.aDeg/30)%12];
+    const txt=`Du ${s.debut} au ${lastDate} : ${s.pTransit} active le ${s.type} de ${s.pNatal} natal (miroir en ${sAnt}) — M${s.maison} activé silencieusement.`;
+    if(s.maison>=1&&s.maison<=12) { rapportMaisons[s.maison-1].antiscia.push(txt); rapportMaisons[s.maison-1]._hm_antiscia.push({date: s.debut}); }
+});
+
+// v6 : clôture des fenêtres stellaires non fermées
+Object.keys(suiviStellairAT).forEach(key => {
+    const s = suiviStellairAT[key]; if (!s.maison||s.maison<1||s.maison>12) return;
+    const txt = '★ ' + (s.isRoyal ? 'FENÊTRE ROYALE' : 'Fenêtre stellaire') + ' — Du ' + s.debut + ' au fin de période : ' + s.pT + ' a activé ' + s.etoile + (s.isRoyal?' [ÉTOILE ROYALE]':'') + ' (M' + s.maison + ').';
+    rapportMaisons[s.maison-1].fenetre_stellaire.push(txt);
+    rapportMaisons[s.maison-1]._hm_etoiles.push({date: s.debut, isRoyal: !!s.isRoyal});
+});
+
+// --- Progressions secondaires : positions dans les maisons natales ---
+const progressionsData = prepareOut.progressionsData || [];
+let progressionsRaw = null;
+
+if (progressionsData.length > 0 && dateNaissA && !isNaN(dateNaissA)) {
+    const MS_AN_P = 365.25 * 24 * 3600 * 1000;
+    const ageAtMid = (((dStart.getTime() + dEnd.getTime()) / 2) - dateNaissA.getTime()) / MS_AN_P;
+
+    let closest = progressionsData[0];
+    progressionsData.forEach(p => {
+        if (p.age_annees == null) return;
+        if (Math.abs(p.age_annees - ageAtMid) < Math.abs(closest.age_annees - ageAtMid)) closest = p;
+    });
+
+    if (closest?.planetes) {
+        progressionsRaw = { age: closest.age_annees, planetes: {}, aspects: [] };
+
+        const SKIP_PROG = new Set(["Nœud Moyen","Nœud moyen","Noeud Moyen","Noeud moyen","Noeud_Moyen","Noeud_moyen","Mean Node"]);
+        const RENAME_PROG = {"Nœud Vrai":"Nœud Nord","Nœud vrai":"Nœud Nord","Noeud Vrai":"Nœud Nord","Noeud vrai":"Nœud Nord","Noeud_Vrai":"Nœud Nord","Noeud_vrai":"Nœud Nord","True Node":"Nœud Nord","MC":"Milieu du Ciel","IC":"Imum Coeli"};
+        let trueNodeDeg = null;
+
+        Object.entries(closest.planetes).forEach(([pName, pd]) => {
+            if (SKIP_PROG.has(pName)) return;
+            const deg = pd.fullDegree ?? pd.longitude_absolue;
+            if (deg == null) return;
+            const displayName = RENAME_PROG[pName] || pName;
+            if (displayName === "Nœud Nord" && pName !== "Nœud Nord") trueNodeDeg = deg;
+            const loc = getLocation(deg);
+            const sign = pd.signe || signs[Math.floor(deg / 30) % 12];
+            const degStr = `${((deg ?? 0) % 30).toFixed(2)}° ${sign}`;
+            const retro = (pd.isRetro === "True" || pd.est_retrograde === "True" || pd.est_retrograde === true) ? "℞" : "";
+
+            progressionsRaw.planetes[displayName] = { sign, house: loc.maison, deg: degStr, retro, fullDegree: deg };
+
+            if (loc.maison >= 1 && loc.maison <= 12) {
+                if (!rapportMaisons[loc.maison - 1].progressions_planetes)
+                    rapportMaisons[loc.maison - 1].progressions_planetes = [];
+                rapportMaisons[loc.maison - 1].progressions_planetes.push({
+                    name: displayName, deg: ((deg ?? 0) % 30).toFixed(2), sign, retro
+                });
+            }
+        });
+
+        if (trueNodeDeg !== null) {
+            const southDeg = (trueNodeDeg + 180) % 360;
+            const locS = getLocation(southDeg);
+            const signS = signs[Math.floor(southDeg / 30) % 12];
+            const degStrS = `${((southDeg ?? 0) % 30).toFixed(2)}° ${signS}`;
+            progressionsRaw.planetes["Nœud Sud"] = { sign: signS, house: locS.maison, deg: degStrS, retro: "", fullDegree: southDeg };
+            if (locS.maison >= 1 && locS.maison <= 12) {
+                if (!rapportMaisons[locS.maison - 1].progressions_planetes)
+                    rapportMaisons[locS.maison - 1].progressions_planetes = [];
+                rapportMaisons[locS.maison - 1].progressions_planetes.push({
+                    name: "Nœud Sud", deg: ((southDeg ?? 0) % 30).toFixed(2), sign: signS, retro: ""
+                });
+            }
+        }
+
+        // --- ASPECTS PROGRESSÉS P→N (ISO N8N Prev : planètes + angles Asc/MC/Desc/IC) ---
+        const PROG_ASP_PLANETS = ["Soleil","Lune","Mercure","Vénus","Mars"];
+        const PROG_ASP_ANGLES = ["Ascendant","MC","Descendant","IC"];
+        const PROG_ASP_DEGS = { 0:"Conjonction", 60:"Sextile", 90:"Carré", 120:"Trigone", 150:"Quinconce", 180:"Opposition" };
+        const PROG_ORB_UNIV = 1.0;
+        const PROG_ORB_BY_PL = {"Lune":1.0,"Soleil":1.0,"Mercure":1.0,"Vénus":1.0,"Mars":0.5,"Ascendant":1.0,"MC":1.0,"Descendant":1.0,"IC":1.0};
+        const _PROG_RENAME_INV = {"MC":"Milieu du Ciel","IC":"Imum Coeli"};
+        const _getProgPlanData = (name) => progressionsRaw.planetes[name] || progressionsRaw.planetes[_PROG_RENAME_INV[name]];
+        const _PROG_NATAL_TGT_SET = new Set(["Soleil","Lune","Mercure","Vénus","Mars","Jupiter","Saturne","Uranus","Neptune","Pluton","Chiron","Nœud Nord","Nœud Sud","Ascendant","Milieu du Ciel"]);
+        const NATAL_TARGETS = Object.keys(natalDictLoc).filter(n => _PROG_NATAL_TGT_SET.has(n));
+
+        for (const pProg of [...PROG_ASP_PLANETS, ...PROG_ASP_ANGLES]) {
+            const progData = _getProgPlanData(pProg);
+            if (!progData?.fullDegree) continue;
+            const pDeg = progData.fullDegree;
+            const natalMapped = pProg === "MC" ? "Milieu du Ciel" : pProg;
+            for (const pNat of NATAL_TARGETS) {
+                if (PROG_ASP_ANGLES.includes(pProg) && natalMapped === pNat) continue;
+                if (pProg === pNat) continue;
+                const nDeg = natalDictLoc[pNat].deg;
+                let angDiff = Math.abs(pDeg - nDeg);
+                if (angDiff > 180) angDiff = 360 - angDiff;
+                for (const [aspDeg, aspName] of Object.entries(PROG_ASP_DEGS)) {
+                    const exactitude = Math.abs(angDiff - parseFloat(aspDeg));
+                    const _pOrbA = PROG_ORB_BY_PL[pProg] ?? PROG_ORB_UNIV;
+                    if (exactitude <= _pOrbA) {
+                        const nHouse = natalDictLoc[pNat].house;
+                        progressionsRaw.aspects.push({
+                            pProg, pNat, aspect: aspName,
+                            exactitude: (exactitude ?? 0).toFixed(2),
+                            maisonNat: nHouse,
+                            signeNat: natalDictLoc[pNat].sign
+                        });
+                        if (nHouse >= 1 && nHouse <= 12) {
+                            if (!rapportMaisons[nHouse - 1].progressions_aspects)
+                                rapportMaisons[nHouse - 1].progressions_aspects = [];
+                            rapportMaisons[nHouse - 1].progressions_aspects.push({
+                                pProg, pNat, aspect: aspName,
+                                exactitude: (exactitude ?? 0).toFixed(2)
+                            });
+                        }
+                        break;
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ── Arcs solaires SA→N ──
+try {
+if (progressionsRaw?.planetes?.["Soleil"]?.fullDegree && natalDictLoc["Soleil"]?.deg) {
+    const _solarArc = ((progressionsRaw.planetes["Soleil"].fullDegree - natalDictLoc["Soleil"].deg) + 360) % 360;
+    const _SA_ORB = 1.0;
+    const _SA_ASP = { "Conjonction":0, "Sextile":60, "Carré":90, "Trigone":120, "Quinconce":150, "Opposition":180 };
+    const _SA_PL = ["Soleil","Lune","Mercure","Vénus","Mars","Jupiter","Saturne","Uranus","Neptune","Pluton","Chiron","Ascendant","Milieu du Ciel"];
+    const _SA_TGT = new Set(["Soleil","Lune","Mercure","Vénus","Mars","Jupiter","Saturne","Uranus","Neptune","Pluton","Chiron","Nœud Nord","Nœud Sud","Ascendant","Milieu du Ciel"]);
+    const _SA_PW = {"Ascendant":2,"Milieu du Ciel":2,"Soleil":1.5,"Lune":1.5,"Mercure":1,"Vénus":1,"Mars":1,"Jupiter":1,"Saturne":1,"Uranus":1,"Neptune":1,"Pluton":1,"Chiron":0.8};
+    const _getOrbSA = (a, b) => { let d = Math.abs(a - b); return d > 180 ? 360 - d : d; };
+    for (const pSA of _SA_PL) {
+        const nd = natalDictLoc[pSA]; if (!nd?.deg) continue;
+        const saDeg = (nd.deg + _solarArc) % 360;
+        const saSign = signs[Math.floor(saDeg / 30) % 12];
+        const saHouse = getLocation(saDeg).maison;
+        for (const [pNat, nData] of Object.entries(natalDictLoc)) {
+            if (!_SA_TGT.has(pNat) || pSA === pNat) continue;
+            const diff = _getOrbSA(saDeg, nData.deg);
+            for (const [aspName, aspDeg] of Object.entries(_SA_ASP)) {
+                const orbe = Math.abs(diff - aspDeg);
+                if (orbe <= _SA_ORB) {
+                    const house = nData.house;
+                    const arcTight = Math.max(0, 1 - orbe / _SA_ORB);
+                    const arcPw = _SA_PW[pSA] ?? 1;
+                    if (house >= 1 && house <= 12) {
+                        rapportMaisons[house - 1].arcs_solaires.push({pSA, pNat, aspect: aspName, orbe: +orbe.toFixed(2), saSign, saHouse});
+                        rapportMaisons[house - 1]._hm_arcs_solaires.push({aspect: aspName, pProg: pSA, isSA: true, tightness: arcTight});
+                    }
+                }
+            }
+        }
+    }
+}
+} catch(e) { console.log("[WARN] Arcs solaires:", e.message); }
+
+const finalOutput = rapportMaisons.map(m => ({ json: m }));
+if (progressionsRaw && finalOutput.length > 0) {
+    finalOutput.forEach(item => { item.json.progressionsRaw = progressionsRaw; });
+}
+
+let _mdseRSHousesA = {};
+// ── Calcul autonome : Firdaria, RS, RL (pas de dépendance au Super Node) ──
+let _firdFwd = null, _rsFwd = null, _rlFwd = null, _tpFwd = null;
+try {
+    const dateNaissF = parseDate(perso.date);
+    if (dateNaissF && !isNaN(dateNaissF)) {
+        // D12 ISO: Firdaria — secte calculée par géométrie Soleil/ASC (ISO N8N Prev)
+        const _ascDegF = natalDictLoc["Ascendant"]?.deg ?? null;
+        const _sunDegF = natalDictLoc["Soleil"]?.deg ?? null;
+        const chartSectF = (_ascDegF !== null && _sunDegF !== null) ? (((_sunDegF - _ascDegF + 360) % 360) > 180 ? "Diurne" : "Nocturne") : "Diurne";
+        const FIRD_D = [{p:"Soleil",y:10},{p:"Vénus",y:8},{p:"Mercure",y:13},{p:"Lune",y:9},{p:"Saturne",y:11},{p:"Jupiter",y:12},{p:"Mars",y:7},{p:"Nœud Nord",y:3},{p:"Nœud Sud",y:2}];
+        const FIRD_N = [{p:"Lune",y:9},{p:"Saturne",y:11},{p:"Jupiter",y:12},{p:"Mars",y:7},{p:"Nœud Nord",y:3},{p:"Nœud Sud",y:2},{p:"Soleil",y:10},{p:"Vénus",y:8},{p:"Mercure",y:13}];
+        const _CHALD_ORD = ["Saturne","Jupiter","Mars","Soleil","Vénus","Mercure","Lune"];
+        const seqF = chartSectF === "Nocturne" ? FIRD_N : FIRD_D;
+        const totalCycF = seqF.reduce((s,f) => s + f.y, 0);
+        const ageMidF = ((dStart.getTime() + dEnd.getTime()) / 2 - dateNaissF.getTime()) / (365.25 * 24 * 3600 * 1000);
+        let ageInCycF = ageMidF % totalCycF; if (ageInCycF < 0) ageInCycF += totalCycF;
+        let cumulF = 0;
+        for (const f of seqF) {
+            if (ageInCycF < cumulF + f.y) {
+                const aip = ageInCycF - cumulF;
+                const isNodeF = f.p === "Nœud Nord" || f.p === "Nœud Sud";
+                const subCountF = isNodeF ? Math.min(f.y, 3) : 7;
+                const subIdx = Math.min(Math.floor(aip / (f.y / subCountF)), subCountF - 1);
+                let subP;
+                if (isNodeF) { subP = f.p; }
+                else { const mIdx = _CHALD_ORD.indexOf(f.p); subP = mIdx >= 0 ? _CHALD_ORD[(mIdx + subIdx) % 7] : f.p; }
+                _firdFwd = {
+                    major: f.p, sub: subP,
+                    startAge: Math.floor(cumulF), endAge: Math.floor(cumulF + f.y),
+                    label: `Firdaria majeure de ${f.p} (âge ${Math.floor(cumulF)}–${Math.floor(cumulF + f.y)}), sous-période de ${subP}.`
+                };
+                break;
+            }
+            cumulF += f.y;
+        }
+
+        // — Révolution Solaire —
+        const sunNatDegF = natalPlanets.find(p => (p.planet?.fr || p.planet?.en || "") === "Soleil")?.fullDegree;
+        if (sunNatDegF !== undefined && days.length > 1) {
+            const getOrbF = (a, b) => { let d = Math.abs(a - b); return d > 180 ? 360 - d : d; };
+            let srDayF = null, srMinF = 999;
+            for (const day of days) {
+                if (!day?.planetes?.["Soleil"]?.fullDegree) continue;
+                const dist = getOrbF(day.planetes["Soleil"].fullDegree, sunNatDegF);
+                if (dist < srMinF) { srMinF = dist; srDayF = day; }
+            }
+            // D13 ISO: pas de seuil srMinF (ISO N8N Prev — on prend le jour le plus proche sans condition)
+            if (srDayF?.planetes) {
+                const srLines = [];
+                const srPlanets = ["Jupiter","Saturne","Uranus","Neptune","Pluton","Chiron","Mars","Vénus","Mercure"];
+                for (const pn of srPlanets) {
+                    const pd = srDayF.planetes[pn]; if (!pd?.fullDegree) continue;
+                    const s = signs[Math.floor(pd.fullDegree / 30) % 12];
+                    const h = getLocation(pd.fullDegree).maison;
+                    srLines.push(`  ${pn} en ${s} → M${h} natale`);
+                    _mdseRSHousesA[pn] = {house: h, sign: s};
+                }
+                const srDateStr = srDayF.date;
+                const srText = `🌞 RÉVOLUTION SOLAIRE — Date : ${srDateStr} (orbe ${srMinF.toFixed(2)}°)\n${srLines.join("\n")}`;
+                _rsFwd = { text: srText, date: srDateStr, ascSign: null, ascHouse: null };
+            }
+        }
+
+        // — Révolutions Lunaires (source : luneData horaire OU planetes.Lune quotidien) —
+        const moonNatDegF = natalPlanets.find(p => (p.planet?.fr || p.planet?.en || "") === "Lune")?.fullDegree;
+        if (moonNatDegF !== undefined && days.length > 5) {
+            const getOrbF2 = (a, b) => { let d = Math.abs(a - b); return d > 180 ? 360 - d : d; };
+            const getMoonDeg = (day) => {
+                const le = luneData[day.date];
+                if (le?.length > 0) { const midi = le.find(e => e.heure >= "12:00") || le[0]; return midi.fullDegree; }
+                return day.planetes?.["Lune"]?.fullDegree ?? day.planetes?.Lune?.fullDegree ?? undefined;
+            };
+            const lunarReturnsF = [];
+            for (let i = 1; i < days.length; i++) {
+                const prevMd = getMoonDeg(days[i - 1]);
+                const currMd = getMoonDeg(days[i]);
+                if (prevMd === undefined || currMd === undefined) continue;
+                const dp = getOrbF2(prevMd, moonNatDegF);
+                const dc = getOrbF2(currMd, moonNatDegF);
+                if (dc < 7 && dp > dc) {
+                    if (lunarReturnsF.length === 0 || i - lunarReturnsF[lunarReturnsF.length - 1].idx > 20) {
+                        lunarReturnsF.push({ idx: i, date: days[i].date, moonDeg: currMd, planetes: days[i].planetes });
+                    }
+                }
+            }
+            if (lunarReturnsF.length > 0) {
+                const rlLines = [];
+                for (const lr of lunarReturnsF) {
+                    const moonDeg = lr.moonDeg || 0;
+                    const moonS = signs[Math.floor(moonDeg / 30) % 12];
+                    const moonH = getLocation(moonDeg).maison;
+                    const heavyParts = [];
+                    for (const pn of ["Jupiter","Saturne","Uranus","Neptune","Pluton"]) {
+                        const pd = lr.planetes?.[pn]; if (!pd?.fullDegree) continue;
+                        heavyParts.push(`${pn} M${getLocation(pd.fullDegree).maison}`);
+                    }
+                    rlLines.push(`  🌙 RL ${lr.date} — Lune retour M${moonH} (${moonS})${heavyParts.length ? " | " + heavyParts.join(", ") : ""}`);
+                }
+                _rlFwd = { count: lunarReturnsF.length, lines: rlLines };
+            }
+        }
+    }
+} catch(e) { console.log("[WARN] Calcul Firdaria/RS/RL dans N8N Prev Repport:", e.message); }
+
+// ── Calcul autonome T→P (Transits sur Planètes Progressées) ──
+let _mdseTPAspectsA = [];
+try {
+if (progressionsRaw?.planetes && days.length > 5) {
+    const _getOrbTP = (a, b) => { let d = Math.abs(a - b); return d > 180 ? 360 - d : d; };
+    const TP_PROG_TARGETS = ["Soleil","Lune","Mercure","Vénus","Mars","Ascendant","MC"];
+    const TP_ASP = { "Conjonction":0, "Opposition":180, "Carré":90, "Trigone":120, "Sextile":60 };
+    const TP_ORB = { "Conjonction":2.0, "Opposition":2.0, "Carré":1.5, "Trigone":1.5, "Sextile":1.0 };
+    const TP_TRANSIT_PL = ["Jupiter","Saturne","Uranus","Neptune","Pluton","Chiron","Nœud Nord","Nœud Sud"];
+
+    const progDictTP = {};
+    for (const pn of TP_PROG_TARGETS) {
+        const pd = progressionsRaw.planetes[pn];
+        if (!pd?.fullDegree) continue;
+        progDictTP[pn] = { deg: pd.fullDegree, sign: pd.sign, house: pd.house };
+    }
+
+    if (Object.keys(progDictTP).length > 0) {
+        const tpSuiviA = {};
+        for (const day of days) {
+            if (!day?.date || !day?.planetes) continue;
+            for (const pT of TP_TRANSIT_PL) {
+                const td = day.planetes[pT]; if (!td?.fullDegree) continue;
+                for (const [pP, ppD] of Object.entries(progDictTP)) {
+                    if (pT === pP) continue;
+                    const diff = _getOrbTP(td.fullDegree, ppD.deg);
+                    for (const [aspName, aspDeg] of Object.entries(TP_ASP)) {
+                        const maxOrb = TP_ORB[aspName];
+                        const exactitude = Math.abs(diff - aspDeg);
+                        const key = `${pT}|||${aspName}|||${pP}`;
+                        if (exactitude <= maxOrb) {
+                            if (!tpSuiviA[key]) tpSuiviA[key] = { active:false, start:null, bestOrb:999, bestDate:null, waves:[] };
+                            const ts = tpSuiviA[key];
+                            if (!ts.active) { ts.active = true; ts.start = day.date; ts.bestOrb = 999; ts.bestDate = null; }
+                            if (exactitude < ts.bestOrb) { ts.bestOrb = exactitude; ts.bestDate = day.date; }
+                        } else {
+                            if (tpSuiviA[key]?.active) {
+                                const ts = tpSuiviA[key];
+                                ts.waves.push({ start: ts.start, end: day.date, peakDate: ts.bestDate, peakOrb: ts.bestOrb });
+                                ts.active = false;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        const lastDTP = days[days.length - 1]?.date || "";
+        for (const [k, ts] of Object.entries(tpSuiviA)) {
+            if (ts.active && ts.start) ts.waves.push({ start: ts.start, end: lastDTP, peakDate: ts.bestDate, peakOrb: ts.bestOrb });
+        }
+        const tpLines = [];
+        for (const [key, ts] of Object.entries(tpSuiviA)) {
+            if (ts.waves.length === 0) continue;
+            const [pTransit, aspName, pProg] = key.split("|||");
+            const ppD = progDictTP[pProg];
+            const globalBestOrb = Math.min(...ts.waves.map(w => w.peakOrb));
+            const nbPass = ts.waves.length;
+            const datesStr = ts.waves.map(w => `du ${w.start} au ${w.end} (pic ${w.peakDate})`).join("; ");
+            const precTag = globalBestOrb < 0.15 ? " 📌" : globalBestOrb < 0.5 ? " ★" : "";
+            tpLines.push(`🎯 TRANSIT → PROGRESSÉ : ${pTransit} en ${aspName} avec ${pProg} progressé (${ppD.sign}, M${ppD.house}) — ${nbPass} passage(s), orbe ${globalBestOrb.toFixed(2)}°${precTag}. ${datesStr}.`);
+            const houseTP = ppD.house;
+            if (houseTP >= 1 && houseTP <= 12) {
+                if (!rapportMaisons[houseTP - 1].transit_progresse) rapportMaisons[houseTP - 1].transit_progresse = [];
+                ts.waves.forEach(w => { rapportMaisons[houseTP - 1].transit_progresse.push({pTransit, aspect: aspName, pProg, debut: w.start, fin: w.end, peakDate: w.peakDate}); });
+            }
+            _mdseTPAspectsA.push({pTransit, pProg, aspName, bestOrb: globalBestOrb, house: houseTP, nbPassages: nbPass});
+        }
+        if (tpLines.length > 0) _tpFwd = tpLines;
+    }
+}
+} catch(e) { console.log("[WARN] Calcul T→P dans N8N Prev Repport:", e.message); }
+
+// Fallback : tenter aussi les nœuds upstream au cas où
+const _collectMeta = (src) => {
+    if (!src) return;
+    if (src.firdariaActive) _firdFwd = src.firdariaActive;
+    if (!_rsFwd  && src._rsRaw)          _rsFwd  = src._rsRaw;
+    if (!_rlFwd  && src._rlRaw)          _rlFwd  = src._rlRaw;
+    if (!_tpFwd  && src._tpRaw)          _tpFwd  = src._tpRaw;
+};
+for (const _it of $input.all()) _collectMeta(_it.json);
+for (const nn of ["N8N Prev", "Super noeud2", "Super noeud", "Merge", "Merge1"]) {
+    try { for (const _it of $(nn).all()) { _collectMeta(_it.json); } } catch(e) {}
+}
+
+if (finalOutput.length > 0) {
+    finalOutput.forEach(item => {
+        if (_firdFwd) item.json.firdariaActive = _firdFwd;
+        if (_rsFwd)   item.json._rsRaw = _rsFwd;
+        if (_rlFwd)   item.json._rlRaw = _rlFwd;
+        if (_tpFwd)   item.json._tpRaw = _tpFwd;
+    });
+}
+
+if (finalOutput.length > 0) {
+    finalOutput[0].json.natalAdvanced = {
+        dispositorTree: natalDispositorTreeAT,
+        accidentalDignity: natalAccDignityAT,
+        hayz: natalHayzAT,
+        besieged: natalBesiegedAT,
+        moonVOC: natalMoonVOCAT,
+        sabian: natalSabianAT,
+        stats: natalStatsAT,
+        stationaryPlanets: stationaryPlanetsAT,
+        chartShape: chartShapeAT,
+        interceptedSigns: interceptedSignsAT,
+        sensitivityProfile: sensitivityProfileAT,
+        paranResults: paranResultsAT
+    };
+}
+
+// ══════════════════════════════════════════════════════════════
+// MOTEUR DE SIGNATURES ÉVÉNEMENTIELLES (MDSE) — ISO avec N8N Prev
+// ══════════════════════════════════════════════════════════════
+let _mdseResultsA = [];
+const _mdseDebugAllA = [];
+try {
+
+// --- MDSE v2 : Tables de référence partagées (ISO N8N Prev) ---
+const _MDSE_DOMICILE_A = {"Mars":["Bélier","Scorpion"],"Vénus":["Taureau","Balance"],"Mercure":["Gémeaux","Vierge"],"Lune":["Cancer"],"Soleil":["Lion"],"Jupiter":["Sagittaire","Poissons"],"Saturne":["Capricorne","Verseau"],"Uranus":["Verseau"],"Neptune":["Poissons"],"Pluton":["Scorpion"]};
+const _MDSE_EXIL_A = {"Mars":["Taureau","Balance"],"Vénus":["Bélier","Scorpion"],"Mercure":["Sagittaire","Poissons"],"Lune":["Capricorne"],"Soleil":["Verseau"],"Jupiter":["Gémeaux","Vierge"],"Saturne":["Cancer","Lion"],"Uranus":["Lion"],"Neptune":["Vierge"],"Pluton":["Taureau"]};
+const _MDSE_EXALT_A = {"Soleil":"Bélier","Lune":"Taureau","Mercure":"Vierge","Vénus":"Poissons","Mars":"Capricorne","Jupiter":"Cancer","Saturne":"Balance","Uranus":"Scorpion","Neptune":"Cancer","Pluton":"Lion"};
+const _MDSE_CHUTE_A = {"Soleil":"Balance","Lune":"Scorpion","Mercure":"Poissons","Vénus":"Vierge","Mars":"Cancer","Jupiter":"Capricorne","Saturne":"Bélier","Uranus":"Taureau","Neptune":"Capricorne","Pluton":"Verseau"};
+const _mdseDigniteA = (p, sign) => { if (_MDSE_DOMICILE_A[p]?.includes(sign)) return "Domicile"; if (_MDSE_EXALT_A[p] === sign) return "Exaltation"; if (_MDSE_CHUTE_A[p] === sign) return "Chute"; if (_MDSE_EXIL_A[p]?.includes(sign)) return "Exil"; return "Peregrin"; };
+const _MDSE_TIGHT_EXP_A = {"Pluton":2.0,"Neptune":1.8,"Uranus":1.8,"Chiron":1.7,"Nœud Nord":1.7,"Nœud Sud":1.7,"Saturne":1.5,"Jupiter":1.5,"Mars":1.5,"Vénus":1.5,"Soleil":1.5,"Mercure":1.5,"Lune":1.5};
+const _MDSE_MALEFICS_A = new Set(["Mars","Saturne","Pluton","Uranus","Neptune"]);
+const _MDSE_BENEFICS_A = new Set(["Jupiter","Vénus"]);
+const _MDSE_NEGATIVE_SIGS_A = new Set(["ACCIDENT","SANTE_DOWN","DEUIL","SEPARATION","CARRIERE_DOWN","FINANCE_DOWN","JURIDIQUE_DOWN"]);
+const _MDSE_POSITIVE_SIGS_A = new Set(["MARIAGE","ENFANT","CARRIERE_UP","FINANCE_UP","SANTE_UP","JURIDIQUE_UP","VOYAGE"]);
+const _MDSE_POLARITY_SIGS_A = new Set(["RELOCATION","SPIRITUEL","VOYAGE"]);
+const _MDSE_POLARITY_LABELS_A = {
+  SPIRITUEL:{pos:"Éveil intérieur / Transformation",neg:"Crise existentielle / Dissolution"},
+  RELOCATION:{pos:"Déménagement choisi / Expansion",neg:"Déracinement subi / Instabilité"},
+  VOYAGE:{pos:"Voyage enrichissant / Ouverture",neg:"Voyage perturbateur / Épreuve à l'étranger"}
+};
+
+// D2 ISO: Transit sign map = signe dominant par durée (ISO N8N Prev transitsSuiviLent)
+const _transitSignMapA = {};
+try {
+  const _SIGNS_TSM = ["Bélier","Taureau","Gémeaux","Cancer","Lion","Vierge","Balance","Scorpion","Sagittaire","Capricorne","Verseau","Poissons"];
+  const _tsmCount = {};
+  for (const day of days) {
+    if (!day?.planetes) continue;
+    for (const [p, pd] of Object.entries(day.planetes)) {
+      const sign = pd?.signe || (pd?.fullDegree != null ? _SIGNS_TSM[Math.floor(pd.fullDegree / 30) % 12] : null);
+      if (!sign) continue;
+      if (!_tsmCount[p]) _tsmCount[p] = {};
+      _tsmCount[p][sign] = (_tsmCount[p][sign] || 0) + 1;
+    }
+  }
+  for (const [p, signs] of Object.entries(_tsmCount)) {
+    _transitSignMapA[p] = Object.entries(signs).reduce((a, b) => a[1] >= b[1] ? a : b)[0];
+  }
+} catch(e) {}
+
+// Profection lord + natal sign (ISO)
+const _profLordMDSE_A = profectionsA?.seigneur || null;
+const _profLordSignMDSE_A = _profLordMDSE_A ? (natalDictLoc[_profLordMDSE_A]?.sign || null) : null;
+// D1 ISO: calcul secte identique à N8N Prev (arc ASC→Soleil, avec Indéterminé si données manquantes)
+const _ascDegSectA = natalDictLoc["Ascendant"]?.deg ?? null;
+const _sunDegSectA = natalDictLoc["Soleil"]?.deg ?? null;
+let _chartSectMDSE_A = "Indéterminé";
+if (_ascDegSectA !== null && _sunDegSectA !== null) {
+  const arcA = ((_sunDegSectA - _ascDegSectA) + 360) % 360;
+  _chartSectMDSE_A = arcA > 180 ? "Diurne" : "Nocturne";
+}
+
+// --- MDSE v2 : Modificateurs universels (ISO N8N Prev) ---
+const _MDSE_TSR_HOUSES_A = {
+  FINANCE_UP:[2,8,11],FINANCE_DOWN:[2,8],CARRIERE_UP:[2,6,10],CARRIERE_DOWN:[2,6,10],
+  ACCIDENT:[1,6,8],SANTE_DOWN:[1,6,12],SANTE_UP:[1,6],DEUIL:[4,8],MARIAGE:[5,7],SEPARATION:[7,8],
+  ENFANT:[4,5],RELOCATION:[3,4,9],SPIRITUEL:[9,12],JURIDIQUE_DOWN:[7,9],JURIDIQUE_UP:[7,9],VOYAGE:[3,9]
+};
+const _mdseTSRatioA = (sigCode, tensionT, supportT) => {
+  const keyHouses = _MDSE_TSR_HOUSES_A[sigCode] || [];
+  let totalT = 0, totalS = 0;
+  keyHouses.forEach(h => { if (h >= 1 && h <= 12) { totalT += (tensionT[h-1]||0); totalS += (supportT[h-1]||0); } });
+  if (totalT + totalS === 0) return 1.0;
+  const ratio = totalT / Math.max(totalS, 1);
+  const isNeg = _MDSE_NEGATIVE_SIGS_A.has(sigCode), isPos = _MDSE_POSITIVE_SIGS_A.has(sigCode);
+  if (isPos) {
+    if (ratio < 0.70) return 1.18;
+    if (ratio < 0.85) return 1.10;
+    return 1.0;
+  }
+  if (isNeg) {
+    if (ratio > 1.5)  return 1.18;
+    if (ratio > 1.3)  return 1.10;
+    return 1.0;
+  }
+  return 1.0;
+};
+const _mdseYearLordModA = (sigCode, profLord, profLordSign) => {
+  if (!profLord || !profLordSign) return 1.0;
+  const dig = _mdseDigniteA(profLord, profLordSign);
+  const isNeg = _MDSE_NEGATIVE_SIGS_A.has(sigCode), isPos = _MDSE_POSITIVE_SIGS_A.has(sigCode);
+  if (dig === "Chute")      return isNeg ? 1.12 : isPos ? 0.88 : 1.0;
+  if (dig === "Exil")       return isNeg ? 1.10 : isPos ? 0.90 : 1.0;
+  if (dig === "Exaltation") return isPos ? 1.10 : isNeg ? 0.92 : 1.0;
+  if (dig === "Domicile")   return isPos ? 1.08 : isNeg ? 0.94 : 1.0;
+  if (dig === "Peregrin")   return isNeg ? 1.04 : isPos ? 0.96 : 1.0;
+  return 1.0;
+};
+const _mdseTransitDignityModA = (pTransit, transitSign, sigCode) => {
+  if (!pTransit || !transitSign) return 1.0;
+  const dig = _mdseDigniteA(pTransit, transitSign);
+  const isMalef = _MDSE_MALEFICS_A.has(pTransit), isBenef = _MDSE_BENEFICS_A.has(pTransit);
+  const isNeg = _MDSE_NEGATIVE_SIGS_A.has(sigCode), isPos = _MDSE_POSITIVE_SIGS_A.has(sigCode);
+  if (isMalef && (dig==="Chute"||dig==="Exil") && isNeg) return 1.25;
+  if (isMalef && (dig==="Domicile"||dig==="Exaltation") && isNeg) return 0.90;
+  if (isBenef && (dig==="Domicile"||dig==="Exaltation") && isPos) return 1.25;
+  if (isBenef && (dig==="Exil"||dig==="Chute") && isPos) return 0.80;
+  if (isBenef && (dig==="Exil"||dig==="Chute") && isNeg) return 1.10;
+  return 1.0;
+};
+const _mdseSectModA = (pTransit, cSect, sigCode) => {
+  if (!pTransit || !cSect || cSect === "Indéterminé") return 1.0;
+  const isNeg = _MDSE_NEGATIVE_SIGS_A.has(sigCode), isPos = _MDSE_POSITIVE_SIGS_A.has(sigCode);
+  const isDiurne = cSect === "Diurne";
+  if ((isDiurne && pTransit==="Jupiter")||(!isDiurne && pTransit==="Vénus")) return isPos ? 1.20 : 0.90;
+  if ((isDiurne && pTransit==="Mars")||(!isDiurne && pTransit==="Saturne")) return isNeg ? 1.20 : 1.0;
+  if ((isDiurne && pTransit==="Saturne")||(!isDiurne && pTransit==="Mars")) return isNeg ? 0.90 : 1.0;
+  return 1.0;
+};
+const _mdsePolarityA = (sigCode, involvedHouses, involvedPlanets, tensionT, supportT) => {
+  let tSum = 0, sSum = 0;
+  involvedHouses.forEach(h => { tSum += (tensionT[h-1]||0); sSum += (supportT[h-1]||0); });
+  const tsRatio = (sSum - tSum) / Math.max(sSum + tSum, 1);
+  let digScore = 0, digCount = 0;
+  involvedPlanets.forEach(p => {
+    const sign = _transitSignMapA[p];
+    if (!sign) return;
+    const isBenef = _MDSE_BENEFICS_A.has(p), isMalef = _MDSE_MALEFICS_A.has(p);
+    const dig = _mdseDigniteA(p, sign);
+    if (dig==="Domicile"||dig==="Exaltation") digScore += isBenef ? +1 : isMalef ? -0.3 : +0.5;
+    else if (dig==="Chute"||dig==="Exil") digScore += isMalef ? -1 : isBenef ? -0.5 : -0.3;
+    digCount++;
+  });
+  const avgDig = digCount > 0 ? digScore / digCount : 0;
+  return Math.max(-1, Math.min(1, tsRatio * 0.6 + avgDig * 0.4));
+};
+
+const _getOrbMDSE = (a, b) => { let d = Math.abs(a - b); return d > 180 ? 360 - d : d; };
+const _ascSignMDSE = natalDictLoc["Ascendant"]?.sign;
+const _MAITRES_MDSE = {"Bélier":"Mars","Taureau":"Vénus","Gémeaux":"Mercure","Cancer":"Lune","Lion":"Soleil","Vierge":"Mercure","Balance":"Vénus","Scorpion":"Mars","Sagittaire":"Jupiter","Capricorne":"Saturne","Verseau":"Saturne","Poissons":"Jupiter"};
+const _chartRulerA = _ascSignMDSE ? _MAITRES_MDSE[_ascSignMDSE] : null;
+
+const _TRANSIT_ORBES_SLOW_A = {
+    "Pluton":{"Conjonction":1.5,"Opposition":1.5,"Carré":1.5,"Trigone":1.5,"Sextile":1.0,"Quinconce":1.0},
+    "Neptune":{"Conjonction":2.0,"Opposition":2.0,"Carré":1.5,"Trigone":1.5,"Sextile":1.0,"Quinconce":1.0},
+    "Uranus":{"Conjonction":2.0,"Opposition":2.0,"Carré":2.0,"Trigone":1.5,"Sextile":1.0,"Quinconce":1.0},
+    "Saturne":{"Conjonction":2.5,"Opposition":2.5,"Carré":2.0,"Trigone":2.0,"Sextile":1.5,"Quinconce":1.2},
+    "Jupiter":{"Conjonction":2.5,"Opposition":2.5,"Carré":2.0,"Trigone":2.0,"Sextile":1.5,"Quinconce":1.2},
+    "Chiron":{"Conjonction":2.0,"Opposition":2.0,"Carré":1.5,"Trigone":1.5,"Sextile":1.0,"Quinconce":1.0},
+    "Nœud Nord":{"Conjonction":2.0,"Opposition":2.0,"Carré":1.5,"Trigone":1.5,"Sextile":1.0,"Quinconce":1.0},
+    "Nœud Sud":{"Conjonction":2.0,"Opposition":2.0,"Carré":1.5,"Trigone":1.5,"Sextile":1.0,"Quinconce":1.0},
+    "Lilith":{"Conjonction":1.5,"Opposition":1.5,"Carré":1.0,"Trigone":1.0,"Sextile":0.8,"Quinconce":0.8},
+    "Ceres":{"Conjonction":1.5,"Opposition":1.5,"Carré":1.0,"Trigone":1.0,"Sextile":0.8,"Quinconce":0.8},
+    "Pallas":{"Conjonction":1.5,"Opposition":1.5,"Carré":1.0,"Trigone":1.0,"Sextile":0.8,"Quinconce":0.8},
+    "Junon":{"Conjonction":1.5,"Opposition":1.5,"Carré":1.0,"Trigone":1.0,"Sextile":0.8,"Quinconce":0.8},
+    "Vesta":{"Conjonction":1.5,"Opposition":1.5,"Carré":1.0,"Trigone":1.0,"Sextile":0.8,"Quinconce":0.8},
+    "default":{"Conjonction":2.0,"Opposition":2.0,"Carré":2.0,"Trigone":2.0,"Sextile":1.5,"Quinconce":1.0}
+};
+const _getOrbSlowA = (pT, asp) => (_TRANSIT_ORBES_SLOW_A[pT] ?? _TRANSIT_ORBES_SLOW_A["default"])[asp] ?? 2.0;
+const _TRANSIT_ORBES_FAST_A = {
+    "Soleil":{"Conjonction":1.5,"Opposition":1.5,"Carré":1.0,"Trigone":1.0,"Sextile":1.0,"Quinconce":0.8},
+    "Lune":{"Conjonction":1.0,"Opposition":1.0,"Carré":0.8,"Trigone":0.8,"Sextile":0.5,"Quinconce":0.5},
+    "Mercure":{"Conjonction":1.0,"Opposition":1.0,"Carré":1.0,"Trigone":1.0,"Sextile":0.8,"Quinconce":0.8},
+    "Vénus":{"Conjonction":1.0,"Opposition":1.0,"Carré":1.0,"Trigone":1.0,"Sextile":0.8,"Quinconce":0.8},
+    "Mars":{"Conjonction":1.0,"Opposition":1.0,"Carré":1.0,"Trigone":1.0,"Sextile":0.8,"Quinconce":0.8},
+    "default":{"Conjonction":1.0,"Opposition":1.0,"Carré":1.0,"Trigone":1.0,"Sextile":1.0,"Quinconce":0.8}
+};
+const _getOrbFastA = (pT, asp) => (_TRANSIT_ORBES_FAST_A[pT] ?? _TRANSIT_ORBES_FAST_A["default"])[asp] ?? 1.0;
+const _ASP_NAMES_A = ["Conjonction","Sextile","Carré","Trigone","Quinconce","Opposition"];
+const _ASP_DEGS_A = {"Conjonction":0,"Sextile":60,"Carré":90,"Trigone":120,"Quinconce":150,"Opposition":180};
+const _dateDiffA = (d1, d2) => Math.abs(new Date(d1) - new Date(d2)) / 86400000;
+// D10 ISO: NEVER_RETRO set (ISO N8N Prev — Lune/Soleil/Nœuds/Lots jamais rétrogrades)
+const _NEVER_RETRO_A = new Set(["Lune","Soleil","Nœud Nord","Nœud Sud","Part de Fortune","Lot de l'Esprit","Lot de Nécessité","Lot d'Éros","Lot de Courage","Lot de Némésis","Lot de Basis","Lot d'Exaltation","Lot du Daemon"]);
+const _getIsRetroA = (pName, pData) => !_NEVER_RETRO_A.has(pName) && (pData.isRetro === "True" || pData.isRetro === true);
+const _allSlowAspA = {};
+for (let idx = 0; idx < days.length; idx++) {
+    const day = days[idx];
+    if (!day?.date || !day.planetes) continue;
+    const date = day.date;
+    for (const pT of slowPlanets) {
+        const pData = day.planetes[pT];
+        if (!pData?.fullDegree) continue;
+        const posT = pData.fullDegree;
+        const isRetro = _getIsRetroA(pT, pData);
+        for (const [pN, nData] of Object.entries(natalDictLoc)) {
+            const diff = _getOrbMDSE(posT, nData.deg);
+            for (const aspName of _ASP_NAMES_A) {
+                const aspDeg = _ASP_DEGS_A[aspName];
+                const maxOrb = _getOrbSlowA(pT, aspName);
+                const exactitude = Math.abs(diff - aspDeg);
+                if (exactitude > maxOrb) continue;
+                const key = `${pT}_${aspName}_${pN}`;
+                if (!_allSlowAspA[key]) _allSlowAspA[key] = { pTransit:pT, aspect:aspName, pNatal:pN, natalHouse:nData.house, debut:date, waves:[] };
+                const waves = _allSlowAspA[key].waves;
+                const last = waves[waves.length - 1];
+                const _exRnd = parseFloat(exactitude.toFixed(2));
+                if (!last || last._dir !== isRetro || _dateDiffA(date, last.end) > 20) {
+                    waves.push({ start:date, end:date, peakDate:date, _minOrb:_exRnd, _dir:isRetro });
+                } else {
+                    last.end = date;
+                    if (_exRnd < last._minOrb) { last._minOrb = _exRnd; last.peakDate = date; }
+                }
+            }
+        }
+    }
+}
+
+const _PROG_SPEED_A = {"Lune":1.5,"Soleil":1.0,"Mercure":1.0,"Vénus":1.0,"Mars":0.7,"Jupiter":0.3,"Saturne":0.3,"Uranus":0.15,"Neptune":0.15,"Pluton":0.15,"Ascendant":1.2,"MC":1.2,"Descendant":1.2,"IC":1.2};
+const _SA_PW_A = {"Ascendant":2,"Milieu du Ciel":2,"Soleil":1.5,"Lune":1.5,"Mercure":1,"Vénus":1,"Mars":1,"Jupiter":1,"Saturne":1,"Uranus":1,"Neptune":1,"Pluton":1,"Chiron":0.8};
+const _progActsA = {};
+if (progressionsRaw?.aspects) {
+    progressionsRaw.aspects.forEach(a => {
+        if (!_progActsA[a.pNat]) _progActsA[a.pNat] = [];
+        const orbe = parseFloat(a.exactitude || "0.5");
+        const pSpd = _PROG_SPEED_A[a.pProg] ?? 1.0;
+        const _pOrbW = ({"Lune":1.0,"Soleil":1.0,"Mercure":1.0,"Vénus":1.0,"Mars":0.5,"Ascendant":1.0,"MC":1.0,"Descendant":1.0,"IC":1.0})[a.pProg] ?? 1.0;
+        const pTight = Math.max(0, 1 - orbe / _pOrbW);
+        _progActsA[a.pNat].push({ pProg:a.pProg, aspName:a.aspect, house:a.maisonNat, weight:Math.round(pSpd * pTight * 100) / 100 });
+    });
+}
+rapportMaisons.forEach(m => {
+    (m.arcs_solaires || []).forEach(a => {
+        if (!_progActsA[a.pNat]) _progActsA[a.pNat] = [];
+        const orbe = a.orbe || 0.5;
+        const arcPw = _SA_PW_A[a.pSA] ?? 1.0;
+        const arcTight = Math.max(0, 1 - orbe / 1.0);
+        _progActsA[a.pNat].push({ pProg:`Arc ${a.pSA}`, aspName:a.aspect, house:natalDictLoc[a.pNat]?.house || m.maison, weight:Math.round(arcPw * arcTight * 100) / 100 });
+    });
+});
+
+const _TRANSIT_POIDS_A = {"Pluton":5,"Neptune":4,"Uranus":4,"Saturne":4,"Jupiter":2,"Chiron":2,"Nœud Nord":2,"Nœud Sud":2,"Mars":1,"Soleil":1,"Vénus":0.5,"Mercure":0.5,"Lune":0.3};
+const _ORBE_ECL_CONJ_A = 3.0;
+const _isEclConj = (e, h) => {
+    if (e.fullDegree == null) return false;
+    return Object.values(natalDictLoc).some(n => {
+        let d = Math.abs(e.fullDegree - n.deg); if (d > 180) d = 360 - d;
+        return d <= _ORBE_ECL_CONJ_A;
+    });
+};
+// D11 ISO: houseScores par-conjonction (ISO N8N Prev)
+// Pré-calcul éclipses: score BOTH eclipse house AND natal house (ISO Prev: texte poussé dans les 2 maisons)
+const _eclConjScoreByHouseA = Array.from({length: 12}, () => 0);
+rapportMaisons.forEach(m => {
+    (m.eclipses || []).forEach(e => {
+        if (e.fullDegree == null) return;
+        Object.values(natalDictLoc).forEach(n => {
+            let d = Math.abs(e.fullDegree - n.deg); if (d > 180) d = 360 - d;
+            if (d <= _ORBE_ECL_CONJ_A) {
+                const hSet = new Set();
+                if (e.maison >= 1 && e.maison <= 12) hSet.add(e.maison);
+                if (n.house >= 1 && n.house <= 12) hSet.add(n.house);
+                hSet.forEach(h => { _eclConjScoreByHouseA[h - 1] += 8; });
+            }
+        });
+    });
+});
+const _houseScoresA = rapportMaisons.map((m, idx) => {
+    const maisonNum = idx + 1;
+    let score = 0;
+    Object.values(_allSlowAspA).forEach(a => {
+        if (a.natalHouse !== maisonNum) return;
+        score += _TRANSIT_POIDS_A[a.pTransit] ?? 1;
+        if (a.waves.length >= 3) score += 3;
+    });
+    score += (m.transits_lentes?.length || 0) * 0.5;
+    score += _eclConjScoreByHouseA[idx];
+    (m.convergences || []).forEach(() => { score += 4; });
+    (m.stations_retro || []).forEach(s => {
+        if (s.fullDegree == null) return;
+        Object.values(natalDictLoc).forEach(n => {
+            let d = Math.abs(s.fullDegree - n.deg); if (d > 180) d = 360 - d;
+            if (d <= 2.0) score += 4;
+        });
+    });
+    (m._hm_etoiles || []).forEach(e => { score += e.isRoyal ? 3 : 1; });
+    if (eclipticNatalAT?.house === maisonNum) score += 2;
+    score += (m.eclipse_natal_active?.length || 0) * 6;
+    return score;
+});
+
+const _profA = profectionsA ? { annuelle:{ maison:profectionsA.maisAnn, seigneur:profectionsA.seigneur } } : null;
+
+// --- MDSE : Scan déclinaisons (parallèles/contra-parallèles) ---
+const _DECL_ORB_A = 1.0;
+const _DECL_TRANSIT_PL_A = ["Saturne","Jupiter","Mars","Uranus","Neptune","Pluton","Chiron"];
+const _declPairsA = new Set();
+try {
+const _natalDeclA = Object.entries(natalDictLoc).filter(([, d]) => d.declinaison != null);
+for (let i = 0; i < _natalDeclA.length; i++) {
+    for (let j = i + 1; j < _natalDeclA.length; j++) {
+        const [pA, dA] = _natalDeclA[i], [pB, dB] = _natalDeclA[j];
+        if (Math.abs(dA.declinaison - dB.declinaison) <= _DECL_ORB_A || Math.abs(dA.declinaison + dB.declinaison) <= _DECL_ORB_A) {
+            _declPairsA.add(`${pA}|${pB}`); _declPairsA.add(`${pB}|${pA}`);
+        }
+    }
+}
+for (const day of days) {
+    for (const pT of _DECL_TRANSIT_PL_A) {
+        const declT = day.planetes?.[pT]?.declinaison;
+        if (declT == null) continue;
+        for (const [pN, nD] of _natalDeclA) {
+            if (pT === pN) continue;
+            if (Math.abs(declT - nD.declinaison) <= _DECL_ORB_A || Math.abs(declT + nD.declinaison) <= _DECL_ORB_A) {
+                _declPairsA.add(`${pT}|${pN}`); _declPairsA.add(`${pN}|${pT}`);
+            }
+        }
+    }
+}
+} catch(e) { /* declination scan error */ }
+
+// --- MDSE : Scan planètes rapides avec suivi de vagues ---
+// Suivi entrée/pic/sortie d'orbe comme les transits lents → fiabilité équivalente, zéro infobésité.
+const _MDSE_FAST_PLANETS_A = ["Mars","Vénus","Soleil"];
+const _MDSE_FAST_ASPECTS_A = {"Conjonction":0,"Opposition":180,"Carré":90,"Trigone":120,"Sextile":60,"Quinconce":150};
+const _MDSE_FAST_ORB_A = {"Mars":3.0,"Vénus":2.5,"Soleil":2.5};
+const _mdseFastScanA = {};
+const _needFastScanA = _MDSE_FAST_PLANETS_A.some(p => !slowPlanets.includes(p));
+if (_needFastScanA && days.length > 0) {
+    const _natalTgtsA = Object.entries(natalDictLoc).filter(([n]) =>
+        ["Soleil","Lune","Mercure","Vénus","Mars","Jupiter","Saturne","Uranus","Neptune","Pluton","Chiron","Nœud Nord","Nœud Sud","Ascendant","Milieu du Ciel","Descendant","Imum Coeli"].includes(n)
+    );
+    const _lastDateFSA = days[days.length - 1]?.date || "";
+    for (const pFast of _MDSE_FAST_PLANETS_A) {
+        if (slowPlanets.includes(pFast)) continue;
+        const maxOrb = _MDSE_FAST_ORB_A[pFast] || 2.5;
+        for (const [pNatal, nData] of _natalTgtsA) {
+            if (pFast === pNatal) continue;
+            for (const [aspName, aspDeg] of Object.entries(_MDSE_FAST_ASPECTS_A)) {
+                let inOrb = false, wStart = null, wBestOrb = 999, wBestDate = null;
+                const waves = [];
+                for (const day of days) {
+                    const pd = day?.planetes?.[pFast]; if (!pd?.fullDegree) continue;
+                    const diff = _getOrbMDSE(pd.fullDegree, nData.deg);
+                    const ex = Math.abs(diff - aspDeg);
+                    if (ex <= maxOrb) {
+                        if (!inOrb) { inOrb = true; wStart = day.date; wBestOrb = 999; }
+                        if (ex < wBestOrb) { wBestOrb = ex; wBestDate = day.date; }
+                    } else if (inOrb) {
+                        waves.push({ start:wStart, end:day.date, peakDate:wBestDate, peakOrb:wBestOrb });
+                        inOrb = false;
+                    }
+                }
+                if (inOrb) waves.push({ start:wStart, end:_lastDateFSA, peakDate:wBestDate, peakOrb:wBestOrb });
+                if (waves.length > 0) {
+                    const globalBest = Math.min(...waves.map(w => w.peakOrb));
+                    const bestWave = waves.reduce((a, b) => a.peakOrb < b.peakOrb ? a : b);
+                    _mdseFastScanA[`${pFast}|||${aspName}|||${pNatal}`] = {
+                        pTransit:pFast, pNatal, aspName,
+                        bestOrb:globalBest, bestDate:bestWave.peakDate,
+                        waves, natalHouse:nData.house
+                    };
+                }
+            }
+        }
+    }
+}
+
+// --- MDSE v2.3 : Pré-calcul éclipses conjonctes planètes natales (P11) ---
+const _mdseEclipseNatalHitsA = [];
+try {
+  const _MDSE_ECL_ORB_A = 3.0;
+  const _eclNatalTgtsA = new Set(["Soleil","Lune","Mercure","Vénus","Mars","Jupiter","Saturne","Uranus","Neptune","Pluton","Chiron","Nœud Nord","Nœud Sud","Ascendant","Milieu du Ciel"]);
+  eclipsesData.forEach(e => {
+    const dayMatch = days.find(d => d.date === e.date);
+    if (!dayMatch?.planetes) return;
+    const refDeg = e.astre === "Soleil" ? (dayMatch.planetes.Soleil?.fullDegree || 0) : (dayMatch.planetes.Lune?.fullDegree ?? 0);
+    for (const [pN, nData] of Object.entries(natalDictLoc)) {
+      if (!_eclNatalTgtsA.has(pN) || nData.deg == null) continue;
+      let diff = Math.abs(refDeg - nData.deg); if (diff > 180) diff = 360 - diff;
+      if (diff <= _MDSE_ECL_ORB_A) _mdseEclipseNatalHitsA.push({ planet: pN, house: nData.house, orb: diff, date: e.date, eclType: e.type, eclAstre: e.astre });
+    }
+  });
+} catch(e) {}
+
+// --- MDSE v2.3 : Pré-scan aspects mineurs 45°/135° (P12) ---
+const _mdseMinorAspectsA = {};
+try {
+  const _MINOR_ASP_A = {"Semi-carré":45,"Sesqui-carré":135};
+  const _MINOR_ORB_A = 1.0;
+  const _MINOR_PLANETS_A = ["Pluton","Neptune","Uranus","Saturne","Jupiter"];
+  const _minorTgtsA = Object.entries(natalDictLoc).filter(([n]) => PLANETS_MAJ_A.has(n) || n === "Nœud Sud");
+  for (let di = 0; di < days.length; di += 3) {
+    const day = days[di]; if (!day?.planetes) continue;
+    for (const pT of _MINOR_PLANETS_A) {
+      const pd = day.planetes[pT]; if (!pd?.fullDegree) continue;
+      for (const [pN, nData] of _minorTgtsA) {
+        if (pT === pN || nData.deg == null) continue;
+        let diff = Math.abs(pd.fullDegree - nData.deg); if (diff > 180) diff = 360 - diff;
+        for (const [aspName, aspDeg] of Object.entries(_MINOR_ASP_A)) {
+          const ex = Math.abs(diff - aspDeg);
+          if (ex <= _MINOR_ORB_A) {
+            const key = `${pT}|||${aspName}|||${pN}`;
+            if (!_mdseMinorAspectsA[key] || ex < _mdseMinorAspectsA[key].bestOrb)
+              _mdseMinorAspectsA[key] = { pTransit: pT, pNatal: pN, aspName, bestOrb: ex, natalHouse: nData.house, date: day.date };
+          }
+        }
+      }
+    }
+  }
+} catch(e) {}
+
+const EVENT_SIGNATURES_A = {
+ACCIDENT: { label:"Risque physique / Accident", labelEN:"Physical Risk / Accident", icon:"⚠️", minConfidence:40,
+  guidanceText:{ high:"Une convergence Mars-Uranus inhabituelle invite à une vigilance accrue concernant la sécurité physique et les déplacements. Période qui demande de ralentir et d'écouter les signaux du corps.", medium:"L'énergie martienne est vive dans les secteurs physiques du thème. Canaliser cette impulsivité par l'activité sportive encadrée.", low:"Une légère tension Mars dans les secteurs corporels — rien d'alarmant mais un appel à la prudence." },
+  conditions:[ {type:"transit_in_house",planet:"Mars",houses:[1,3,6,8],aspects:["Conjonction","Carré","Opposition"],weight:12}, {type:"transit_aspect",pTransit:"Mars",pNatal:"Uranus",aspects:["Conjonction","Carré","Opposition"],weight:10}, {type:"transit_aspect",pTransit:"Mars",pNatal:"Chiron",aspects:["Conjonction","Carré","Opposition"],weight:8}, {type:"transit_aspect",pTransit:"Mars",pNatal:"Saturne",aspects:["Conjonction","Carré","Opposition"],weight:8}, {type:"transit_aspect",pTransit:"Uranus",pNatal:"Ascendant",aspects:["Conjonction","Carré","Opposition"],weight:10}, {type:"transit_in_house",planet:"Uranus",houses:[1,6,8],aspects:["Conjonction","Carré","Opposition"],weight:7}, {type:"progression",pProg:"Mars",aspects:["Conjonction","Carré","Opposition"],houseTargets:[1,6,8],weight:10}, {type:"solar_arc",pArc:"Mars",targets:["Ascendant","Chiron","Uranus"],weight:8}, {type:"solar_arc",pArc:"Uranus",targets:["Ascendant","Mars","Milieu du Ciel"],weight:7}, {type:"eclipse_in_house",houses:[1,6,8],weight:8}, {type:"double_activation",planets:["Mars","Uranus"],weight:7}, {type:"declination_match",planets:["Mars","Chiron"],weight:5}, {type:"multi_house_active",houses:[1,8],minScore:10,weight:8}, {type:"multi_house_active",houses:[3,8],minScore:8,weight:5}, {type:"house_axis_active",axis:[1,7],minCombined:12,weight:5}, {type:"profection_house",houses:[1,6,8],weight:4}, {type:"firdaria_planet",planets:["Mars","Saturne"],weight:3}, {type:"station_on_natal",planets:["Mars","Uranus"],weight:4}, {type:"transit_to_progressed",pTransit:"Mars",pProg:"Ascendant",aspects:["Conjonction","Carré","Opposition"],weight:12}, {type:"transit_to_progressed",pTransit:"Uranus",pProg:"Ascendant",aspects:["Conjonction","Carré","Opposition"],weight:11}, {type:"transit_to_progressed",pTransit:"Mars",pProg:"Mars",aspects:["Conjonction","Carré","Opposition"],weight:9}, {type:"rs_malefic_cluster",houses:[1,6,8],direction:"negative",minCount:2,weight:7},{type:"eclipse_conjunct_natal",planets:["Mars","Uranus","Ascendant"],orb:3.0,weight:10},{type:"transit_minor_aspect",pTransit:"Mars",pNatal:"Uranus",weight:5},{type:"transit_minor_aspect",pTransit:"Uranus",pNatal:"Ascendant",weight:5} ]
+},
+SANTE_DOWN: { label:"Crise de santé / Chirurgie", labelEN:"Health Crisis / Surgery", icon:"🏥", minConfidence:40,
+  guidanceText:{ high:"Les secteurs de la vitalité et du quotidien sont sous pression transformatrice. Période propice à un bilan de santé approfondi et à l'écoute attentive du corps.", medium:"Le corps demande de l'attention. Ajuster l'hygiène de vie et ne pas négliger les signaux de fatigue.", low:"Une invitation douce à prendre soin de soi sur le plan physique." },
+  conditions:[ {type:"transit_in_house",planet:"Saturne",houses:[1,6,12],aspects:["Conjonction","Carré","Opposition"],weight:10}, {type:"transit_in_house",planet:"Pluton",houses:[1,6,12],aspects:["Conjonction","Carré","Opposition"],weight:10}, {type:"transit_in_house",planet:"Neptune",houses:[6,12],aspects:["Conjonction","Carré","Opposition"],weight:8}, {type:"transit_aspect",pTransit:"Saturne",pNatal:"Chiron",aspects:["Conjonction","Carré","Opposition"],weight:8}, {type:"transit_aspect",pTransit:"Pluton",pNatal:"Ascendant",aspects:["Conjonction","Carré","Opposition"],weight:9}, {type:"transit_aspect",pTransit:"Neptune",pNatal:"Lune",aspects:["Conjonction","Carré","Opposition"],weight:7}, {type:"progression",pProg:"Soleil",aspects:["Conjonction","Carré","Opposition"],houseTargets:[6,12],weight:7}, {type:"solar_arc",pArc:"Saturne",targets:["Ascendant","Chiron","Lune"],weight:7}, {type:"eclipse_in_house",houses:[6,12],weight:7}, {type:"multi_house_active",houses:[1,6],minScore:10,weight:8}, {type:"multi_house_active",houses:[6,12],minScore:8,weight:6}, {type:"profection_house",houses:[6,12],weight:4}, {type:"firdaria_planet",planets:["Saturne","Neptune"],weight:3}, {type:"station_on_natal",planets:["Saturne","Pluton","Chiron"],weight:4}, {type:"transit_to_progressed",pTransit:"Saturne",pProg:"Ascendant",aspects:["Carré","Opposition","Conjonction"],weight:10}, {type:"transit_to_progressed",pTransit:"Neptune",pProg:"Ascendant",aspects:["Carré","Opposition"],weight:9}, {type:"rs_malefic_cluster",houses:[1,6,12],direction:"negative",minCount:2,weight:7},{type:"eclipse_conjunct_natal",planets:["Saturne","Chiron","Ascendant"],orb:3.0,weight:9},{type:"transit_minor_aspect",pTransit:"Saturne",pNatal:"Ascendant",weight:5} ]
+},
+SANTE_UP: { label:"Vitalité / Guérison", labelEN:"Vitality / Healing", icon:"💚", minConfidence:40,
+  guidanceText:{ high:"Les secteurs de la vitalité reçoivent un puissant soutien — période propice à la guérison, au renouveau physique et à l'adoption de nouvelles habitudes de santé.", medium:"Un courant de vitalité traverse les secteurs corporels — énergie favorable à la récupération et au bien-être.", low:"Une légère dynamique de soutien dans le domaine de la santé et du corps." },
+  conditions:[ {type:"transit_in_house",planet:"Jupiter",houses:[1,6],aspects:["Conjonction","Trigone","Sextile"],weight:10}, {type:"transit_aspect",pTransit:"Jupiter",pNatal:"Ascendant",aspects:["Conjonction","Trigone","Sextile"],weight:10}, {type:"transit_aspect",pTransit:"Jupiter",pNatal:"Chiron",aspects:["Conjonction","Trigone","Sextile"],weight:8}, {type:"transit_in_house",planet:"Vénus",houses:[1,6],aspects:["Conjonction","Trigone","Sextile"],weight:5}, {type:"transit_aspect",pTransit:"Vénus",pNatal:"Chiron",aspects:["Conjonction","Trigone","Sextile"],weight:6}, {type:"transit_aspect",pTransit:"Jupiter",pNatal:"Lune",aspects:["Conjonction","Trigone","Sextile"],weight:7}, {type:"progression",pProg:"Soleil",aspects:["Conjonction","Trigone","Sextile"],houseTargets:[1,6],weight:7}, {type:"solar_arc",pArc:"Jupiter",targets:["Ascendant","Chiron","Lune"],weight:7}, {type:"eclipse_in_house",houses:[1,6],weight:6}, {type:"multi_house_active",houses:[1,6],minScore:8,weight:6}, {type:"profection_house",houses:[1,6],weight:4}, {type:"firdaria_planet",planets:["Jupiter","Vénus"],weight:3}, {type:"transit_to_progressed",pTransit:"Jupiter",pProg:"Ascendant",aspects:["Conjonction","Trigone","Sextile"],weight:9}, {type:"rs_planet_in_house",planets:["Jupiter","Vénus"],houses:[1,6],weight:5} ]
+},
+DEUIL: { label:"Deuil / Perte d'un proche", labelEN:"Grief / Loss of Loved One", icon:"🕯️", minConfidence:45,
+  guidanceText:{ high:"La période porte une charge transformatrice profonde liée au foyer et aux racines. Un cycle se clôt — accueillir la perte pour libérer un nouveau chapitre.", medium:"Des remous émotionnels liés à la famille ou au passé demandent un travail de détachement progressif.", low:"Une invitation à honorer ce qui a été avant de se tourner vers l'avenir." },
+  conditions:[ {type:"transit_in_house",planet:"Pluton",houses:[4,8],aspects:["Conjonction","Carré","Opposition"],weight:12}, {type:"transit_in_house",planet:"Saturne",houses:[4,8],aspects:["Conjonction","Carré","Opposition"],weight:10}, {type:"transit_aspect",pTransit:"Pluton",pNatal:"Lune",aspects:["Conjonction","Carré","Opposition"],weight:10}, {type:"transit_aspect",pTransit:"Saturne",pNatal:"Lune",aspects:["Conjonction","Carré","Opposition"],weight:8}, {type:"transit_on_angle",angle:"Imum Coeli",planets:["Saturne","Pluton"],weight:9}, {type:"eclipse_in_house",houses:[4,8],weight:8}, {type:"progression",pProg:"Lune",aspects:["Conjonction","Opposition"],houseTargets:[4,8,12],weight:7}, {type:"solar_arc",pArc:"Saturne",targets:["Lune","Imum Coeli"],weight:7}, {type:"multi_house_active",houses:[4,8],minScore:12,weight:8}, {type:"nodes_in_houses",houses:[4,8],weight:5}, {type:"house_axis_active",axis:[4,10],minCombined:12,weight:4}, {type:"profection_house",houses:[4,8,12],weight:3}, {type:"firdaria_planet",planets:["Saturne","Pluton"],weight:3}, {type:"transit_to_progressed",pTransit:"Saturne",pProg:"Lune",aspects:["Conjonction","Carré","Opposition"],weight:10}, {type:"transit_to_progressed",pTransit:"Pluton",pProg:"Lune",aspects:["Conjonction","Carré","Opposition"],weight:10}, {type:"rs_malefic_cluster",houses:[4,8],direction:"negative",minCount:2,weight:7},{type:"transit_aspect",pTransit:"Saturne",pNatal:"Nœud Sud",aspects:["Conjonction","Carré","Opposition"],weight:7},{type:"transit_aspect",pTransit:"Pluton",pNatal:"Nœud Sud",aspects:["Conjonction"],weight:8},{type:"eclipse_conjunct_natal",planets:["Lune","Saturne","Pluton","Nœud Sud"],orb:3.0,weight:11} ]
+},
+MARIAGE: { label:"Mariage / Engagement", labelEN:"Marriage / Commitment", icon:"💍", minConfidence:40,
+  guidanceText:{ high:"Les astres convergent vers le secteur des unions et des engagements. Période propice aux alliances durables et aux décisions relationnelles structurantes.", medium:"Une dynamique relationnelle forte marque cette période — ouverture à l'autre et désir de formaliser un lien.", low:"Une coloration douce orientée vers le partage et la rencontre significative." },
+  conditions:[ {type:"transit_in_house",planet:"Jupiter",houses:[5,7],aspects:["Conjonction","Trigone","Sextile"],weight:10}, {type:"transit_aspect",pTransit:"Jupiter",pNatal:"Vénus",aspects:["Conjonction","Trigone","Sextile"],weight:10}, {type:"transit_in_house",planet:"Vénus",houses:[7],aspects:["Conjonction","Trigone","Sextile"],weight:6}, {type:"transit_aspect",pTransit:"Jupiter",pNatal:"Descendant",aspects:["Conjonction","Trigone","Sextile"],weight:9}, {type:"progression",pProg:"Vénus",aspects:["Conjonction","Trigone","Sextile"],houseTargets:[5,7],weight:8}, {type:"solar_arc",pArc:"Vénus",targets:["Descendant","Jupiter","Ascendant"],weight:7}, {type:"solar_arc",pArc:"Jupiter",targets:["Descendant","Vénus"],weight:7}, {type:"eclipse_in_house",houses:[7],weight:7}, {type:"multi_house_active",houses:[5,7],minScore:8,weight:6}, {type:"nodes_in_houses",houses:[1,7],weight:5}, {type:"profection_house",houses:[5,7],weight:4}, {type:"firdaria_planet",planets:["Vénus","Jupiter"],weight:3}, {type:"transit_to_progressed",pTransit:"Jupiter",pProg:"Vénus",aspects:["Conjonction","Trigone"],weight:9}, {type:"rs_planet_in_house",planets:["Jupiter","Vénus"],houses:[5,7],weight:5} ]
+},
+SEPARATION: { label:"Séparation / Divorce", labelEN:"Separation / Divorce", icon:"💔", minConfidence:42,
+  guidanceText:{ high:"Les structures relationnelles sont profondément questionnées. Période de redéfinition des engagements — ce qui n'est plus aligné demande à être libéré.", medium:"Des tensions dans le domaine des relations demandent un travail d'honnêteté et de repositionnement.", low:"Un léger besoin de rééquilibrer la dynamique relationnelle." },
+  conditions:[ {type:"transit_in_house",planet:"Uranus",houses:[7,8],aspects:["Conjonction","Carré","Opposition"],weight:12}, {type:"transit_in_house",planet:"Saturne",houses:[7,8],aspects:["Conjonction","Carré","Opposition"],weight:10}, {type:"transit_in_house",planet:"Pluton",houses:[7,8],aspects:["Conjonction","Carré","Opposition"],weight:10}, {type:"transit_aspect",pTransit:"Saturne",pNatal:"Vénus",aspects:["Conjonction","Carré","Opposition"],weight:9}, {type:"transit_aspect",pTransit:"Uranus",pNatal:"Descendant",aspects:["Conjonction","Carré","Opposition"],weight:10}, {type:"transit_aspect",pTransit:"Pluton",pNatal:"Vénus",aspects:["Conjonction","Carré","Opposition"],weight:8}, {type:"progression",pProg:"Vénus",aspects:["Carré","Opposition"],houseTargets:[7,8,12],weight:7}, {type:"solar_arc",pArc:"Uranus",targets:["Descendant","Vénus"],weight:7}, {type:"eclipse_in_house",houses:[7,8],weight:7}, {type:"multi_house_active",houses:[7,8],minScore:10,weight:7}, {type:"house_axis_active",axis:[1,7],minCombined:14,weight:5}, {type:"profection_house",houses:[7,8,12],weight:3}, {type:"firdaria_planet",planets:["Saturne","Uranus","Pluton"],weight:3}, {type:"transit_to_progressed",pTransit:"Uranus",pProg:"Vénus",aspects:["Conjonction","Carré","Opposition"],weight:10}, {type:"transit_to_progressed",pTransit:"Saturne",pProg:"Vénus",aspects:["Carré","Opposition"],weight:9}, {type:"rs_malefic_cluster",houses:[7,8],direction:"negative",minCount:2,weight:7},{type:"transit_aspect",pTransit:"Saturne",pNatal:"Nœud Sud",aspects:["Conjonction","Carré"],weight:6},{type:"transit_aspect",pTransit:"Uranus",pNatal:"Nœud Sud",aspects:["Conjonction","Carré","Opposition"],weight:7},{type:"eclipse_conjunct_natal",planets:["Vénus","Descendant","Nœud Sud"],orb:3.0,weight:9} ]
+},
+ENFANT: { label:"Naissance d'un enfant", labelEN:"Birth of a Child", icon:"👶", minConfidence:40,
+  guidanceText:{ high:"Le secteur créatif et de la progéniture est puissamment activé — période de fécondité au sens large, concrète ou symbolique.", medium:"Une énergie créatrice et nourricière se développe — ouverture à la transmission et à la création.", low:"Un appel subtil vers la créativité, la joie et les projets porteurs de vie." },
+  conditions:[ {type:"transit_in_house",planet:"Jupiter",houses:[4,5],aspects:["Conjonction","Trigone","Sextile"],weight:10}, {type:"transit_aspect",pTransit:"Jupiter",pNatal:"Lune",aspects:["Conjonction","Trigone","Sextile"],weight:10}, {type:"transit_in_house",planet:"Vénus",houses:[5],aspects:["Conjonction","Trigone","Sextile"],weight:5}, {type:"progression",pProg:"Lune",aspects:["Conjonction","Trigone","Sextile"],houseTargets:[4,5],weight:8}, {type:"solar_arc",pArc:"Vénus",targets:["Lune","Jupiter"],weight:6}, {type:"solar_arc",pArc:"Jupiter",targets:["Lune"],weight:7}, {type:"eclipse_in_house",houses:[5],weight:8}, {type:"multi_house_active",houses:[4,5],minScore:8,weight:6}, {type:"nodes_in_houses",houses:[5],weight:6}, {type:"profection_house",houses:[4,5],weight:4}, {type:"firdaria_planet",planets:["Lune","Vénus","Jupiter"],weight:3}, {type:"transit_to_progressed",pTransit:"Jupiter",pProg:"Lune",aspects:["Conjonction","Trigone","Sextile"],weight:8}, {type:"rs_planet_in_house",planets:["Jupiter","Vénus"],houses:[4,5],weight:5} ]
+},
+CARRIERE_UP: { label:"Avancée carrière / Promotion", labelEN:"Career Breakthrough / Promotion", icon:"🚀", minConfidence:40,
+  guidanceText:{ high:"Le secteur professionnel reçoit un soutien puissant — période de reconnaissance, d'ascension et de concrétisation des ambitions.", medium:"Des opportunités de croissance professionnelle se dessinent — saisir les ouvertures avec confiance.", low:"Un léger vent favorable souffle sur la sphère professionnelle." },
+  conditions:[ {type:"transit_in_house",planet:"Jupiter",houses:[2,6,10],aspects:["Conjonction","Trigone","Sextile"],weight:10}, {type:"transit_aspect",pTransit:"Jupiter",pNatal:"Milieu du Ciel",aspects:["Conjonction","Trigone","Sextile"],weight:10}, {type:"transit_aspect",pTransit:"Jupiter",pNatal:"Soleil",aspects:["Conjonction","Trigone","Sextile"],weight:8}, {type:"transit_aspect",pTransit:"Saturne",pNatal:"Milieu du Ciel",aspects:["Conjonction","Trigone","Sextile"],weight:7}, {type:"progression",pProg:"Soleil",aspects:["Conjonction","Trigone","Sextile"],houseTargets:[10,6],weight:8}, {type:"solar_arc",pArc:"Jupiter",targets:["Milieu du Ciel","Soleil"],weight:7}, {type:"solar_arc",pArc:"Soleil",targets:["Milieu du Ciel"],weight:7}, {type:"eclipse_in_house",houses:[10],weight:7}, {type:"multi_house_active",houses:[6,10],minScore:8,weight:6}, {type:"multi_house_active",houses:[2,10],minScore:8,weight:5}, {type:"profection_house",houses:[2,6,10],weight:4}, {type:"firdaria_planet",planets:["Jupiter","Soleil"],weight:3}, {type:"station_on_natal",planets:["Jupiter"],weight:4}, {type:"transit_to_progressed",pTransit:"Jupiter",pProg:"Soleil",aspects:["Conjonction","Trigone","Sextile"],weight:12}, {type:"transit_to_progressed",pTransit:"Jupiter",pProg:"MC",aspects:["Conjonction","Trigone","Sextile"],weight:11}, {type:"rs_planet_in_house",planets:["Jupiter"],houses:[10,6],weight:6}, {type:"rs_malefic_cluster",houses:[10,6],direction:"positive",minCount:2,weight:5} ]
+},
+CARRIERE_DOWN: { label:"Perte d'emploi / Crise professionnelle", labelEN:"Job Loss / Career Crisis", icon:"📉", minConfidence:42,
+  guidanceText:{ high:"Les structures professionnelles sont profondément remises en question. Période de déconstruction nécessaire avant une reconstruction plus authentique.", medium:"Des remises en question professionnelles invitent à réévaluer ses ambitions et ses priorités.", low:"Une légère période d'ajustement professionnel — rester ouvert aux repositionnements." },
+  conditions:[ {type:"transit_in_house",planet:"Saturne",houses:[2,6,10],aspects:["Conjonction","Carré","Opposition"],weight:10}, {type:"transit_in_house",planet:"Pluton",houses:[2,6,10],aspects:["Conjonction","Carré","Opposition"],weight:10}, {type:"transit_in_house",planet:"Uranus",houses:[6,10],aspects:["Conjonction","Carré","Opposition"],weight:9}, {type:"transit_aspect",pTransit:"Saturne",pNatal:"Milieu du Ciel",aspects:["Carré","Opposition"],weight:9}, {type:"transit_aspect",pTransit:"Uranus",pNatal:"Milieu du Ciel",aspects:["Conjonction","Carré","Opposition"],weight:9}, {type:"transit_aspect",pTransit:"Pluton",pNatal:"Soleil",aspects:["Carré","Opposition"],weight:7}, {type:"progression",pProg:"Soleil",aspects:["Carré","Opposition"],houseTargets:[6,10,12],weight:7}, {type:"solar_arc",pArc:"Saturne",targets:["Milieu du Ciel","Soleil"],weight:7}, {type:"eclipse_in_house",houses:[6,10],weight:7}, {type:"multi_house_active",houses:[2,10],minScore:10,weight:7}, {type:"multi_house_active",houses:[6,10],minScore:10,weight:6}, {type:"profection_house",houses:[6,10],weight:4}, {type:"firdaria_planet",planets:["Saturne","Uranus","Pluton"],weight:3}, {type:"transit_to_progressed",pTransit:"Saturne",pProg:"Soleil",aspects:["Carré","Opposition","Conjonction"],weight:12}, {type:"transit_to_progressed",pTransit:"Saturne",pProg:"MC",aspects:["Carré","Opposition"],weight:11}, {type:"transit_to_progressed",pTransit:"Pluton",pProg:"Soleil",aspects:["Carré","Opposition"],weight:10}, {type:"transit_to_progressed",pTransit:"Uranus",pProg:"MC",aspects:["Carré","Opposition","Conjonction"],weight:10}, {type:"rs_malefic_cluster",houses:[10,6],direction:"negative",minCount:2,weight:8},{type:"eclipse_conjunct_natal",planets:["Soleil","Saturne","Milieu du Ciel"],orb:3.0,weight:9},{type:"transit_minor_aspect",pTransit:"Saturne",pNatal:"Milieu du Ciel",weight:5},{type:"transit_minor_aspect",pTransit:"Pluton",pNatal:"Soleil",weight:5} ]
+},
+FINANCE_UP: { label:"Gain financier", labelEN:"Financial Windfall", icon:"💰", minConfidence:40,
+  guidanceText:{ high:"Les secteurs financiers sont puissamment activés par des énergies d'expansion — période favorable aux investissements et aux rentrées significatives.", medium:"Un courant positif traverse les finances — opportunités d'amélioration matérielle à saisir.", low:"Une légère dynamique favorable dans le domaine matériel." },
+  conditions:[ {type:"transit_in_house",planet:"Jupiter",houses:[2,8,11],aspects:["Conjonction","Trigone","Sextile"],weight:10}, {type:"transit_aspect",pTransit:"Jupiter",pNatal:"Vénus",aspects:["Conjonction","Trigone","Sextile"],weight:8}, {type:"transit_in_house",planet:"Vénus",houses:[2,8],aspects:["Conjonction","Trigone","Sextile"],weight:5}, {type:"transit_aspect",pTransit:"Jupiter",pNatal:"Jupiter",aspects:["Conjonction","Trigone","Sextile"],weight:7}, {type:"progression",pProg:"Vénus",aspects:["Conjonction","Trigone","Sextile"],houseTargets:[2,8],weight:7}, {type:"solar_arc",pArc:"Jupiter",targets:["Vénus","Jupiter"],weight:6}, {type:"eclipse_in_house",houses:[2,8],weight:7}, {type:"multi_house_active",houses:[2,8],minScore:8,weight:6}, {type:"multi_house_active",houses:[2,11],minScore:8,weight:5}, {type:"nodes_in_houses",houses:[2,8],weight:4}, {type:"profection_house",houses:[2,8,11],weight:4}, {type:"firdaria_planet",planets:["Jupiter","Vénus"],weight:3}, {type:"transit_to_progressed",pTransit:"Jupiter",pProg:"Vénus",aspects:["Conjonction","Trigone","Sextile"],weight:11}, {type:"transit_to_progressed",pTransit:"Jupiter",pProg:"Soleil",aspects:["Trigone","Sextile"],weight:9}, {type:"rs_planet_in_house",planets:["Jupiter","Vénus"],houses:[2,8],weight:6}, {type:"rs_malefic_cluster",houses:[2,8],direction:"positive",minCount:2,weight:5} ]
+},
+FINANCE_DOWN: { label:"Perte financière / Crise matérielle", labelEN:"Financial Loss / Material Crisis", icon:"📊", minConfidence:42,
+  guidanceText:{ high:"Les structures financières sont profondément secouées — période de réorganisation matérielle nécessaire. Prudence avec les engagements financiers lourds.", medium:"Des tensions financières invitent à la prudence et à la restructuration budgétaire.", low:"Un léger besoin de vigilance dans la gestion des ressources." },
+  conditions:[ {type:"transit_in_house",planet:"Saturne",houses:[2,8],aspects:["Conjonction","Carré","Opposition"],weight:10}, {type:"transit_in_house",planet:"Pluton",houses:[2,8],aspects:["Conjonction","Carré","Opposition"],weight:10}, {type:"transit_in_house",planet:"Neptune",houses:[2,8],aspects:["Conjonction","Carré","Opposition"],weight:8}, {type:"transit_aspect",pTransit:"Neptune",pNatal:"Vénus",aspects:["Conjonction","Carré","Opposition"],weight:8}, {type:"transit_aspect",pTransit:"Saturne",pNatal:"Jupiter",aspects:["Carré","Opposition"],weight:7}, {type:"transit_aspect",pTransit:"Pluton",pNatal:"Vénus",aspects:["Carré","Opposition"],weight:7}, {type:"progression",pProg:"Vénus",aspects:["Carré","Opposition"],houseTargets:[2,8],weight:7}, {type:"solar_arc",pArc:"Saturne",targets:["Vénus","Jupiter"],weight:6}, {type:"eclipse_in_house",houses:[2,8],weight:7}, {type:"multi_house_active",houses:[2,8],minScore:10,weight:7}, {type:"profection_house",houses:[2,8],weight:4}, {type:"firdaria_planet",planets:["Saturne","Neptune","Pluton"],weight:3}, {type:"transit_to_progressed",pTransit:"Neptune",pProg:"Vénus",aspects:["Carré","Opposition","Conjonction"],weight:11}, {type:"transit_to_progressed",pTransit:"Saturne",pProg:"Vénus",aspects:["Carré","Opposition"],weight:10}, {type:"transit_to_progressed",pTransit:"Neptune",pProg:"Soleil",aspects:["Carré","Opposition"],weight:10}, {type:"transit_to_progressed",pTransit:"Pluton",pProg:"Vénus",aspects:["Carré","Opposition"],weight:9}, {type:"rs_malefic_cluster",houses:[2,8],direction:"negative",minCount:2,weight:9}, {type:"rs_planet_in_house",planets:["Saturne","Neptune","Pluton"],houses:[2,8],weight:7},{type:"transit_aspect",pTransit:"Saturne",pNatal:"Nœud Sud",aspects:["Conjonction","Carré"],weight:6},{type:"transit_aspect",pTransit:"Neptune",pNatal:"Nœud Sud",aspects:["Conjonction","Carré"],weight:6},{type:"eclipse_conjunct_natal",planets:["Jupiter","Vénus","Nœud Sud"],orb:3.0,weight:9},{type:"transit_minor_aspect",pTransit:"Neptune",pNatal:"Vénus",weight:5},{type:"transit_minor_aspect",pTransit:"Saturne",pNatal:"Jupiter",weight:5} ]
+},
+RELOCATION: { label:"Déménagement / Migration", labelEN:"Relocation / Moving", icon:"🏠", minConfidence:40,
+  guidanceText:{ high:"Un puissant besoin de changement de cadre de vie se manifeste — période propice aux déménagements ou aux transformations profondes du foyer.", medium:"Le foyer et les racines sont en mouvement — possibilité de changement d'environnement ou de réaménagement.", low:"Un désir subtil de renouvellement dans l'espace de vie." },
+  conditions:[ {type:"transit_in_house",planet:"Uranus",houses:[3,4,9],aspects:["Conjonction","Carré","Opposition"],weight:10}, {type:"transit_in_house",planet:"Jupiter",houses:[4,9],aspects:["Conjonction","Trigone","Sextile"],weight:7}, {type:"transit_aspect",pTransit:"Uranus",pNatal:"Imum Coeli",aspects:["Conjonction","Carré","Opposition"],weight:10}, {type:"transit_aspect",pTransit:"Jupiter",pNatal:"Imum Coeli",aspects:["Conjonction","Trigone","Sextile"],weight:7}, {type:"transit_in_house",planet:"Pluton",houses:[4],aspects:["Conjonction","Carré","Opposition"],weight:8}, {type:"progression",pProg:"Lune",aspects:["Conjonction","Carré","Opposition"],houseTargets:[4,9],weight:7}, {type:"solar_arc",pArc:"Uranus",targets:["Imum Coeli"],weight:8}, {type:"eclipse_in_house",houses:[4],weight:7}, {type:"multi_house_active",houses:[3,4],minScore:8,weight:6}, {type:"multi_house_active",houses:[4,9],minScore:8,weight:5}, {type:"nodes_in_houses",houses:[4,9],weight:4}, {type:"profection_house",houses:[3,4,9],weight:4}, {type:"firdaria_planet",planets:["Uranus","Jupiter"],weight:3}, {type:"transit_to_progressed",pTransit:"Uranus",pProg:"MC",aspects:["Conjonction","Carré","Opposition"],weight:10}, {type:"rs_planet_in_house",planets:["Uranus","Jupiter"],houses:[3,4,9],weight:5} ]
+},
+SPIRITUEL: { label:"Crise spirituelle / Éveil intérieur", labelEN:"Spiritual Crisis / Awakening", icon:"🔮", minConfidence:42,
+  guidanceText:{ high:"Une transformation intérieure profonde est en cours — les certitudes s'effondrent pour laisser place à une compréhension plus vaste. Période initiatique majeure.", medium:"Une quête de sens s'intensifie — besoin de solitude, de méditation ou de thérapie pour intégrer les mutations intérieures.", low:"Un appel discret vers l'intériorité et la réflexion spirituelle." },
+  conditions:[ {type:"transit_in_house",planet:"Neptune",houses:[9,12],aspects:["Conjonction","Carré","Opposition"],weight:10}, {type:"transit_in_house",planet:"Pluton",houses:[9,12],aspects:["Conjonction","Carré","Opposition"],weight:10}, {type:"transit_aspect",pTransit:"Neptune",pNatal:"Ascendant",aspects:["Conjonction","Carré","Opposition"],weight:9}, {type:"transit_aspect",pTransit:"Neptune",pNatal:"Soleil",aspects:["Conjonction","Carré","Opposition"],weight:8}, {type:"transit_aspect",pTransit:"Pluton",pNatal:"Lune",aspects:["Conjonction","Carré","Opposition"],weight:8}, {type:"transit_in_house",planet:"Chiron",houses:[9,12],aspects:["Conjonction","Carré","Opposition"],weight:7}, {type:"progression",pProg:"Lune",aspects:["Conjonction","Carré","Opposition"],houseTargets:[9,12],weight:7}, {type:"solar_arc",pArc:"Neptune",targets:["Ascendant","Soleil","Lune"],weight:7}, {type:"eclipse_in_house",houses:[9,12],weight:7}, {type:"multi_house_active",houses:[9,12],minScore:10,weight:7}, {type:"nodes_in_houses",houses:[9,12],weight:6}, {type:"profection_house",houses:[9,12],weight:4}, {type:"firdaria_planet",planets:["Neptune","Pluton"],weight:3}, {type:"transit_to_progressed",pTransit:"Neptune",pProg:"Soleil",aspects:["Conjonction","Carré","Opposition"],weight:10}, {type:"transit_to_progressed",pTransit:"Pluton",pProg:"Lune",aspects:["Conjonction","Carré","Opposition"],weight:9}, {type:"rs_planet_in_house",planets:["Neptune","Pluton"],houses:[9,12],weight:5},{type:"transit_aspect",pTransit:"Neptune",pNatal:"Nœud Sud",aspects:["Conjonction","Trigone","Sextile"],weight:7},{type:"transit_aspect",pTransit:"Pluton",pNatal:"Nœud Sud",aspects:["Conjonction"],weight:6},{type:"eclipse_conjunct_natal",planets:["Neptune","Nœud Nord","Nœud Sud"],orb:3.0,weight:9} ]
+},
+JURIDIQUE_DOWN: { label:"Problèmes juridiques / Litiges", labelEN:"Legal Issues / Litigation", icon:"⚖️", minConfidence:42,
+  guidanceText:{ high:"Les secteurs des contrats et de la justice sont sous forte tension — période demandant une vigilance juridique renforcée et un accompagnement professionnel.", medium:"Des enjeux contractuels ou juridiques réclament de l'attention — vérifier les engagements en cours.", low:"Un léger besoin de clarifier certaines situations contractuelles." },
+  conditions:[ {type:"transit_in_house",planet:"Saturne",houses:[7,9],aspects:["Conjonction","Carré","Opposition"],weight:10}, {type:"transit_in_house",planet:"Mars",houses:[7,9,12],aspects:["Conjonction","Carré","Opposition"],weight:8}, {type:"transit_in_house",planet:"Pluton",houses:[7,9],aspects:["Conjonction","Carré","Opposition"],weight:9}, {type:"transit_aspect",pTransit:"Saturne",pNatal:"Mars",aspects:["Conjonction","Carré","Opposition"],weight:8}, {type:"transit_aspect",pTransit:"Saturne",pNatal:"Jupiter",aspects:["Carré","Opposition"],weight:7}, {type:"transit_aspect",pTransit:"Mars",pNatal:"Saturne",aspects:["Conjonction","Carré","Opposition"],weight:7}, {type:"progression",pProg:"Mars",aspects:["Carré","Opposition"],houseTargets:[7,9],weight:6}, {type:"solar_arc",pArc:"Saturne",targets:["Mars","Jupiter","Descendant"],weight:6}, {type:"eclipse_in_house",houses:[7,9],weight:7}, {type:"multi_house_active",houses:[7,9],minScore:10,weight:7}, {type:"multi_house_active",houses:[7,12],minScore:8,weight:5}, {type:"profection_house",houses:[7,9,12],weight:4}, {type:"firdaria_planet",planets:["Saturne","Mars"],weight:3}, {type:"transit_to_progressed",pTransit:"Saturne",pProg:"Soleil",aspects:["Carré","Opposition"],weight:9}, {type:"rs_malefic_cluster",houses:[7,9],direction:"negative",minCount:2,weight:7},{type:"transit_minor_aspect",pTransit:"Saturne",pNatal:"Jupiter",weight:5} ]
+},
+JURIDIQUE_UP: { label:"Issue juridique favorable", labelEN:"Favorable Legal Outcome", icon:"⚖️", minConfidence:40,
+  guidanceText:{ high:"Les secteurs des contrats et de la justice reçoivent un soutien puissant — période favorable aux résolutions juridiques, aux accords et aux négociations structurantes.", medium:"Un courant favorable traverse le domaine juridique et contractuel — opportunités de clarification et d'accord.", low:"Une légère dynamique de soutien dans le domaine des contrats et engagements." },
+  conditions:[ {type:"transit_in_house",planet:"Jupiter",houses:[7,9],aspects:["Conjonction","Trigone","Sextile"],weight:10}, {type:"transit_aspect",pTransit:"Jupiter",pNatal:"Jupiter",aspects:["Conjonction","Trigone","Sextile"],weight:8}, {type:"transit_aspect",pTransit:"Jupiter",pNatal:"Descendant",aspects:["Conjonction","Trigone","Sextile"],weight:9}, {type:"transit_in_house",planet:"Vénus",houses:[7,9],aspects:["Conjonction","Trigone","Sextile"],weight:6}, {type:"transit_aspect",pTransit:"Vénus",pNatal:"Jupiter",aspects:["Conjonction","Trigone","Sextile"],weight:6}, {type:"transit_aspect",pTransit:"Jupiter",pNatal:"Soleil",aspects:["Conjonction","Trigone","Sextile"],weight:7}, {type:"progression",pProg:"Vénus",aspects:["Conjonction","Trigone","Sextile"],houseTargets:[7,9],weight:6}, {type:"solar_arc",pArc:"Jupiter",targets:["Descendant","Mars","Jupiter"],weight:6}, {type:"eclipse_in_house",houses:[9],weight:7}, {type:"multi_house_active",houses:[7,9],minScore:8,weight:6}, {type:"profection_house",houses:[7,9],weight:4}, {type:"firdaria_planet",planets:["Jupiter","Vénus"],weight:3}, {type:"transit_to_progressed",pTransit:"Jupiter",pProg:"Soleil",aspects:["Trigone","Sextile"],weight:8}, {type:"rs_planet_in_house",planets:["Jupiter","Vénus"],houses:[7,9],weight:5} ]
+},
+VOYAGE: { label:"Voyage transformateur", labelEN:"Transformative Travel", icon:"✈️", minConfidence:38,
+  guidanceText:{ high:"L'horizon s'ouvre avec force — période idéale pour les voyages transformateurs, les études ou l'expansion culturelle.", medium:"Un appel vers l'ailleurs et l'élargissement des perspectives — ouverture aux cultures et aux nouvelles idées.", low:"Un désir discret d'évasion et de découverte." },
+  conditions:[ {type:"transit_in_house",planet:"Jupiter",houses:[3,9],aspects:["Conjonction","Trigone","Sextile"],weight:10}, {type:"transit_in_house",planet:"Uranus",houses:[9],aspects:["Conjonction","Trigone","Sextile"],weight:8}, {type:"transit_aspect",pTransit:"Jupiter",pNatal:"Jupiter",aspects:["Conjonction","Trigone","Sextile"],weight:7}, {type:"transit_in_house",planet:"Neptune",houses:[9],aspects:["Conjonction","Trigone","Sextile"],weight:6}, {type:"progression",pProg:"Lune",aspects:["Conjonction","Trigone","Sextile"],houseTargets:[3,9],weight:6}, {type:"solar_arc",pArc:"Jupiter",targets:["Ascendant","Milieu du Ciel"],weight:6}, {type:"eclipse_in_house",houses:[9],weight:7}, {type:"multi_house_active",houses:[3,9],minScore:8,weight:6}, {type:"nodes_in_houses",houses:[3,9],weight:5}, {type:"profection_house",houses:[3,9],weight:4}, {type:"firdaria_planet",planets:["Jupiter","Uranus"],weight:3}, {type:"transit_to_progressed",pTransit:"Jupiter",pProg:"MC",aspects:["Trigone","Sextile"],weight:7}, {type:"rs_planet_in_house",planets:["Jupiter","Uranus"],houses:[3,9],weight:5} ]
+}
+};
+
+// --- MDSE : Évaluation d'une condition unitaire (adapté aux structures locales) ---
+const _mdseEvalCondA = (cond) => {
+  const result = { hit:false, strength:0, detail:"", involvedHouses:[], involvedPlanets:[] };
+  switch (cond.type) {
+    case "transit_in_house": {
+      const mKeys = Object.keys(_allSlowAspA).filter(key => {
+        const a = _allSlowAspA[key];
+        return a.pTransit === cond.planet && cond.houses.includes(a.natalHouse) && cond.aspects.includes(a.aspect) && a.waves && a.waves.length > 0;
+      });
+      if (mKeys.length > 0) {
+        let bestTightness = 0;
+        const houses = new Set();
+        const _exp = _MDSE_TIGHT_EXP_A[cond.planet] ?? 1.5;
+        mKeys.forEach(key => {
+          const a = _allSlowAspA[key];
+          const maxOrb = _getOrbSlowA(cond.planet, a.aspect);
+          houses.add(a.natalHouse);
+          a.waves.forEach(w => { const mo = w._minOrb; if (mo != null) { const t = Math.pow(Math.max(0, 1 - mo / maxOrb), _exp); if (t > bestTightness) bestTightness = t; } });
+        });
+        const tightness = bestTightness > 0 ? bestTightness : 0.5;
+        result.hit = true; result.strength = tightness;
+        result.involvedHouses = [...houses]; result.involvedPlanets = [cond.planet];
+        result.detail = `${cond.planet} transit dur M${[...houses].join("/")}`;
+      } else {
+        const fbM = Object.values(_mdseFastScanA).filter(fb => fb.pTransit === cond.planet && cond.houses.includes(fb.natalHouse) && cond.aspects.includes(fb.aspName));
+        if (fbM.length > 0) {
+          const bestFb = fbM.reduce((a, b) => a.bestOrb < b.bestOrb ? a : b);
+          const hasWaves = bestFb.waves && bestFb.waves.length > 0;
+          const _fbMaxOrb = _getOrbFastA(bestFb.pTransit, bestFb.aspName);
+          const _fbExp = _MDSE_TIGHT_EXP_A[bestFb.pTransit] ?? 1.5;
+          const tightness = Math.pow(Math.max(0, 1 - bestFb.bestOrb / _fbMaxOrb), _fbExp);
+          const multiWave = hasWaves && bestFb.waves.length >= 3 ? 1.3 : hasWaves && bestFb.waves.length >= 2 ? 1.15 : 1.0;
+          result.hit = true; result.strength = Math.min(tightness * multiWave, 1.0);
+          result.involvedHouses = [...new Set(fbM.map(fb => fb.natalHouse))]; result.involvedPlanets = [cond.planet];
+          result.detail = `${cond.planet} transit M${result.involvedHouses.join("/")}`;
+        }
+      }
+      break;
+    }
+    case "transit_aspect": {
+      const mKey = Object.keys(_allSlowAspA).find(key => {
+        const a = _allSlowAspA[key];
+        return a.pTransit === cond.pTransit && a.pNatal === cond.pNatal && cond.aspects.includes(a.aspect) && a.waves && a.waves.length > 0;
+      });
+      if (mKey) {
+        const a = _allSlowAspA[mKey];
+        const maxOrb = _getOrbSlowA(cond.pTransit, a.aspect);
+        const _exp = _MDSE_TIGHT_EXP_A[cond.pTransit] ?? 1.5;
+        let bestTightness = 0;
+        a.waves.forEach(w => { const mo = w._minOrb; if (mo != null) { const t = Math.pow(Math.max(0, 1 - mo / maxOrb), _exp); if (t > bestTightness) bestTightness = t; } });
+        const tightness = bestTightness > 0 ? bestTightness : 0.5;
+        const multiWave = a.waves.length >= 3 ? 1.3 : a.waves.length >= 2 ? 1.15 : 1.0;
+        result.hit = true; result.strength = Math.min(tightness * multiWave, 1.0);
+        result.involvedHouses = a.natalHouse ? [a.natalHouse] : []; result.involvedPlanets = [cond.pTransit, cond.pNatal];
+        result.detail = `${cond.pTransit} ${a.aspect} ${cond.pNatal} natal (M${a.natalHouse})`;
+      } else {
+        const fbKey = Object.keys(_mdseFastScanA).find(key => {
+          const fb = _mdseFastScanA[key];
+          return fb.pTransit === cond.pTransit && fb.pNatal === cond.pNatal && cond.aspects.includes(fb.aspName);
+        });
+        if (fbKey) {
+          const fb = _mdseFastScanA[fbKey];
+          const hasWaves = fb.waves && fb.waves.length > 0;
+          const _fbMaxOrb = _getOrbFastA(fb.pTransit, fb.aspName);
+          const _fbExp = _MDSE_TIGHT_EXP_A[fb.pTransit] ?? 1.5;
+          const tightness = Math.pow(Math.max(0, 1 - fb.bestOrb / _fbMaxOrb), _fbExp);
+          const multiWave = hasWaves && fb.waves.length >= 3 ? 1.3 : hasWaves && fb.waves.length >= 2 ? 1.15 : 1.0;
+          result.hit = true; result.strength = Math.min(tightness * multiWave, 1.0);
+          result.involvedHouses = fb.natalHouse ? [fb.natalHouse] : []; result.involvedPlanets = [cond.pTransit, cond.pNatal];
+          result.detail = `${fb.pTransit} ${fb.aspName} ${fb.pNatal} natal (M${fb.natalHouse})`;
+        }
+      }
+      break;
+    }
+    case "progression": {
+      const pM = [];
+      Object.entries(_progActsA).forEach(([pNatal, acts]) => {
+        acts.forEach(a => {
+          if (a.pProg?.startsWith("Arc ") || a.pProg?.startsWith("Éclipse") || a.pProg?.startsWith("T→P")) return;
+          if (a.pProg === cond.pProg && cond.aspects.includes(a.aspName)) {
+            const nH = natalDictLoc[pNatal]?.house;
+            if (nH && cond.houseTargets.includes(nH)) pM.push({ pNatal, aspect:a.aspName, house:nH, weight:a.weight||0.5 });
+          }
+        });
+      });
+      if (pM.length > 0) {
+        result.hit = true; result.strength = Math.min(Math.max(...pM.map(m => m.weight)), 1.0);
+        result.involvedHouses = [...new Set(pM.map(m => m.house))]; result.involvedPlanets = [cond.pProg, ...pM.map(m => m.pNatal)];
+        result.detail = `Prog. ${cond.pProg} → ${pM.map(m => `${m.pNatal}(M${m.house})`).join("+")}`;
+      }
+      break;
+    }
+    case "solar_arc": {
+      const aM = [];
+      Object.entries(_progActsA).forEach(([pNatal, acts]) => {
+        acts.forEach(a => {
+          if (!a.pProg?.startsWith("Arc ")) return;
+          const arcP = a.pProg.replace("Arc ", "");
+          if (arcP === cond.pArc && cond.targets.includes(pNatal)) aM.push({ pNatal, house:a.house, weight:a.weight||0.5 });
+        });
+      });
+      if (aM.length > 0) {
+        result.hit = true; result.strength = Math.min(Math.max(...aM.map(m => m.weight)), 1.0);
+        result.involvedHouses = [...new Set(aM.map(m => m.house))]; result.involvedPlanets = [cond.pArc, ...aM.map(m => m.pNatal)];
+        result.detail = `Arc ${cond.pArc} → ${aM.map(m => `${m.pNatal}(M${m.house})`).join("+")}`;
+      }
+      break;
+    }
+    case "transit_on_angle": {
+      const angleName = cond.angle;
+      for (let h = 0; h < 12; h++) {
+        const angPas = rapportMaisons[h].passages_angles || [];
+        const match = angPas.find(a => cond.planets.includes(a.planete));
+        if (match) {
+          const angleHouse = natalDictLoc[angleName]?.house;
+          if (angleHouse && angleHouse === h + 1) {
+            result.hit = true; result.strength = 0.8;
+            result.involvedHouses = [h + 1]; result.involvedPlanets = [match.planete];
+            result.detail = `${match.planete} sur ${angleName} (M${h+1})`;
+            break;
+          }
+        }
+      }
+      break;
+    }
+    case "eclipse_in_house": {
+      const eH = [];
+      const _ORBE_ECL_MDSE = 3.0;
+      cond.houses.forEach(h => {
+        if (h < 1 || h > 12) return;
+        let found = false;
+        rapportMaisons.forEach(m => {
+          (m.eclipses || []).forEach(e => {
+            if (found || e.fullDegree == null) return;
+            const isConjAny = Object.values(natalDictLoc).some(n => {
+              let d = Math.abs(e.fullDegree - n.deg); if (d > 180) d = 360 - d;
+              return d <= _ORBE_ECL_MDSE;
+            });
+            if (!isConjAny) return;
+            if (e.maison === h) { found = true; return; }
+            Object.values(natalDictLoc).forEach(n => {
+              if (found) return;
+              let d = Math.abs(e.fullDegree - n.deg); if (d > 180) d = 360 - d;
+              if (d <= _ORBE_ECL_MDSE && n.house === h) found = true;
+            });
+          });
+        });
+        if (found) eH.push(h);
+      });
+      if (eH.length > 0) { result.hit = true; result.strength = Math.min(0.5 + eH.length * 0.25, 1.0); result.involvedHouses = eH; result.detail = `Éclipse conjoncte M${eH.join("/")}`; }
+      break;
+    }
+    case "eclipse_conjunct_natal": {
+      const eclHits = _mdseEclipseNatalHitsA.filter(h => cond.planets.includes(h.planet) && h.orb <= (cond.orb || 3.0));
+      if (eclHits.length > 0) {
+        const best = eclHits.reduce((a, b) => a.orb < b.orb ? a : b);
+        const tightness = Math.pow(Math.max(0, 1 - best.orb / (cond.orb || 3.0)), 1.5);
+        result.hit = true;
+        result.strength = Math.min(tightness + 0.3, 1.0);
+        result.involvedHouses = [...new Set(eclHits.map(h => h.house))];
+        result.involvedPlanets = eclHits.map(h => h.planet);
+        result.detail = `Éclipse conjoncte ${eclHits.map(h => `${h.planet}(${h.orb.toFixed(1)}°)`).join("+")}`;
+      }
+      break;
+    }
+    case "transit_minor_aspect": {
+      const mKey = Object.keys(_mdseMinorAspectsA).find(key => {
+        const m = _mdseMinorAspectsA[key];
+        return m.pTransit === cond.pTransit && m.pNatal === cond.pNatal;
+      });
+      if (mKey) {
+        const m = _mdseMinorAspectsA[mKey];
+        const _exp = _MDSE_TIGHT_EXP_A[m.pTransit] ?? 1.5;
+        const tightness = Math.pow(Math.max(0, 1 - m.bestOrb / 1.0), _exp);
+        result.hit = true;
+        result.strength = Math.min(tightness * 0.7, 1.0);
+        result.involvedHouses = m.natalHouse ? [m.natalHouse] : [];
+        result.involvedPlanets = [cond.pTransit, cond.pNatal];
+        result.detail = `${cond.pTransit} ${m.aspName} ${cond.pNatal} natal (M${m.natalHouse})`;
+      }
+      break;
+    }
+    case "double_activation": {
+      const daMatches = [];
+      Object.entries(_allSlowAspA).forEach(([key, a]) => {
+        if (!cond.planets.includes(a.pTransit)) return;
+        if (!a.waves || a.waves.length === 0) return;
+        const progActs = _progActsA[a.pNatal];
+        if (!progActs || progActs.length === 0) return;
+        const hasProgression = progActs.some(pa => !pa.pProg?.startsWith("Arc "));
+        const hasSolarArc = progActs.some(pa => pa.pProg?.startsWith("Arc "));
+        const isTriple = hasProgression && hasSolarArc;
+        daMatches.push({ house: a.natalHouse, planet: a.pTransit, triple: isTriple });
+      });
+      if (daMatches.length > 0) {
+        const hasTriple = daMatches.some(m => m.triple);
+        result.hit = true; result.strength = hasTriple ? 1.0 : 0.8;
+        result.involvedHouses = [...new Set(daMatches.map(m => m.house))];
+        result.involvedPlanets = [...new Set(daMatches.map(m => m.planet))];
+        result.detail = daMatches.map(m => `${m.triple?"Triple":"Double"} Act. ${m.planet} M${m.house}`).join(", ");
+      }
+      break;
+    }
+    case "declination_match": {
+      const declPlanets = cond.planets || [];
+      if (declPlanets.length >= 2) {
+        const hasPair = declPlanets.some((p1, i) =>
+          declPlanets.some((p2, j) => i !== j && _declPairsA.has(`${p1}|${p2}`))
+        );
+        if (hasPair) {
+          result.hit = true; result.strength = 0.7; result.involvedPlanets = declPlanets;
+          declPlanets.forEach(p => { const h = natalDictLoc[p]?.house; if (h) result.involvedHouses.push(h); });
+          result.detail = `Déclinaison ${declPlanets.join("/")}`;
+        }
+      }
+      break;
+    }
+    case "multi_house_active": {
+      const scores = cond.houses.map(h => h >= 1 && h <= 12 ? _houseScoresA[h - 1] : 0);
+      const combined = scores.reduce((a, b) => a + b, 0);
+      if (combined >= cond.minScore) { result.hit = true; result.strength = Math.min(combined / (cond.minScore * 2), 1.0); result.involvedHouses = cond.houses; result.detail = `M${cond.houses.join("+")} combinées : ${combined.toFixed(1)}`; }
+      break;
+    }
+    case "house_axis_active": {
+      const [h1, h2] = cond.axis;
+      const s1 = h1 >= 1 && h1 <= 12 ? _houseScoresA[h1 - 1] : 0;
+      const s2 = h2 >= 1 && h2 <= 12 ? _houseScoresA[h2 - 1] : 0;
+      if (s1 + s2 >= cond.minCombined && s1 > 0 && s2 > 0) { result.hit = true; result.strength = Math.min((s1 + s2) / (cond.minCombined * 1.5), 1.0); result.involvedHouses = [h1, h2]; result.detail = `Axe M${h1}/M${h2} : ${(s1 + s2).toFixed(1)}`; }
+      break;
+    }
+    case "profection_house": {
+      const pMaison = _profA?.annuelle?.maison;
+      if (pMaison && cond.houses.includes(pMaison)) { result.hit = true; result.strength = 0.8; result.involvedHouses = [pMaison]; result.involvedPlanets = _profA.annuelle.seigneur ? [_profA.annuelle.seigneur] : []; result.detail = `Profection annuelle M${pMaison}`; }
+      break;
+    }
+    case "firdaria_planet": {
+      if (_firdFwd) {
+        const match = cond.planets.includes(_firdFwd.major) || cond.planets.includes(_firdFwd.sub);
+        if (match) { result.hit = true; result.strength = cond.planets.includes(_firdFwd.major) ? 0.9 : 0.6; result.involvedPlanets = [_firdFwd.major]; result.detail = `Firdaria ${_firdFwd.major}/${_firdFwd.sub}`; }
+      }
+      break;
+    }
+    case "station_on_natal": {
+      for (let h = 0; h < 12; h++) {
+        const sts = rapportMaisons[h].stations_retro || [];
+        const match = sts.some(s => {
+          if (!(cond.planets||[]).includes(s.planete)) return false;
+          if (s.fullDegree == null) return false;
+          return Object.values(natalDictLoc).some(n => {
+            let d = Math.abs(s.fullDegree - n.deg); if (d > 180) d = 360 - d;
+            return d <= 2.0;
+          });
+        });
+        if (match) { result.hit = true; result.strength = 0.9; result.involvedHouses.push(h + 1); }
+      }
+      if (result.hit) { result.involvedPlanets = cond.planets || []; result.detail = `Station ${(cond.planets||[]).join("/")} sur natal`; }
+      break;
+    }
+    case "nodes_in_houses": {
+      const nH = [];
+      rapportMaisons.forEach((m, idx) => {
+        (m.transits_lentes || []).forEach(t => {
+          if ((t.planete === "Nœud Nord" || t.planete === "Nœud Sud") && cond.houses.includes(idx + 1)) nH.push(idx + 1);
+        });
+      });
+      if (nH.length > 0) { result.hit = true; result.strength = 0.7; result.involvedHouses = [...new Set(nH)]; result.involvedPlanets = ["Nœud Nord","Nœud Sud"]; result.detail = `Nœuds en M${[...new Set(nH)].join("/")}`; }
+      break;
+    }
+
+    case "transit_to_progressed": {
+      const tpMatches = _mdseTPAspectsA.filter(tp =>
+        tp.pTransit === cond.pTransit && tp.pProg === cond.pProg && cond.aspects.includes(tp.aspName)
+        && (!cond.maxOrb || tp.bestOrb <= cond.maxOrb)
+      );
+      if (tpMatches.length > 0) {
+        const best = tpMatches.reduce((a, b) => a.bestOrb < b.bestOrb ? a : b);
+        const _tpMaxOrb = _getOrbSlowA(cond.pTransit, best.aspName);
+        const _tpExp = _MDSE_TIGHT_EXP_A[cond.pTransit] ?? 1.5;
+        const tightness = Math.pow(Math.max(0, 1 - best.bestOrb / _tpMaxOrb), _tpExp);
+        const multiPass = best.nbPassages >= 3 ? 1.3 : best.nbPassages >= 2 ? 1.15 : 1.0;
+        result.hit = true;
+        result.strength = Math.min(tightness * multiPass, 1.0);
+        result.involvedHouses = [...new Set(tpMatches.map(m => m.house))];
+        result.involvedPlanets = [cond.pTransit, cond.pProg];
+        result.detail = `T→P ${cond.pTransit} ${best.aspName} ${cond.pProg}P (orbe ${best.bestOrb.toFixed(2)}°, ${best.nbPassages}x)`;
+      }
+      break;
+    }
+
+    case "rs_planet_in_house": {
+      const rsMatches = [];
+      for (const p of cond.planets) {
+        const rsInfo = _mdseRSHousesA[p];
+        if (rsInfo && cond.houses.includes(rsInfo.house)) rsMatches.push({planet: p, house: rsInfo.house, sign: rsInfo.sign});
+      }
+      if (rsMatches.length > 0) {
+        result.hit = true;
+        result.strength = Math.min(0.6 + rsMatches.length * 0.2, 1.0);
+        result.involvedHouses = [...new Set(rsMatches.map(m => m.house))];
+        result.involvedPlanets = rsMatches.map(m => m.planet);
+        result.detail = `RS ${rsMatches.map(m => `${m.planet}→M${m.house}`).join("+")}`;
+      }
+      break;
+    }
+
+    case "rs_malefic_cluster": {
+      const _RS_MAL = new Set(["Mars","Saturne","Uranus","Neptune","Pluton","Chiron"]);
+      const _RS_BEN = new Set(["Jupiter","Vénus"]);
+      const malInH = [], benInH = [];
+      for (const [p, info] of Object.entries(_mdseRSHousesA)) {
+        if (cond.houses.includes(info.house)) {
+          if (_RS_MAL.has(p)) malInH.push(p);
+          if (_RS_BEN.has(p)) benInH.push(p);
+        }
+      }
+      const isMalCluster = cond.direction === "negative" && malInH.length >= (cond.minCount || 2);
+      const isBenCluster = cond.direction === "positive" && benInH.length >= (cond.minCount || 2);
+      if (isMalCluster || isBenCluster) {
+        const planets = isMalCluster ? malInH : benInH;
+        result.hit = true;
+        result.strength = Math.min(0.5 + planets.length * 0.2, 1.0);
+        result.involvedHouses = [...new Set(cond.houses)];
+        result.involvedPlanets = planets;
+        result.detail = `RS cluster ${cond.direction} M${cond.houses.join("/")}: ${planets.join("+")}`;
+      }
+      break;
+    }
+  }
+  return result;
+};
+
+// --- MDSE : Évaluation globale ---
+for (const [code, sig] of Object.entries(EVENT_SIGNATURES_A)) {
+  let totalWeight = 0, maxPossible = 0;
+  const matchedConditions = [];
+  for (const cond of sig.conditions) {
+    maxPossible += cond.weight;
+    const evalResult = _mdseEvalCondA(cond);
+    if (evalResult.hit) {
+      totalWeight += cond.weight * evalResult.strength;
+      matchedConditions.push({ type:cond.type, weight:cond.weight, strength:evalResult.strength, detail:evalResult.detail, involvedHouses:evalResult.involvedHouses, involvedPlanets:evalResult.involvedPlanets, isFallback:!!evalResult.isFallback });
+    }
+  }
+  const confidence = maxPossible > 0 ? Math.round((totalWeight / maxPossible) * 100) : 0;
+  if (confidence >= sig.minConfidence) {
+    const level = confidence >= 65 ? "high" : confidence >= 50 ? "medium" : "low";
+    _mdseResultsA.push({ code, label:sig.label, labelEN:sig.labelEN, icon:sig.icon, confidence, level, guidance:sig.guidanceText[level], matchedConditions, involvedHouses:[...new Set(matchedConditions.flatMap(c => c.involvedHouses))], involvedPlanets:[...new Set(matchedConditions.flatMap(c => c.involvedPlanets))] });
+  }
+  _mdseDebugAllA.push({ code, rawConfidence:confidence, minConfidence:sig.minConfidence, passed:confidence >= sig.minConfidence, totalWeight:Math.round(totalWeight*100)/100, maxPossible, matchedConditions:matchedConditions.map(c=>({type:c.type,weight:c.weight,strength:Math.round(c.strength*1000)/1000,detail:c.detail})) });
+}
+_mdseResultsA.sort((a, b) => b.confidence - a.confidence);
+
+// --- MDSE : Superposition de signatures ---
+const _mdsePairsA = [["ACCIDENT","SANTE_DOWN"],["CARRIERE_DOWN","FINANCE_DOWN"],["DEUIL","SPIRITUEL"],["MARIAGE","ENFANT"],["SEPARATION","JURIDIQUE_DOWN"],["RELOCATION","VOYAGE"],["SANTE_UP","MARIAGE"],["JURIDIQUE_UP","CARRIERE_UP"]];
+for (const [c1, c2] of _mdsePairsA) {
+  const s1 = _mdseResultsA.find(r => r.code === c1);
+  const s2 = _mdseResultsA.find(r => r.code === c2);
+  if (s1 && s2) {
+    const overlap = s1.involvedHouses.filter(h => s2.involvedHouses.includes(h));
+    if (overlap.length > 0) {
+      s1.confidence = Math.min(s1.confidence + 10, 100);
+      s2.confidence = Math.min(s2.confidence + 8, 100);
+      s1.level = s1.confidence >= 65 ? "high" : s1.confidence >= 50 ? "medium" : "low";
+      s2.level = s2.confidence >= 65 ? "high" : s2.confidence >= 50 ? "medium" : "low";
+      s1.guidance = EVENT_SIGNATURES_A[c1].guidanceText[s1.level];
+      s2.guidance = EVENT_SIGNATURES_A[c2].guidanceText[s2.level];
+    }
+  }
+}
+_mdseResultsA.sort((a, b) => b.confidence - a.confidence);
+
+// --- MDSE v2-A : Temporalisation ---
+_mdseResultsA.forEach(sig => {
+  const peakDates = [];
+  sig.matchedConditions.forEach(cond => {
+    if (cond.type === "transit_aspect" || cond.type === "transit_in_house") {
+      const dateMatch = cond.detail.match(/\d{4}-\d{2}-\d{2}/);
+      if (dateMatch) { peakDates.push(dateMatch[0]); return; }
+      const relevantKeys = Object.keys(_allSlowAspA).filter(key => {
+        const a = _allSlowAspA[key];
+        return cond.detail.includes(a.pTransit) && cond.detail.includes(a.pNatal);
+      });
+      relevantKeys.forEach(key => {
+        const a = _allSlowAspA[key];
+        if (a.waves && a.waves.length > 0) { a.waves.forEach(w => { if (w.peakDate) peakDates.push(w.peakDate); else if (w.start) peakDates.push(w.start); }); }
+        else if (a.debut) peakDates.push(a.debut);
+      });
+      if (peakDates.length === 0) {
+        const fbEntry = Object.values(_mdseFastScanA).find(fb => cond.detail.includes(fb.pTransit));
+        if (fbEntry?.waves) fbEntry.waves.forEach(w => { if (w.peakDate) peakDates.push(w.peakDate); });
+        else if (fbEntry?.bestDate) peakDates.push(fbEntry.bestDate);
+      }
+    }
+  });
+  if (peakDates.length > 0) {
+    peakDates.sort();
+    const margin = 7 * 86400000;
+    const wStart = new Date(new Date(peakDates[0]).getTime() - margin);
+    const wEnd = new Date(new Date(peakDates[peakDates.length - 1]).getTime() + margin);
+    const clampStart = wStart < dStart ? dStart : wStart;
+    const clampEnd = wEnd > dEnd ? dEnd : wEnd;
+    sig.peakWindow = { start:clampStart.toISOString().split("T")[0], end:clampEnd.toISOString().split("T")[0], peakDates:[...new Set(peakDates)].slice(0, 5) };
+  }
+});
+
+// --- MDSE v2-C : Pondération par le thème natal ---
+const _MDSE_NATAL_SENS_A = {
+  ACCIDENT:{planets:["Mars","Uranus"],houses:[1,3,6,8],rulers:["Ascendant"]}, SANTE_DOWN:{planets:["Saturne","Chiron","Neptune"],houses:[1,6,12],rulers:["Ascendant"]},
+  SANTE_UP:{planets:["Jupiter","Vénus","Chiron"],houses:[1,6],rulers:["Ascendant"]},
+  DEUIL:{planets:["Pluton","Saturne"],houses:[4,8],rulers:["Imum Coeli"]}, MARIAGE:{planets:["Vénus","Jupiter"],houses:[5,7],rulers:["Descendant"]},
+  SEPARATION:{planets:["Uranus","Saturne","Pluton"],houses:[7,8],rulers:["Descendant"]}, ENFANT:{planets:["Lune","Vénus","Jupiter"],houses:[4,5],rulers:[]},
+  CARRIERE_UP:{planets:["Jupiter","Soleil","Saturne"],houses:[6,10],rulers:["Milieu du Ciel"]}, CARRIERE_DOWN:{planets:["Saturne","Uranus","Pluton"],houses:[6,10],rulers:["Milieu du Ciel"]},
+  FINANCE_UP:{planets:["Jupiter","Vénus"],houses:[2,8],rulers:[]}, FINANCE_DOWN:{planets:["Saturne","Neptune","Pluton"],houses:[2,8],rulers:[]},
+  RELOCATION:{planets:["Uranus","Jupiter"],houses:[3,4,9],rulers:["Imum Coeli"]}, SPIRITUEL:{planets:["Neptune","Pluton","Chiron"],houses:[9,12],rulers:[]},
+  JURIDIQUE_DOWN:{planets:["Saturne","Mars"],houses:[7,9],rulers:["Descendant"]}, JURIDIQUE_UP:{planets:["Jupiter","Vénus"],houses:[7,9],rulers:["Descendant"]},
+  VOYAGE:{planets:["Jupiter","Uranus"],houses:[3,9],rulers:[]}
+};
+_mdseResultsA.forEach(sig => {
+  const sensConfig = _MDSE_NATAL_SENS_A[sig.code]; if (!sensConfig) return;
+  let natalBoost = 0;
+  sensConfig.planets.forEach(p => { const nd = natalDictLoc[p]; if (nd && sensConfig.houses.includes(nd.house)) natalBoost += 5; });
+  sensConfig.rulers.forEach(angle => {
+    const angleSign = natalDictLoc[angle]?.sign; if (!angleSign) return;
+    const ruler = _MAITRES_MDSE[angleSign];
+    if (ruler && sensConfig.planets.includes(ruler)) natalBoost += 4;
+  });
+  if (_chartRulerA && sensConfig.planets.includes(_chartRulerA)) natalBoost += 3;
+  if (natalBoost > 0) {
+    sig.confidence = Math.min(sig.confidence + natalBoost, 100);
+    sig.level = sig.confidence >= 65 ? "high" : sig.confidence >= 50 ? "medium" : "low";
+    sig.guidance = EVENT_SIGNATURES_A[sig.code].guidanceText[sig.level];
+    sig.natalBoost = natalBoost;
+  }
+});
+_mdseResultsA.sort((a, b) => b.confidence - a.confidence);
+
+// --- MDSE v2 : Modificateurs post-calcul P1/P2/Q3 (ISO N8N Prev) ---
+// Phase 1 : P1 (dignité transit) et P2 (sect) en post-traitement
+_mdseResultsA.forEach(sig => {
+  let p1Cumul = 1.0, p2Cumul = 1.0, p1Count = 0;
+  sig.matchedConditions.forEach(cond => {
+    const transitPlanets = (cond.involvedPlanets || []).filter(p => _transitSignMapA[p]);
+    transitPlanets.forEach(p => {
+      const tSign = _transitSignMapA[p];
+      p1Cumul *= _mdseTransitDignityModA(p, tSign, sig.code);
+      p2Cumul *= _mdseSectModA(p, _chartSectMDSE_A, sig.code);
+      p1Count++;
+    });
+  });
+  if (p1Count > 0) {
+    const rawConf = sig.confidence;
+    sig.confidence = Math.round(Math.max(0, Math.min(100, rawConf * Math.pow(p1Cumul, 1/p1Count) * Math.pow(p2Cumul, 1/p1Count))));
+  }
+});
+// Flags pour application différée P0/polarity après heatmap
+_mdseResultsA.forEach(sig => { sig._needsP0 = true; sig._needsPolarity = true; });
+// Phase 4 : Q3 différée post-heatmap (nécessite tensionTotals/supportTotals pour arbitrage asymétrique)
+_mdseResultsA.forEach(sig => { sig._needsQ3 = true; });
+_mdseResultsA.forEach(sig => {
+  sig.level = sig.confidence >= 65 ? "high" : sig.confidence >= 50 ? "medium" : "low";
+  sig.guidance = EVENT_SIGNATURES_A[sig.code]?.guidanceText[sig.level] || sig.guidance;
+});
+_mdseResultsA.sort((a, b) => b.confidence - a.confidence);
+
+} catch(e) { console.log("[WARN] MDSE Analyseur Technique:", e.message, e.stack?.split("\n").slice(0,3).join(" ")); }
+// ══════════════════════════════════════════════════════════════
+// FIN MDSE
+// ══════════════════════════════════════════════════════════════
+
+// ── HEATMAP CONSOLIDÉE v2 — distribution temporelle, cap éclipses, normalisation 0-100 ──
+try {
+const _PLANET_W = { "Pluton":5,"Neptune":4,"Uranus":4,"Saturne":4,"Jupiter":2,"Chiron":2,"Nœud Nord":2,"Nœud Sud":2,"Mars":1,"Soleil":1,"Vénus":0.5,"Mercure":0.5,"Lune":0.3,"Ceres":1,"Cérès":1,"Pallas":1,"Junon":1,"Vesta":1,"Lilith":1.5 };
+const _parseDateHM = (str) => { if (!str) return null; const s = String(str).trim(); if (s.includes("/")) { const [d,m,y] = s.split("/"); return new Date(`${y}-${String(m).padStart(2,"0")}-${String(d).padStart(2,"0")}`); } const dd = new Date(s); return isNaN(dd) ? null : dd; };
+const _dStartHM = _parseDateHM(perso.date_entree) || dStart;
+const _dEndHM   = _parseDateHM(perso.date_sortie) || dEnd;
+const MS_DAY_HM = 86400000;
+const MONTH_FR_HM = ["Jan","Fév","Mar","Avr","Mai","Jun","Jul","Aoû","Sep","Oct","Nov","Déc"];
+const DAY_FR_HM = ["Dim","Lun","Mar","Mer","Jeu","Ven","Sam"];
+const _isENHM = (perso.langue || "Français").trim() !== "Français";
+let _hmCols, _hmLabels, _hmBucket, _hmTitle, _hmSub, _hmGranularity;
+if (typeRapport === "Journalier") {
+    _hmCols = 1;
+    const _djLabel = DAY_FR_HM[_dStartHM.getDay()] + " " + _dStartHM.getDate() + " " + MONTH_FR_HM[_dStartHM.getMonth()];
+    _hmLabels = [_isENHM ? _djLabel : _djLabel];
+    _hmBucket = (d) => { const diff = Math.abs(d - _dStartHM); return diff < MS_DAY_HM * 1.5 ? 0 : -1; };
+    _hmTitle = _isENHM ? "📊 Daily Intensity Snapshot" : "📊 Intensité du Jour";
+    _hmSub = _isENHM ? "Activation density per house for the selected day" : "Densité des activations par maison pour la journée sélectionnée";
+    _hmGranularity = "daily";
+} else if (typeRapport === "Hebdomadaire") {
+    _hmCols = Math.min(Math.round((_dEndHM - _dStartHM) / MS_DAY_HM) + 1, 14);
+    _hmLabels = []; for (let i = 0; i < _hmCols; i++) { const dd = new Date(_dStartHM.getTime() + i * MS_DAY_HM); _hmLabels.push(DAY_FR_HM[dd.getDay()] + " " + dd.getDate()); }
+    _hmBucket = (d) => { const diff = Math.floor((d - _dStartHM) / MS_DAY_HM); return (diff >= 0 && diff < _hmCols) ? diff : -1; };
+    _hmTitle = _isENHM ? "📊 Daily Intensity Heatmap" : "📊 Heatmap d'Intensité Journalière";
+    _hmSub = _isENHM ? "Activation density per house and day" : "Densité des activations par maison et par jour";
+    _hmGranularity = "weekly";
+} else if (typeRapport === "Mensuel") {
+    const spanD = Math.round((_dEndHM - _dStartHM) / MS_DAY_HM) + 1;
+    _hmCols = Math.ceil(spanD / 7);
+    _hmLabels = Array.from({length: _hmCols}, (_, i) => _isENHM ? `Wk ${i + 1}` : `Sem ${i + 1}`);
+    _hmBucket = (d) => { const diff = Math.floor((d - _dStartHM) / MS_DAY_HM); const w = Math.floor(diff / 7); return (w >= 0 && w < _hmCols) ? w : -1; };
+    _hmTitle = _isENHM ? "📊 Weekly Intensity Heatmap" : "📊 Heatmap d'Intensité Hebdomadaire";
+    _hmSub = _isENHM ? "Activation density per house and week" : "Densité des activations par maison et par semaine";
+    _hmGranularity = "monthly";
+} else {
+    _hmCols = 12; _hmLabels = _isENHM ? ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"] : MONTH_FR_HM;
+    _hmBucket = (d) => d.getMonth();
+    _hmTitle = _isENHM ? "📊 Monthly Intensity Heatmap" : "📊 Heatmap d'Intensité Mensuelle";
+    _hmSub = _isENHM ? "Activation density per house and month" : "Densité des activations par maison et par mois";
+    _hmGranularity = "annual";
+}
+if (finalOutput.length > 0) {
+    const _hmTension = Array.from({length: 12}, () => Array(_hmCols).fill(0));
+    const _hmSupport = Array.from({length: 12}, () => Array(_hmCols).fill(0));
+    const _eclCap = Array.from({length: 12}, () => Array(_hmCols).fill(0));
+    const _profLord = rapportMaisons.find(m => m.profection?.role === "annuelle")?.profection?.seigneur || null;
+    const _firdMajor = _firdFwd?.major || null;
+    const _firdSub = _firdFwd?.sub || null;
+    const _ampFactor = (planetName) => {
+        let f = 1;
+        if (_profLord && planetName === _profLord) f *= 1.5;
+        if (_firdMajor && (planetName === _firdMajor || planetName === _firdSub)) f *= 1.3;
+        return f;
+    };
+    const _ASP_MULT = {"Conjonction":1.3,"Opposition":1.2,"Carré":1.2,"Quinconce":1.0,"Trigone":0.8,"Sextile":0.7,"Semi-Carré":0.9,"Sesqui-Carré":0.9,"Semi-Sextile":0.6,"Quintile":0.7,"Biquintile":0.7};
+    const _HARD_ASP_BASE = new Set(["Opposition","Carré","Quinconce","Semi-Carré","Sesqui-Carré"]);
+    const _MALEFIC_P = new Set(["Saturne","Mars","Pluton","Neptune","Uranus","Chiron","Lilith","Nœud Sud"]);
+    const _BENEFIC_P = new Set(["Jupiter","Vénus","Soleil","Nœud Nord"]);
+    const _isHardAsp = (aspType, planetName) => {
+        if (_HARD_ASP_BASE.has(aspType)) return true;
+        if (aspType === "Conjonction") return _MALEFIC_P.has(planetName);
+        return false;
+    };
+    const _isNeutralConj = (aspType, planetName) => aspType === "Conjonction" && !_MALEFIC_P.has(planetName) && !_BENEFIC_P.has(planetName);
+    const _HOUSE_MULT = {1:1.2,4:1.2,7:1.2,10:1.2,2:1,5:1,8:1,11:1,3:0.85,6:0.85,9:0.85,12:0.85};
+    const _passCount = {};
+    const _passKey = (planet, house) => `${planet}_M${house}`;
+    const _getPassMult = (planet, house) => {
+        const k = _passKey(planet, house);
+        _passCount[k] = (_passCount[k] || 0) + 1;
+        return _passCount[k] <= 1 ? 1.0 : 0.8;
+    };
+    const _aspMult = (aspType) => _ASP_MULT[aspType] || 1.0;
+    const _houseMult = (mIdx) => _HOUSE_MULT[mIdx + 1] || 1.0;
+    const _addScore = (mIdx, col, weight, isHard) => {
+        if (isHard) _hmTension[mIdx][col] += weight;
+        else _hmSupport[mIdx][col] += weight;
+    };
+    const _addScoreSmart = (mIdx, col, weight, aspType, planetName) => {
+        if (_isNeutralConj(aspType, planetName)) {
+            _hmTension[mIdx][col] += weight * 0.5;
+            _hmSupport[mIdx][col] += weight * 0.5;
+        } else if (_isHardAsp(aspType, planetName)) {
+            _hmTension[mIdx][col] += weight;
+        } else {
+            _hmSupport[mIdx][col] += weight;
+        }
+    };
+    const _bucketDate = (dateStr) => { if (!dateStr) return -1; const d = new Date(dateStr); return isNaN(d) ? -1 : _hmBucket(d); };
+    const _extractDate = (txt) => { const m = String(txt).match(/(\d{4}-\d{2}-\d{2})/); return m ? m[1] : null; };
+    const _spreadBuckets = (debut, fin) => {
+        if (!debut) return [];
+        const d1 = new Date(debut); if (isNaN(d1)) return [];
+        const col1 = _hmBucket(d1);
+        if (!fin) return col1 >= 0 ? [{col: col1, frac: 1}] : [];
+        const d2 = new Date(fin); if (isNaN(d2) || d2 <= d1) return col1 >= 0 ? [{col: col1, frac: 1}] : [];
+        const cols = new Set(); const cur = new Date(d1);
+        while (cur <= d2) { const c = _hmBucket(cur); if (c >= 0) cols.add(c); cur.setDate(cur.getDate() + 7); }
+        const c2 = _hmBucket(d2); if (c2 >= 0) cols.add(c2);
+        const arr = [...cols]; if (arr.length === 0) return [];
+        return arr.map(col => ({col, frac: 1 / arr.length}));
+    };
+
+    rapportMaisons.forEach((m, mIdx) => {
+        const hm = _houseMult(mIdx);
+        (m.aspects_lentes || []).forEach(a => {
+            const pw = _PLANET_W[a.pTransit] || 2;
+            const amp = _ampFactor(a.pTransit);
+            const am = _aspMult(a.type);
+            const pm = _getPassMult(a.pTransit, mIdx + 1);
+            _spreadBuckets(a.debut, a.fin).forEach(({col, frac}) => {
+                _addScoreSmart(mIdx, col, pw * amp * am * hm * pm * frac, a.type, a.pTransit);
+            });
+        });
+        (m.aspects_rapides || []).forEach(a => {
+            const pw = (_PLANET_W[a.pTransit] || 0.5) * 0.3;
+            const amp = _ampFactor(a.pTransit);
+            const am = _aspMult(a.type);
+            _spreadBuckets(a.debut, a.fin).forEach(({col, frac}) => {
+                _addScoreSmart(mIdx, col, pw * amp * am * hm * frac, a.type, a.pTransit);
+            });
+        });
+        (m.eclipses || []).forEach(e => {
+            const col = _bucketDate(e.date || e.debut); if (col < 0) return;
+            if (_eclCap[mIdx][col] < 2) { _addScore(mIdx, col, 5 * hm, true); _eclCap[mIdx][col]++; }
+        });
+        (m.stations_retro || []).forEach(s => {
+            const col = _bucketDate(s.date || s.debut); if (col < 0) return;
+            const pw = (_PLANET_W[s.planete] || 2) * 0.7;
+            _addScore(mIdx, col, pw * hm, true);
+        });
+        (m.lunaisons || []).forEach(l => {
+            const col = _bucketDate(l.date); if (col < 0) return;
+            _addScore(mIdx, col, 1 * hm, false);
+        });
+        (m.aspects_mondiaux || []).forEach(a => {
+            const col = _bucketDate(a.debut); if (col < 0) return;
+            const am = _aspMult(a.type);
+            _addScoreSmart(mIdx, col, 0.5 * am * hm, a.type, a.p1 || "");
+        });
+        (m.passages_angles || []).forEach(a => {
+            const pn = a.pTransit || a.planete;
+            const pw = (_PLANET_W[pn] || 2) * 0.8;
+            const amp = _ampFactor(pn);
+            const pm = _getPassMult(pn, mIdx + 1);
+            const aspPA = a.type || "Conjonction";
+            const amPA = _aspMult(aspPA);
+            _spreadBuckets(a.debut, a.fin).forEach(({col, frac}) => {
+                _addScoreSmart(mIdx, col, pw * amp * amPA * hm * pm * frac, aspPA, pn || "");
+            });
+        });
+        (m.progressions_aspects || []).forEach(a => {
+            const am = _aspMult(a.aspect);
+            const pn = a.pProg || "";
+            const totalW = 2.5 * am * hm;
+            const perB = totalW / _hmCols;
+            for (let c = 0; c < _hmCols; c++) _addScoreSmart(mIdx, c, perB, a.aspect, pn);
+        });
+        (m._hm_arcs_solaires || []).forEach(a => {
+            const am = _aspMult(a.aspect);
+            const pn = a.pProg || "";
+            const baseW = ((_PLANET_W[pn] || 1) * (a.tightness ?? 0.5) * 2.0);
+            const totalW = baseW * am * hm;
+            const perB = totalW / _hmCols;
+            for (let c = 0; c < _hmCols; c++) _addScoreSmart(mIdx, c, perB, a.aspect, pn);
+        });
+        (m.transit_progresse || []).forEach(a => {
+            const pn = a.pTransit || "";
+            const pw = (_PLANET_W[pn] || 2) * 1.2;
+            const amp = _ampFactor(pn);
+            const am = _aspMult(a.aspect);
+            _spreadBuckets(a.debut, a.fin).forEach(({col, frac}) => {
+                _addScoreSmart(mIdx, col, pw * amp * am * hm * frac, a.aspect, pn);
+            });
+        });
+        (m._hm_etoiles || []).forEach(a => {
+            const col = _bucketDate(a.date); if (col < 0) return;
+            _addScore(mIdx, col, (a.isRoyal ? 4 : 2.5) * hm, false);
+        });
+        (m._hm_eclipse_natal_active || []).forEach(a => {
+            const col = _bucketDate(a.date); if (col < 0) return;
+            if (_eclCap[mIdx][col] < 2) { _addScore(mIdx, col, 4 * hm, true); _eclCap[mIdx][col]++; }
+        });
+        (m._hm_ingress || []).forEach(a => {
+            const col = _bucketDate(a.date); if (col < 0) return;
+            _addScore(mIdx, col, 1.5 * hm, false);
+        });
+        (m.translations_lumiere || []).forEach(a => {
+            const col = _bucketDate(a.debut); if (col < 0) return;
+            _addScore(mIdx, col, 1 * hm, false);
+        });
+        (m._hm_midpoints || []).forEach(a => {
+            const col = _bucketDate(a.date); if (col < 0) return;
+            _addScore(mIdx, col, 0.03 * hm * 0.5, true); _addScore(mIdx, col, 0.03 * hm * 0.5, false);
+        });
+        (m._hm_antiscia || []).forEach(a => {
+            const col = _bucketDate(a.date); if (col < 0) return;
+            _addScore(mIdx, col, 1.0 * hm, false);
+        });
+    });
+    // --- ISO v10.4 : Callback upstream — utiliser la heatmap de N8N Prev si disponible ---
+    let _upstreamHM = null;
+    for (const _j of _allInputItems) {
+        if (_j.heatmapData?.grid?.length === 12 && _j.heatmapData?.tensionGrid?.length === 12) {
+            _upstreamHM = _j.heatmapData; break;
+        }
+    }
+    if (!_upstreamHM) {
+        for (const nn of ["N8N Prev","Super noeud2","Merge","Merge1"]) {
+            try { const d = $(nn).first()?.json?.heatmapData;
+                  if (d?.grid?.length === 12 && d?.tensionGrid?.length === 12) { _upstreamHM = d; break; }
+            } catch(e) {}
+        }
+    }
+    if (_upstreamHM) {
+        for (let i = 0; i < 12; i++) {
+            const tRow = _upstreamHM.tensionGrid[i] || [];
+            const sRow = _upstreamHM.supportGrid[i] || [];
+            for (let j = 0; j < _hmCols; j++) {
+                _hmTension[i][j] = tRow[j] ?? _hmTension[i][j];
+                _hmSupport[i][j] = sRow[j] ?? _hmSupport[i][j];
+            }
+        }
+    }
+    const _hmGrid = Array.from({length: 12}, (_, i) => _hmTension[i].map((t, j) => t + _hmSupport[i][j]));
+    const _hmMax = Math.max(1, ..._hmGrid.flat());
+    const _hmTotals = _hmGrid.map(row => row.reduce((a, b) => a + b, 0));
+    const _totalMax = Math.max(1, ..._hmTotals);
+    const _normalized = _hmTotals.map(t => Math.round(t / _totalMax * 100));
+    const _top3 = _hmTotals.map((t, i) => ({m: i + 1, t})).sort((a, b) => b.t - a.t).slice(0, 3).map(x => x.m);
+    const _tensionTotals = _hmTension.map(row => row.reduce((a, b) => a + b, 0));
+    const _supportTotals = _hmSupport.map(row => row.reduce((a, b) => a + b, 0));
+    // --- MDSE v2.1 : Application différée P0(×)/P0b(×)/Q3 asym/polarity/cap (ISO N8N Prev) ---
+    try {
+    // Phase A : P0 multiplicatif + P0b multiplicatif
+    _mdseResultsA.forEach(sig => {
+      if (sig._needsP0) {
+        const p0 = _mdseTSRatioA(sig.code, _tensionTotals, _supportTotals);
+        const p0b = _mdseYearLordModA(sig.code, _profLordMDSE_A, _profLordSignMDSE_A);
+        sig.confidence = Math.round(Math.max(0, Math.min(100, sig.confidence * p0 * p0b)));
+        sig.level = sig.confidence >= 65 ? "high" : sig.confidence >= 50 ? "medium" : "low";
+        sig.guidance = EVENT_SIGNATURES_A[sig.code]?.guidanceText[sig.level] || sig.guidance;
+        delete sig._needsP0;
+      }
+    });
+    // Phase B : Q3 asymétrique T/S-aware — échelle graduée proportionnelle au déséquilibre (ISO)
+    const _MDSE_Q3_PAIRS_A = [
+      {up:"CARRIERE_UP",  down:"CARRIERE_DOWN",  houses:[2,6,10]},
+      {up:"FINANCE_UP",   down:"FINANCE_DOWN",   houses:[2,8]},
+      {up:"SANTE_UP",     down:"SANTE_DOWN",     houses:[1,6]},
+      {up:"JURIDIQUE_UP", down:"JURIDIQUE_DOWN", houses:[7,9]},
+      {up:"MARIAGE",      down:"SEPARATION",     houses:[5,7,8]}
+    ];
+    const _q3GradScaleA = (ratio) => {
+      if (ratio <= 1.15) return 1.0;
+      if (ratio <= 1.30) return 0.88;
+      if (ratio <= 1.50) return 0.75;
+      return 0.60;
+    };
+    for (const pair of _MDSE_Q3_PAIRS_A) {
+      const sUp = _mdseResultsA.find(r => r.code === pair.up);
+      const sDown = _mdseResultsA.find(r => r.code === pair.down);
+      if (!sUp && !sDown) continue;
+      let tH = 0, sH = 0;
+      pair.houses.forEach(h => { tH += (_tensionTotals[h-1]||0); sH += (_supportTotals[h-1]||0); });
+      const tsR = tH / Math.max(sH, 1);
+      if (tsR > 1.15) {
+        if (sUp)   sUp.confidence = Math.round(sUp.confidence * _q3GradScaleA(tsR));
+        if (sDown)  sDown.confidence = Math.min(100, Math.round(sDown.confidence * (2.0 - _q3GradScaleA(tsR))));
+      } else if (tsR < 0.85) {
+        const invR = 1.0 / Math.max(tsR, 0.01);
+        if (sDown) sDown.confidence = Math.round(sDown.confidence * _q3GradScaleA(invR));
+        if (sUp)   sUp.confidence = Math.min(100, Math.round(sUp.confidence * (2.0 - _q3GradScaleA(invR))));
+      } else {
+        if (sUp && sDown) {
+          sUp.confidence = Math.max(0, sUp.confidence - 3);
+          sDown.confidence = Math.max(0, sDown.confidence - 3);
+        }
+      }
+      [sUp, sDown].forEach(s => { if (s) { s.level = s.confidence >= 65 ? "high" : s.confidence >= 50 ? "medium" : "low"; } });
+    }
+    // Phase B2 : P6 — Cluster maléfique/bénéfique RS par maison-clé (ISO)
+    if (Object.keys(_mdseRSHousesA).length > 0) {
+      const _RS_MAL_SET = new Set(["Mars","Saturne","Uranus","Neptune","Pluton","Chiron"]);
+      const _RS_BEN_SET = new Set(["Jupiter","Vénus"]);
+      const _rsMalByH = {}, _rsBenByH = {};
+      for (const [p, info] of Object.entries(_mdseRSHousesA)) {
+        if (_RS_MAL_SET.has(p)) { if (!_rsMalByH[info.house]) _rsMalByH[info.house] = []; _rsMalByH[info.house].push(p); }
+        if (_RS_BEN_SET.has(p)) { if (!_rsBenByH[info.house]) _rsBenByH[info.house] = []; _rsBenByH[info.house].push(p); }
+      }
+      _mdseResultsA.forEach(sig => {
+        const kH = _MDSE_TSR_HOUSES_A[sig.code] || [];
+        if (kH.length === 0) return;
+        let malCount = 0, benCount = 0;
+        kH.forEach(h => { malCount += (_rsMalByH[h]||[]).length; benCount += (_rsBenByH[h]||[]).length; });
+        const isPos = _MDSE_POSITIVE_SIGS_A.has(sig.code), isNeg = _MDSE_NEGATIVE_SIGS_A.has(sig.code);
+        if (isPos && malCount >= 3 && benCount === 0) sig.confidence = Math.round(sig.confidence * 0.82);
+        else if (isPos && malCount >= 2 && benCount === 0) sig.confidence = Math.round(sig.confidence * 0.90);
+        if (isNeg && benCount >= 2 && malCount === 0) sig.confidence = Math.round(sig.confidence * 0.90);
+        else if (isNeg && malCount >= 3 && benCount === 0) sig.confidence = Math.min(100, Math.round(sig.confidence * 1.10));
+      });
+    }
+    // Phase C : Polarity (ISO)
+    _mdseResultsA.forEach(sig => {
+      if (sig._needsPolarity) {
+        sig.polarity = _mdsePolarityA(sig.code, sig.involvedHouses, sig.involvedPlanets, _tensionTotals, _supportTotals);
+        if (_MDSE_POLARITY_LABELS_A[sig.code]) {
+          sig.qualifiedLabel = sig.polarity >= 0 ? _MDSE_POLARITY_LABELS_A[sig.code].pos : _MDSE_POLARITY_LABELS_A[sig.code].neg;
+        } else {
+          sig.qualifiedLabel = sig.label;
+        }
+        delete sig._needsPolarity;
+      }
+    });
+    // Phase E1 : P13 — Chart ruler sous pression : amplification de la signature dominante (ISO)
+    try {
+      const _chartRulerA = natalDictLoc["Ascendant"]?.sign ? ({"Bélier":"Mars","Taureau":"Vénus","Gémeaux":"Mercure","Cancer":"Lune","Lion":"Soleil","Vierge":"Mercure","Balance":"Vénus","Scorpion":"Mars","Sagittaire":"Jupiter","Capricorne":"Saturne","Verseau":"Saturne","Poissons":"Jupiter"})[natalDictLoc["Ascendant"].sign] : null;
+      if (_chartRulerA) {
+        let rulerTransitCount = 0;
+        Object.keys(_allSlowAspA).forEach(key => {
+          const a = _allSlowAspA[key];
+          if (a.pNatal === _chartRulerA && a.waves?.length > 0) rulerTransitCount++;
+        });
+        if (rulerTransitCount >= 3 && _mdseResultsA.length > 0) {
+          const dominant = _mdseResultsA.reduce((a, b) => a.confidence > b.confidence ? a : b);
+          dominant.confidence = Math.min(100, Math.round(dominant.confidence * 1.08));
+        }
+      }
+    } catch(e) {}
+    // Phase E2 : Éliminer les signatures sous minConfidence + tri (ISO)
+    for (let i = _mdseResultsA.length - 1; i >= 0; i--) {
+      const sig = _mdseResultsA[i];
+      const minC = EVENT_SIGNATURES_A[sig.code]?.minConfidence || 40;
+      if (sig.confidence < minC) _mdseResultsA.splice(i, 1);
+    }
+    _mdseResultsA.forEach(sig => { sig.guidance = EVENT_SIGNATURES_A[sig.code]?.guidanceText[sig.level] || sig.guidance; });
+    _mdseResultsA.sort((a, b) => b.confidence - a.confidence);
+    } catch(e) { console.log("[WARN] MDSE v2.2 post-heatmap:", e.message, e.stack?.split("\n").slice(0,3).join(" | ")); }
+    finalOutput[0].json._codeVersion = "REPPORT_v11.1_dp_html";
+    finalOutput[0].json.heatmapData = {
+        grid: _hmGrid.map(row => row.map(v => Math.round(v * 10) / 10)),
+        tensionGrid: _hmTension.map(row => row.map(v => Math.round(v * 10) / 10)),
+        supportGrid: _hmSupport.map(row => row.map(v => Math.round(v * 10) / 10)),
+        colLabels: _hmLabels, title: _hmTitle, subtitle: _hmSub,
+        maxIntensity: Math.round(_hmMax * 10) / 10,
+        totals: _hmTotals.map(v => Math.round(v)),
+        tensionTotals: _tensionTotals.map(v => Math.round(v)),
+        supportTotals: _supportTotals.map(v => Math.round(v)),
+        normalized: _normalized,
+        top3: _top3,
+        granularity: _hmGranularity,
+        profLord: _profLord, firdMajor: _firdMajor,
+        _codeVersion: "REPPORT_v11.1_dp_html"
+    };
+    // ISO v10.3 : eventSignatures depuis le Super noeud (via $input)
+    if (_prevEventSignatures && _prevEventSignatures.length > 0) {
+        finalOutput[0].json.heatmapData.eventSignatures = _prevEventSignatures.map(s => ({
+            code:s.code, label:s.label, labelEN:s.labelEN, icon:s.icon,
+            confidence:s.confidence, level:s.level, guidance:s.guidance||"",
+            involvedHouses:s.involvedHouses||s.houses||[], involvedPlanets:s.involvedPlanets||s.planets||[],
+            peakWindow:s.peakWindow||null, natalBoost:s.natalBoost||0,
+            polarity:s.polarity||0, qualifiedLabel:s.qualifiedLabel||s.label,
+            convergence:s.convergence||0, convergenceTechs:s.convergenceTechs||[],
+            robustness:s.robustness||0, robustnessLabel:s.robustnessLabel||"N/A",
+            compoundEvents:s.compoundEvents||[],
+            ageMilestones:s.ageMilestones||[],
+            confidenceRange:s.confidenceRange||null,
+            modality:s.modality||null, magnitude:s.magnitude||null,
+            microWindows:s.microWindows||null,
+            counterIndicators:s.counterIndicators||0,
+            counterDetails:s.counterDetails||[],
+            maleficOverride:s.maleficOverride||null,
+            maleficPenalty:s.maleficPenalty||null,
+            nodalReturn:s.nodalReturn||null,
+            natalConfigBoost:s.natalConfigBoost||null,
+            eclipseReactivation:s.eclipseReactivation||null,
+            aspectPhase:s.aspectPhase||null,
+            synodicHits:s.synodicHits||null,
+            mutualReception:s.mutualReception||null,
+            profLordActive:s.profLordActive||null,
+            progAspects:s.progAspects||null,
+            progStations:s.progStations||null,
+            progSignChanges:s.progSignChanges||null,
+            arcAspects:s.arcAspects||null,
+            profPeakMonths:s.profPeakMonths||null,
+            triggerDates:s.triggerDates||null,
+            matchedConditions:s.matchedConditions||[],
+            zrPeriod:s.zrPeriod||null,
+            rawRatio:s.rawRatio||0, baseConfidence:s.baseConfidence||0, heavyCount:s.heavyCount||0,
+            pnaTier:s.pnaTier||null, pnaWeight:s.pnaWeight||0, progMoonMonths:s.progMoonMonths||null
+        }));
+        finalOutput[0].json.heatmapData._sigSource = "Super_noeud";
+        for (const _j of _allInputItems) {
+          if (_j.compoundEvents) { finalOutput[0].json.heatmapData.compoundEvents = _j.compoundEvents; break; }
+        }
+        for (const _j of _allInputItems) {
+          if (_j.ageMilestones) { finalOutput[0].json.heatmapData.ageMilestones = _j.ageMilestones; break; }
+        }
+    } else if (typeof _mdseResultsA !== 'undefined' && _mdseResultsA.length > 0) {
+        finalOutput[0].json.heatmapData.eventSignatures = _mdseResultsA.map(s => ({
+            code:s.code, label:s.label, labelEN:s.labelEN, icon:s.icon,
+            confidence:s.confidence, level:s.level,
+            involvedHouses:s.involvedHouses||[], involvedPlanets:s.involvedPlanets||[],
+            peakWindow:s.peakWindow||null, natalBoost:s.natalBoost||0,
+            polarity:s.polarity||0, qualifiedLabel:s.qualifiedLabel||s.label
+        }));
+        finalOutput[0].json.heatmapData._sigSource = "local_MDSE";
+    }
+}
+} catch(e) { console.log("[WARN] Heatmap consolidée:", e.message, e.stack?.split("\n").slice(0,3).join(" ")); }
+
+// ISO v10.3 : eventSignatures = Super noeud prioritaire, fallback local
+if (_prevEventSignatures && _prevEventSignatures.length > 0) {
+    finalOutput[0].json.eventSignatures = _prevEventSignatures;
+} else if (_mdseResultsA.length > 0) {
+    const sigPayloadA = _mdseResultsA.map(s => ({
+        code:s.code, label:s.label, labelEN:s.labelEN, icon:s.icon,
+        confidence:s.confidence, level:s.level, guidance:s.guidance,
+        involvedHouses:s.involvedHouses, involvedPlanets:s.involvedPlanets,
+        peakWindow:s.peakWindow||null, natalBoost:s.natalBoost||0,
+        polarity:s.polarity||0, qualifiedLabel:s.qualifiedLabel||s.label,
+        matchedConditions:s.matchedConditions.map(c => ({ type:c.type, detail:c.detail, strength:Math.round(c.strength*100)/100, isFallback:!!c.isFallback }))
+    }));
+    finalOutput[0].json.eventSignatures = sigPayloadA;
+}
+
+// ISO v17.0 : passthrough données (retours planétaires, bounds, RL, directions primaires)
+for (const _j of _allInputItems) {
+    if (_j._planetaryReturns) { finalOutput[0].json._planetaryReturns = _j._planetaryReturns; break; }
+}
+for (const _j of _allInputItems) {
+    if (_j._boundProfection) { finalOutput[0].json._boundProfection = _j._boundProfection; break; }
+}
+for (const _j of _allInputItems) {
+    if (_j._lunarReturnsScoring) { finalOutput[0].json._lunarReturnsScoring = _j._lunarReturnsScoring; break; }
+}
+let _dpFwd = null;
+for (const _j of _allInputItems) {
+    if (_j._primaryDirections && _j._primaryDirections.length > 0) { _dpFwd = _j._primaryDirections; break; }
+}
+if (_dpFwd) finalOutput[0].json._primaryDirections = _dpFwd;
+
+return finalOutput;

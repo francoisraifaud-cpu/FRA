@@ -1,0 +1,58 @@
+{
+  "name": "DHN — SUCCES callback site (2 noeuds)",
+  "active": false,
+  "settings": { "executionOrder": "v1" },
+  "nodes": [
+    {
+      "parameters": {
+        "jsCode": "const WEBHOOK_NODE='Webhook';const EXTRACT_NAMES=['Extract Variables','Extract Variables SYN','Extract Variables DHN','Extract Variables DHN1','Extract Variables1'];function readOrderIdFromWebhook(){try{const j=$(WEBHOOK_NODE).first().json;const b=j?.body!==undefined&&j?.body!==null&&typeof j.body==='object'&&!Array.isArray(j.body)?j.body:j;let id=typeof b?.orderId==='string'?b.orderId.trim():'';if(!id&&typeof j?.orderId==='string')id=j.orderId.trim();return id||null;}catch(e){return null;}}function readOrderIdFromExtracts(){for(const n of EXTRACT_NAMES){try{const v=$(n).first()?.json?.orderId;if(typeof v==='string'&&v.trim())return v.trim();}catch(e){}}return null;}const siteCallbackOrderId=readOrderIdFromWebhook()||readOrderIdFromExtracts();if(!siteCallbackOrderId)return[];return[{json:{siteCallbackOrderId}}];"
+      },
+      "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+      "name": "Succes DHN",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [12672, 3920]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://site-rapports-astro.vercel.app/api/webhooks/n8n-order-status",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Site-Webhook-Secret",
+              "value": "REMPLACER_PAR_LE_MEME_SECRET_QUE_SUR_VERCEL_N8N_WEBHOOK_SECRET"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify({ orderId: $json.siteCallbackOrderId, status: 'delivered' }) }}",
+        "options": {}
+      },
+      "id": "b2c3d4e5-f6a7-8901-bcde-f12345678901",
+      "name": "POST SUCCES DHN",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [13040, 3920]
+    }
+  ],
+  "connections": {
+    "Succes DHN": {
+      "main": [
+        [
+          {
+            "node": "POST SUCCES DHN",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": { "templateCredsSetupCompleted": true }
+}

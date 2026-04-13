@@ -1,0 +1,200 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "jsCode": "// DHN — remplace le nœud HTTP « Geocodage » (Nominatim seul).\n// Si birth_place_lat / birth_place_lng valides dans Extract → pas d’appel Nominatim.\n// Nécessite nœud Code typeVersion ≥ 2.\n\nconst v = $input.first().json;\n\nfunction parseNum(x) {\n  if (x === null || x === undefined) return NaN;\n  if (typeof x === \"number\" && Number.isFinite(x)) return x;\n  if (typeof x === \"string\" && String(x).trim()) {\n    return parseFloat(String(x).trim().replace(\",\", \".\"));\n  }\n  return NaN;\n}\n\nconst lat0 = parseNum(v.birth_place_lat);\nconst lon0 = parseNum(v.birth_place_lng);\n\nif (\n  Number.isFinite(lat0) &&\n  Number.isFinite(lon0) &&\n  Math.abs(lat0) <= 90 &&\n  Math.abs(lon0) <= 180\n) {\n  const disp =\n    typeof v.birth_place_formatted_address === \"string\" && v.birth_place_formatted_address.trim()\n      ? v.birth_place_formatted_address.trim()\n      : [v.lieu, v.pays].filter(Boolean).join(\", \");\n  return [{ json: { lat: String(lat0), lon: String(lon0), display_name: disp } }];\n}\n\nconst lieu = encodeURIComponent((v.lieu || \"\").trim());\nconst pays = encodeURIComponent((v.pays || \"\").trim());\nconst url = `https://nominatim.openstreetmap.org/search?q=${lieu}%2C%20${pays}&format=json&limit=1`;\n\nconst rows = await this.helpers.httpRequest({\n  method: \"GET\",\n  url,\n  headers: { \"User-Agent\": \"n8n-dhn-2026\" },\n  json: true,\n});\n\nif (!Array.isArray(rows) || rows.length === 0) {\n  return [{ json: {} }];\n}\n\nconst r = rows[0];\nreturn [{ json: { lat: r.lat, lon: r.lon, display_name: r.display_name } }];\n"
+      },
+      "id": "b681b9dd-2aa4-4d10-a776-873da81a59e5",
+      "name": "Geocodage",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        8720,
+        4032
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "function gn(n){try{return $(n).first()?.json||null}catch(e){return null}}\nconst vars = gn('Extract Variables DHN') || gn('Extract Variables DHN1') || gn('Extract Variables');\nif (!vars?.date) throw new Error('DHN : date introuvable — nœud Extract Variables (site) ou Extract Variables DHN (e-mail).');\nconst geo = $input.first().json;\nconst lat = geo.lat || geo[0]?.lat;\nconst lon = geo.lon || geo[0]?.lon;\nif (!lat) throw new Error('Ville introuvable: ' + JSON.stringify(geo).slice(0,200));\nconst d = vars.date.split('/');\nconst ts = Math.floor(new Date(Date.UTC(parseInt(d[2]),parseInt(d[1])-1,parseInt(d[0]),12)).getTime()/1000);\nreturn [{json:{lat:lat,lon:lon,timestamp:ts}}];"
+      },
+      "id": "707900b1-e635-47eb-87ec-f002976fc5f6",
+      "name": "Prepare Timezone",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [
+        8992,
+        4032
+      ]
+    },
+    {
+      "parameters": {
+        "url": "http://api.timezonedb.com/v2.1/get-time-zone",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "key",
+              "value": "UV443YWQRYUC"
+            },
+            {
+              "name": "format",
+              "value": "json"
+            },
+            {
+              "name": "by",
+              "value": "position"
+            },
+            {
+              "name": "lat",
+              "value": "={{ $json.lat }}"
+            },
+            {
+              "name": "lng",
+              "value": "={{ $json.lon }}"
+            },
+            {
+              "name": "time",
+              "value": "={{ $json.timestamp }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "684e76e5-a016-48e1-9506-26aef27ed8b3",
+      "name": "Get Timezone",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        9280,
+        4032
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "function gn(n){try{return $(n).first()?.json||null}catch(e){return null}}\nconst vars = gn('Extract Variables DHN') || gn('Extract Variables DHN1') || gn('Extract Variables');\nif (!vars?.date) throw new Error('DHN : date introuvable — nœud Extract Variables (site) ou Extract Variables DHN (e-mail).');\nconst prep = gn('Prepare Timezone') || gn('Prepare Timezone1');\nconst tz = $input.first().json;\nconst d = vars.date.split('/');\nconst yr=parseInt(d[2]),mo=parseInt(d[1]),da=parseInt(d[0]);\nconst lat=parseFloat(prep.lat),lon=parseFloat(prep.lon),tzh=tz.gmtOffset/3600;\nconst out=[];\nfor(let h=0;h<24;h++){\n  out.push({json:{body:JSON.stringify({year:yr,month:mo,date:da,hours:h,minutes:0,seconds:0,latitude:lat,longitude:lon,timezone:tzh,config:{observation_point:'geocentric',ayanamsha:'tropical',language:'fr'}})}});\n}\nreturn out;"
+      },
+      "id": "8ec58816-e775-4e93-b0a6-7dfbf831cfb3",
+      "name": "Preparer scan 24h",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [
+        9552,
+        4032
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://46.225.174.155:8000/western/planets",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ $json.body }}",
+        "options": {
+          "batching": {
+            "batch": {
+              "batchSize": 2
+            }
+          },
+          "timeout": 30000
+        }
+      },
+      "id": "54db10d6-1a60-42ea-b87e-df4c6a71ca63",
+      "name": "Scan Planetes",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        9840,
+        4032
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const items=$input.all();\nfunction fp(it,fr,en){return(it.json?.output||[]).find(p=>p.planet?.fr===fr||p.planet?.en===en)}\nconst scan=items.map((it,i)=>{const a=fp(it,'Ascendant','Ascendant'),m=fp(it,'Lune','Moon');return{h:i,ascSign:a?.zodiac_sign?.name?.fr||'?',ascDeg:a?.fullDegree,moonSign:m?.zodiac_sign?.name?.fr||'?'}});\nconst trans=[];\nfor(let i=0;i<scan.length-1;i++){if(scan[i].ascSign!==scan[i+1].ascSign)trans.push({from:scan[i].ascSign,to:scan[i+1].ascSign,afterH:i,beforeH:i+1})}\nconst pad=n=>String(n).padStart(2,'0');\nconst toT=m=>pad(Math.floor(m/60))+':'+pad(m%60);\nconst bds=[0,...trans.map(t=>t.beforeH*60),1440];\nconst fen=[];\nfor(let i=0;i<bds.length-1;i++){const s=bds[i],e=bds[i+1],ref=Math.min(Math.floor((s+30)/60),23);fen.push({index:i,ascSign:scan[ref]?.ascSign||'?',start:toT(s),end:toT(e),dureeMin:e-s})}\nreturn[{json:{nbFenetres:fen.length,fenetres:fen,transitions:trans,detail:scan.map(s=>pad(s.h)+'h -> ASC '+s.ascSign+' | Lune '+s.moonSign)}}];"
+      },
+      "id": "bfbcf8df-e6d6-4b23-a811-a4b3e40f12f2",
+      "name": "Analyser fenetres ASC",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [
+        10112,
+        4032
+      ]
+    }
+  ],
+  "connections": {
+    "Geocodage": {
+      "main": [
+        [
+          {
+            "node": "Prepare Timezone",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Timezone": {
+      "main": [
+        [
+          {
+            "node": "Get Timezone",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Timezone": {
+      "main": [
+        [
+          {
+            "node": "Preparer scan 24h",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparer scan 24h": {
+      "main": [
+        [
+          {
+            "node": "Scan Planetes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Scan Planetes": {
+      "main": [
+        [
+          {
+            "node": "Analyser fenetres ASC",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "b6efd2f1fad5a0a294db5a1a7e88dd550900216aaeb7344a19bf4cfc45267781"
+  }
+}

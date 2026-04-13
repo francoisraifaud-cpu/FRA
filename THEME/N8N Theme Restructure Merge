@@ -1,0 +1,48 @@
+// On récupère les données qui arrivent du Merge
+const items = $input.all();
+
+const planètesData = $('3a. Calcul Planètes1').first()?.json;
+const maisonsData  = $('3b. Calcul Maisons').first()?.json;
+const persoData    = $('Extract Variables').first()?.json;
+
+// Eclipse natale à la naissance (optionnel — s'arrête si pas d'éclipse ce jour-là)
+const eclipseNatal = (() => {
+    try {
+        const eclipseItems = $('Download Eclipses 1').all();
+        if (!eclipseItems || eclipseItems.length === 0) return null;
+        const d = eclipseItems[0]?.json;
+        if (!d) return null;
+        // Vérifier que le nœud a bien retourné des données valides (pas d'erreur)
+        if (d.error || d.statusCode === 404 || d.statusCode === 204) return null;
+        // Vérifier qu'il y a bien une éclipse (au moins un des champs type/eclipse_type/typeEclipse)
+        if (d.type || d.eclipse_type || d.typeEclipse || d.eclipseType) return d;
+        // Format alternatif : tableau d'éclipses
+        if (Array.isArray(d) && d.length > 0 && (d[0].type || d[0].eclipse_type)) return d[0];
+        return null;
+    } catch(e) {
+        // Nœud non connecté ou sans données → normal pour la majorité des naissances
+        return null;
+    }
+})();
+
+// Étoiles fixes natales (nœud 3c)
+const etoilesFixesData = (() => {
+    try {
+        const efItems = $('3c. Étoiles Fixes').all();
+        if (!efItems || efItems.length === 0) return null;
+        const d = efItems[0]?.json;
+        return d || null;
+    } catch(e) {
+        return null;
+    }
+})();
+
+return [{
+    json: {
+        planetes:      planètesData,
+        maisons:       maisonsData,
+        perso:         persoData,
+        eclipseNatal:  eclipseNatal,
+        etoilesFixes:  etoilesFixesData
+    }
+}];

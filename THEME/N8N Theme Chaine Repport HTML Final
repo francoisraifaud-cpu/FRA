@@ -1,0 +1,145 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst validItems = [];\n\nlet nomFichierCible = \"Rapport Thème Astral\";\ntry {\n  const perso = $('Extract Variables').first().json;\n  const prenom = (perso.prenom || '').trim();\n  const nom = (perso.nom || '').toUpperCase().trim();\n  const nomAffiche = prenom ? `${prenom} ${nom}` : nom;\n  const safeNom = nomAffiche.trim().replace(/[^a-zA-ZÀ-ÿ0-9 \\-]/g, '_');\n  nomFichierCible = `Rapport Thème Astral - ${safeNom}`;\n} catch(e) {}\n\nfor (const item of items) {\n  if (!item.binary) continue;\n  const binaryKey = Object.keys(item.binary)[0];\n  if (!binaryKey) continue;\n\n  item.binary[binaryKey].fileName = `${nomFichierCible}.pdf`;\n  item.binary[binaryKey].mimeType = 'application/pdf';\n  item.binary[binaryKey].fileExtension = 'pdf';\n\n  validItems.push(item);\n}\n\nreturn validItems;"
+      },
+      "id": "ff29404d-4711-4099-a0bf-43b1035ae8c4",
+      "name": "Fix Nom & MIME PDF final1",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2512,
+        2992
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://46.225.174.155:3000/forms/chromium/convert/html",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "parameterType": "formBinaryData",
+              "name": "files",
+              "inputDataFieldName": "data"
+            }
+          ]
+        },
+        "options": {
+          "response": {}
+        }
+      },
+      "id": "e7a61893-e0f2-4f01-8b32-2c87655dbc99",
+      "name": "Convert HTML to PDF1",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2320,
+        2992
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.isComplete }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "618b0042-3885-4146-898a-300d708fbf92",
+      "name": "Contrôle Données Complètes4",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        1632,
+        2992
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst newItems = [];\n\nfor (let i = 0; i < items.length; i++) {\n  const htmlContent = items[i].json.html || \"<html><body>Erreur: Aucun HTML généré</body></html>\";\n  \n  // Méthode moderne et robuste de n8n pour créer un fichier binaire\n  const binaryData = await this.helpers.prepareBinaryData(Buffer.from(htmlContent), 'index.html', 'text/html');\n  \n  newItems.push({\n    json: items[i].json,\n    binary: {\n      data: binaryData\n    }\n  });\n}\n\nreturn newItems;"
+      },
+      "id": "dafda444-25d7-4166-bd81-af824f1500c9",
+      "name": "Prépare HTML pour Gotenberg4",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1856,
+        2992
+      ]
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        2096,
+        2992
+      ],
+      "id": "9ec16297-c632-439f-a0d7-0bf26ff1a7d7",
+      "name": "Merge2"
+    }
+  ],
+  "connections": {
+    "Fix Nom & MIME PDF final1": {
+      "main": [
+        []
+      ]
+    },
+    "Convert HTML to PDF1": {
+      "main": [
+        [
+          {
+            "node": "Fix Nom & MIME PDF final1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Contrôle Données Complètes4": {
+      "main": [
+        [
+          {
+            "node": "Prépare HTML pour Gotenberg4",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prépare HTML pour Gotenberg4": {
+      "main": [
+        [
+          {
+            "node": "Merge2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge2": {
+      "main": [
+        [
+          {
+            "node": "Convert HTML to PDF1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "b6efd2f1fad5a0a294db5a1a7e88dd550900216aaeb7344a19bf4cfc45267781"
+  }
+}

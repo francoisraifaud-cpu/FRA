@@ -1,0 +1,40 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "jsCode": "function gn(n) {\n  try {\n    return $(n).first()?.json || null;\n  } catch (e) {\n    return null;\n  }\n}\nconst src =\n  gn('Extract Variables') ||\n  gn('Extract Variables DHN') ||\n  gn('Extract Variables DHN1') ||\n  gn('Reponses Questionnaire') ||\n  gn('Reponses Questionnaire1') ||\n  {};\nconst out = {};\nfor (let i = 1; i <= 12; i++) {\n  const k = 'q' + i;\n  const v = src[k];\n  if (v !== undefined && v !== null && String(v).trim() !== '') out[k] = v;\n}\nreturn [{ json: out }];"
+      },
+      "id": "e97760dc-5e0a-4b4b-8f00-ae40224b3330",
+      "name": "Reponses Questionnaire",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [10512, 4160]
+    }
+  ],
+  "connections": {
+    "Reponses Questionnaire": {
+      "main": [[]]
+    }
+  },
+  "pinData": {
+    "Reponses Questionnaire": [
+      {
+        "q1": "c",
+        "q2": "b",
+        "q3": "c",
+        "q4": "c",
+        "q5": "e",
+        "q6": "g",
+        "q7": "e",
+        "q8": "e",
+        "q9": "c",
+        "q10": "e",
+        "q11": "f",
+        "q12": "f"
+      }
+    ]
+  },
+  "meta": {
+    "templateCredsSetupCompleted": true
+  }
+}

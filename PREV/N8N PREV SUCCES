@@ -1,0 +1,155 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "jsCode": "/**\n * PREV — après merge 3 branches : regroupe en 1 item (data, data1, data2) pour Gmail.\n * Classement par fileName : mêmes préfixes que les flux amont\n * (Repport HTML données, HTML Tech, HTML Final — desiredFilename / Fix PDF).\n */\nfunction pickPdfBinary(item) {\n  const bin = item.binary || {};\n  for (const key of Object.keys(bin)) {\n    const b = bin[key];\n    if (!b) continue;\n    const mime = String(b.mimeType || \"\").toLowerCase();\n    const ext = String(b.fileExtension || \"\").toLowerCase();\n    if (mime.includes(\"pdf\") || ext === \"pdf\") return b;\n  }\n  const keys = Object.keys(bin);\n  if (keys.length) return bin[keys[0]];\n  return null;\n}\n\nfunction normName(s) {\n  return String(s || \"\")\n    .toLowerCase()\n    .normalize(\"NFD\")\n    .replace(/\\p{M}/gu, \"\");\n}\n\n/**\n * Ordre : technique (sous-chaîne la plus spécifique) → données → rapport final.\n */\nfunction bucketForFileName(fileName) {\n  const n = normName(fileName);\n  if (n.includes(\"rapport technique previsions\")) return \"tech\";\n  if (\n    n.includes(\"donnees techniques previsions\") ||\n    n.includes(\"technical forecast data\")\n  )\n    return \"donnees\";\n  if (n.includes(\"forecast report\")) return \"main\";\n  if (n.includes(\"rapport\") && n.includes(\"previsions\") && !n.includes(\"technique\"))\n    return \"main\";\n  return null;\n}\n\nconst items = $input.all();\nif (items.length === 0) return [];\n\nconst buckets = { main: null, tech: null, donnees: null };\nconst orphans = [];\n\nfor (const item of items) {\n  const pdf = pickPdfBinary(item);\n  if (!pdf) continue;\n  const b = bucketForFileName(pdf.fileName);\n  if (b && !buckets[b]) buckets[b] = pdf;\n  else orphans.push(pdf);\n}\n\nfor (const o of orphans) {\n  if (!buckets.main) buckets.main = o;\n  else if (!buckets.tech) buckets.tech = o;\n  else if (!buckets.donnees) buckets.donnees = o;\n}\n\nif (!buckets.main || !buckets.tech || !buckets.donnees) {\n  throw new Error(\n    \"Prépare email 3 PDF PREV : 3 PDF attendus (données, technique, rapport final). \" +\n      \"Reçu : \" +\n      [buckets.main, buckets.tech, buckets.donnees].filter(Boolean).length +\n      \". Vérifie les fileName : \" +\n      items\n        .map((i) => pickPdfBinary(i)?.fileName || \"(sans pdf)\")\n        .join(\" | \"),\n  );\n}\n\nlet extract = {};\ntry {\n  extract = $(\"Extract Variables\").first().json || {};\n} catch (e) {\n  /* nœud absent en test isolé */\n}\n\nconst mailClient =\n  extract.mail ||\n  items.find((i) => i.json?.mail)?.json?.mail ||\n  items[0].json?.mailClient ||\n  items[0].json?.mail ||\n  null;\n\nconst prenom = extract.prenom ?? items[0].json?.prenom ?? null;\nconst nomRaw =\n  extract.nom != null\n    ? String(extract.nom)\n    : items[0].json?.nom != null\n      ? String(items[0].json.nom)\n      : \"\";\nconst nomStr = nomRaw.trim();\n\nfunction isEnglishLang(raw) {\n  const s = String(raw ?? \"\")\n    .trim()\n    .toLowerCase()\n    .normalize(\"NFD\")\n    .replace(/\\p{M}/gu, \"\");\n  if (!s) return false;\n  if (s === \"en\" || s === \"english\" || s === \"anglais\") return true;\n  if (s.includes(\"english\") || s.includes(\"anglais\")) return true;\n  return false;\n}\n\nconst en = isEnglishLang(extract.langue);\nconst prenomStr = prenom != null ? String(prenom).trim() : \"\";\nconst fullName =\n  [prenomStr, nomStr].filter(Boolean).join(\" \").trim() || \"Client\";\n\nconst rapportFr = String(extract.rapport || \"\").trim() || \"—\";\nconst rapportEnMap = {\n  Annuel: \"Annual\",\n  Mensuel: \"Monthly\",\n  Hebdomadaire: \"Weekly\",\n  Journalier: \"Daily\",\n};\nconst rapportEn = rapportEnMap[rapportFr] || rapportFr;\n\nconst de = String(extract.date_entree || \"\").trim();\nconst a = String(extract.date_sortie || \"\").trim();\nconst periodeFr =\n  de && a\n    ? `<p>Pour la période du <strong>${de}</strong> au <strong>${a}</strong>.</p>`\n    : \"\";\nconst periodeEn =\n  de && a\n    ? `<p>For the period from <strong>${de}</strong> to <strong>${a}</strong>.</p>`\n    : \"\";\n\nconst dateSpanSubject = de && a ? `${de} – ${a}`.trim() : \"\";\nconst subjectPieces = en\n  ? [\"🌟 Forecasts\", rapportEn, dateSpanSubject, fullName]\n  : [\"🌟 Prévisions\", rapportFr, dateSpanSubject, fullName];\nconst emailSubject = subjectPieces.filter(Boolean).join(\" — \");\n\nconst greetHtml = en ? \"<p>Hello,</p>\" : \"<p>Bonjour,</p>\";\n\nconst emailHtml = en\n  ? `${greetHtml}${periodeEn}<p>Your three forecast documents (<strong>${rapportEn}</strong>) are attached as PDFs: technical report, narrative report, and data tables.</p><p>Clear skies! 🌟</p>`\n  : `${greetHtml}${periodeFr}<p>Vos trois documents de prévisions (<strong>${rapportFr}</strong>) sont en pièces jointes au format PDF : rapport technique, rapport narratif et données.</p><p>Bonnes étoiles ! 🌟</p>`;\n\nreturn [\n  {\n    json: {\n      mailClient: mailClient || \"votre.adresse.test@gmail.com\",\n      prenom,\n      nom: nomStr || null,\n      emailSubject,\n      emailHtml,\n    },\n    binary: {\n      data: buckets.main,\n      data1: buckets.tech,\n      data2: buckets.donnees,\n    },\n  },\n];\n"
+      },
+      "id": "9f2f2908-3967-44be-b24d-4bb04faedfd9",
+      "name": "Prépare email 3 PDF",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3264,
+        3808
+      ]
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json.mailClient || 'votre.adresse.test@gmail.com' }}",
+        "subject": "={{ $json.emailSubject }}",
+        "message": "={{ $json.emailHtml }}",
+        "options": {
+          "attachmentsUi": {
+            "attachmentsBinary": [
+              {
+                "property": "data,data1,data2"
+              }
+            ]
+          },
+          "bccList": ""
+        }
+      },
+      "id": "48ecc34e-6658-4db9-8c77-bf62a52ac610",
+      "name": "Envoi Email avec PDF1",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        3504,
+        3808
+      ],
+      "webhookId": "b7e803e5-3628-47d1-a692-84db339ebbce",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "Flg03IHE2aFkPhKq",
+          "name": "Gmail account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const WEBHOOK_NODE='Webhook';const EXTRACT_NAMES=['Extract Variables','Extract Variables SYN','Extract Variables DHN','Extract Variables DHN1','Extract Variables1'];function readOrderIdFromWebhook(){try{const j=$(WEBHOOK_NODE).first().json;const b=j?.body!==undefined&&j?.body!==null&&typeof j.body==='object'&&!Array.isArray(j.body)?j.body:j;let id=typeof b?.orderId==='string'?b.orderId.trim():'';if(!id&&typeof j?.orderId==='string')id=j.orderId.trim();return id||null;}catch(e){return null;}}function readOrderIdFromExtracts(){for(const n of EXTRACT_NAMES){try{const v=$(n).first()?.json?.orderId;if(typeof v==='string'&&v.trim())return v.trim();}catch(e){}}return null;}const siteCallbackOrderId=readOrderIdFromWebhook()||readOrderIdFromExtracts();if(!siteCallbackOrderId)return[];return[{json:{siteCallbackOrderId}}];"
+      },
+      "id": "9c5f3462-69a1-4bab-9eb8-3da1a42d96ea",
+      "name": "Succes DHN",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3744,
+        3808
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://site-rapports-astro.vercel.app/api/webhooks/n8n-order-status",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Site-Webhook-Secret",
+              "value": "REMPLACER_PAR_LE_MEME_SECRET_QUE_SUR_VERCEL_N8N_WEBHOOK_SECRET"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify({ orderId: $json.siteCallbackOrderId, status: 'delivered' }) }}",
+        "options": {},
+        "authentication": "none"
+      },
+      "id": "ee8a3bd9-646c-47b1-abb5-51a02582d7d2",
+      "name": "POST SUCCES DHN",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        3968,
+        3808
+      ]
+    },
+    {
+      "parameters": {
+        "numberInputs": 3
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        3040,
+        3792
+      ],
+      "id": "ee5260e6-0fc3-47d0-b78d-ae0594450558",
+      "name": "Merge8"
+    }
+  ],
+  "connections": {
+    "Prépare email 3 PDF": {
+      "main": [
+        [
+          {
+            "node": "Envoi Email avec PDF1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Envoi Email avec PDF1": {
+      "main": [
+        [
+          {
+            "node": "Succes DHN",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Succes DHN": {
+      "main": [
+        [
+          {
+            "node": "POST SUCCES DHN",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge8": {
+      "main": [
+        [
+          {
+            "node": "Prépare email 3 PDF",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "b6efd2f1fad5a0a294db5a1a7e88dd550900216aaeb7344a19bf4cfc45267781"
+  }
+}

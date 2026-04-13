@@ -1,0 +1,57 @@
+{
+  "name": "FRAGMENT — SITE callback failed (copier dans GLOBAL DHN)",
+  "active": false,
+  "settings": { "executionOrder": "v1" },
+  "nodes": [
+    {
+      "parameters": {
+        "jsCode": "const WEBHOOK_NODE='Webhook';const EXTRACT_NAMES=['Extract Variables','Extract Variables SYN','Extract Variables DHN','Extract Variables DHN1','Extract Variables1'];function readOrderIdFromWebhook(){try{const j=$(WEBHOOK_NODE).first().json;const b=j?.body!==undefined&&j?.body!==null&&typeof j.body==='object'&&!Array.isArray(j.body)?j.body:j;let id=typeof b?.orderId==='string'?b.orderId.trim():'';if(!id&&typeof j?.orderId==='string')id=j.orderId.trim();return id||null;}catch(e){return null;}}function readOrderIdFromExtracts(){for(const n of EXTRACT_NAMES){try{const v=$(n).first()?.json?.orderId;if(typeof v==='string'&&v.trim())return v.trim();}catch(e){}}return null;}const siteCallbackOrderId=readOrderIdFromWebhook()||readOrderIdFromExtracts();if(!siteCallbackOrderId)return[];const j=$input.first().json;const callbackError=(typeof j?.message==='string'&&j.message.trim())||(typeof j?.error==='string'&&j.error.trim())||(j?.error&&typeof j.error==='object'&&typeof j.error.message==='string'&&j.error.message.trim())||'Échec workflow n8n';return[{json:{siteCallbackOrderId,callbackError:String(callbackError).slice(0,2000)}}];"
+      },
+      "id": "c9e0b1c2-d3e4-5f60-a7b8-c9d0e1f2a3b6",
+      "name": "SITE-orderId-failed",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [12600, 4200]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://REMPLACER_DOMAINE/api/webhooks/n8n-order-status",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Site-Webhook-Secret",
+              "value": "={{ $env.N8N_WEBHOOK_SECRET }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify({ orderId: $json.siteCallbackOrderId, status: 'failed', error: $json.callbackError }) }}",
+        "options": {}
+      },
+      "id": "d9e0b1c2-d3e4-5f60-a7b8-c9d0e1f2a3b7",
+      "name": "SITE-POST-failed",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [12880, 4200]
+    }
+  ],
+  "connections": {
+    "SITE-orderId-failed": {
+      "main": [
+        [
+          {
+            "node": "SITE-POST-failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "meta": { "templateCredsSetupCompleted": true }
+}

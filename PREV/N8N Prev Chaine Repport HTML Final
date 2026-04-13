@@ -1,0 +1,145 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.isComplete }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "0ccda5a1-5ebf-4252-b835-875210ded553",
+      "name": "Contrôle Données Prévisions",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        -12320,
+        3472
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Prépare le HTML pour Gotenberg (conversion PDF)\nconst items = $input.all();\nconst newItems = [];\nfor (const item of items) {\n  if (item.binary?.html_file) {\n    newItems.push({ json: item.json, binary: { data: item.binary.html_file } });\n    continue;\n  }\n  const htmlContent = item.json.html || '<html><body>Erreur HTML</body></html>';\n  const binaryData = await this.helpers.prepareBinaryData(\n    Buffer.from(htmlContent), 'index.html', 'text/html'\n  );\n  newItems.push({ json: item.json, binary: { data: binaryData } });\n}\nreturn newItems;"
+      },
+      "id": "2de30a69-1b54-4e8d-843e-2659363398cd",
+      "name": "Prépare HTML → PDF",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -12016,
+        3472
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "cdc3f0d1-3184-4dca-9474-24aa6f466ffa",
+      "name": "Merge PDF",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        -11728,
+        3472
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://46.225.174.155:3000/forms/chromium/convert/html",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "parameterType": "formBinaryData",
+              "name": "files",
+              "inputDataFieldName": "data"
+            }
+          ]
+        },
+        "options": {
+          "response": {}
+        }
+      },
+      "id": "a4387e5f-6341-4150-9d84-e58670b70cf4",
+      "name": "Convert HTML → PDF",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -11424,
+        3472
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Corrige le nom de fichier et le MIME type du PDF\nconst items = $input.all();\nconst validItems = [];\n\nfor (const item of items) {\n  if (!item.binary) continue;\n  const binaryKey = Object.keys(item.binary)[0];\n  if (!binaryKey) continue;\n\n  let nomFichier = 'rapport-previsions.pdf';\n  try {\n    const vars = $('Extract Variables').first().json;\n    const typeRapport = (vars.rapport || 'Annuel').trim();\n    const prenom = vars.prenom || '';\n    const nom = vars.nom || '';\n    const stripAccents = (s) => s.normalize('NFD').replace(/[\\u0300-\\u036f]/g,'');\n    const prenomClean = stripAccents(prenom).trim();\n    const nomClean = stripAccents(nom).toUpperCase().trim();\n    const nomAffiche = `${prenomClean} ${nomClean}`.trim() || 'Client';\n    const dateEntree = (vars.date_entree || '').replace(/\\//g, '_');\n    const dateSortie = (vars.date_sortie || '').replace(/\\//g, '_');\n    nomFichier = `Rapport Previsions - ${typeRapport} - ${dateEntree} - ${dateSortie} - ${nomAffiche}.pdf`;\n  } catch(e) {}\n\n  item.binary[binaryKey].fileName    = nomFichier;\n  item.binary[binaryKey].mimeType    = 'application/pdf';\n  item.binary[binaryKey].fileExtension = 'pdf';\n  validItems.push(item);\n}\n\nreturn validItems;"
+      },
+      "id": "4377fde8-feb9-4284-b4d1-66b04e36f886",
+      "name": "Fix Nom & MIME PDF Prévisions",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -11120,
+        3472
+      ]
+    }
+  ],
+  "connections": {
+    "Contrôle Données Prévisions": {
+      "main": [
+        [
+          {
+            "node": "Prépare HTML → PDF",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prépare HTML → PDF": {
+      "main": [
+        [
+          {
+            "node": "Merge PDF",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge PDF": {
+      "main": [
+        [
+          {
+            "node": "Convert HTML → PDF",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Convert HTML → PDF": {
+      "main": [
+        [
+          {
+            "node": "Fix Nom & MIME PDF Prévisions",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fix Nom & MIME PDF Prévisions": {
+      "main": [
+        []
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "b6efd2f1fad5a0a294db5a1a7e88dd550900216aaeb7344a19bf4cfc45267781"
+  }
+}

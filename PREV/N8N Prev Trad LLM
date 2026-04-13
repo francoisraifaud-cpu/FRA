@@ -1,0 +1,104 @@
+{
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        -14400,
+        3664
+      ],
+      "id": "bf4b03cb-733d-432e-af0c-ea3810709579",
+      "name": "Merge3"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Collecte les 12 maisons + synthèse depuis les nœuds IA du workflow\nconst items = [];\n\nfor (let i = 1; i <= 12; i++) {\n  let content = \"\";\n  try {\n    content = $(`Maison ${i}`).first().json.output\n           || $(`Maison ${i}`).first().json.text\n           || \"\";\n  } catch (e) {}\n  if (content) {\n    items.push({ json: { key: `maison_${i}`, original_text: content } });\n  }\n}\n\nlet synth = \"\";\ntry {\n  synth = $('Synthèse').first().json.output\n       || $('Synthèse').first().json.text\n       || \"\";\n} catch(e) {}\n\nif (synth) {\n  items.push({ json: { key: 'synthese', original_text: synth } });\n}\n\nreturn items;"
+      },
+      "id": "c610d44d-a522-41d7-b248-5af67385d885",
+      "name": "1. Découpage Prévisions",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -14160,
+        3664
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Voici un extrait strict de l'analyse astrologique de prévisions (Maison ou Synthèse) pour cette personne :\n\n---\n{{ $json.original_text }}\n---\n\nTon travail : Rendre CE TEXTE PRÉCIS parfaitement compréhensible pour un client qui n'y connaît absolument rien en astrologie.\n\nRÈGLE D'OR ABSOLUE : TU NE DOIS SOUS AUCUN PRÉTEXTE RÉSUMER LE TEXTE.\nTa réponse finale doit comporter EXACTEMENT le même nombre de paragraphes, détailler toutes les mêmes nuances psychologiques, et être AUSSI LONGUE que le texte original.\n\nCONSIGNES STRICTES :\n1. Supprime le jargon purement technique : Cuspide, Décan, Trigone, Carré, Conjonction, Opposition, Sextile, Quinconce, Pérégrin, Exil, Domicile, Chaîne de disposition, Stellium, Aspect, Orbe, Profection, Firdaria, Arc solaire, Transit, Progression, Ingress.\n2. CONSERVE les éléments intelligibles par un non-initié :\n   - Les NOMS DE PLANÈTES (Soleil, Lune, Mercure, Vénus, Mars, Jupiter, Saturne, Uranus, Neptune, Pluton, Chiron) : ce sont des noms propres universellement compris.\n   - Les NOMS DE SIGNES (Bélier, Taureau, Scorpion, etc.) : ils servent de repères culturels accessibles.\n   - Le mot ÉCLIPSE : universellement compris.\n   - Les ÉTOILES FIXES (Algol, Spica, Antarès, etc.) : noms propres qui apportent de la couleur.\n   - Les termes Maison 1 à 12 doivent être remplacés par leur signification (ex: \"ta sphère relationnelle\" au lieu de \"Maison 7\").\n3. Remplace la technique par l'explication du sens : Au lieu de dire \"Jupiter en trigone à Vénus\", dis \"Jupiter et Vénus s'alignent harmonieusement, amplifiant ton rapport à l'amour et à l'abondance...\".\n4. Garde les titres de sections avec leurs marqueurs markdown (## et ###), les puces, la poésie et la profondeur psychologique du texte original.\n5. Conserve STRICTEMENT le pronom d'adresse et les accords de genre du texte original. Si le texte original utilise le masculin (motivé, inspiré, né, appelé, fait), ta reformulation DOIT utiliser le masculin. Si le texte original utilise le féminin, ta reformulation DOIT utiliser le féminin. Ne JAMAIS changer le genre.\n6. NE RAJOUTE PAS d'introduction (du type \"Voici la traduction...\") ou de conclusion. Rédige uniquement le texte transformé.\n7. Rédige ta réponse dans la même langue que le texte original.",
+        "options": {
+          "systemMessage": "Tu es un maître absolu en vulgarisation psychologique et astrologique. Ton but est de réécrire un texte technique complexe en un récit fluide, poétique et intelligible, SANS JAMAIS le résumer. Tu agis comme un filtre de jargon technique : tu supprimes les termes géométriques et calculatoires (Trigone, Carré, Cuspide, Orbe, etc.) mais tu CONSERVES les noms de planètes, de signes zodiacaux, d'étoiles fixes et le mot éclipse, car ils sont universellement compris et apportent une couleur essentielle au texte. Le lecteur doit pouvoir tracer le fil astrologique sans avoir besoin d'un dictionnaire. Tu conserves 100% de la longueur, de l'architecture et des détails de l'analyse d'origine.\n\nGARDES DE FIDÉLITÉ ABSOLUES :\n- Ne JAMAIS changer le signe ou la maison d'une planète lors de la reformulation. Si le texte dit 'Jupiter en M2' ou 'Saturne en Verseau', ta reformulation doit conserver ces informations exactes.\n- Ne JAMAIS ajouter d'information astrologique absente du texte original (pas de nouvelles planètes, aspects, dates ou interprétations).\n- Ne JAMAIS inventer de degrés zodiacaux, de dates ou d'aspects qui ne figurent pas dans le texte source.\n- Ne JAMAIS supprimer un paragraphe entier ou une interprétation — reformuler, pas résumer.\n- Ne JAMAIS changer le genre grammatical : si le texte original est au masculin, ta reformulation DOIT rester au masculin (né, motivé, inspiré, appelé). Si au féminin, rester au féminin.\n- DISTINCTION NATAL/TRANSIT : si le texte mentionne un transit (passage temporaire), ne jamais le reformuler comme une caractéristique permanente (et inversement).\n- PRÉCISION DES ORBES : si le texte dit 'à proximité de' ou 'dans l'orbe de', ne JAMAIS reformuler en 'exactement sur' ou 'pile sur'. Conserver le degré de précision original.\n- ÉTOILES FIXES : si le texte ne dit PAS qu'une étoile est 'activée', ne JAMAIS ajouter cette notion. Ne pas inventer d'activation stellaire absente du texte source.\n- INTERDICTION D'AMPLIFICATION : ne JAMAIS exagérer, dramatiser ou intensifier les qualificatifs du texte original. Si le texte dit 'influence notable', ne pas écrire 'influence dévastatrice'."
+        }
+      },
+      "id": "c5445292-7d2a-49e2-9265-50aa754704c1",
+      "name": "2. Traducteur Prévisions",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        -13920,
+        3664
+      ]
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-3.1-pro-preview",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        -13920,
+        3888
+      ],
+      "id": "de885aa7-ffd7-4db6-8dd7-ff14fc35cf69",
+      "name": "Google Gemini Chat Model1"
+    }
+  ],
+  "connections": {
+    "Merge3": {
+      "main": [
+        [
+          {
+            "node": "1. Découpage Prévisions",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "1. Découpage Prévisions": {
+      "main": [
+        [
+          {
+            "node": "2. Traducteur Prévisions",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "2. Traducteur Prévisions": {
+      "main": [
+        []
+      ]
+    },
+    "Google Gemini Chat Model1": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "2. Traducteur Prévisions",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "b6efd2f1fad5a0a294db5a1a7e88dd550900216aaeb7344a19bf4cfc45267781"
+  }
+}

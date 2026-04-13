@@ -1,0 +1,844 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=={{ $('Parse JSON Propre1').item.json.maison_1.prompt_user }}\n\n---\nCONSIGNE DE RÉDACTION\n- Rédige l'analyse astrologique complète et profonde de cette maison.\n- Respecte scrupuleusement le pronom d'adresse (tu/vous/il/elle) et les accords de genre définis dans tes instructions système. Ne commence JAMAIS par une formule de salutation. Démarre immédiatement par l'analyse.\n\nSTRUCTURE DE TA REPONSE en utilisant OBLIGATOIREMENT les balises Markdown suivantes, sans exception :\n- ## Introduction ## — contexte et énergie globale de la maison. Le mot \"Introduction\" est toujours le meme entre les 2 Markdowns et est suivi d'un court texte explicatif.\n- ## 1) Titre ##, ## 2) Titre ##... — pour chaque dynamique clé (cuspide, chaîne de disposition, locataires, aspects reçus) ; le titre doit nommer le vrai sujet en quelques mots, il est dynamique entre les 2 markdowns.\n- ### 1.1) Sous Titre ###, ### 1.2) Sous Titre ###... — pour les développements d'une dynamique ; le sous titre doit nommer le vrai sujet en quelques mots. Il est dynamique entre les 2 markdowns.\n- ## Conclusion ## — synthèse des enjeux et recommandations pratiques. Le mot \"Conclusion\" est toujours le meme entre les 2 Markdowns et est suivi d'un court texte explicatif.\nRÈGLE ABSOLUE : tout titre / introduction / conclusion commence par ## ET se termine par ##. Tout sous-titre commence par ### ET se termine par ###. N'utilise JAMAIS **gras** pour écrire un titre. \n\nN'écris JAMAIS un titre sans ses balises ouvrantes ET fermantes.",
+        "options": {
+          "systemMessage": "=={{ $('Parse JSON Propre1').item.json.maison_1.prompt_system }}"
+        }
+      },
+      "id": "d331e09a-4bd0-4886-b7cc-c23cdb77e877",
+      "name": "Maison 1",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        -1984,
+        1248
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=={{ $('Parse JSON Propre1').item.json.maison_2.prompt_user }}\n\n---\nCONSIGNE DE RÉDACTION\n- Rédige l'analyse astrologique complète et profonde de cette maison.\n- Respecte scrupuleusement le pronom d'adresse (tu/vous/il/elle) et les accords de genre définis dans tes instructions système. Ne commence JAMAIS par une formule de salutation. Démarre immédiatement par l'analyse.\n\nSTRUCTURE DE TA REPONSE en utilisant OBLIGATOIREMENT les balises Markdown suivantes, sans exception :\n- ## Introduction ## — contexte et énergie globale de la maison. Le mot \"Introduction\" est toujours le meme entre les 2 Markdowns et est suivi d'un court texte explicatif.\n- ## 1) Titre ##, ## 2) Titre ##... — pour chaque dynamique clé (cuspide, chaîne de disposition, locataires, aspects reçus) ; le titre doit nommer le vrai sujet en quelques mots, il est dynamique entre les 2 markdowns.\n- ### 1.1) Sous Titre ###, ### 1.2) Sous Titre ###... — pour les développements d'une dynamique ; le sous titre doit nommer le vrai sujet en quelques mots. Il est dynamique entre les 2 markdowns.\n- ## Conclusion ## — synthèse des enjeux et recommandations pratiques. Le mot \"Conclusion\" est toujours le meme entre les 2 Markdowns et est suivi d'un court texte explicatif.\nRÈGLE ABSOLUE : tout titre / introduction / conclusion commence par ## ET se termine par ##. Tout sous-titre commence par ### ET se termine par ###. N'utilise JAMAIS **gras** pour écrire un titre. \n\nN'écris JAMAIS un titre sans ses balises ouvrantes ET fermantes.\n",
+        "options": {
+          "systemMessage": "=={{ $('Parse JSON Propre1').item.json.maison_2.prompt_system }}"
+        }
+      },
+      "id": "e66d4a8d-1a70-4e9b-b4c6-8dce791edc3a",
+      "name": "Maison 2",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        -1984,
+        1632
+      ]
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-3.1-pro-preview",
+        "options": {}
+      },
+      "id": "773fbbff-8966-4565-94db-06e0f3f6adc9",
+      "name": "Google Gemini Model 3",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        -1968,
+        2064
+      ],
+      "credentials": {
+        "googlePalmApi": {
+          "id": "CYaGbTvdLDOY2t1E",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=={{ $('Parse JSON Propre1').item.json.maison_3.prompt_user }}\n\n---\nCONSIGNE DE RÉDACTION\n- Rédige l'analyse astrologique complète et profonde de cette maison.\n- Respecte scrupuleusement le pronom d'adresse (tu/vous/il/elle) et les accords de genre définis dans tes instructions système. Ne commence JAMAIS par une formule de salutation. Démarre immédiatement par l'analyse.\n\nSTRUCTURE DE TA REPONSE en utilisant OBLIGATOIREMENT les balises Markdown suivantes, sans exception :\n- ## Introduction ## — contexte et énergie globale de la maison. Le mot \"Introduction\" est toujours le meme entre les 2 Markdowns et est suivi d'un court texte explicatif.\n- ## 1) Titre ##, ## 2) Titre ##... — pour chaque dynamique clé (cuspide, chaîne de disposition, locataires, aspects reçus) ; le titre doit nommer le vrai sujet en quelques mots, il est dynamique entre les 2 markdowns.\n- ### 1.1) Sous Titre ###, ### 1.2) Sous Titre ###... — pour les développements d'une dynamique ; le sous titre doit nommer le vrai sujet en quelques mots. Il est dynamique entre les 2 markdowns.\n- ## Conclusion ## — synthèse des enjeux et recommandations pratiques. Le mot \"Conclusion\" est toujours le meme entre les 2 Markdowns et est suivi d'un court texte explicatif.\nRÈGLE ABSOLUE : tout titre / introduction / conclusion commence par ## ET se termine par ##. Tout sous-titre commence par ### ET se termine par ###. N'utilise JAMAIS **gras** pour écrire un titre. \n\nN'écris JAMAIS un titre sans ses balises ouvrantes ET fermantes.",
+        "options": {
+          "systemMessage": "=={{ $('Parse JSON Propre1').item.json.maison_3.prompt_system }}"
+        }
+      },
+      "id": "5d43eaf6-7b0c-4b2d-8290-3688e44c6eb0",
+      "name": "Maison 3",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        -1968,
+        1920
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=={{ $('Parse JSON Propre1').item.json.maison_4.prompt_user }}\n\n---\nCONSIGNE DE RÉDACTION\n- Rédige l'analyse astrologique complète et profonde de cette maison.\n- Respecte scrupuleusement le pronom d'adresse (tu/vous/il/elle) et les accords de genre définis dans tes instructions système. Ne commence JAMAIS par une formule de salutation. Démarre immédiatement par l'analyse.\n\nSTRUCTURE DE TA REPONSE en utilisant OBLIGATOIREMENT les balises Markdown suivantes, sans exception :\n- ## Introduction ## — contexte et énergie globale de la maison. Le mot \"Introduction\" est toujours le meme entre les 2 Markdowns et est suivi d'un court texte explicatif.\n- ## 1) Titre ##, ## 2) Titre ##... — pour chaque dynamique clé (cuspide, chaîne de disposition, locataires, aspects reçus) ; le titre doit nommer le vrai sujet en quelques mots, il est dynamique entre les 2 markdowns.\n- ### 1.1) Sous Titre ###, ### 1.2) Sous Titre ###... — pour les développements d'une dynamique ; le sous titre doit nommer le vrai sujet en quelques mots. Il est dynamique entre les 2 markdowns.\n- ## Conclusion ## — synthèse des enjeux et recommandations pratiques. Le mot \"Conclusion\" est toujours le meme entre les 2 Markdowns et est suivi d'un court texte explicatif.\nRÈGLE ABSOLUE : tout titre / introduction / conclusion commence par ## ET se termine par ##. Tout sous-titre commence par ### ET se termine par ###. N'utilise JAMAIS **gras** pour écrire un titre. \n\nN'écris JAMAIS un titre sans ses balises ouvrantes ET fermantes.\n\n",
+        "options": {
+          "systemMessage": "=={{ $('Parse JSON Propre1').item.json.maison_4.prompt_system }}"
+        }
+      },
+      "id": "fa2d992b-3df0-49a6-80db-ceed30e1dff0",
+      "name": "Maison 4",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        -1984,
+        2256
+      ]
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-3.1-pro-preview",
+        "options": {}
+      },
+      "id": "e19d4a3a-a0e2-48ea-a801-9c82789b9e6d",
+      "name": "Google Gemini Model 5_bis",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        -2000,
+        2768
+      ],
+      "credentials": {
+        "googlePalmApi": {
+          "id": "CYaGbTvdLDOY2t1E",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=={{ $('Parse JSON Propre1').item.json.maison_5.prompt_user }}\n\n---\nCONSIGNE DE RÉDACTION\n- Rédige l'analyse astrologique complète et profonde de cette maison.\n- Respecte scrupuleusement le pronom d'adresse (tu/vous/il/elle) et les accords de genre définis dans tes instructions système. Ne commence JAMAIS par une formule de salutation. Démarre immédiatement par l'analyse.\n\nSTRUCTURE DE TA REPONSE en utilisant OBLIGATOIREMENT les balises Markdown suivantes, sans exception :\n- ## Introduction ## — contexte et énergie globale de la maison. Le mot \"Introduction\" est toujours le meme entre les 2 Markdowns et est suivi d'un court texte explicatif.\n- ## 1) Titre ##, ## 2) Titre ##... — pour chaque dynamique clé (cuspide, chaîne de disposition, locataires, aspects reçus) ; le titre doit nommer le vrai sujet en quelques mots, il est dynamique entre les 2 markdowns.\n- ### 1.1) Sous Titre ###, ### 1.2) Sous Titre ###... — pour les développements d'une dynamique ; le sous titre doit nommer le vrai sujet en quelques mots. Il est dynamique entre les 2 markdowns.\n- ## Conclusion ## — synthèse des enjeux et recommandations pratiques. Le mot \"Conclusion\" est toujours le meme entre les 2 Markdowns et est suivi d'un court texte explicatif.\nRÈGLE ABSOLUE : tout titre / introduction / conclusion commence par ## ET se termine par ##. Tout sous-titre commence par ### ET se termine par ###. N'utilise JAMAIS **gras** pour écrire un titre. \n\nN'écris JAMAIS un titre sans ses balises ouvrantes ET fermantes.",
+        "options": {
+          "systemMessage": "=={{ $('Parse JSON Propre1').item.json.maison_5.prompt_system }}"
+        }
+      },
+      "id": "7c91de46-051e-4b57-be2d-6525f66a73ee",
+      "name": "Maison 5",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        -2000,
+        2608
+      ]
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-3.1-pro-preview",
+        "options": {}
+      },
+      "id": "6e854152-5747-4c4b-9924-a7c5c4100c5c",
+      "name": "Google Gemini Model 6",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        -1968,
+        3248
+      ],
+      "credentials": {
+        "googlePalmApi": {
+          "id": "CYaGbTvdLDOY2t1E",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=={{ $('Parse JSON Propre1').item.json.maison_6.prompt_user }}\n\n---\nCONSIGNE DE RÉDACTION\n- Rédige l'analyse astrologique complète et profonde de cette maison.\n- Respecte scrupuleusement le pronom d'adresse (tu/vous/il/elle) et les accords de genre définis dans tes instructions système. Ne commence JAMAIS par une formule de salutation. Démarre immédiatement par l'analyse.\n\nSTRUCTURE DE TA REPONSE en utilisant OBLIGATOIREMENT les balises Markdown suivantes, sans exception :\n- ## Introduction ## — contexte et énergie globale de la maison. Le mot \"Introduction\" est toujours le meme entre les 2 Markdowns et est suivi d'un court texte explicatif.\n- ## 1) Titre ##, ## 2) Titre ##... — pour chaque dynamique clé (cuspide, chaîne de disposition, locataires, aspects reçus) ; le titre doit nommer le vrai sujet en quelques mots, il est dynamique entre les 2 markdowns.\n- ### 1.1) Sous Titre ###, ### 1.2) Sous Titre ###... — pour les développements d'une dynamique ; le sous titre doit nommer le vrai sujet en quelques mots. Il est dynamique entre les 2 markdowns.\n- ## Conclusion ## — synthèse des enjeux et recommandations pratiques. Le mot \"Conclusion\" est toujours le meme entre les 2 Markdowns et est suivi d'un court texte explicatif.\nRÈGLE ABSOLUE : tout titre / introduction / conclusion commence par ## ET se termine par ##. Tout sous-titre commence par ### ET se termine par ###. N'utilise JAMAIS **gras** pour écrire un titre. \n\nN'écris JAMAIS un titre sans ses balises ouvrantes ET fermantes.",
+        "options": {
+          "systemMessage": "=={{ $('Parse JSON Propre1').item.json.maison_6.prompt_system }}"
+        }
+      },
+      "id": "ae11ae30-5b07-48c8-8ea8-cb9ed27d7107",
+      "name": "Maison 6",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        -1968,
+        3120
+      ]
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-3.1-pro-preview",
+        "options": {}
+      },
+      "id": "4b1dd7fc-680d-49b4-aa9c-d1d63e19e8c7",
+      "name": "Google Gemini Model 7",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        -1968,
+        3616
+      ],
+      "credentials": {
+        "googlePalmApi": {
+          "id": "CYaGbTvdLDOY2t1E",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=={{ $('Parse JSON Propre1').item.json.maison_7.prompt_user }}\n\n---\nCONSIGNE DE RÉDACTION\n- Rédige l'analyse astrologique complète et profonde de cette maison.\n- Respecte scrupuleusement le pronom d'adresse (tu/vous/il/elle) et les accords de genre définis dans tes instructions système. Ne commence JAMAIS par une formule de salutation. Démarre immédiatement par l'analyse.\n\nSTRUCTURE DE TA REPONSE en utilisant OBLIGATOIREMENT les balises Markdown suivantes, sans exception :\n- ## Introduction ## — contexte et énergie globale de la maison. Le mot \"Introduction\" est toujours le meme entre les 2 Markdowns et est suivi d'un court texte explicatif.\n- ## 1) Titre ##, ## 2) Titre ##... — pour chaque dynamique clé (cuspide, chaîne de disposition, locataires, aspects reçus) ; le titre doit nommer le vrai sujet en quelques mots, il est dynamique entre les 2 markdowns.\n- ### 1.1) Sous Titre ###, ### 1.2) Sous Titre ###... — pour les développements d'une dynamique ; le sous titre doit nommer le vrai sujet en quelques mots. Il est dynamique entre les 2 markdowns.\n- ## Conclusion ## — synthèse des enjeux et recommandations pratiques. Le mot \"Conclusion\" est toujours le meme entre les 2 Markdowns et est suivi d'un court texte explicatif.\nRÈGLE ABSOLUE : tout titre / introduction / conclusion commence par ## ET se termine par ##. Tout sous-titre commence par ### ET se termine par ###. N'utilise JAMAIS **gras** pour écrire un titre. \n\nN'écris JAMAIS un titre sans ses balises ouvrantes ET fermantes.\n",
+        "options": {
+          "systemMessage": "=={{ $('Parse JSON Propre1').item.json.maison_7.prompt_system }}"
+        }
+      },
+      "id": "cb177edb-d22f-4ad0-ab40-d325f2482d1f",
+      "name": "Maison 7",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        -1968,
+        3488
+      ]
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-3.1-pro-preview",
+        "options": {}
+      },
+      "id": "1f63c7be-cfaa-4a6a-aeb1-d717c326f9a1",
+      "name": "Google Gemini Model 8",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        -1984,
+        4032
+      ],
+      "credentials": {
+        "googlePalmApi": {
+          "id": "CYaGbTvdLDOY2t1E",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=={{ $('Parse JSON Propre1').item.json.maison_8.prompt_user }}\n\n---\nCONSIGNE DE RÉDACTION\n- Rédige l'analyse astrologique complète et profonde de cette maison.\n- Respecte scrupuleusement le pronom d'adresse (tu/vous/il/elle) et les accords de genre définis dans tes instructions système. Ne commence JAMAIS par une formule de salutation. Démarre immédiatement par l'analyse.\n\nSTRUCTURE DE TA REPONSE en utilisant OBLIGATOIREMENT les balises Markdown suivantes, sans exception :\n- ## Introduction ## — contexte et énergie globale de la maison. Le mot \"Introduction\" est toujours le meme entre les 2 Markdowns et est suivi d'un court texte explicatif.\n- ## 1) Titre ##, ## 2) Titre ##... — pour chaque dynamique clé (cuspide, chaîne de disposition, locataires, aspects reçus) ; le titre doit nommer le vrai sujet en quelques mots, il est dynamique entre les 2 markdowns.\n- ### 1.1) Sous Titre ###, ### 1.2) Sous Titre ###... — pour les développements d'une dynamique ; le sous titre doit nommer le vrai sujet en quelques mots. Il est dynamique entre les 2 markdowns.\n- ## Conclusion ## — synthèse des enjeux et recommandations pratiques. Le mot \"Conclusion\" est toujours le meme entre les 2 Markdowns et est suivi d'un court texte explicatif.\nRÈGLE ABSOLUE : tout titre / introduction / conclusion commence par ## ET se termine par ##. Tout sous-titre commence par ### ET se termine par ###. N'utilise JAMAIS **gras** pour écrire un titre. \n\nN'écris JAMAIS un titre sans ses balises ouvrantes ET fermantes.\n",
+        "options": {
+          "systemMessage": "=={{ $('Parse JSON Propre1').item.json.maison_8.prompt_system }}"
+        }
+      },
+      "id": "2a20e5e4-1c97-4a98-a875-1e84abd4b0cb",
+      "name": "Maison 8",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        -1984,
+        3904
+      ]
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-3.1-pro-preview",
+        "options": {}
+      },
+      "id": "43bd2f0f-29bc-4215-a26b-510a19983eda",
+      "name": "Google Gemini Model 9",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        -2000,
+        4400
+      ],
+      "credentials": {
+        "googlePalmApi": {
+          "id": "CYaGbTvdLDOY2t1E",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=={{ $('Parse JSON Propre1').item.json.maison_9.prompt_user }}\n\n---\nCONSIGNE DE RÉDACTION\n- Rédige l'analyse astrologique complète et profonde de cette maison.\n- Respecte scrupuleusement le pronom d'adresse (tu/vous/il/elle) et les accords de genre définis dans tes instructions système. Ne commence JAMAIS par une formule de salutation. Démarre immédiatement par l'analyse.\n\nSTRUCTURE DE TA REPONSE en utilisant OBLIGATOIREMENT les balises Markdown suivantes, sans exception :\n- ## Introduction ## — contexte et énergie globale de la maison. Le mot \"Introduction\" est toujours le meme entre les 2 Markdowns et est suivi d'un court texte explicatif.\n- ## 1) Titre ##, ## 2) Titre ##... — pour chaque dynamique clé (cuspide, chaîne de disposition, locataires, aspects reçus) ; le titre doit nommer le vrai sujet en quelques mots, il est dynamique entre les 2 markdowns.\n- ### 1.1) Sous Titre ###, ### 1.2) Sous Titre ###... — pour les développements d'une dynamique ; le sous titre doit nommer le vrai sujet en quelques mots. Il est dynamique entre les 2 markdowns.\n- ## Conclusion ## — synthèse des enjeux et recommandations pratiques. Le mot \"Conclusion\" est toujours le meme entre les 2 Markdowns et est suivi d'un court texte explicatif.\nRÈGLE ABSOLUE : tout titre / introduction / conclusion commence par ## ET se termine par ##. Tout sous-titre commence par ### ET se termine par ###. N'utilise JAMAIS **gras** pour écrire un titre. \n\nN'écris JAMAIS un titre sans ses balises ouvrantes ET fermantes.\n",
+        "options": {
+          "systemMessage": "=={{ $('Parse JSON Propre1').item.json.maison_9.prompt_system }}"
+        }
+      },
+      "id": "0bf9d822-9e7a-49f5-983b-efd8450b66b0",
+      "name": "Maison 9",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        -2000,
+        4272
+      ]
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-3.1-pro-preview",
+        "options": {}
+      },
+      "id": "6b4a1e87-322a-482e-ab18-62b883e97681",
+      "name": "Google Gemini Model 10",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        -2000,
+        4752
+      ],
+      "credentials": {
+        "googlePalmApi": {
+          "id": "CYaGbTvdLDOY2t1E",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=={{ $('Parse JSON Propre1').item.json.maison_10.prompt_user }}\n\n---\nCONSIGNE DE RÉDACTION\n- Rédige l'analyse astrologique complète et profonde de cette maison.\n- Respecte scrupuleusement le pronom d'adresse (tu/vous/il/elle) et les accords de genre définis dans tes instructions système. Ne commence JAMAIS par une formule de salutation. Démarre immédiatement par l'analyse.\n\nSTRUCTURE DE TA REPONSE en utilisant OBLIGATOIREMENT les balises Markdown suivantes, sans exception :\n- ## Introduction ## — contexte et énergie globale de la maison. Le mot \"Introduction\" est toujours le meme entre les 2 Markdowns et est suivi d'un court texte explicatif.\n- ## 1) Titre ##, ## 2) Titre ##... — pour chaque dynamique clé (cuspide, chaîne de disposition, locataires, aspects reçus) ; le titre doit nommer le vrai sujet en quelques mots, il est dynamique entre les 2 markdowns.\n- ### 1.1) Sous Titre ###, ### 1.2) Sous Titre ###... — pour les développements d'une dynamique ; le sous titre doit nommer le vrai sujet en quelques mots. Il est dynamique entre les 2 markdowns.\n- ## Conclusion ## — synthèse des enjeux et recommandations pratiques. Le mot \"Conclusion\" est toujours le meme entre les 2 Markdowns et est suivi d'un court texte explicatif.\nRÈGLE ABSOLUE : tout titre / introduction / conclusion commence par ## ET se termine par ##. Tout sous-titre commence par ### ET se termine par ###. N'utilise JAMAIS **gras** pour écrire un titre. \n\nN'écris JAMAIS un titre sans ses balises ouvrantes ET fermantes.",
+        "options": {
+          "systemMessage": "=={{ $('Parse JSON Propre1').item.json.maison_10.prompt_system }}"
+        }
+      },
+      "id": "7ec4f8b8-44b6-4f2c-8a16-cd8d7826db84",
+      "name": "Maison 10",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        -2000,
+        4624
+      ]
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-3.1-pro-preview",
+        "options": {}
+      },
+      "id": "88d79386-dde7-4e93-8c51-0dea0b9e4073",
+      "name": "Google Gemini Model 11",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        -2000,
+        5104
+      ],
+      "credentials": {
+        "googlePalmApi": {
+          "id": "CYaGbTvdLDOY2t1E",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=={{ $('Parse JSON Propre1').item.json.maison_11.prompt_user }}\n\n---\nCONSIGNE DE RÉDACTION\n- Rédige l'analyse astrologique complète et profonde de cette maison.\n- Respecte scrupuleusement le pronom d'adresse (tu/vous/il/elle) et les accords de genre définis dans tes instructions système. Ne commence JAMAIS par une formule de salutation. Démarre immédiatement par l'analyse.\n\nSTRUCTURE DE TA REPONSE en utilisant OBLIGATOIREMENT les balises Markdown suivantes, sans exception :\n- ## Introduction ## — contexte et énergie globale de la maison. Le mot \"Introduction\" est toujours le meme entre les 2 Markdowns et est suivi d'un court texte explicatif.\n- ## 1) Titre ##, ## 2) Titre ##... — pour chaque dynamique clé (cuspide, chaîne de disposition, locataires, aspects reçus) ; le titre doit nommer le vrai sujet en quelques mots, il est dynamique entre les 2 markdowns.\n- ### 1.1) Sous Titre ###, ### 1.2) Sous Titre ###... — pour les développements d'une dynamique ; le sous titre doit nommer le vrai sujet en quelques mots. Il est dynamique entre les 2 markdowns.\n- ## Conclusion ## — synthèse des enjeux et recommandations pratiques. Le mot \"Conclusion\" est toujours le meme entre les 2 Markdowns et est suivi d'un court texte explicatif.\nRÈGLE ABSOLUE : tout titre / introduction / conclusion commence par ## ET se termine par ##. Tout sous-titre commence par ### ET se termine par ###. N'utilise JAMAIS **gras** pour écrire un titre. \n\nN'écris JAMAIS un titre sans ses balises ouvrantes ET fermantes.",
+        "options": {
+          "systemMessage": "=={{ $('Parse JSON Propre1').item.json.maison_11.prompt_system }}"
+        }
+      },
+      "id": "e41a62dd-1f68-4881-ad15-8b5d83433b39",
+      "name": "Maison 11",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        -2000,
+        4976
+      ]
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-3.1-pro-preview",
+        "options": {}
+      },
+      "id": "00144baa-49c6-4b30-857a-1f41773d20ff",
+      "name": "Google Gemini Model 12",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        -1984,
+        5472
+      ],
+      "credentials": {
+        "googlePalmApi": {
+          "id": "CYaGbTvdLDOY2t1E",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-3.1-pro-preview",
+        "options": {}
+      },
+      "id": "59d447d2-6745-44c0-8e2c-dd2ed4199a3e",
+      "name": "Google Gemini Model 13",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        -1968,
+        2400
+      ],
+      "credentials": {
+        "googlePalmApi": {
+          "id": "CYaGbTvdLDOY2t1E",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-3.1-pro-preview",
+        "options": {}
+      },
+      "id": "6f28f954-994b-4a62-8814-5e3d48616300",
+      "name": "Google Gemini Model Synthesis",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        -1968,
+        5840
+      ],
+      "credentials": {
+        "googlePalmApi": {
+          "id": "CYaGbTvdLDOY2t1E",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=={{ $('Parse JSON Propre1').item.json.maison_12.prompt_user }}\n\n---\nCONSIGNE DE RÉDACTION\n- Rédige l'analyse astrologique complète et profonde de cette maison.\n- Respecte scrupuleusement le pronom d'adresse (tu/vous/il/elle) et les accords de genre définis dans tes instructions système. Ne commence JAMAIS par une formule de salutation. Démarre immédiatement par l'analyse.\n\nSTRUCTURE DE TA REPONSE en utilisant OBLIGATOIREMENT les balises Markdown suivantes, sans exception :\n- ## Introduction ## — contexte et énergie globale de la maison. Le mot \"Introduction\" est toujours le meme entre les 2 Markdowns et est suivi d'un court texte explicatif.\n- ## 1) Titre ##, ## 2) Titre ##... — pour chaque dynamique clé (cuspide, chaîne de disposition, locataires, aspects reçus) ; le titre doit nommer le vrai sujet en quelques mots, il est dynamique entre les 2 markdowns.\n- ### 1.1) Sous Titre ###, ### 1.2) Sous Titre ###... — pour les développements d'une dynamique ; le sous titre doit nommer le vrai sujet en quelques mots. Il est dynamique entre les 2 markdowns.\n- ## Conclusion ## — synthèse des enjeux et recommandations pratiques. Le mot \"Conclusion\" est toujours le meme entre les 2 Markdowns et est suivi d'un court texte explicatif.\nRÈGLE ABSOLUE : tout titre / introduction / conclusion commence par ## ET se termine par ##. Tout sous-titre commence par ### ET se termine par ###. N'utilise JAMAIS **gras** pour écrire un titre. \n\nN'écris JAMAIS un titre sans ses balises ouvrantes ET fermantes.\n",
+        "options": {
+          "systemMessage": "=={{ $('Parse JSON Propre1').item.json.maison_12.prompt_system }}"
+        }
+      },
+      "id": "d0d00c0b-753a-456f-9b4f-6883192fff29",
+      "name": "Maison 12",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        -1984,
+        5344
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=={{ $('Parse JSON Propre1').item.json.synthese_globale.prompt_user }}\n\n---\n\nCONSIGNE DE RÉDACTION\n- Rédige la synthèse globale et finale de ce thème astral. Relie les dynamiques de l'ensemble des maisons pour dégager les grands axes de la personnalité et de la destinée.\n- Respecte scrupuleusement le pronom d'adresse (tu/vous/il/elle) et les accords de genre définis dans tes instructions système. Ne commence JAMAIS par une formule de salutation. Démarre immédiatement par l'analyse.\n\nSTRUCTURE DE TA REPONSE en utilisant OBLIGATOIREMENT les balises Markdown suivantes, sans exception :\n- ## Introduction ## — identité fondamentale et signature du thème (secte, dominante, configurations majeures). Le mot \"Introduction\" est toujours le meme entre les 2 Markdowns et est suivi d'un court texte explicatif\n- ## 1) Titre ##, ## 2) Titre ##... — pour les grands thèmes transversaux (ex : identité et corps, vie relationnelle, vocation et mission, axe karmique, potentiels cachés...). Le titre doit nommer le vrai sujet en quelques mots, il est dynamique entre les 2 markdowns.\n- ## Conclusion ## — trajectoire de vie, conseils centraux et ouverture. Le mot \"Conclusion\" est toujours le meme entre les 2 Markdowns et est suivi d'un court texte explicatif.\nRÈGLE ABSOLUE : tout titre / introduction / conclusion commence par ## ET se termine par ##. N'utilise JAMAIS **gras** pour écrire un titre. N'écris JAMAIS un titre sans ses balises ## ouvrantes ET fermantes.",
+        "options": {
+          "systemMessage": "=={{ $('Parse JSON Propre1').item.json.synthese_globale.prompt_system }}"
+        }
+      },
+      "id": "5d999e51-eb56-4162-8fcc-7684ec70d6b8",
+      "name": "Synthèse Globale1",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        -1968,
+        5680
+      ]
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-3.1-pro-preview",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        -1984,
+        1456
+      ],
+      "id": "e8648559-6236-4ada-b6be-021da74e5fd7",
+      "name": "Google Gemini Chat Model",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "CYaGbTvdLDOY2t1E",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-3.1-pro-preview",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        -1984,
+        1760
+      ],
+      "id": "487d8ad1-8655-4fb5-9a8c-bda87e512271",
+      "name": "Google Gemini Chat Model1",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "CYaGbTvdLDOY2t1E",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "numberInputs": 6
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        -1152,
+        2896
+      ],
+      "id": "aa4298ff-f8b7-4f50-b162-456d0184c019",
+      "name": "Merge3"
+    },
+    {
+      "parameters": {
+        "numberInputs": 6
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        -1152,
+        3296
+      ],
+      "id": "b64106b1-0c56-47cd-a965-1122bf022bcf",
+      "name": "Merge5"
+    },
+    {
+      "parameters": {
+        "numberInputs": 3
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        -592,
+        3120
+      ],
+      "id": "6198609a-9b99-411b-898c-dd61be5fb73b",
+      "name": "Merge6"
+    }
+  ],
+  "connections": {
+    "Maison 1": {
+      "main": [
+        [
+          {
+            "node": "Merge3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Maison 2": {
+      "main": [
+        [
+          {
+            "node": "Merge3",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Google Gemini Model 3": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Maison 3",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Maison 3": {
+      "main": [
+        [
+          {
+            "node": "Merge3",
+            "type": "main",
+            "index": 2
+          }
+        ]
+      ]
+    },
+    "Maison 4": {
+      "main": [
+        [
+          {
+            "node": "Merge3",
+            "type": "main",
+            "index": 3
+          }
+        ]
+      ]
+    },
+    "Google Gemini Model 5_bis": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Maison 5",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Maison 5": {
+      "main": [
+        [
+          {
+            "node": "Merge3",
+            "type": "main",
+            "index": 4
+          }
+        ]
+      ]
+    },
+    "Google Gemini Model 6": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Maison 6",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Maison 6": {
+      "main": [
+        [
+          {
+            "node": "Merge3",
+            "type": "main",
+            "index": 5
+          }
+        ]
+      ]
+    },
+    "Google Gemini Model 7": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Maison 7",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Maison 7": {
+      "main": [
+        [
+          {
+            "node": "Merge5",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Model 8": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Maison 8",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Maison 8": {
+      "main": [
+        [
+          {
+            "node": "Merge5",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Google Gemini Model 9": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Maison 9",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Maison 9": {
+      "main": [
+        [
+          {
+            "node": "Merge5",
+            "type": "main",
+            "index": 2
+          }
+        ]
+      ]
+    },
+    "Google Gemini Model 10": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Maison 10",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Maison 10": {
+      "main": [
+        [
+          {
+            "node": "Merge5",
+            "type": "main",
+            "index": 3
+          }
+        ]
+      ]
+    },
+    "Google Gemini Model 11": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Maison 11",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Maison 11": {
+      "main": [
+        [
+          {
+            "node": "Merge5",
+            "type": "main",
+            "index": 4
+          }
+        ]
+      ]
+    },
+    "Google Gemini Model 12": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Maison 12",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Model 13": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Maison 4",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Model Synthesis": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Synthèse Globale1",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Maison 12": {
+      "main": [
+        [
+          {
+            "node": "Merge5",
+            "type": "main",
+            "index": 5
+          }
+        ]
+      ]
+    },
+    "Synthèse Globale1": {
+      "main": [
+        [
+          {
+            "node": "Merge6",
+            "type": "main",
+            "index": 2
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Maison 1",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model1": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Maison 2",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge3": {
+      "main": [
+        [
+          {
+            "node": "Merge6",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge5": {
+      "main": [
+        [
+          {
+            "node": "Merge6",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge6": {
+      "main": [
+        []
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "b6efd2f1fad5a0a294db5a1a7e88dd550900216aaeb7344a19bf4cfc45267781"
+  }
+}

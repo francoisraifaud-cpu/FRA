@@ -1,0 +1,25 @@
+# Secret partagé entre le site (Vercel / .env.local) et n8n (vérification X-Site-Webhook-Secret).
+# Ne pas publier ce fichier sur un dépôt public. Copier la ligne ci-dessous dans Vercel et .env.local.
+
+N8N_WEBHOOK_SECRET=m0gTWmHSVkmy823F3gMqZr0aVHqyAtvoPy4IXDIfizI
+
+# Webhooks « site » (fichiers à importer dans n8n) — paths relatifs à l’URL de base n8n :
+#   THEME/WEBHOOK Theme  → …/webhook/theme-site-order
+#   PREV/WEBHOOK PREV    → …/webhook/prev-site-order
+#   SYN/WEBHOOK SYN      → …/webhook/syn-site-order
+#   DHN/WEBHOOK DHN      → …/webhook/dhn-site-order
+# Même en-tête X-Site-Webhook-Secret que pour le Thème.
+# Régénérer PREV/SYN/DHN à partir des extracts Gmail :  node build-webhooks-site.mjs  (dossier FRA)
+
+# --- Production n8n Cloud (tedwarehouseastro) — workflows qui tournent en prod ---
+# Instance : https://tedwarehouseastro.app.n8n.cloud
+# Remplacer les variables site (Vercel / .env.local) par l’URL POST affichée sur le nœud Webhook
+# en mode Production (souvent …/webhook/prev-site-order, etc., si paths alignés sur les exports JSON).
+#
+# | Rapport      | Workflow (éditeur)                                                                 |
+# |-------------|-------------------------------------------------------------------------------------|
+# | Prévisions  | https://tedwarehouseastro.app.n8n.cloud/workflow/4mjgklWWwjCF8fze                 |
+# | Synastrie   | https://tedwarehouseastro.app.n8n.cloud/workflow/mujzhQgDu8pyTWzl                 |
+# | DHN         | https://tedwarehouseastro.app.n8n.cloud/workflow/Qp8WkBhPEvYbdb9j                |
+#
+# Si l’ordre PREV / SYN / DHN ne correspond pas à tes trois workflows, corrige ce tableau.
