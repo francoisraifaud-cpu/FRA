@@ -2,30 +2,15 @@
   "nodes": [
     {
       "parameters": {
-        "content": "## Thème — Blob + site (à lire une fois)\n\n**Deux credentials « Header Auth » différentes**, dans le **même projet n8n** que ce workflow.\n\n| Nœud | Credential | Header dans la credential | Jamais |\n|------|-------------|---------------------------|--------|\n| **THEME PUT Blob PDF** | ex. « THEME — Vercel Blob » | **Authorization** = `Bearer ` + token Blob (`vercel_blob_rw_…`) | Pas de `{{ $env.… }}` dans les headers du nœud. Garder seulement **x-api-version** = **7** en header manuel. |\n| **THEME POST site delivered** | ex. « THEME — Site webhook » | **X-Site-Webhook-Secret** = valeur **N8N_WEBHOOK_SECRET** (Vercel), sans Bearer | **Ne pas** choisir la credential Blob sur ce nœud. |\n\n**Test** : exécution depuis le **Webhook** (orderId présent) ou **Execute previous nodes** sur le POST.\n\nDétail : `FRA/THEME/N8N THEME SUCCES.config.txt` + `SITE/docs/n8n-callback-order-status.md`",
-        "height": 520,
-        "width": 520
+        "jsCode": "/**\n * Merge9 (append) → 3 items avec chacun binary.data (PDF).\n * Regroupe en 1 item : data, data1, data2 pour le nœud Gmail (3 PJ).\n * Classement par fileName (libellés des nœuds « Fix Nom & MIME PDF final* »).\n */\nfunction pickPdfBinary(item) {\n  const bin = item.binary || {};\n  for (const key of Object.keys(bin)) {\n    const b = bin[key];\n    if (!b) continue;\n    const mime = String(b.mimeType || \"\").toLowerCase();\n    const ext = String(b.fileExtension || \"\").toLowerCase();\n    if (mime.includes(\"pdf\") || ext === \"pdf\") return b;\n  }\n  const keys = Object.keys(bin);\n  if (keys.length) return bin[keys[0]];\n  return null;\n}\n\nfunction bucketForFileName(fileName) {\n  const fn = String(fileName || \"\");\n  if (fn.includes(\"Données Techniques\")) return \"donnees\";\n  if (fn.includes(\"Rapport Technique\")) return \"tech\";\n  if (fn.includes(\"Rapport Thème\") || fn.includes(\"Thème Astral\")) return \"main\";\n  return null;\n}\n\nconst items = $input.all();\nif (items.length === 0) return [];\n\nconst buckets = { main: null, tech: null, donnees: null };\nconst orphans = [];\n\nfor (const item of items) {\n  const pdf = pickPdfBinary(item);\n  if (!pdf) continue;\n  const b = bucketForFileName(pdf.fileName);\n  if (b && !buckets[b]) buckets[b] = pdf;\n  else orphans.push(pdf);\n}\n\nfor (const o of orphans) {\n  if (!buckets.main) buckets.main = o;\n  else if (!buckets.tech) buckets.tech = o;\n  else if (!buckets.donnees) buckets.donnees = o;\n}\n\nif (!buckets.main || !buckets.tech || !buckets.donnees) {\n  throw new Error(\n    \"Prépare email 3 PDF : attendu 3 PDF distincts (principal, technique, données). \" +\n      \"Reçu : \" +\n      [buckets.main, buckets.tech, buckets.donnees].filter(Boolean).length +\n      \" — vérifie Merge9 et les noms de fichiers.\",\n  );\n}\n\nlet extract = {};\ntry {\n  extract = $(\"Extract Variables\").first().json || {};\n} catch (e) {\n  /* nœud absent en test isolé */\n}\n\nconst WEBHOOK_NAMES = [\"Webhook\", \"Webhook Theme\", \"Webhook1\", \"Webhook Theme1\"];\nfunction readOrderIdFromWebhook() {\n  for (const name of WEBHOOK_NAMES) {\n    try {\n      const j = $(name).first().json;\n      const b =\n        j?.body !== undefined && j?.body !== null && typeof j.body === \"object\" && !Array.isArray(j.body)\n          ? j.body\n          : j;\n      let id = typeof b?.orderId === \"string\" ? b.orderId.trim() : \"\";\n      if (!id && typeof j?.orderId === \"string\") id = j.orderId.trim();\n      if (id) return id;\n    } catch (e) {}\n  }\n  return null;\n}\nconst EXTRACT_NAMES = [\n  \"Extract Variables\",\n  \"Extract Variables SYN\",\n  \"Extract Variables DHN\",\n  \"Extract Variables DHN1\",\n  \"Extract Variables1\",\n];\nfunction readOrderIdFromExtracts() {\n  for (const n of EXTRACT_NAMES) {\n    try {\n      const v = $(n).first()?.json?.orderId;\n      if (typeof v === \"string\" && v.trim()) return v.trim();\n    } catch (e) {}\n  }\n  return null;\n}\nfunction readOrderIdFromInputItems(items) {\n  for (const it of items) {\n    const id = it?.json?.orderId;\n    if (typeof id === \"string\" && id.trim()) return id.trim();\n  }\n  return null;\n}\n\nconst orderId =\n  readOrderIdFromInputItems(items) || readOrderIdFromWebhook() || readOrderIdFromExtracts();\nif (!orderId) {\n  throw new Error(\n    \"Prépare email 3 PDF : orderId introuvable. Vérifiez Extract Variables / Webhook (orderId).\",\n  );\n}\nconst mailClient =\n  extract.mail ||\n  items.find((i) => i.json?.mail)?.json?.mail ||\n  items[0].json?.mailClient ||\n  items[0].json?.mail ||\n  null;\n\nconst prenom = extract.prenom ?? items[0].json?.prenom ?? null;\nconst nomRaw =\n  extract.nom != null ? String(extract.nom) : items[0].json?.nom != null ? String(items[0].json.nom) : \"\";\nconst nomStr = nomRaw.trim();\n\nfunction isEnglishLang(raw) {\n  const s = String(raw ?? \"\")\n    .trim()\n    .toLowerCase()\n    .normalize(\"NFD\")\n    .replace(/\\p{M}/gu, \"\");\n  if (!s) return false;\n  if (s === \"en\" || s === \"english\" || s === \"anglais\") return true;\n  if (s.includes(\"english\") || s.includes(\"anglais\")) return true;\n  return false;\n}\n\nconst en = isEnglishLang(extract.langue);\nconst prenomStr = prenom != null ? String(prenom).trim() : \"\";\n\nconst namePart =\n  [prenomStr, nomStr].filter(Boolean).join(\" \") || \"Client\";\nconst emailSubject = en\n  ? `🌟 Natal chart — ${namePart}`\n  : `🌟 Thème Astral — ${namePart}`;\n\nconst greetHtml = en\n  ? prenomStr\n    ? `<p>Hello,</p>`\n    : \"<p>Hello,</p>\"\n  : prenomStr\n    ? `<p>Bonjour,</p>`\n    : \"<p>Bonjour,</p>\";\n\nconst emailHtml = en\n  ? `${greetHtml}<p>Your three natal chart documents are attached (PDF).</p><p>Clear skies! 🌟</p>`\n  : `${greetHtml}<p>Vos trois documents thème astral sont en pièces jointes (PDF).</p><p>Bonnes étoiles ! 🌟</p>`;\n\nreturn [\n  {\n    json: {\n      orderId,\n      mailClient: mailClient || \"votre.adresse.test@gmail.com\",\n      prenom,\n      nom: nomStr || null,\n      emailSubject,\n      emailHtml,\n    },\n    binary: {\n      data: buckets.main,\n      data1: buckets.tech,\n      data2: buckets.donnees,\n    },\n  },\n];\n"
       },
-      "id": "f4c8b2a1-0e9d-4c7b-8f6e-5d4c3b2a1098",
-      "name": "Lisez-moi — 2 credentials Thème",
-      "type": "n8n-nodes-base.stickyNote",
-      "typeVersion": 1,
-      "position": [
-        -2240,
-        6080
-      ]
-    },
-    {
-      "parameters": {
-        "jsCode": "/**\n * Merge9 (append) → 3 items avec chacun binary.data (PDF).\n * Regroupe en 1 item : data, data1, data2 pour le nœud Gmail (3 PJ).\n * Classement par fileName (libellés des nœuds « Fix Nom & MIME PDF final* »).\n */\nfunction pickPdfBinary(item) {\n  const bin = item.binary || {};\n  for (const key of Object.keys(bin)) {\n    const b = bin[key];\n    if (!b) continue;\n    const mime = String(b.mimeType || \"\").toLowerCase();\n    const ext = String(b.fileExtension || \"\").toLowerCase();\n    if (mime.includes(\"pdf\") || ext === \"pdf\") return b;\n  }\n  const keys = Object.keys(bin);\n  if (keys.length) return bin[keys[0]];\n  return null;\n}\n\nfunction bucketForFileName(fileName) {\n  const fn = String(fileName || \"\");\n  if (fn.includes(\"Données Techniques\")) return \"donnees\";\n  if (fn.includes(\"Rapport Technique\")) return \"tech\";\n  if (fn.includes(\"Rapport Thème\") || fn.includes(\"Thème Astral\")) return \"main\";\n  return null;\n}\n\nconst items = $input.all();\nif (items.length === 0) return [];\n\nconst buckets = { main: null, tech: null, donnees: null };\nconst orphans = [];\n\nfor (const item of items) {\n  const pdf = pickPdfBinary(item);\n  if (!pdf) continue;\n  const b = bucketForFileName(pdf.fileName);\n  if (b && !buckets[b]) buckets[b] = pdf;\n  else orphans.push(pdf);\n}\n\nfor (const o of orphans) {\n  if (!buckets.main) buckets.main = o;\n  else if (!buckets.tech) buckets.tech = o;\n  else if (!buckets.donnees) buckets.donnees = o;\n}\n\nif (!buckets.main || !buckets.tech || !buckets.donnees) {\n  throw new Error(\n    \"Prépare email 3 PDF : attendu 3 PDF distincts (principal, technique, données). \" +\n      \"Reçu : \" +\n      [buckets.main, buckets.tech, buckets.donnees].filter(Boolean).length +\n      \" — vérifie Merge9 et les noms de fichiers.\",\n  );\n}\n\nlet extract = {};\ntry {\n  extract = $(\"Extract Variables\").first().json || {};\n} catch (e) {\n  /* nœud absent en test isolé */\n}\n\nconst mailClient =\n  extract.mail ||\n  items.find((i) => i.json?.mail)?.json?.mail ||\n  items[0].json?.mailClient ||\n  items[0].json?.mail ||\n  null;\n\nconst prenom = extract.prenom ?? items[0].json?.prenom ?? null;\nconst nomRaw =\n  extract.nom != null ? String(extract.nom) : items[0].json?.nom != null ? String(items[0].json.nom) : \"\";\nconst nomStr = nomRaw.trim();\n\nfunction isEnglishLang(raw) {\n  const s = String(raw ?? \"\")\n    .trim()\n    .toLowerCase()\n    .normalize(\"NFD\")\n    .replace(/\\p{M}/gu, \"\");\n  if (!s) return false;\n  if (s === \"en\" || s === \"english\" || s === \"anglais\") return true;\n  if (s.includes(\"english\") || s.includes(\"anglais\")) return true;\n  return false;\n}\n\nconst en = isEnglishLang(extract.langue);\nconst prenomStr = prenom != null ? String(prenom).trim() : \"\";\n\nconst namePart =\n  [prenomStr, nomStr].filter(Boolean).join(\" \") || \"Client\";\nconst emailSubject = en\n  ? `🌟 Natal chart — ${namePart}`\n  : `🌟 Thème Astral — ${namePart}`;\n\nconst greetHtml = en\n  ? prenomStr\n    ? `<p>Hello,</p>`\n    : \"<p>Hello,</p>\"\n  : prenomStr\n    ? `<p>Bonjour,</p>`\n    : \"<p>Bonjour,</p>\";\n\nconst emailHtml = en\n  ? `${greetHtml}<p>Your three natal chart documents are attached (PDF).</p><p>Clear skies! 🌟</p>`\n  : `${greetHtml}<p>Vos trois documents thème astral sont en pièces jointes (PDF).</p><p>Bonnes étoiles ! 🌟</p>`;\n\nreturn [\n  {\n    json: {\n      mailClient: mailClient || \"votre.adresse.test@gmail.com\",\n      prenom,\n      nom: nomStr || null,\n      emailSubject,\n      emailHtml,\n    },\n    binary: {\n      data: buckets.main,\n      data1: buckets.tech,\n      data2: buckets.donnees,\n    },\n  },\n];\n"
-      },
-      "id": "d0ee62f7-aaf8-476e-bdd2-48d7999c5db7",
+      "id": "6a838e35-ae82-4b5b-8f1b-ec3abf4c3dc7",
       "name": "Prépare email 3 PDF",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -1184,
-        6400
+        -608,
+        6848
       ]
     },
     {
@@ -44,13 +29,13 @@
           "bccList": ""
         }
       },
-      "id": "0f15716e-a98e-44ab-ac09-d97ba22fbeda",
+      "id": "a0692cb2-610f-467b-ace1-760cbb901d59",
       "name": "Envoi Email avec PDF1",
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2.1,
       "position": [
-        -944,
-        6400
+        -368,
+        6848
       ],
       "webhookId": "b7e803e5-3628-47d1-a692-84db339ebbce",
       "credentials": {
@@ -62,15 +47,15 @@
     },
     {
       "parameters": {
-        "jsCode": "/**\n * Même regroupement que « Prépare email 3 PDF ».\n * Émet 3 items pour upload Blob + callback site (documentTier aligné site : report-sample-taxonomy).\n * Ordre : narrative_final → narrative_tech → data_technical (le 1er POST renseigne delivery_pdf_url).\n */\nfunction pickPdfBinary(item) {\n  const bin = item.binary || {};\n  for (const key of Object.keys(bin)) {\n    const b = bin[key];\n    if (!b) continue;\n    const mime = String(b.mimeType || \"\").toLowerCase();\n    const ext = String(b.fileExtension || \"\").toLowerCase();\n    if (mime.includes(\"pdf\") || ext === \"pdf\") return b;\n  }\n  const keys = Object.keys(bin);\n  if (keys.length) return bin[keys[0]];\n  return null;\n}\nfunction bucketForFileName(fileName) {\n  const fn = String(fileName || \"\");\n  if (fn.includes(\"Données Techniques\")) return \"donnees\";\n  if (fn.includes(\"Rapport Technique\")) return \"tech\";\n  if (fn.includes(\"Rapport Thème\") || fn.includes(\"Thème Astral\")) return \"main\";\n  return null;\n}\nfunction readOrderIdFromInputItems(items) {\n  for (const it of items) {\n    const id = it?.json?.orderId;\n    if (typeof id === \"string\" && id.trim()) return id.trim();\n  }\n  return null;\n}\nconst WEBHOOK_NAMES = [\"Webhook\", \"Webhook Theme\", \"Webhook1\", \"Webhook Theme1\"];\nfunction readOrderIdFromWebhook() {\n  for (const name of WEBHOOK_NAMES) {\n    try {\n      const j = $(name).first().json;\n      const b =\n        j?.body !== undefined && j?.body !== null && typeof j.body === \"object\" && !Array.isArray(j.body)\n          ? j.body\n          : j;\n      let id = typeof b?.orderId === \"string\" ? b.orderId.trim() : \"\";\n      if (!id && typeof j?.orderId === \"string\") id = j.orderId.trim();\n      if (id) return id;\n    } catch (e) {}\n  }\n  return null;\n}\nconst EXTRACT_NAMES = [\n  \"Extract Variables\",\n  \"Extract Variables SYN\",\n  \"Extract Variables DHN\",\n  \"Extract Variables DHN1\",\n  \"Extract Variables1\",\n];\nfunction readOrderIdFromExtracts() {\n  for (const n of EXTRACT_NAMES) {\n    try {\n      const v = $(n).first()?.json?.orderId;\n      if (typeof v === \"string\" && v.trim()) return v.trim();\n    } catch (e) {}\n  }\n  return null;\n}\nconst items = $input.all();\nif (items.length === 0) return [];\nconst buckets = { main: null, tech: null, donnees: null };\nconst orphans = [];\nfor (const item of items) {\n  const pdf = pickPdfBinary(item);\n  if (!pdf) continue;\n  const b = bucketForFileName(pdf.fileName);\n  if (b && !buckets[b]) buckets[b] = pdf;\n  else orphans.push(pdf);\n}\nfor (const o of orphans) {\n  if (!buckets.main) buckets.main = o;\n  else if (!buckets.tech) buckets.tech = o;\n  else if (!buckets.donnees) buckets.donnees = o;\n}\nif (!buckets.main || !buckets.tech || !buckets.donnees) {\n  throw new Error(\n    \"THEME SITE 3 PDF tiers : 3 PDF requis. Reçu : \" +\n      [buckets.main, buckets.tech, buckets.donnees].filter(Boolean).length,\n  );\n}\nconst orderId =\n  readOrderIdFromInputItems(items) || readOrderIdFromWebhook() || readOrderIdFromExtracts();\nif (!orderId) {\n  throw new Error(\n    \"THEME SITE 3 PDF tiers : orderId introuvable. Relancer depuis le Webhook (exécution complète), ou coller le code WEBHOOK Theme v5 dans Extract Variables (champ orderId), ou propager orderId sur les items avant Merge.\",\n  );\n}\nconst execId =\n  typeof $execution !== \"undefined\" && $execution && $execution.id !== undefined && $execution.id !== null\n    ? String($execution.id)\n    : \"\";\nconst seq = [\n  { documentTier: \"narrative_final\", bin: buckets.main },\n  { documentTier: \"narrative_tech\", bin: buckets.tech },\n  { documentTier: \"data_technical\", bin: buckets.donnees },\n];\nreturn seq.map((s) => ({\n  json: {\n    orderId,\n    documentTier: s.documentTier,\n    n8nExecutionId: execId,\n  },\n  binary: { data: s.bin },\n}));\n"
+        "jsCode": "/**\n * Même regroupement que « Prépare email 3 PDF ».\n * Émet 3 items pour upload Blob + callback site (documentTier aligné site : report-sample-taxonomy).\n * Ordre : narrative_final → narrative_tech → data_technical (le 1er POST renseigne delivery_pdf_url).\n */\nfunction pickPdfBinary(item) {\n  const bin = item.binary || {};\n  for (const key of Object.keys(bin)) {\n    const b = bin[key];\n    if (!b) continue;\n    const mime = String(b.mimeType || \"\").toLowerCase();\n    const ext = String(b.fileExtension || \"\").toLowerCase();\n    if (mime.includes(\"pdf\") || ext === \"pdf\") return b;\n  }\n  const keys = Object.keys(bin);\n  if (keys.length) return bin[keys[0]];\n  return null;\n}\nfunction bucketForFileName(fileName) {\n  const fn = String(fileName || \"\");\n  if (fn.includes(\"Données Techniques\")) return \"donnees\";\n  if (fn.includes(\"Rapport Technique\")) return \"tech\";\n  if (fn.includes(\"Rapport Thème\") || fn.includes(\"Thème Astral\")) return \"main\";\n  return null;\n}\nfunction readOrderIdFromInputItems(items) {\n  for (const it of items) {\n    const id = it?.json?.orderId;\n    if (typeof id === \"string\" && id.trim()) return id.trim();\n  }\n  return null;\n}\nconst WEBHOOK_NAMES = [\"Webhook\", \"Webhook Theme\", \"Webhook1\", \"Webhook Theme1\"];\nfunction readOrderIdFromWebhook() {\n  for (const name of WEBHOOK_NAMES) {\n    try {\n      const j = $(name).first().json;\n      const b =\n        j?.body !== undefined && j?.body !== null && typeof j.body === \"object\" && !Array.isArray(j.body)\n          ? j.body\n          : j;\n      let id = typeof b?.orderId === \"string\" ? b.orderId.trim() : \"\";\n      if (!id && typeof j?.orderId === \"string\") id = j.orderId.trim();\n      if (id) return id;\n    } catch (e) {}\n  }\n  return null;\n}\nconst EXTRACT_NAMES = [\n  \"Extract Variables\",\n  \"Extract Variables SYN\",\n  \"Extract Variables DHN\",\n  \"Extract Variables DHN1\",\n  \"Extract Variables1\",\n];\nfunction readOrderIdFromExtracts() {\n  for (const n of EXTRACT_NAMES) {\n    try {\n      const v = $(n).first()?.json?.orderId;\n      if (typeof v === \"string\" && v.trim()) return v.trim();\n    } catch (e) {}\n  }\n  return null;\n}\nconst items = (() => {\n  try {\n    const g = $(\"Envoi Email avec PDF1\").all();\n    if (g && g.length) return g;\n  } catch (e) {}\n  return $input.all();\n})();\nif (items.length === 0) return [];\nconst buckets = { main: null, tech: null, donnees: null };\nconst orphans = [];\nfor (const item of items) {\n  const pdf = pickPdfBinary(item);\n  if (!pdf) continue;\n  const b = bucketForFileName(pdf.fileName);\n  if (b && !buckets[b]) buckets[b] = pdf;\n  else orphans.push(pdf);\n}\nfor (const o of orphans) {\n  if (!buckets.main) buckets.main = o;\n  else if (!buckets.tech) buckets.tech = o;\n  else if (!buckets.donnees) buckets.donnees = o;\n}\nif (!buckets.main || !buckets.tech || !buckets.donnees) {\n  throw new Error(\n    \"THEME SITE 3 PDF tiers : 3 PDF requis. Reçu : \" +\n      [buckets.main, buckets.tech, buckets.donnees].filter(Boolean).length,\n  );\n}\nconst orderId =\n  readOrderIdFromInputItems(items) || readOrderIdFromWebhook() || readOrderIdFromExtracts();\nif (!orderId) {\n  throw new Error(\n    \"THEME SITE 3 PDF tiers : orderId introuvable. Relancer depuis le Webhook (exécution complète), ou coller le code WEBHOOK Theme v5 dans Extract Variables (champ orderId), ou propager orderId sur les items avant Merge.\",\n  );\n}\nconst execId =\n  typeof $execution !== \"undefined\" && $execution && $execution.id !== undefined && $execution.id !== null\n    ? String($execution.id)\n    : \"\";\nconst seq = [\n  { documentTier: \"narrative_final\", bin: buckets.main },\n  { documentTier: \"narrative_tech\", bin: buckets.tech },\n  { documentTier: \"data_technical\", bin: buckets.donnees },\n];\nreturn seq.map((s) => ({\n  json: {\n    orderId,\n    documentTier: s.documentTier,\n    n8nExecutionId: execId,\n  },\n  binary: { data: s.bin },\n}));\n"
       },
-      "id": "be16f65a-e9e8-4636-a49c-65d697ecda56",
+      "id": "4c27c29b-8495-46b8-a9bc-25ac050b227c",
       "name": "THEME SITE 3 PDF tiers",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -1184,
-        6176
+        80,
+        6464
       ]
     },
     {
@@ -95,31 +80,27 @@
           "response": {}
         }
       },
-      "id": "dc6cf7fe-6b96-470d-ae34-01df35c614be",
+      "id": "ce75377c-651d-4a13-9004-f7f1c6c8bbce",
       "name": "THEME PUT Blob PDF",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        -944,
-        6176
+        320,
+        6464
       ],
-      "credentials": {
-        "httpHeaderAuth": {
-          "name": "THEME — Vercel Blob (Authorization Bearer)"
-        }
-      }
+      "retryOnFail": true
     },
     {
       "parameters": {
         "jsCode": "const blobs = $input.all();\nconst metas = $('THEME SITE 3 PDF tiers').all();\nif (blobs.length !== metas.length) {\n  throw new Error(\n    'THEME merge Blob URL : réponses Blob (' +\n      blobs.length +\n      ') != items source (' +\n      metas.length +\n      ')',\n  );\n}\nreturn blobs.map((b, i) => {\n  const u = typeof b.json?.url === 'string' ? b.json.url.trim() : '';\n  const alt =\n    typeof b.json?.downloadUrl === 'string' ? b.json.downloadUrl.trim() : '';\n  const pdfUrl = u || alt;\n  if (!pdfUrl) {\n    throw new Error(\n      'THEME merge Blob URL : pas d\\'URL HTTPS dans la réponse Vercel (index ' +\n        i +\n        ') : ' +\n        JSON.stringify(b.json),\n    );\n  }\n  return {\n    json: {\n      orderId: metas[i].json.orderId,\n      documentTier: metas[i].json.documentTier,\n      n8nExecutionId: metas[i].json.n8nExecutionId,\n      pdfUrl,\n    },\n  };\n});\n"
       },
-      "id": "807a1415-5c5f-4e3a-ba75-08a9b8542da2",
+      "id": "9b99fac8-0ff0-4bcc-818f-d28d565a1059",
       "name": "THEME merge Blob URL + meta",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -704,
-        6176
+        560,
+        6464
       ]
     },
     {
@@ -128,26 +109,21 @@
         "url": "https://site-rapports-astro.vercel.app/api/webhooks/n8n-order-status",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
-        "sendHeaders": false,
         "sendBody": true,
         "contentType": "raw",
         "rawContentType": "application/json",
-        "body": "={{ JSON.stringify({ orderId: $json.orderId, status: 'delivered', pdfUrl: $json.pdfUrl, documentTier: $json.documentTier, n8nExecutionId: $json.n8nExecutionId }) }}",
+        "body": "={{ JSON.stringify({ orderId: $json.orderId, status: $json.documentTier === 'data_technical' ? 'delivered' : 'delivered_site', pdfUrl: $json.pdfUrl, documentTier: $json.documentTier, n8nExecutionId: $json.n8nExecutionId }) }}",
         "options": {}
       },
-      "id": "3500e447-6f0d-4d0e-b668-71b228ea69ae",
-      "name": "THEME POST site delivered",
+      "id": "e2c1729d-99df-40eb-b3a9-78f85467c22d",
+      "name": "THEME POST site status",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        -464,
-        6176
+        800,
+        6464
       ],
-      "credentials": {
-        "httpHeaderAuth": {
-          "name": "THEME — Site webhook (X-Site-Webhook-Secret)"
-        }
-      }
+      "retryOnFail": true
     },
     {
       "parameters": {
@@ -156,11 +132,33 @@
       "type": "n8n-nodes-base.merge",
       "typeVersion": 3.2,
       "position": [
-        -1408,
-        6384
+        -848,
+        6672
       ],
-      "id": "359c91e3-e76c-4e13-b95b-aa1e4337626b",
+      "id": "79a84e48-a2b6-454b-81ab-91978ea67964",
       "name": "Merge9"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://site-rapports-astro.vercel.app/api/webhooks/n8n-order-status",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify({ orderId: $json.orderId || $('Prépare email 3 PDF').first().json.orderId, status: 'delivered_email', n8nExecutionId: typeof $execution !== 'undefined' && $execution && $execution.id != null ? String($execution.id) : '' }) }}",
+        "options": {}
+      },
+      "id": "cfb3febb-866e-40f4-bb78-cfc4f2001e1f",
+      "name": "THEME POST delivered_email",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -160,
+        6640
+      ],
+      "retryOnFail": true
     }
   ],
   "connections": {
@@ -169,6 +167,17 @@
         [
           {
             "node": "Envoi Email avec PDF1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Envoi Email avec PDF1": {
+      "main": [
+        [
+          {
+            "node": "THEME POST delivered_email",
             "type": "main",
             "index": 0
           }
@@ -201,7 +210,7 @@
       "main": [
         [
           {
-            "node": "THEME POST site delivered",
+            "node": "THEME POST site status",
             "type": "main",
             "index": 0
           }
@@ -215,7 +224,13 @@
             "node": "Prépare email 3 PDF",
             "type": "main",
             "index": 0
-          },
+          }
+        ]
+      ]
+    },
+    "THEME POST delivered_email": {
+      "main": [
+        [
           {
             "node": "THEME SITE 3 PDF tiers",
             "type": "main",
