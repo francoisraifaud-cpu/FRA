@@ -329,6 +329,24 @@ const generateWheelSVG = (planetes, maisons) => {
 // ─────────────────────────────────────────────────────────────────
 // CONSTRUCTION DU DOCUMENT HTML
 // ─────────────────────────────────────────────────────────────────
+/** Sommaire : liens #theme-* uniquement pour les sections réellement rendues (évite liens morts). */
+const tocRows = [];
+const pushToc = (id, fr, en) => { tocRows.push({ id, fr, en }); };
+const renderThemeToc = () => {
+    if (!tocRows.length) return "";
+    const aria = isEN ? "Table of contents" : "Sommaire";
+    const title = isEN ? "Contents" : "Sommaire";
+    const tocLink = (id, lab) => {
+        const l = isEN ? lab.en : lab.fr;
+        return `<li style="margin:5px 0"><a href="#${id}" style="font-family:'Playfair Display',Georgia,serif;font-size:0.95em;font-weight:600;color:#1F3864;text-decoration:none;border-bottom:1px solid #cbd5e1">${escH(l)}</a></li>`;
+    };
+    const items = tocRows.map(r => tocLink(r.id, { fr: r.fr, en: r.en })).join("");
+    return `<nav class="theme-toc" id="theme-sommaire-nav" aria-label="${escH(aria)}" style="background:#ffffff;border:1px solid #e2e8f0;border-radius:10px;padding:18px 22px 20px;margin:0 0 22px">
+<h2 style="font-family:'Playfair Display',Georgia,serif;font-size:1.2em;color:#1F3864;margin:0 0 14px;text-align:center;font-weight:700">${escH(title)}</h2>
+<ul style="list-style:none;padding:0;margin:0">${items}</ul>
+</nav><div class="theme-toc-pagebreak" style="page-break-after:always;break-after:page;height:0;margin:0;padding:0;overflow:hidden" aria-hidden="true"></div>`;
+};
+
 let html = `<!DOCTYPE html>
 <html lang="${isEN ? 'en' : 'fr'}">
 <head>
@@ -420,6 +438,8 @@ let html = `<!DOCTYPE html>
         .force-page-break-legend { page-break-before: always; break-before: page; margin-top: 0; padding-top: 10px; }
         .legend-grid { margin-top: 0; padding-top: 10px; border: none; }
         .page-break { page-break-before: always; break-before: page; margin-top: 0 !important; padding-top: 0 !important; }
+        .theme-toc { page-break-after: avoid; break-after: avoid; }
+        .theme-toc-pagebreak { page-break-after: always !important; break-after: page !important; }
         .sign-group { page-break-inside: avoid; break-inside: avoid; }
         .subsection-title { font-size: 14px !important; padding: 6px 12px !important; margin: 0 0 8px !important; }
         table { page-break-inside: auto; }
@@ -429,16 +449,17 @@ let html = `<!DOCTYPE html>
 </head>
 <body>
 <div class="container">
-
-<div class="main-header">
+<div id="theme-intro" class="main-header">
     <h1>${headerTitle}</h1>
     <p class="subtitle">${escH(_lumHeaderDT)}</p>
     <p class="details">${infosNaissance}</p>
-</div>`;
+</div>
+__THEME_TOC_PLACEHOLDER__`;
 
 // ── Bannière éclipse natale ──
 if (eclipseNatal) {
-    html += `<div class="eclipse-banner">
+    pushToc("theme-eclipse", "Éclipse à la naissance", "Eclipse at birth");
+    html += `<div id="theme-eclipse" class="eclipse-banner">
         <div class="eclipse-banner-title">⚡ ${isEN ? 'Eclipse at Birth' : 'Éclipse à la Naissance'}</div>
         <div>${isEN ? 'Eclipse' : 'Éclipse'} <strong>${eclipseNatal.type}</strong> ${isEN ? 'of' : 'de'} <strong>${eclipseNatal.astre || '?'}</strong>
         ${isEN ? 'in' : 'en'} <strong>${eclipseNatal.sign}</strong> — ${isEN ? 'House' : 'Maison'} <strong>${eclipseNatal.house}</strong>
@@ -453,7 +474,8 @@ if (eclipseNatal) {
 
 // ── Bannière OOB (si planètes hors limites) ──
 if (planeteOOB.length > 0) {
-    html += `<div class="oob-banner">
+    pushToc("theme-oob", "Planètes et objets hors limites", "Out-of-bounds planets and objects");
+    html += `<div id="theme-oob" class="oob-banner">
         <div class="oob-banner-title">⚡ ${isEN ? 'Out of Bounds Planets / Objects' : 'Planètes / Objets Hors Limites (Out of Bounds)'}</div>
         <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px;">
         ${planeteOOB.map(o => `
@@ -474,7 +496,8 @@ if (planeteOOB.length > 0) {
 const hemis = stats.hemispheres || {};
 const domStr = stats.planete_dominante ? `<strong>${stats.planete_dominante}</strong>` : '—';
 const almuStr = stats.almutem_figuris  ? `Almutem : <strong>${stats.almutem_figuris}</strong>` : '';
-html += `<div class="stats-box" style="page-break-before:always;break-before:page">
+pushToc("theme-hemispheres", "Thème et hémisphères", "Chart and hemispheres");
+html += `<div id="theme-hemispheres" class="stats-box" style="page-break-before:always;break-before:page">
     <div class="stat-card">
         <div class="stat-card-header">☀️ ${isEN ? 'Chart & Hemispheres' : 'Thème et Hémisphères'}</div>
         <div class="stat-card-body stat-card-body-column">
@@ -498,7 +521,8 @@ const _elLabels = isEN ? { Feu:"Fire", Terre:"Earth", Air:"Air", Eau:"Water" } :
 const _elemArr = ["Feu","Terre","Air","Eau"];
 const _domEl = _elemArr.reduce((best, el) => (_elems[el]||0) > (_elems[best]||0) ? el : best, _elemArr[0]);
 
-html += `<h2 class="section-title">${isEN ? 'Elements & Modalities' : 'Éléments et Modes'}</h2>`;
+pushToc("theme-elements", "Éléments et modes", "Elements and modalities");
+html += `<h2 id="theme-elements" class="section-title">${isEN ? 'Elements & Modalities' : 'Éléments et Modes'}</h2>`;
 
 html += `<div class="grid-compat-theme">`;
 for (const el of _elemArr) {
@@ -574,7 +598,8 @@ html += `<div class="stats-box" style="margin-top:18px">
 const chartShapeR = input.chartShape || {};
 const interceptedSignsR = input.interceptedSigns || [];
 if (chartShapeR.shape || interceptedSignsR.length > 0) {
-    html += `<div style="margin:18px 0;page-break-before:always;break-before:page">`;
+    pushToc("theme-shape", "Forme du thème et signes interceptés", "Chart shape and intercepted signs");
+    html += `<div id="theme-shape" style="margin:18px 0;page-break-before:always;break-before:page">`;
     if (chartShapeR.shape) {
         html += `<div class="stat-card" style="margin-bottom:14px;min-width:100%">
             <div class="stat-card-header">${isEN ? 'Chart Shape' : 'Forme du Thème'} : ${chartShapeR.shape}</div>
@@ -605,7 +630,8 @@ if (chartShapeR.shape || interceptedSignsR.length > 0) {
 }
 
 // ── Aspects légende ──
-html += `<h2 class="section-title page-break">${isEN ? 'Aspects' : 'Aspects'}</h2>
+pushToc("theme-aspects-wheel", "Aspects — légende et roue natale", "Aspects — legend and natal wheel");
+html += `<h2 id="theme-aspects-wheel" class="section-title page-break">${isEN ? 'Aspects' : 'Aspects'}</h2>
 <div class="aspects-bar">
     <span style="display:flex;align-items:center;gap:6px;"><svg width="22" height="10"><line x1="0" y1="5" x2="22" y2="5" stroke="#9900dd" stroke-width="3"/></svg><span style="color:#9900dd;font-weight:bold">${isEN ? 'Conjunction' : 'Conjonction'}</span></span>
     <span style="display:flex;align-items:center;gap:6px;"><svg width="22" height="10"><line x1="0" y1="5" x2="22" y2="5" stroke="#cc0000" stroke-width="2.5"/></svg><span style="color:#cc0000;font-weight:bold">Opposition</span></span>
@@ -625,7 +651,8 @@ html += `<div class="wheel-container" style="margin-top:10px">
 </div>`;
 
 // ── Légende (page 3) ──
-html += `<div class="force-page-break-legend">
+pushToc("theme-legends", "Légendes (planètes, signes, maisons)", "Legends (planets, signs, houses)");
+html += `<div id="theme-legends" class="force-page-break-legend">
     <div class="legend-grid">
         <div><div class="legend-title">${isEN ? 'Planets and Objects' : 'Planètes et Objets'}</div>
             <div class="legend-item"><span class="legend-glyph" style="color:#1F3864;">☉</span> Soleil</div>
@@ -695,7 +722,8 @@ const dMap = {
     "Pluton": { dom:["Scorpion"], exa:["Lion"], exi:["Taureau"], chu:["Verseau"] }
 };
 
-html += `<h2 class="section-title page-break">${isEN ? 'Planets and Sensitive Points' : 'Planètes et Points Sensibles'}</h2>`;
+pushToc("theme-planets", "Planètes et points sensibles", "Planets and sensitive points");
+html += `<h2 id="theme-planets" class="section-title page-break">${isEN ? 'Planets and Sensitive Points' : 'Planètes et Points Sensibles'}</h2>`;
 
 const signesOrder = [
     { name:"Bélier",glyph:"♈" },{ name:"Taureau",glyph:"♉" },{ name:"Gémeaux",glyph:"♊" },{ name:"Cancer",glyph:"♋" },
@@ -827,7 +855,8 @@ const HOUSE_DESC_THEME_EN = {
 };
 const HOUSE_DESC_THEME = isEN ? HOUSE_DESC_THEME_EN : HOUSE_DESC_THEME_FR;
 
-html += `<h2 class="section-title page-break">${isEN ? 'Multi-Sign Analysis (Rulership Cascade)' : 'Analyse Multi-Signes (Cascade des Maîtrises)'}</h2>
+pushToc("theme-multisign", "Analyse multi-signes (cascade des maîtrises)", "Multi-sign analysis (rulership cascade)");
+html += `<h2 id="theme-multisign" class="section-title page-break">${isEN ? 'Multi-Sign Analysis (Rulership Cascade)' : 'Analyse Multi-Signes (Cascade des Maîtrises)'}</h2>
 <table><tr><th>${isEN ? 'House' : 'Maison'}</th><th>${isEN ? 'Segment' : 'Segment'}</th><th>${isEN ? 'Start Degree' : 'Degré Début'}</th><th>${isEN ? 'Ruler' : 'Maître'}</th><th>${isEN ? 'Tenants' : 'Locataires'}</th></tr>`;
 
 input.maisons.forEach(m => {
@@ -876,7 +905,8 @@ html += `</table>`;
 
 // ── Configurations natales (si présentes) ──
 if (configurations.length > 0) {
-    html += `<h2 class="section-title page-break">${isEN ? 'Natal Configurations' : 'Configurations Natales'}</h2>`;
+    pushToc("theme-configs", "Configurations natales", "Natal configurations");
+    html += `<h2 id="theme-configs" class="section-title page-break">${isEN ? 'Natal Configurations' : 'Configurations Natales'}</h2>`;
     html += `<p style="color:#1F3864;font-style:italic;margin:0 0 15px;padding:10px 16px;background:#eef2fb;border-radius:8px;border-left:4px solid #2E5FA3;font-size:0.92em;">
         ${isEN ? 'Figures sorted by <strong>descending Power Score</strong>. Legend:' : 'Figures triées par <strong>Score de Puissance décroissant</strong>. Légende :'}
         <span class="score-badge score-absolu">${isEN ? 'ABSOLUTE PRIORITY' : 'PRIORITÉ ABSOLUE'} ≥120</span>
@@ -943,7 +973,8 @@ if (configurations.length > 0) {
 
 // ── Réceptions mutuelles (si présentes) ──
 if (mutualReceptions.length > 0) {
-    html += `<h2 class="section-title page-break">${isEN ? 'Mutual Receptions' : 'Réceptions Mutuelles'}</h2>
+    pushToc("theme-receptions", "Réceptions mutuelles", "Mutual receptions");
+    html += `<h2 id="theme-receptions" class="section-title page-break">${isEN ? 'Mutual Receptions' : 'Réceptions Mutuelles'}</h2>
     <table><tr><th>${isEN ? 'Planet A' : 'Planète A'}</th><th>${isEN ? 'Sign A' : 'Signe A'}</th><th>${isEN ? 'House A' : 'Maison A'}</th><th>${isEN ? 'Planet B' : 'Planète B'}</th><th>${isEN ? 'Sign B' : 'Signe B'}</th><th>${isEN ? 'House B' : 'Maison B'}</th><th>Type</th></tr>`;
     mutualReceptions.forEach(mr => {
         const typeLabel = mr.type === "exaltation"
@@ -961,7 +992,8 @@ const aspectColors = { "Carré":"#ee4400","Trigone":"#1155cc","Opposition":"#cc0
 // Ne garder que les aspects majeurs pour ce tableau
 const majorAspects = (input.aspects || []).filter(a => a.isMajor !== false && aspectColors[a.aspect]);
 
-html += `<h2 class="section-title page-break">${isEN ? 'Major Aspects' : 'Aspects Majeurs'}</h2>
+pushToc("theme-aspects-major", "Aspects majeurs", "Major aspects");
+html += `<h2 id="theme-aspects-major" class="section-title page-break">${isEN ? 'Major Aspects' : 'Aspects Majeurs'}</h2>
 <p style="color:#1F3864;font-style:italic;margin:0 0 12px;padding:8px 14px;background:#eef2fb;border-radius:6px;border-left:4px solid #2E5FA3;font-size:0.9em;">
     ${isEN
       ? 'Sorted by <strong>descending Weight</strong>. Formula: Base (type) + Exactitude + Luminary (+8) + Angle (+6) + Fixed Star (+5) + OOB (+4).'
@@ -1048,7 +1080,8 @@ if (promotedMinorAspects.length > 0) {
 // ── Aspects mineurs (section compacte, si présents) ──
 const minorAspects = (input.aspects || []).filter(a => a.isMajor === false);
 if (minorAspects.length > 0) {
-    html += `<h2 class="section-title page-break">${isEN ? 'Minor Aspects' : 'Aspects Mineurs'}</h2>
+    pushToc("theme-aspects-minor", "Aspects mineurs", "Minor aspects");
+    html += `<h2 id="theme-aspects-minor" class="section-title page-break">${isEN ? 'Minor Aspects' : 'Aspects Mineurs'}</h2>
     <table><tr><th>${isEN ? 'Planet 1' : 'Planète 1'}</th><th>${isEN ? 'Aspect' : 'Aspect'}</th><th>${isEN ? 'Nature' : 'Nature'}</th><th>${isEN ? 'Planet 2' : 'Planète 2'}</th><th style="text-align:center">${isEN ? 'Orb' : 'Orbe'}</th><th style="text-align:center">${isEN ? 'Weight' : 'Poids'}</th></tr>`;
     minorAspects.forEach(a => {
         const c      = minorAspectColors[a.aspect] || "#64748b";
@@ -1081,7 +1114,8 @@ if (minorAspects.length > 0) {
     const hasDecl = declPlanetes.length > 0 || planeteOOB.length > 0 || paralleles.length > 0 || contreParalleles.length > 0;
 
     if (hasDecl) {
-        html += `<h2 class="section-title page-break">${isEN ? 'Equatorial Declinations' : 'Déclinaisons Équatoriales'}</h2>`;
+        pushToc("theme-declinations", "Déclinaisons équatoriales", "Equatorial declinations");
+        html += `<h2 id="theme-declinations" class="section-title page-break">${isEN ? 'Equatorial Declinations' : 'Déclinaisons Équatoriales'}</h2>`;
         html += `<p class="decl-intro">
             ${isEN
               ? 'Declinations measure the angular distance in degrees of each planet from the celestial equator (3D dimension). <strong>Out of Bounds</strong> threshold: <strong>±23.44°</strong> (Sun\'s ecliptic limit). <strong>Parallel (//):</strong> same hemisphere, ≤1° difference (≤1.5° if Luminary) — acts as a conjunction. <strong>Contra-Parallel (#):</strong> opposite hemispheres, same absolute values ≤1° — acts as an opposition.'
@@ -1197,7 +1231,8 @@ if (minorAspects.length > 0) {
 
 // ── Étoiles Fixes — Influences stellaires ──
 if (etoileMatches.length > 0 || etoileCuspMatches.length > 0) {
-    html += `<h2 class="section-title page-break">${isEN ? 'Fixed Stars — Stellar Influences' : 'Étoiles Fixes — Influences Stellaires'}</h2>`;
+    pushToc("theme-fixed-stars", "Étoiles fixes", "Fixed stars");
+    html += `<h2 id="theme-fixed-stars" class="section-title page-break">${isEN ? 'Fixed Stars — Stellar Influences' : 'Étoiles Fixes — Influences Stellaires'}</h2>`;
     html += `<p style="color:#5d4037;font-style:italic;margin:0 0 15px;padding:12px 16px;background:#fff8e1;border-radius:8px;border-left:4px solid #ffb300;font-size:0.95em;">
         ${isEN
           ? 'Orbs applied: <strong>±2°</strong> for Aldebaran, Sirius, Regulus, Spica, Antares (royal/major stars) — <strong>±1°</strong> for Algol, Pleiades, Vega, Fomalhaut. Precision: <strong style="color:#5d4037">★★ strong ≤1°</strong> / <strong style="color:#b8860b">★ notable ≤2°</strong> (only for ±2° stars). A fixed star / natal planet or angle conjunction is a <em>permanent signature</em> of the chart.'
@@ -1290,7 +1325,8 @@ if (etoileMatches.length > 0 || etoileCuspMatches.length > 0) {
 
 // ── Antiscia et Contra-Antiscia (si présents) ──
 if (antiscia.length > 0) {
-    html += `<h2 class="section-title page-break">${isEN ? 'Antiscia and Contra-Antiscia' : 'Antiscia et Contra-Antiscia'}</h2>`;
+    pushToc("theme-antiscia", "Antiscia et contra-antiscia", "Antiscia and contra-antiscia");
+    html += `<h2 id="theme-antiscia" class="section-title page-break">${isEN ? 'Antiscia and Contra-Antiscia' : 'Antiscia et Contra-Antiscia'}</h2>`;
     html += `<p style="color:#1F3864;font-style:italic;margin:0 0 12px;padding:10px 14px;background:#eef2fb;border-radius:6px;border-left:4px solid #2E5FA3;font-size:0.9em;">
         ${isEN
           ? 'Antiscia are solar declination mirrors on the solstice axis (0° Cancer / 0° Capricorn). Two planets in antiscia share the same day length — a hidden connection acting as a subtle conjunction. Contra-Antiscia (mirror on the equinox axis) act as a discreet opposition. Orb applied: <strong>±1.5°</strong>.'
@@ -1315,7 +1351,8 @@ if (antiscia.length > 0) {
 // ── Midpoints Activés (si présents) ──
 const midpointActivations = input.midpointActivations || [];
 if (midpointActivations.length > 0) {
-    html += `<h2 class="section-title page-break">${isEN ? 'Activated Midpoints' : 'Midpoints Activés'}</h2>`;
+    pushToc("theme-midpoints", "Midpoints activés", "Activated midpoints");
+    html += `<h2 id="theme-midpoints" class="section-title page-break">${isEN ? 'Activated Midpoints' : 'Midpoints Activés'}</h2>`;
     html += `<p style="color:#1F3864;font-style:italic;margin:0 0 12px;padding:10px 14px;background:#eef2fb;border-radius:6px;border-left:4px solid #2E5FA3;font-size:0.9em;">
         ${isEN
           ? 'A midpoint is the median point between two planets. When a third planet transits or is natally on this midpoint (±1.5°), it <strong>activates</strong> the combination of the two planets and catalyzes their expression. Type <strong>direct</strong> = conjunction to midpoint; type <strong>mirror</strong> = opposition (same axis).'
@@ -1372,7 +1409,8 @@ const LOTS_DISPLAY = [
 ];
 const lotsInChart = LOTS_DISPLAY.filter(ld => (input.planetes || []).some(p => p.planet?.fr === ld.fr));
 if (lotsInChart.length > 0) {
-    html += `<h2 class="section-title page-break">${isEN ? 'Hermetic Lots (Arabic Parts)' : 'Lots Hermétiques (Parts Arabes)'}</h2>`;
+    pushToc("theme-lots", "Lots hermétiques", "Hermetic lots");
+    html += `<h2 id="theme-lots" class="section-title page-break">${isEN ? 'Hermetic Lots (Arabic Parts)' : 'Lots Hermétiques (Parts Arabes)'}</h2>`;
     html += `<p style="color:#1F3864;font-style:italic;margin:0 0 12px;padding:10px 14px;background:#eef2fb;border-radius:6px;border-left:4px solid #2E5FA3;font-size:0.9em;">
         ${isEN
           ? 'Hermetic Lots are mathematical points calculated from the Ascendant, Sun, Moon, and other planets. Each Lot activates a specific existential theme in the house and sign where it falls. Formulas: <strong>Fortune</strong> = ASC + Moon − Sun (diurnal); <strong>Spirit</strong> = inverse.'
@@ -1401,7 +1439,8 @@ if (lotsInChart.length > 0) {
 if (dispositorTree?.finalDispositors?.length > 0 || Object.keys(dispositorTree?.tree || {}).length > 0) {
     const tree = dispositorTree.tree || {};
     const finals = dispositorTree.finalDispositors || [];
-    html += `<h2 class="section-title page-break">${isEN ? 'Dispositor Tree' : 'Arbre des Dispositions'}</h2>`;
+    pushToc("theme-dispositors", "Arbre des dispositions", "Dispositor tree");
+    html += `<h2 id="theme-dispositors" class="section-title page-break">${isEN ? 'Dispositor Tree' : 'Arbre des Dispositions'}</h2>`;
     html += `<p style="color:#1F3864;font-style:italic;margin:0 0 12px;padding:10px 14px;background:#eef2fb;border-radius:6px;border-left:4px solid #2E5FA3;font-size:0.9em;">
         ${isEN
           ? 'The dispositor tree traces the rulership chain: each planet is "commanded" by the ruler of its sign. The final dispositor is the planet in domicile that concentrates the power of the entire chain.'
@@ -1422,7 +1461,8 @@ if (dispositorTree?.finalDispositors?.length > 0 || Object.keys(dispositorTree?.
 
 // ── Dignité Accidentelle (Lilly) ──
 if (accidentalDignity.length > 0) {
-    html += `<h2 class="section-title page-break">${isEN ? 'Accidental Dignity (Lilly)' : 'Force Planétaire — Dignité Accidentelle (Lilly)'}</h2>`;
+    pushToc("theme-lilly", "Force planétaire — dignité accidentelle (Lilly)", "Accidental dignity (Lilly)");
+    html += `<h2 id="theme-lilly" class="section-title page-break">${isEN ? 'Accidental Dignity (Lilly)' : 'Force Planétaire — Dignité Accidentelle (Lilly)'}</h2>`;
     html += `<p style="color:#1F3864;font-style:italic;margin:0 0 12px;padding:10px 14px;background:#eef2fb;border-radius:6px;border-left:4px solid #2E5FA3;font-size:0.9em;">
         ${isEN
           ? 'Score combining essential dignity (domicile, exaltation, detriment, fall) and accidental dignity (house, motion, heliocentric conditions, receptions). A high score (&gt;15) = major chart actor. A negative score = impeded planet.'
@@ -1437,9 +1477,11 @@ if (accidentalDignity.length > 0) {
     html += `</table>`;
 }
 
-// ── Conditions spéciales : Hayz, Assiégées, VOC Lune ──
-if (hayzPlanets.length > 0 || besiegedPlanets.length > 0 || moonVOC) {
-    html += `<h2 class="section-title page-break">${isEN ? 'Special Conditions' : 'Conditions Spéciales'}</h2>`;
+// ── Conditions spéciales : Hayz, Assiégées, VOC Lune, planètes stationnaires ──
+const stationaryPlanetsR = input.stationaryPlanets || [];
+if (hayzPlanets.length > 0 || besiegedPlanets.length > 0 || moonVOC || stationaryPlanetsR.length > 0) {
+    pushToc("theme-special", "Conditions spéciales", "Special conditions");
+    html += `<h2 id="theme-special" class="section-title page-break">${isEN ? 'Special Conditions' : 'Conditions Spéciales'}</h2>`;
     if (hayzPlanets.length > 0) {
         html += `<div class="subsection-title">✦ ${isEN ? 'Hayz (optimal sect condition)' : 'Hayz (condition de secte optimale)'}</div>`;
         hayzPlanets.forEach(h => {
@@ -1456,7 +1498,6 @@ if (hayzPlanets.length > 0 || besiegedPlanets.length > 0 || moonVOC) {
         html += `<div class="subsection-title">◯ ${isEN ? 'Void of Course Moon' : 'Lune Vide de Course'}</div>`;
         html += `<div style="padding:6px 12px;margin:4px 0;background:#eef2fb;border-left:3px solid #2E5FA3;border-radius:4px;font-size:0.92em">${moonVOC.description}</div>`;
     }
-    const stationaryPlanetsR = input.stationaryPlanets || [];
     if (stationaryPlanetsR.length > 0) {
         html += `<div class="subsection-title">⏸ ${isEN ? 'Stationary Planets (concentrated energy)' : 'Planètes Stationnaires (énergie concentrée)'}</div>`;
         stationaryPlanetsR.forEach(sp => {
@@ -1470,7 +1511,8 @@ if (hayzPlanets.length > 0 || besiegedPlanets.length > 0 || moonVOC) {
 
 // ── Degrés Sabian ──
 if (Object.keys(sabianData).length > 0) {
-    html += `<h2 class="section-title page-break">${isEN ? 'Sabian Degrees' : 'Degrés Sabian'}</h2>`;
+    pushToc("theme-sabian", "Degrés sabian", "Sabian degrees");
+    html += `<h2 id="theme-sabian" class="section-title page-break">${isEN ? 'Sabian Degrees' : 'Degrés Sabian'}</h2>`;
     html += `<p style="color:#1F3864;font-style:italic;margin:0 0 12px;padding:10px 14px;background:#eef2fb;border-radius:6px;border-left:4px solid #2E5FA3;font-size:0.9em;">
         ${isEN
           ? 'Each degree of the zodiac has an image symbol (Marc Edmund Jones / Dane Rudhyar). These images offer a poetic and symbolic nuance of the planetary position.'
@@ -1486,7 +1528,8 @@ if (Object.keys(sabianData).length > 0) {
 
 // ── Profil de sensibilité ──
 if (sensitivityProfileR) {
-    html += `<h2 class="section-title page-break">${isEN ? 'Chart Sensitivity Profile' : 'Profil de Sensibilité du Thème'}</h2>`;
+    pushToc("theme-sensitivity", "Profil de sensibilité du thème", "Chart sensitivity profile");
+    html += `<h2 id="theme-sensitivity" class="section-title page-break">${isEN ? 'Chart Sensitivity Profile' : 'Profil de Sensibilité du Thème'}</h2>`;
     html += `<p style="color:#1F3864;font-style:italic;margin:0 0 12px;padding:10px 14px;background:#eef2fb;border-radius:6px;border-left:4px solid #2E5FA3;font-size:0.9em;">
         ${isEN
           ? 'This profile identifies the elemental vulnerabilities and familiarities of the chart, as well as the modal dispositions that condition receptivity to transits.'
@@ -1500,6 +1543,8 @@ if (sensitivityProfileR) {
         html += `<div style="padding:8px 14px;margin:4px 0;background:${bg};border-left:3px solid ${border};border-radius:4px;font-size:0.92em">${line}</div>`;
     });
 }
+
+html = html.replace("__THEME_TOC_PLACEHOLDER__", renderThemeToc());
 
 html += `</div></body></html>`;
 

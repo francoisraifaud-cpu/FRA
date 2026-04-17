@@ -342,7 +342,7 @@ const blocsMaisons = activeMaisons.map((m, _hIdx) => {
       starBadges += '<span style="display:inline-block;background:#fff8e1;color:#5d4037;font-size:14px;font-weight:600;padding:3px 10px;border-radius:20px;margin:2px 3px;border:1px solid #ffb300;">' + prec + ' ' + esc(ec.etoile) + ' (' + lblCuspide + ')</span>';
   });
   const _pbF = _hIdx === 0 ? '' : 'page-break-before:always;break-before:page;';
-  return '<div class="house-section" style="' + _pbF + 'background:#fff;border-radius:12px;margin:22px 0;border:1px solid #e0e0e0;overflow:hidden;">'
+  return '<div id="prev-final-m' + m.n + '" class="house-section" style="' + _pbF + 'background:#fff;border-radius:12px;margin:22px 0;border:1px solid #e0e0e0;overflow:hidden;">'
     + '<div style="background:' + theme.accent + ';padding:16px 22px;">'
     + '<table width="100%" border="0" cellspacing="0" cellpadding="0"><tr>'
     + '<td width="45" valign="middle" style="font-size:28px;line-height:1;">' + iconSigne + '</td>'
@@ -362,19 +362,10 @@ const blocsMaisons = activeMaisons.map((m, _hIdx) => {
 const syntheseBlock = data.synthese
   ? '<div style="background:' + theme.bg + ';padding:15px 26px;border-radius:8px;margin:44px 0 22px;">'
     + '<h2 style="font-family:\'Playfair Display\',Georgia,serif;font-size:18px;font-weight:600;color:white;letter-spacing:0.2px;margin:0;">🔭&nbsp; ' + lblSynthese + '</h2></div>'
-    + '<div class="synthese-section" style="background:#fff;border-radius:12px;border:1px solid #e0e0e0;padding:28px 30px;margin-bottom:10px;">' + md(data.synthese) + '</div>'
+    + '<div id="prev-final-synthese" class="synthese-section" style="background:#fff;border-radius:12px;border:1px solid #e0e0e0;padding:28px 30px;margin-bottom:10px;">' + md(data.synthese) + '</div>'
   : '';
 
-const html = '<!DOCTYPE html><html lang="' + (isEN ? 'en' : 'fr') + '"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>' + esc(titrePrincipal) + '</title>'
-  + '<style>@media print { .house-section { page-break-after: always; break-after: page; } .house-section:last-child { page-break-after: auto; break-after: auto; } .synthese-section { page-break-after: always; break-after: page; } @page { margin-bottom: 20mm; @bottom-center { content: counter(page) " / " counter(pages); font-size: 9pt; color: #888; } } }</style></head>'
-  + '<body style="margin:0;padding:0;background:#ffffff;">'
-  + '<div style="font-family:\'Source Sans 3\',sans-serif;font-size:16px;font-weight:400;line-height:1.75;color:#2c2c3a;max-width:820px;margin:0 auto;padding:28px 20px 60px;">'
-  + '<div style="background:' + theme.bg + ';padding:52px 44px 48px;color:white;text-align:center;border-radius:14px;margin-bottom:8px;">'
-  + '<h1 style="font-family:\'Playfair Display\',serif;font-size:36px;font-weight:700;letter-spacing:0.3px;color:#fff;margin:0 0 10px;">' + esc(titrePrincipal) + '</h1>'
-  + '<p style="font-size:14px;font-weight:400;letter-spacing:1px;color:#8ab4f8;margin:0 0 6px;">' + esc(_lumHeaderPF) + '</p>'
-  + '<p style="font-size:15.5px;font-weight:400;color:#aac4ff;letter-spacing:0.5px;margin:8px 0 0;">' + esc(sousTitre) + '</p></div>'
-  + syntheseBlock
-  + (() => {
+const heatmapAndSignaturesChunkFinal = (() => {
     let _hd = _heatDataEarly;
     if (!_hd?.grid?.length) return '';
     const g = _hd.grid, lbs = _hd.colLabels, mx = _hd.maxIntensity || 1;
@@ -436,13 +427,50 @@ const html = '<!DOCTYPE html><html lang="' + (isEN ? 'en' : 'fr') + '"><head><me
         o += '</div>';
     }
     return o;
-  })()
-  + (_paranResults.length > 0 ? '<div style="background:#1F3864;padding:15px 26px;border-radius:8px;margin:44px 0 22px;"><h2 style="font-family:\'Playfair Display\',serif;font-size:18px;font-weight:600;color:white;letter-spacing:0.2px;margin:0;">🌟&nbsp; ' + (isEN ? 'Fixed Star Parans (Brady Method)' : "Parans d'Étoiles Fixes (méthode Brady)") + '</h2></div><div style="background:#fff;border-radius:12px;border:1px solid #e0e0e0;padding:20px 26px;margin-bottom:44px;"><p style="font-size:14px;color:#64748b;font-style:italic;margin:0 0 14px;">' + (isEN ? 'A paran forms when a fixed star and a planet simultaneously occupy a cardinal angle. It is a deep and permanent stellar bond.' : "Un paran se forme quand une étoile fixe et une planète se trouvent simultanément sur un angle cardinal. C'est un lien stellaire profond et permanent.") + '</p><table style="width:100%;border-collapse:collapse;font-size:14px;"><tr style="background:#2E5FA3;color:white;"><th style="padding:8px 10px;text-align:left;">' + (isEN ? 'Fixed Star' : 'Étoile Fixe') + '</th><th style="padding:8px;text-align:center;">' + (isEN ? 'Star Angle' : 'Angle Étoile') + '</th><th style="padding:8px 10px;text-align:left;">' + (isEN ? 'Planet' : 'Planète') + '</th><th style="padding:8px;text-align:center;">' + (isEN ? 'Planet Angle' : 'Angle Planète') + '</th><th style="padding:8px;text-align:center;">' + (isEN ? 'Orb' : 'Orbe') + '</th></tr>' + _paranResults.map(pr => '<tr style="border-bottom:1px solid #d0daf0;"><td style="padding:8px 10px;font-weight:600;color:#1F3864;">★ ' + esc(pr.etoile) + '</td><td style="padding:8px;text-align:center;color:#2E5FA3;">' + esc(pr.angle_etoile) + '</td><td style="padding:8px 10px;font-weight:600;color:#1F3864;">' + esc(pr.planete) + '</td><td style="padding:8px;text-align:center;color:#2E5FA3;">' + esc(pr.angle_planete) + '</td><td style="padding:8px;text-align:center;font-weight:bold;color:' + (pr.orb <= 0.5 ? '#1F3864' : '#2E5FA3') + ';">' + pr.orb + '°</td></tr>' + (pr.interpretation ? '<tr style="background:#eef2fb;"><td colspan="5" style="padding:6px 12px;font-size:13px;color:#2E5FA3;font-style:italic;">' + esc(pr.interpretation) + '</td></tr>' : '')).join('') + '</table></div>' : '')
-  + '<div style="page-break-before:always;break-before:page;background:' + theme.bg + ';padding:15px 26px;border-radius:8px;margin:44px 0 22px;">'
+})();
+
+const _heatmapChunkWrappedFinal = heatmapAndSignaturesChunkFinal ? '<div id="prev-final-heatmap">' + heatmapAndSignaturesChunkFinal + '</div>' : '';
+
+function buildPrevFinalTocHtml() {
+    const rows = [];
+    const push = (id, fr, en) => rows.push({ id, fr, en });
+    if (data.synthese && String(data.synthese).trim()) push("prev-final-synthese", "Synthèse globale", "Global summary");
+    if (_heatmapChunkWrappedFinal) push("prev-final-heatmap", "Heatmap & thématiques clés", "Heatmap & key themes");
+    if (_paranResults.length > 0) push("prev-final-parans", "Parans d'étoiles fixes (Brady)", "Fixed star parans (Brady)");
+    push("prev-final-maisons", "Maisons astrologiques", "Astrological houses");
+    activeMaisons.forEach((m) => push("prev-final-m" + m.n, "Maison " + m.n, "House " + m.n));
+    if (!rows.length) return "";
+    const navAria = isEN ? "Table of contents" : "Sommaire";
+    const title = isEN ? "Contents" : "Sommaire";
+    const items = rows.map(function (r) {
+        const lab = isEN ? r.en : r.fr;
+        return '<li style="margin:5px 0"><a href="#' + r.id + '" style="font-family:\'Playfair Display\',Georgia,serif;font-size:0.95em;font-weight:600;color:#1F3864;text-decoration:none;border-bottom:1px solid #cbd5e1">' + esc(lab) + "</a></li>";
+    }).join("");
+    return '<nav class="prev-final-toc" id="prev-final-sommaire-nav" aria-label="' + esc(navAria) + '" style="background:#ffffff;border:1px solid #e2e8f0;border-radius:10px;padding:18px 22px 20px;margin:0 0 22px">' +
+        '<h2 style="font-family:\'Playfair Display\',Georgia,serif;font-size:1.2em;color:#1F3864;margin:0 0 14px;text-align:center;font-weight:700">' + esc(title) + "</h2>" +
+        '<ul style="list-style:none;padding:0;margin:0">' + items + "</ul></nav>" +
+        '<div class="prev-final-toc-pagebreak" style="page-break-after:always;break-after:page;height:0;margin:0;padding:0;overflow:hidden" aria-hidden="true"></div>';
+}
+
+const html = '<!DOCTYPE html><html lang="' + (isEN ? 'en' : 'fr') + '"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>' + esc(titrePrincipal) + '</title>'
+  + '<style>@import url(\'https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Source+Sans+3:ital,wght@0,400;0,600;0,700;1,400&display=swap\');@media print { .prev-final-toc { page-break-after: avoid; break-after: avoid; } .prev-final-toc-pagebreak { page-break-after: always !important; break-after: page !important; } .house-section { page-break-after: always; break-after: page; } .house-section:last-child { page-break-after: auto; break-after: auto; } .synthese-section { page-break-after: always; break-after: page; } @page { margin-bottom: 20mm; @bottom-center { content: counter(page) " / " counter(pages); font-size: 9pt; color: #888; } } }</style></head>'
+  + '<body style="margin:0;padding:0;background:#ffffff;">'
+  + '<div style="font-family:\'Source Sans 3\',sans-serif;font-size:16px;font-weight:400;line-height:1.75;color:#2c2c3a;max-width:820px;margin:0 auto;padding:28px 20px 60px;">'
+  + '<div id="prev-final-intro" style="background:' + theme.bg + ';padding:52px 44px 48px;color:white;text-align:center;border-radius:14px;margin-bottom:8px;">'
+  + '<h1 style="font-family:\'Playfair Display\',serif;font-size:36px;font-weight:700;letter-spacing:0.3px;color:#fff;margin:0 0 10px;">' + esc(titrePrincipal) + '</h1>'
+  + '<p style="font-size:14px;font-weight:400;letter-spacing:1px;color:#8ab4f8;margin:0 0 6px;">' + esc(_lumHeaderPF) + '</p>'
+  + '<p style="font-size:15.5px;font-weight:400;color:#aac4ff;letter-spacing:0.5px;margin:8px 0 0;">' + esc(sousTitre) + '</p></div>'
+  + '__PREV_FINAL_TOC_PLACEHOLDER__'
+  + syntheseBlock
+  + _heatmapChunkWrappedFinal
+  + (_paranResults.length > 0 ? '<div style="background:#1F3864;padding:15px 26px;border-radius:8px;margin:44px 0 22px;"><h2 style="font-family:\'Playfair Display\',serif;font-size:18px;font-weight:600;color:white;letter-spacing:0.2px;margin:0;">🌟&nbsp; ' + (isEN ? 'Fixed Star Parans (Brady Method)' : "Parans d'Étoiles Fixes (méthode Brady)") + '</h2></div><div id="prev-final-parans" style="background:#fff;border-radius:12px;border:1px solid #e0e0e0;padding:20px 26px;margin-bottom:44px;"><p style="font-size:14px;color:#64748b;font-style:italic;margin:0 0 14px;">' + (isEN ? 'A paran forms when a fixed star and a planet simultaneously occupy a cardinal angle. It is a deep and permanent stellar bond.' : "Un paran se forme quand une étoile fixe et une planète se trouvent simultanément sur un angle cardinal. C'est un lien stellaire profond et permanent.") + '</p><table style="width:100%;border-collapse:collapse;font-size:14px;"><tr style="background:#2E5FA3;color:white;"><th style="padding:8px 10px;text-align:left;">' + (isEN ? 'Fixed Star' : 'Étoile Fixe') + '</th><th style="padding:8px;text-align:center;">' + (isEN ? 'Star Angle' : 'Angle Étoile') + '</th><th style="padding:8px 10px;text-align:left;">' + (isEN ? 'Planet' : 'Planète') + '</th><th style="padding:8px;text-align:center;">' + (isEN ? 'Planet Angle' : 'Angle Planète') + '</th><th style="padding:8px;text-align:center;">' + (isEN ? 'Orb' : 'Orbe') + '</th></tr>' + _paranResults.map(pr => '<tr style="border-bottom:1px solid #d0daf0;"><td style="padding:8px 10px;font-weight:600;color:#1F3864;">★ ' + esc(pr.etoile) + '</td><td style="padding:8px;text-align:center;color:#2E5FA3;">' + esc(pr.angle_etoile) + '</td><td style="padding:8px 10px;font-weight:600;color:#1F3864;">' + esc(pr.planete) + '</td><td style="padding:8px;text-align:center;color:#2E5FA3;">' + esc(pr.angle_planete) + '</td><td style="padding:8px;text-align:center;font-weight:bold;color:' + (pr.orb <= 0.5 ? '#1F3864' : '#2E5FA3') + ';">' + pr.orb + '°</td></tr>' + (pr.interpretation ? '<tr style="background:#eef2fb;"><td colspan="5" style="padding:6px 12px;font-size:13px;color:#2E5FA3;font-style:italic;">' + esc(pr.interpretation) + '</td></tr>' : '')).join('') + '</table></div>' : '')
+  + '<div id="prev-final-maisons" style="page-break-before:always;break-before:page;background:' + theme.bg + ';padding:15px 26px;border-radius:8px;margin:44px 0 22px;">'
   + '<h2 style="font-family:\'Playfair Display\',serif;font-size:18px;font-weight:600;color:white;letter-spacing:0.2px;margin:0;">🏠&nbsp; ' + lblMaisons + '</h2></div>'
   + blocsMaisons
   + '</div></body></html>';
 _heatDataEarly = null;
+
+const htmlOut = html.replace("__PREV_FINAL_TOC_PLACEHOLDER__", buildPrevFinalTocHtml());
 
 const _fdfF = (s) => { if (!s) return ""; s = s.trim(); if (s.includes("/")) return s.replace(/\//g, "_"); const [y,m,d] = s.split("-"); return `${d}_${m}_${y}`; };
 const _desiredPdfNameF = isEN
@@ -459,7 +487,7 @@ return [{
     },
     binary: {
         html_file: {
-            data: Buffer.from(html, "utf8").toString("base64"),
+            data: Buffer.from(htmlOut, "utf8").toString("base64"),
             mimeType: "text/html",
             fileName: "index.html"
         }

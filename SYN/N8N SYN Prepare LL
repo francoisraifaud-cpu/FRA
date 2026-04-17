@@ -28,7 +28,7 @@
       },
       {
         "parameters": {
-          "jsCode": "// SYN — Vars A/B : coords site (birth_place_*) sinon Nominatim. Code typeVersion ≥ 2.\nconst v = $input.first().json;\n\nfunction parseNum(x) {\n  if (x === null || x === undefined) return NaN;\n  if (typeof x === \"number\" && Number.isFinite(x)) return x;\n  if (typeof x === \"string\" && String(x).trim()) {\n    return parseFloat(String(x).trim().replace(\",\", \".\"));\n  }\n  return NaN;\n}\n\nconst lat0 = parseNum(v.birth_place_lat);\nconst lon0 = parseNum(v.birth_place_lng);\n\nif (\n  Number.isFinite(lat0) &&\n  Number.isFinite(lon0) &&\n  Math.abs(lat0) <= 90 &&\n  Math.abs(lon0) <= 180\n) {\n  const disp =\n    typeof v.birth_place_formatted_address === \"string\" && v.birth_place_formatted_address.trim()\n      ? v.birth_place_formatted_address.trim()\n      : [v.lieu, v.pays].filter(Boolean).join(\", \");\n  return [{ json: { lat: String(lat0), lon: String(lon0), display_name: disp } }];\n}\n\nconst lieu = encodeURIComponent((v.lieu || \"\").trim());\nconst pays = encodeURIComponent((v.pays || \"\").trim());\nconst url = `https://nominatim.openstreetmap.org/search?q=${lieu}%2C%20${pays}&format=json&limit=1`;\n\nconst rows = await this.helpers.httpRequest({\n  method: \"GET\",\n  url,\n  headers: { \"User-Agent\": \"n8n-astrology-bot-2026\" },\n  json: true,\n});\n\nif (!Array.isArray(rows) || rows.length === 0) {\n  throw new Error(\"Lieu introuvable (géocodage). lieu=\" + (v.lieu || \"\") + \" pays=\" + (v.pays || \"\"));\n}\n\nconst r = rows[0];\nreturn [{ json: { lat: r.lat, lon: r.lon, display_name: r.display_name } }];"
+          "jsCode": "// SYN — Vars A/B : coords site (birth_place_*) sinon Nominatim. Code typeVersion ≥ 2.\nconst v = $input.first().json;\n\nfunction parseNum(x) {\n  if (x === null || x === undefined) return NaN;\n  if (typeof x === \"number\" && Number.isFinite(x)) return x;\n  if (typeof x === \"string\" && String(x).trim()) {\n    return parseFloat(String(x).trim().replace(\",\", \".\"));\n  }\n  return NaN;\n}\n\nconst lat0 = parseNum(v.birth_place_lat);\nconst lon0 = parseNum(v.birth_place_lng);\n\nif (\n  Number.isFinite(lat0) &&\n  Number.isFinite(lon0) &&\n  Math.abs(lat0) <= 90 &&\n  Math.abs(lon0) <= 180\n) {\n  const disp =\n    typeof v.birth_place_formatted_address === \"string\" && v.birth_place_formatted_address.trim()\n      ? v.birth_place_formatted_address.trim()\n      : [v.lieu, v.pays].filter(Boolean).join(\", \");\n  return [{ json: { lat: String(lat0), lon: String(lon0), display_name: disp } }];\n}\n\nconst lieu = encodeURIComponent((v.lieu || \"\").trim());\nconst pays = encodeURIComponent((v.pays || \"\").trim());\nconst url = `https://nominatim.openstreetmap.org/search?q=${lieu}%2C%20${pays}&format=json&limit=1`;\n\nlet rows;\nfor (let attempt = 0; attempt < 5; attempt++) {\n  if (attempt > 0) await new Promise((r) => setTimeout(r, 1500 * attempt));\n  try {\n    rows = await this.helpers.httpRequest({\n      method: \"GET\",\n      url,\n      headers: { \"User-Agent\": \"n8n-astrology-bot-2026\" },\n      json: true,\n    });\n    break;\n  } catch (err) {\n    const msg = String(err?.message || err || \"\");\n    const st = err?.statusCode ?? err?.response?.status ?? err?.response?.statusCode;\n    if ((st === 429 || msg.includes(\"429\")) && attempt < 4) continue;\n    throw err;\n  }\n}\n\nif (!Array.isArray(rows) || rows.length === 0) {\n  throw new Error(\"Lieu introuvable (géocodage). lieu=\" + (v.lieu || \"\") + \" pays=\" + (v.pays || \"\"));\n}\n\nconst r = rows[0];\nreturn [{ json: { lat: r.lat, lon: r.lon, display_name: r.display_name } }];"
         },
         "id": "d87d11ab-17b3-43a0-a634-5fec9b62be7d",
         "name": "Géocodage A",
@@ -41,7 +41,7 @@
       },
       {
         "parameters": {
-          "jsCode": "// SYN — Vars A/B : coords site (birth_place_*) sinon Nominatim. Code typeVersion ≥ 2.\nconst v = $input.first().json;\n\nfunction parseNum(x) {\n  if (x === null || x === undefined) return NaN;\n  if (typeof x === \"number\" && Number.isFinite(x)) return x;\n  if (typeof x === \"string\" && String(x).trim()) {\n    return parseFloat(String(x).trim().replace(\",\", \".\"));\n  }\n  return NaN;\n}\n\nconst lat0 = parseNum(v.birth_place_lat);\nconst lon0 = parseNum(v.birth_place_lng);\n\nif (\n  Number.isFinite(lat0) &&\n  Number.isFinite(lon0) &&\n  Math.abs(lat0) <= 90 &&\n  Math.abs(lon0) <= 180\n) {\n  const disp =\n    typeof v.birth_place_formatted_address === \"string\" && v.birth_place_formatted_address.trim()\n      ? v.birth_place_formatted_address.trim()\n      : [v.lieu, v.pays].filter(Boolean).join(\", \");\n  return [{ json: { lat: String(lat0), lon: String(lon0), display_name: disp } }];\n}\n\nconst lieu = encodeURIComponent((v.lieu || \"\").trim());\nconst pays = encodeURIComponent((v.pays || \"\").trim());\nconst url = `https://nominatim.openstreetmap.org/search?q=${lieu}%2C%20${pays}&format=json&limit=1`;\n\nconst rows = await this.helpers.httpRequest({\n  method: \"GET\",\n  url,\n  headers: { \"User-Agent\": \"n8n-astrology-bot-2026\" },\n  json: true,\n});\n\nif (!Array.isArray(rows) || rows.length === 0) {\n  throw new Error(\"Lieu introuvable (géocodage). lieu=\" + (v.lieu || \"\") + \" pays=\" + (v.pays || \"\"));\n}\n\nconst r = rows[0];\nreturn [{ json: { lat: r.lat, lon: r.lon, display_name: r.display_name } }];"
+          "jsCode": "// SYN — Vars A/B : coords site (birth_place_*) sinon Nominatim. Code typeVersion ≥ 2.\nconst v = $input.first().json;\n\nfunction parseNum(x) {\n  if (x === null || x === undefined) return NaN;\n  if (typeof x === \"number\" && Number.isFinite(x)) return x;\n  if (typeof x === \"string\" && String(x).trim()) {\n    return parseFloat(String(x).trim().replace(\",\", \".\"));\n  }\n  return NaN;\n}\n\nconst lat0 = parseNum(v.birth_place_lat);\nconst lon0 = parseNum(v.birth_place_lng);\n\nif (\n  Number.isFinite(lat0) &&\n  Number.isFinite(lon0) &&\n  Math.abs(lat0) <= 90 &&\n  Math.abs(lon0) <= 180\n) {\n  const disp =\n    typeof v.birth_place_formatted_address === \"string\" && v.birth_place_formatted_address.trim()\n      ? v.birth_place_formatted_address.trim()\n      : [v.lieu, v.pays].filter(Boolean).join(\", \");\n  return [{ json: { lat: String(lat0), lon: String(lon0), display_name: disp } }];\n}\n\nconst lieu = encodeURIComponent((v.lieu || \"\").trim());\nconst pays = encodeURIComponent((v.pays || \"\").trim());\nconst url = `https://nominatim.openstreetmap.org/search?q=${lieu}%2C%20${pays}&format=json&limit=1`;\n\nlet rows;\nfor (let attempt = 0; attempt < 5; attempt++) {\n  if (attempt > 0) await new Promise((r) => setTimeout(r, 1500 * attempt));\n  try {\n    rows = await this.helpers.httpRequest({\n      method: \"GET\",\n      url,\n      headers: { \"User-Agent\": \"n8n-astrology-bot-2026\" },\n      json: true,\n    });\n    break;\n  } catch (err) {\n    const msg = String(err?.message || err || \"\");\n    const st = err?.statusCode ?? err?.response?.status ?? err?.response?.statusCode;\n    if ((st === 429 || msg.includes(\"429\")) && attempt < 4) continue;\n    throw err;\n  }\n}\n\nif (!Array.isArray(rows) || rows.length === 0) {\n  throw new Error(\"Lieu introuvable (géocodage). lieu=\" + (v.lieu || \"\") + \" pays=\" + (v.pays || \"\"));\n}\n\nconst r = rows[0];\nreturn [{ json: { lat: r.lat, lon: r.lon, display_name: r.display_name } }];"
         },
         "id": "d2a9f592-f7e8-4451-a552-36213c1a0a52",
         "name": "Géocodage B",
@@ -51,6 +51,21 @@
           -5296,
           2976
         ]
+      },
+      {
+        "parameters": {
+          "amount": 2,
+          "unit": "seconds"
+        },
+        "id": "b8c4e2a1-9f0d-4c3b-8e7f-1a2b3c4d5e6f",
+        "name": "Attente Nominatim B",
+        "type": "n8n-nodes-base.wait",
+        "typeVersion": 1,
+        "position": [
+          -5424,
+          2976
+        ],
+        "webhookId": "a7f3c2d1-9048-4b5e-8c6d-2e3f4a5b6c7d"
       },
       {
         "parameters": {
@@ -80,93 +95,7 @@
       },
       {
         "parameters": {
-          "url": "http://api.timezonedb.com/v2.1/get-time-zone",
-          "sendQuery": true,
-          "queryParameters": {
-            "parameters": [
-              {
-                "name": "key",
-                "value": "UV443YWQRYUC"
-              },
-              {
-                "name": "format",
-                "value": "json"
-              },
-              {
-                "name": "by",
-                "value": "position"
-              },
-              {
-                "name": "lat",
-                "value": "={{ $json.lat }}"
-              },
-              {
-                "name": "lng",
-                "value": "={{ $json.lon }}"
-              },
-              {
-                "name": "time",
-                "value": "={{ $json.timestamp }}"
-              }
-            ]
-          },
-          "options": {}
-        },
-        "id": "099aa3ff-edf6-405b-8068-3423ea78fa6a",
-        "name": "Get TZ A",
-        "type": "n8n-nodes-base.httpRequest",
-        "typeVersion": 4.1,
-        "position": [
-          -4768,
-          1952
-        ]
-      },
-      {
-        "parameters": {
-          "url": "http://api.timezonedb.com/v2.1/get-time-zone",
-          "sendQuery": true,
-          "queryParameters": {
-            "parameters": [
-              {
-                "name": "key",
-                "value": "UV443YWQRYUC"
-              },
-              {
-                "name": "format",
-                "value": "json"
-              },
-              {
-                "name": "by",
-                "value": "position"
-              },
-              {
-                "name": "lat",
-                "value": "={{ $json.lat }}"
-              },
-              {
-                "name": "lng",
-                "value": "={{ $json.lon }}"
-              },
-              {
-                "name": "time",
-                "value": "={{ $json.timestamp }}"
-              }
-            ]
-          },
-          "options": {}
-        },
-        "id": "9e8276b1-2620-40e9-a14a-32c4e22cb007",
-        "name": "Get TZ B",
-        "type": "n8n-nodes-base.httpRequest",
-        "typeVersion": 4.1,
-        "position": [
-          -4768,
-          2976
-        ]
-      },
-      {
-        "parameters": {
-          "jsCode": "// SYN — Préparation dynamique A (TimeZoneDB itérations). Après « Timezone A ».\nconst vars = $('Vars A').first().json;\nconst geo = $('Timezone A').first().json;\n\nif (!geo || geo.lat === undefined || geo.lat === null || String(geo.lat).trim() === \"\") {\n  throw new Error(\"Coordonnées GPS A introuvables.\");\n}\nif (!vars || !vars.date) {\n  throw new Error(\"Variables A introuvables.\");\n}\n\nconst lat = parseFloat(geo.lat);\nconst lon = parseFloat(geo.lon);\nif (!Number.isFinite(lat) || !Number.isFinite(lon)) {\n  throw new Error(\"Coordonnées GPS A invalides.\");\n}\n\nconst d = vars.date.split(\"/\");\nconst h = vars.heure.split(/[:Hh]/);\nconst yy = parseInt(d[2], 10);\nconst mo = parseInt(d[1], 10);\nconst da = parseInt(d[0], 10);\nconst hh = parseInt(h[0], 10);\nconst mi = parseInt(h[1] || \"0\", 10);\n\nconst localNaiveUtcSec = Math.floor(Date.UTC(yy, mo - 1, da, hh, mi, 0) / 1000);\n\nconst TZ_KEY = \"UV443YWQRYUC\";\nlet U = localNaiveUtcSec;\nlet gmtOff = 0;\n\nfor (let iter = 0; iter < 4; iter++) {\n  const tzData = await this.helpers.httpRequest({\n    method: \"GET\",\n    url: \"http://api.timezonedb.com/v2.1/get-time-zone\",\n    qs: {\n      key: TZ_KEY,\n      format: \"json\",\n      by: \"position\",\n      lat: String(lat),\n      lng: String(lon),\n      time: String(U),\n    },\n    json: true,\n  });\n\n  if (!tzData || tzData.gmtOffset === undefined) {\n    throw new Error(\"Fuseau horaire A introuvable. tzData=\" + JSON.stringify(tzData));\n  }\n  gmtOff = tzData.gmtOffset;\n  const nextU = localNaiveUtcSec - gmtOff;\n  if (Math.abs(nextU - U) <= 1) {\n    U = nextU;\n    break;\n  }\n  U = nextU;\n}\n\nconst tz = gmtOff / 3600;\n\nconst payload = {\n  year: yy,\n  month: mo,\n  date: da,\n  hours: hh,\n  minutes: mi,\n  seconds: 0,\n  latitude: lat,\n  longitude: lon,\n  timezone: tz,\n  config: {\n    observation_point: \"geocentric\",\n    ayanamsha: \"tropical\",\n    language: \"fr\",\n  },\n};\n\nreturn [{ json: { body: JSON.stringify(payload) } }];"
+          "jsCode": "// SYN — Préparation dynamique A (TimeZoneDB itérations). Après « Timezone A ».\nconst vars = $('Vars A').first().json;\nconst geo = $('Timezone A').first().json;\n\nif (!geo || geo.lat === undefined || geo.lat === null || String(geo.lat).trim() === \"\") {\n  throw new Error(\"Coordonnées GPS A introuvables.\");\n}\nif (!vars || !vars.date) {\n  throw new Error(\"Variables A introuvables.\");\n}\n\nconst lat = parseFloat(geo.lat);\nconst lon = parseFloat(geo.lon);\nif (!Number.isFinite(lat) || !Number.isFinite(lon)) {\n  throw new Error(\"Coordonnées GPS A invalides.\");\n}\n\nconst d = vars.date.split(\"/\");\nconst h = vars.heure.split(/[:Hh]/);\nconst yy = parseInt(d[2], 10);\nconst mo = parseInt(d[1], 10);\nconst da = parseInt(d[0], 10);\nconst hh = parseInt(h[0], 10);\nconst mi = parseInt(h[1] || \"0\", 10);\n\nconst localNaiveUtcSec = Math.floor(Date.UTC(yy, mo - 1, da, hh, mi, 0) / 1000);\n\nconst TZ_KEY = \"UV443YWQRYUC\";\nlet U = localNaiveUtcSec;\nlet gmtOff = 0;\n\nfor (let iter = 0; iter < 4; iter++) {\n  if (iter > 0) await new Promise((r) => setTimeout(r, 200));\n  const tzData = await this.helpers.httpRequest({\n    method: \"GET\",\n    url: \"http://api.timezonedb.com/v2.1/get-time-zone\",\n    qs: {\n      key: TZ_KEY,\n      format: \"json\",\n      by: \"position\",\n      lat: String(lat),\n      lng: String(lon),\n      time: String(U),\n    },\n    json: true,\n  });\n\n  if (!tzData || tzData.gmtOffset === undefined) {\n    throw new Error(\"Fuseau horaire A introuvable. tzData=\" + JSON.stringify(tzData));\n  }\n  gmtOff = tzData.gmtOffset;\n  const nextU = localNaiveUtcSec - gmtOff;\n  if (Math.abs(nextU - U) <= 1) {\n    U = nextU;\n    break;\n  }\n  U = nextU;\n}\n\nconst tz = gmtOff / 3600;\n\nconst payload = {\n  year: yy,\n  month: mo,\n  date: da,\n  hours: hh,\n  minutes: mi,\n  seconds: 0,\n  latitude: lat,\n  longitude: lon,\n  timezone: tz,\n  config: {\n    observation_point: \"geocentric\",\n    ayanamsha: \"tropical\",\n    language: \"fr\",\n  },\n};\n\nreturn [{ json: { body: JSON.stringify(payload), gmtOffset: gmtOff } }];"
         },
         "id": "11716364-f5cf-4b6c-9f01-801889ee9e4e",
         "name": "Préparation A",
@@ -179,7 +108,7 @@
       },
       {
         "parameters": {
-          "jsCode": "// SYN — Préparation dynamique B (TimeZoneDB itérations). Après « Timezone B ».\nconst vars = $('Vars B').first().json;\nconst geo = $('Timezone B').first().json;\n\nif (!geo || geo.lat === undefined || geo.lat === null || String(geo.lat).trim() === \"\") {\n  throw new Error(\"Coordonnées GPS B introuvables.\");\n}\nif (!vars || !vars.date) {\n  throw new Error(\"Variables B introuvables.\");\n}\n\nconst lat = parseFloat(geo.lat);\nconst lon = parseFloat(geo.lon);\nif (!Number.isFinite(lat) || !Number.isFinite(lon)) {\n  throw new Error(\"Coordonnées GPS B invalides.\");\n}\n\nconst d = vars.date.split(\"/\");\nconst h = vars.heure.split(/[:Hh]/);\nconst yy = parseInt(d[2], 10);\nconst mo = parseInt(d[1], 10);\nconst da = parseInt(d[0], 10);\nconst hh = parseInt(h[0], 10);\nconst mi = parseInt(h[1] || \"0\", 10);\n\nconst localNaiveUtcSec = Math.floor(Date.UTC(yy, mo - 1, da, hh, mi, 0) / 1000);\n\nconst TZ_KEY = \"UV443YWQRYUC\";\nlet U = localNaiveUtcSec;\nlet gmtOff = 0;\n\nfor (let iter = 0; iter < 4; iter++) {\n  const tzData = await this.helpers.httpRequest({\n    method: \"GET\",\n    url: \"http://api.timezonedb.com/v2.1/get-time-zone\",\n    qs: {\n      key: TZ_KEY,\n      format: \"json\",\n      by: \"position\",\n      lat: String(lat),\n      lng: String(lon),\n      time: String(U),\n    },\n    json: true,\n  });\n\n  if (!tzData || tzData.gmtOffset === undefined) {\n    throw new Error(\"Fuseau horaire B introuvable. tzData=\" + JSON.stringify(tzData));\n  }\n  gmtOff = tzData.gmtOffset;\n  const nextU = localNaiveUtcSec - gmtOff;\n  if (Math.abs(nextU - U) <= 1) {\n    U = nextU;\n    break;\n  }\n  U = nextU;\n}\n\nconst tz = gmtOff / 3600;\n\nconst payload = {\n  year: yy,\n  month: mo,\n  date: da,\n  hours: hh,\n  minutes: mi,\n  seconds: 0,\n  latitude: lat,\n  longitude: lon,\n  timezone: tz,\n  config: {\n    observation_point: \"geocentric\",\n    ayanamsha: \"tropical\",\n    language: \"fr\",\n  },\n};\n\nreturn [{ json: { body: JSON.stringify(payload) } }];"
+          "jsCode": "// SYN — Préparation dynamique B (TimeZoneDB itérations). Après « Timezone B ».\nconst vars = $('Vars B').first().json;\nconst geo = $('Timezone B').first().json;\n\nif (!geo || geo.lat === undefined || geo.lat === null || String(geo.lat).trim() === \"\") {\n  throw new Error(\"Coordonnées GPS B introuvables.\");\n}\nif (!vars || !vars.date) {\n  throw new Error(\"Variables B introuvables.\");\n}\n\nconst lat = parseFloat(geo.lat);\nconst lon = parseFloat(geo.lon);\nif (!Number.isFinite(lat) || !Number.isFinite(lon)) {\n  throw new Error(\"Coordonnées GPS B invalides.\");\n}\n\nconst d = vars.date.split(\"/\");\nconst h = vars.heure.split(/[:Hh]/);\nconst yy = parseInt(d[2], 10);\nconst mo = parseInt(d[1], 10);\nconst da = parseInt(d[0], 10);\nconst hh = parseInt(h[0], 10);\nconst mi = parseInt(h[1] || \"0\", 10);\n\nconst localNaiveUtcSec = Math.floor(Date.UTC(yy, mo - 1, da, hh, mi, 0) / 1000);\n\nconst TZ_KEY = \"UV443YWQRYUC\";\nlet U = localNaiveUtcSec;\nlet gmtOff = 0;\n\nfor (let iter = 0; iter < 4; iter++) {\n  if (iter > 0) await new Promise((r) => setTimeout(r, 200));\n  const tzData = await this.helpers.httpRequest({\n    method: \"GET\",\n    url: \"http://api.timezonedb.com/v2.1/get-time-zone\",\n    qs: {\n      key: TZ_KEY,\n      format: \"json\",\n      by: \"position\",\n      lat: String(lat),\n      lng: String(lon),\n      time: String(U),\n    },\n    json: true,\n  });\n\n  if (!tzData || tzData.gmtOffset === undefined) {\n    throw new Error(\"Fuseau horaire B introuvable. tzData=\" + JSON.stringify(tzData));\n  }\n  gmtOff = tzData.gmtOffset;\n  const nextU = localNaiveUtcSec - gmtOff;\n  if (Math.abs(nextU - U) <= 1) {\n    U = nextU;\n    break;\n  }\n  U = nextU;\n}\n\nconst tz = gmtOff / 3600;\n\nconst payload = {\n  year: yy,\n  month: mo,\n  date: da,\n  hours: hh,\n  minutes: mi,\n  seconds: 0,\n  latitude: lat,\n  longitude: lon,\n  timezone: tz,\n  config: {\n    observation_point: \"geocentric\",\n    ayanamsha: \"tropical\",\n    language: \"fr\",\n  },\n};\n\nreturn [{ json: { body: JSON.stringify(payload), gmtOffset: gmtOff } }];"
         },
         "id": "7fa50716-fef6-46dd-8d45-771d698305cb",
         "name": "Préparation B",
@@ -204,6 +133,17 @@
         ]
       },
       "Vars B": {
+        "main": [
+          [
+            {
+              "node": "Attente Nominatim B",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Attente Nominatim B": {
         "main": [
           [
             {
@@ -240,28 +180,6 @@
         "main": [
           [
             {
-              "node": "Get TZ A",
-              "type": "main",
-              "index": 0
-            }
-          ]
-        ]
-      },
-      "Timezone B": {
-        "main": [
-          [
-            {
-              "node": "Get TZ B",
-              "type": "main",
-              "index": 0
-            }
-          ]
-        ]
-      },
-      "Get TZ A": {
-        "main": [
-          [
-            {
               "node": "Préparation A",
               "type": "main",
               "index": 0
@@ -269,7 +187,7 @@
           ]
         ]
       },
-      "Get TZ B": {
+      "Timezone B": {
         "main": [
           [
             {
