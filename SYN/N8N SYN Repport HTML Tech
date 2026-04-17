@@ -246,7 +246,7 @@ sortedA.forEach(([houseNum, data]) => {
         : `<span style="display:inline-block;background:#f0fdf4;color:#166534;font-size:15.5px;font-weight:600;padding:4px 13px;border-radius:20px;margin:2px 3px;border:1px solid #22c55e;">${isEN ? 'Secondary' : 'Secondaire'}</span>`;
 
     sectionsA += `
-    <div class="house-section" style="background:#ffffff;border-radius:12px;margin:22px 0;border:1px solid #e0e0e0;overflow:hidden;">
+    <div id="syn-tech-a-${h}" class="house-section" style="background:#ffffff;border-radius:12px;margin:22px 0;border:1px solid #e0e0e0;overflow:hidden;">
         <div style="background:#2E5FA3;padding:16px 22px;">
             <table width="100%" border="0" cellspacing="0" cellpadding="0">
                 <tr>
@@ -294,7 +294,7 @@ sortedB.forEach(([houseNum, data]) => {
         : `<span style="display:inline-block;background:#f0fdf4;color:#166534;font-size:15.5px;font-weight:600;padding:4px 13px;border-radius:20px;margin:2px 3px;border:1px solid #22c55e;">${isEN ? 'Secondary' : 'Secondaire'}</span>`;
 
     sectionsB += `
-    <div class="house-section" style="background:#ffffff;border-radius:12px;margin:22px 0;border:1px solid #e0e0e0;overflow:hidden;">
+    <div id="syn-tech-b-${h}" class="house-section" style="background:#ffffff;border-radius:12px;margin:22px 0;border:1px solid #e0e0e0;overflow:hidden;">
         <div style="background:#c2410c;padding:16px 22px;">
             <table width="100%" border="0" cellspacing="0" cellpadding="0">
                 <tr>
@@ -404,6 +404,45 @@ function buildExecSummary() {
 }
 const execSummary = buildExecSummary();
 
+const synTocHousesA = sortedA.map(([k]) => parseInt(k, 10));
+const synTocHousesB = sortedB.map(([k]) => parseInt(k, 10));
+
+function buildSynTechTocHtml() {
+    const navAria = isEN ? "Table of contents" : "Sommaire";
+    const title = isEN ? "Contents" : "Sommaire";
+    const aStyle = "font-family:'Playfair Display',Georgia,serif;font-size:0.95em;font-weight:600;color:#1F3864;text-decoration:none;border-bottom:1px solid #cbd5e1";
+    const liLink = (id, lab) => `<li style="margin:5px 0"><a href="#${id}" style="${aStyle}">${esc(lab)}</a></li>`;
+    const parts = [];
+    if (synthese && String(synthese.llm_text || "").trim()) {
+        parts.push(liLink("syn-tech-synthese", isEN ? "Relationship synthesis" : "Synthèse relationnelle"));
+    }
+    if (globalScore > 0) {
+        parts.push(liLink("syn-tech-score", isEN ? "Compatibility score" : "Score de compatibilité"));
+    }
+    if (execSummary && String(execSummary).trim()) {
+        parts.push(liLink("syn-tech-exec", isEN ? "Executive summary" : "Résumé exécutif"));
+    }
+    parts.push(liLink("syn-tech-maisons", isEN ? "Astrological houses" : "Maisons astrologiques"));
+    const pALab = isEN ? `${persoA}'s perspective` : `Perspective — ${persoA}`;
+    const housesAItems = synTocHousesA.map((h) => {
+        const lab = isEN ? `House ${h} (${persoA})` : `Maison ${h} (${persoA})`;
+        return liLink(`syn-tech-a-${h}`, lab);
+    }).join("");
+    parts.push(`<li style="margin:5px 0"><a href="#syn-tech-perspective-a" style="${aStyle}">${esc(pALab)}</a><ul style="list-style:none;padding:0 0 0 22px;margin:4px 0 0 0">${housesAItems}</ul></li>`);
+    const pBLab = isEN ? `${persoB}'s perspective` : `Perspective — ${persoB}`;
+    const housesBItems = synTocHousesB.map((h) => {
+        const lab = isEN ? `House ${h} (${persoB})` : `Maison ${h} (${persoB})`;
+        return liLink(`syn-tech-b-${h}`, lab);
+    }).join("");
+    parts.push(`<li style="margin:5px 0"><a href="#syn-tech-perspective-b" style="${aStyle}">${esc(pBLab)}</a><ul style="list-style:none;padding:0 0 0 22px;margin:4px 0 0 0">${housesBItems}</ul></li>`);
+    const items = parts.join("");
+    if (!items.trim()) return "";
+    return `<nav class="syn-tech-toc" id="syn-tech-sommaire-nav" aria-label="${esc(navAria)}" style="background:#ffffff;border:1px solid #e2e8f0;border-radius:10px;padding:18px 22px 20px;margin:0 0 22px">
+<h2 style="font-family:'Playfair Display',Georgia,serif;font-size:1.2em;color:#1F3864;margin:0 0 14px;text-align:center;font-weight:700">${esc(title)}</h2>
+<ul style="list-style:none;padding:0;margin:0">${items}</ul>
+</nav><div class="syn-tech-toc-pagebreak" style="page-break-after:always;break-after:page;height:0;margin:0;padding:0;overflow:hidden" aria-hidden="true"></div>`;
+}
+
 const finalHtml = `<!DOCTYPE html>
 <html lang="${isEN ? 'en' : 'fr'}">
 <head>
@@ -411,8 +450,12 @@ const finalHtml = `<!DOCTYPE html>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>${isEN ? 'Synastry Technical Report' : 'Rapport Technique Synastrie'} — ${esc(persoAFull)} ${isEN ? 'and' : 'et'} ${esc(persoBFull)}</title>
 <style>
-    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Symbols+2&family=Playfair+Display:wght@600;700&family=Source+Sans+3:ital,wght@0,400;0,600;0,700;1,400&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Source+Sans+3:ital,wght@0,400;0,600;0,700;1,400&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Symbols+2&display=swap');
+    .syn-tech-toc a, .syn-tech-toc h2 { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     @media print {
+        .syn-tech-toc { page-break-after: avoid; break-after: avoid; }
+        .syn-tech-toc-pagebreak { page-break-after: always !important; break-after: page !important; }
         .house-section { page-break-after: always; break-after: page; }
         .house-section:last-child { page-break-after: auto; break-after: auto; }
         .synthese-section { page-break-after: always; break-after: page; }
@@ -422,21 +465,23 @@ const finalHtml = `<!DOCTYPE html>
 </head>
 <body style="margin:0;padding:0;background-color:#ffffff;">
 <div style="font-family:'Source Sans 3','Segoe UI',sans-serif;font-size:16px;font-weight:400;line-height:1.75;color:#2c2c3a;background:#ffffff;max-width:820px;margin:0 auto;padding:28px 20px 60px;">
-
-<div style="background:#1F3864;padding:52px 44px 48px;color:white;text-align:center;border-radius:14px;margin-bottom:8px;">
+<div id="syn-tech-intro" style="background:#1F3864;padding:52px 44px 48px;color:white;text-align:center;border-radius:14px;margin-bottom:8px;">
     <h1 style="font-family:'Playfair Display',Georgia,serif;font-size:36px;font-weight:700;letter-spacing:0.3px;color:#ffffff;margin:0 0 10px;line-height:1.35;">${isEN ? 'Synastry Technical Report —' : 'Rapport Technique Synastrie —'}<br>${esc(persoAFull)} ${isEN ? 'and' : 'et'} ${esc(persoBFull)}</h1>
     <p style="font-size:15.5px;font-weight:400;color:#aac4ff;letter-spacing:0.5px;margin:8px 0 0;">${esc(typoLabel)}</p>
 </div>
+__SYN_TECH_TOC_PLACEHOLDER__
 
 ${synthese ? `
+<div id="syn-tech-synthese">
 <div style="background:#1F3864;padding:15px 26px;border-radius:8px;margin:44px 0 22px;">
     <h2 style="font-family:'Playfair Display',Georgia,serif;font-size:18px;font-weight:600;color:white;letter-spacing:0.2px;margin:0;">&#9670;&nbsp; ${isEN ? 'Relationship Synthesis' : 'Synthèse Relationnelle'}</h2>
 </div>
 <div class="synthese-section" style="background:#ffffff;border-radius:12px;border:1px solid #e0e0e0;padding:28px 30px;margin-bottom:44px;">
     ${md(synthese.llm_text, isEN)}
+</div>
 </div>` : ''}
 
-${globalScore > 0 ? (() => {
+${globalScore > 0 ? '<div id="syn-tech-score">' + (() => {
     const sp1 = globalScoreDetail.pilier1_aspectual || {};
     const sp2 = globalScoreDetail.pilier2_karmique || {};
     const sp3 = globalScoreDetail.pilier3_composite || {};
@@ -476,20 +521,20 @@ ${globalScore > 0 ? (() => {
             penHtml += '</div></div>';
             return penHtml;
         })()
-})() : ''}
+})() + '</div>' : ''}
 
-${execSummary}
+<div id="syn-tech-exec">${execSummary}</div>
 
-<div style="background:#1F3864;padding:15px 26px;border-radius:8px;margin:44px 0 22px;">
+<div id="syn-tech-maisons" style="background:#1F3864;padding:15px 26px;border-radius:8px;margin:44px 0 22px;">
     <h2 style="font-family:'Playfair Display',Georgia,serif;font-size:18px;font-weight:600;color:white;letter-spacing:0.2px;margin:0;">&#8962;&nbsp; ${isEN ? 'Astrological Houses' : 'Maisons Astrologiques'}</h2>
 </div>
 
-<div style="background:#2E5FA3;padding:15px 26px;border-radius:8px;margin:22px 0 22px;">
+<div id="syn-tech-perspective-a" style="background:#2E5FA3;padding:15px 26px;border-radius:8px;margin:22px 0 22px;">
     <h2 style="font-family:'Playfair Display',Georgia,serif;font-size:18px;font-weight:600;color:white;letter-spacing:0.2px;margin:0;">&#9728;&nbsp; ${isEN ? `${esc(persoA)}'s Perspective — Impact of ${esc(persoB)}` : `Perspective de ${esc(persoA)} — Impact de ${esc(persoB)}`}</h2>
 </div>
 ${sectionsA}
 
-<div style="background:#c2410c;padding:15px 26px;border-radius:8px;margin:44px 0 22px;">
+<div id="syn-tech-perspective-b" style="background:#c2410c;padding:15px 26px;border-radius:8px;margin:44px 0 22px;">
     <h2 style="font-family:'Playfair Display',Georgia,serif;font-size:18px;font-weight:600;color:white;letter-spacing:0.2px;margin:0;">☽&nbsp; ${isEN ? `${esc(persoB)}'s Perspective — Impact of ${esc(persoA)}` : `Perspective de ${esc(persoB)} — Impact de ${esc(persoA)}`}</h2>
 </div>
 ${sectionsB}
@@ -498,4 +543,6 @@ ${sectionsB}
 </body>
 </html>`;
 
-return [{ json: { html: finalHtml, isComplete: true } }];
+const finalHtmlOut = finalHtml.replace("__SYN_TECH_TOC_PLACEHOLDER__", buildSynTechTocHtml());
+
+return [{ json: { html: finalHtmlOut, isComplete: true } }];

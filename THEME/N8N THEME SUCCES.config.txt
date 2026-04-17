@@ -1,0 +1,97 @@
+================================================================================
+FRA/THEME — fragment « N8N THEME SUCCES » (Merge9 → email + Blob + POST site)
+================================================================================
+Fichier workflow (import / copie nœuds) : N8N THEME SUCCES
+Contrat HTTP site : SITE/docs/n8n-callback-order-status.md
+
+Ce fichier résume UNIQUEMENT ce que tu dois configurer à la main dans n8n Cloud
+(les secrets ne vont pas dans le JSON d’export).
+
+--------------------------------------------------------------------------------
+A. Deux credentials « Header Auth » — OBLIGATOIREMENT DEUX, PAS UNE SEULE
+--------------------------------------------------------------------------------
+Crée-les dans le MÊME PROJET que le workflow (menu projet → Credentials), ou via
+« Set up credential » sur chaque nœud HTTP concerné.
+
+(1) Credential BLOB — pour le nœud THEME PUT Blob PDF UNIQUEMENT
+    Type : Header Auth
+    Nom affiché (exemple) : THEME — Vercel Blob (Authorization Bearer)
+    Champ « Name » du header : Authorization
+    Champ « Value » : Bearer<ESPACE>coller_token_vercel_blob_rw_…
+        → exactement UN espace après le mot Bearer
+
+(2) Credential SITE — pour le nœud THEME POST site delivered UNIQUEMENT
+    Type : Header Auth
+    Nom affiché (exemple) : THEME — Site webhook (X-Site-Webhook-Secret)
+    Champ « Name » du header : X-Site-Webhook-Secret
+    Champ « Value » : coller la valeur de N8N_WEBHOOK_SECRET telle qu’elle est
+        sur Vercel (pas de Bearer, pas de guillemets)
+
+ERREUR FRÉQUENTE : utiliser la credential Blob sur le POST site → 401 ou
+comportement incohérent. Chaque nœud = la bonne credential.
+
+--------------------------------------------------------------------------------
+B. Nœud THEME PUT Blob PDF
+--------------------------------------------------------------------------------
+Authentication : Generic Credential Type → Header Auth → credential (1) Blob
+URL : expression déjà dans l’export (blob.vercel-storage.com/theme/…)
+Body : n8n Binary File, champ data
+
+Send Headers : ON
+Headers manuels : UNE SEULE ligne
+    x-api-version = 7
+Ne PAS remettre Authorization ici (ni {{ $env.BLOB_READ_WRITE_TOKEN }}).
+Sur n8n Cloud, $env dans l’UI est souvent bloqué → erreur « env vars ».
+
+--------------------------------------------------------------------------------
+C. Nœud THEME POST site delivered
+--------------------------------------------------------------------------------
+Method : POST
+URL : https://site-rapports-astro.vercel.app/api/webhooks/n8n-order-status
+Authentication : Generic Credential Type → Header Auth → credential (2) Site
+
+Send Headers : OFF (le secret passe uniquement par la credential).
+Ne PAS ajouter X-Site-Webhook-Secret en header manuel avec {{ $env.… }}.
+
+Body : JSON (raw) déjà dans l’export : orderId, status delivered, pdfUrl,
+documentTier, n8nExecutionId.
+
+--------------------------------------------------------------------------------
+D. orderId et tests
+--------------------------------------------------------------------------------
+Lancer depuis le début du workflow (Webhook réel ou « Execute workflow » entier),
+pas seulement depuis un Merge au milieu, pour que orderId soit présent.
+
+Si Extract Variables du workflow Thème n’a pas orderId : utiliser le code
+« WEBHOOK Theme » (v5) côté dépôt : FRA/THEME/WEBHOOK Theme
+
+--------------------------------------------------------------------------------
+E. Après import du JSON dans n8n
+--------------------------------------------------------------------------------
+- Rattacher les deux Header Auth aux deux nœuds comme ci-dessus si les noms
+  diffèrent de ton instance.
+
+--------------------------------------------------------------------------------
+F. Gmail — « Node does not have any credentials set »
+--------------------------------------------------------------------------------
+Si tu vois cette erreur sur « Envoi Email avec PDF1 », le nœud n’a AUCUNE
+credential OAuth2 Gmail de liée (souvent après copie / import d’un fragment).
+
+À faire dans n8n (30 secondes) :
+1. Ouvre le nœud « Envoi Email avec PDF1 ».
+2. Section Credential / Compte Google : choisis ta credential Gmail existante
+   (ex. « Gmail account 2 ») ou « Connect my account » / créer une credential
+   OAuth2 Gmail dans le MÊME PROJET que le workflow.
+3. Sauvegarde le workflow, ré-exécute.
+
+L’export JSON peut contenir id + nom Gmail : ils ne sont valables que sur
+l’instance où la credential a été créée ; sur une autre instance, re-sélectionne
+la credential à la main (même nom ou nouvelle connexion).
+
+--------------------------------------------------------------------------------
+G. Vercel (rappel)
+--------------------------------------------------------------------------------
+Si DELIVERY_URL_ALLOWED_HOSTS est défini, autoriser le hostname des URLs
+renvoyées par Blob (voir doc SITE).
+
+================================================================================

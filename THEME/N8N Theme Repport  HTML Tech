@@ -280,12 +280,12 @@ activeMaisons.forEach(meta => {
   });
   (_stellarByCusp[meta.n] || []).forEach(ec => {
       const prec = (ec.precision || '').includes('forte') ? '★★' : '★';
-      badgesHtml += ` <span style="display:inline-block;background:#fff8e1;color:#5d4037;font-size:14px;font-weight:600;padding:3px 10px;border-radius:20px;margin:2px 3px;border:1px solid #ffb300;">${prec} ${esc(ec.etoile)} (Cuspide)</span>`;
+      badgesHtml += ` <span style="display:inline-block;background:#fff8e1;color:#5d4037;font-size:14px;font-weight:600;padding:3px 10px;border-radius:20px;margin:2px 3px;border:1px solid #ffb300;">${prec} ${esc(ec.etoile)} (${isEN ? "Cusp" : "Cuspide"})</span>`;
   });
 
   // Ajout de la classe "house-section" pour les sauts de page
   maisonsHtml += `
-  <div class="house-section" style="background: #ffffff; border-radius: 12px; margin: 22px 0; border: 1px solid #e0e0e0; overflow: hidden;">
+  <div id="theme-narr-m${meta.n}" class="house-section" style="background: #ffffff; border-radius: 12px; margin: 22px 0; border: 1px solid #e0e0e0; overflow: hidden;">
    <div style="background: #2E5FA3; padding: 16px 22px;">
     <table width="100%" border="0" cellspacing="0" cellpadding="0">
      <tr>
@@ -313,6 +313,32 @@ try {
     syntheseContenu = sNode?.json?.output || sNode?.json?.text || "";
 } catch(e) {}
 
+function buildThemeNarrTocHtml() {
+  const rows = [];
+  const push = (id, fr, en) => rows.push({ id, fr, en });
+  if (syntheseContenu && String(syntheseContenu).trim()) {
+    push("theme-narr-synthese", "Synthèse globale", "Global summary");
+  }
+  if (_paranResults.length > 0) {
+    push("theme-narr-parans", "Parans d'étoiles fixes (Brady)", "Fixed star parans (Brady)");
+  }
+  push("theme-narr-maisons", "Maisons astrologiques", "Astrological houses");
+  activeMaisons.forEach(m => {
+    push(`theme-narr-m${m.n}`, `Maison ${m.n}`, `House ${m.n}`);
+  });
+  if (!rows.length) return "";
+  const navAria = isEN ? "Table of contents" : "Sommaire";
+  const title = isEN ? "Contents" : "Sommaire";
+  const items = rows.map(r => {
+    const lab = isEN ? r.en : r.fr;
+    return `<li style="margin:5px 0"><a href="#${r.id}" style="font-family:'Playfair Display',Georgia,serif;font-size:0.95em;font-weight:600;color:#1F3864;text-decoration:none;border-bottom:1px solid #cbd5e1">${esc(lab)}</a></li>`;
+  }).join("");
+  return `<nav class="theme-narr-toc" id="theme-narr-sommaire-nav" aria-label="${esc(navAria)}" style="background:#ffffff;border:1px solid #e2e8f0;border-radius:10px;padding:18px 22px 20px;margin:0 0 22px">
+<h2 style="font-family:'Playfair Display',Georgia,serif;font-size:1.2em;color:#1F3864;margin:0 0 14px;text-align:center;font-weight:700">${esc(title)}</h2>
+<ul style="list-style:none;padding:0;margin:0">${items}</ul>
+</nav><div class="theme-narr-toc-pagebreak" style="page-break-after:always;break-after:page;height:0;margin:0;padding:0;overflow:hidden" aria-hidden="true"></div>`;
+}
+
 // Ajout du bloc <style> avec les règles de saut de page pour l'impression
 const finalHtml = `<!DOCTYPE html>
 <html lang="${isEN ? 'en' : 'fr'}">
@@ -321,7 +347,10 @@ const finalHtml = `<!DOCTYPE html>
  <meta name="viewport" content="width=device-width, initial-scale=1.0">
  <title>${isEN ? 'Technical Report' : 'Rapport Technique'} — ${esc(nomAffiche)}</title>
  <style>
+  @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Source+Sans+3:ital,wght@0,400;0,600;0,700;1,400&display=swap');
   @media print {
+   .theme-narr-toc { page-break-after: avoid; break-after: avoid; }
+   .theme-narr-toc-pagebreak { page-break-after: always !important; break-after: page !important; }
    .house-section { page-break-after: always; break-after: page; }
    .house-section:last-child { page-break-after: auto; break-after: auto; }
    .synthese-section { page-break-after: always; break-after: page; }
@@ -331,20 +360,21 @@ const finalHtml = `<!DOCTYPE html>
 </head>
 <body style="margin: 0; padding: 0; background-color: #ffffff;">
  <div style="font-family: 'Source Sans 3', 'Segoe UI', sans-serif; font-size: 16px; font-weight: 400; line-height: 1.75; color: #2c2c3a; background: #ffffff; max-width: 820px; margin: 0 auto; padding: 28px 20px 60px;">
-  <div style="background: #1F3864; padding: 52px 44px 48px; color: white; text-align: center; border-radius: 14px; margin-bottom: 8px;">
+  <div id="theme-narr-intro" style="background: #1F3864; padding: 52px 44px 48px; color: white; text-align: center; border-radius: 14px; margin-bottom: 8px;">
    <h1 style="font-family: 'Playfair Display', Georgia, serif; font-size: 36px; font-weight: 700; letter-spacing: 0.3px; color: #ffffff; margin: 0 0 10px;">${isEN ? 'Technical Birth Chart Report' : 'Rapport Technique Thème Astral'} — ${esc(nomAffiche)}</h1>
    <p style="font-size: 14px; font-weight: 400; letter-spacing: 1px; color: #8ab4f8; margin: 0 0 6px;">${esc(_lumHeaderTT)}</p>
    <p style="font-size: 15.5px; font-weight: 400; color: #aac4ff; letter-spacing: 0.5px; margin: 8px 0 0;">${esc(sousTitre)}</p>
   </div>
+  __THEME_RR_TOC_PLACEHOLDER__
 
   ${syntheseContenu ? `
-  <div style="background: #1F3864; padding: 15px 26px; border-radius: 8px; margin: 44px 0 22px;"><h2 style="font-family: 'Playfair Display', Georgia, serif; font-size: 18px; font-weight: 600; color: white; letter-spacing: 0.2px; margin: 0;">🔭&nbsp; Synthèse Globale</h2></div>
-  <div class="synthese-section" style="background: #ffffff; border-radius: 12px; border: 1px solid #e0e0e0; padding: 28px 30px; margin-bottom: 44px;">${md(syntheseContenu)}</div>
+  <div style="background: #1F3864; padding: 15px 26px; border-radius: 8px; margin: 44px 0 22px;"><h2 style="font-family: 'Playfair Display', Georgia, serif; font-size: 18px; font-weight: 600; color: white; letter-spacing: 0.2px; margin: 0;">🔭&nbsp; ${isEN ? "Global Summary" : "Synthèse Globale"}</h2></div>
+  <div id="theme-narr-synthese" class="synthese-section" style="background: #ffffff; border-radius: 12px; border: 1px solid #e0e0e0; padding: 28px 30px; margin-bottom: 44px;">${md(syntheseContenu)}</div>
   ` : ''}
 
   ${_paranResults.length > 0 ? `
   <div style="background: #1F3864; padding: 15px 26px; border-radius: 8px; margin: 44px 0 22px;"><h2 style="font-family: 'Playfair Display', Georgia, serif; font-size: 18px; font-weight: 600; color: white; letter-spacing: 0.2px; margin: 0;">🌟&nbsp; ${isEN ? 'Fixed Star Parans (Brady Method)' : "Parans d'Étoiles Fixes (méthode Brady)"}</h2></div>
-  <div style="background: #ffffff; border-radius: 12px; border: 1px solid #e0e0e0; padding: 20px 26px; margin-bottom: 44px;">
+  <div id="theme-narr-parans" style="background: #ffffff; border-radius: 12px; border: 1px solid #e0e0e0; padding: 20px 26px; margin-bottom: 44px;">
     <p style="font-size: 14px; color: #64748b; font-style: italic; margin: 0 0 14px;">${isEN ? 'A paran forms when a fixed star and a planet simultaneously occupy a cardinal angle (rising, setting, culmination). It is a deep and permanent bond.' : "Un paran se forme quand une étoile fixe et une planète se trouvent simultanément sur un angle cardinal (lever, coucher, culmination). C'est un lien profond et permanent."}</p>
     <table style="width:100%;border-collapse:collapse;font-size:14px;">
       <tr style="background:#2E5FA3;color:white;"><th style="padding:8px 10px;text-align:left;">${isEN ? 'Fixed Star' : 'Étoile Fixe'}</th><th style="padding:8px;text-align:center;">${isEN ? 'Star Angle' : 'Angle Étoile'}</th><th style="padding:8px 10px;text-align:left;">${isEN ? 'Planet' : 'Planète'}</th><th style="padding:8px;text-align:center;">${isEN ? 'Planet Angle' : 'Angle Planète'}</th><th style="padding:8px;text-align:center;">${isEN ? 'Orb' : 'Orbe'}</th></tr>
@@ -353,10 +383,12 @@ const finalHtml = `<!DOCTYPE html>
   </div>
   ` : ''}
 
-  <div style="background: #1F3864; padding: 15px 26px; border-radius: 8px; margin: 44px 0 22px;"><h2 style="font-family: 'Playfair Display', Georgia, serif; font-size: 18px; font-weight: 600; color: white; letter-spacing: 0.2px; margin: 0;">🏠&nbsp; ${isEN ? 'Astrological Houses' : 'Maisons Astrologiques'}</h2></div>
+  <div id="theme-narr-maisons" style="background: #1F3864; padding: 15px 26px; border-radius: 8px; margin: 44px 0 22px;"><h2 style="font-family: 'Playfair Display', Georgia, serif; font-size: 18px; font-weight: 600; color: white; letter-spacing: 0.2px; margin: 0;">🏠&nbsp; ${isEN ? 'Astrological Houses' : 'Maisons Astrologiques'}</h2></div>
   ${maisonsHtml}
  </div>
 </body>
 </html>`;
 
-return [{ json: { ...vars, html: finalHtml, isComplete: !!syntheseContenu } }];
+const finalHtmlOut = finalHtml.replace("__THEME_RR_TOC_PLACEHOLDER__", buildThemeNarrTocHtml());
+
+return [{ json: { ...vars, html: finalHtmlOut, isComplete: !!syntheseContenu } }];

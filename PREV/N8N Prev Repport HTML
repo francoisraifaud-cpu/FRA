@@ -220,6 +220,11 @@ const L = {
     enApplication: isEN ? 'Applying' : 'En application',
     enSeparation: isEN ? 'Separating' : 'En séparation',
     contreInd: isEN ? 'counter-indicator(s)' : 'contre-indicateur(s)',
+    tocTitle: isEN ? 'Contents' : 'Sommaire',
+    tocAria: isEN ? 'Table of contents' : 'Sommaire',
+    tocTitrePeriode: isEN ? 'Title & forecast window' : 'Titre & fenêtre de prévision',
+    tocHelioBloc: isEN ? 'Helio conditions & chart ruler' : 'Hélios & co-maître du thème',
+    tocHeatmap: isEN ? 'Intensity heatmap' : "Carte d'intensité",
 };
 const prenomNom   = `${perso.prenom || ""} ${(perso.nom || "").toUpperCase()}`.trim();
 
@@ -1149,7 +1154,7 @@ const renderHouseBlock = (m) => {
     const sProgAsp   = renderProgressionAspects(num);
 
     return `
-    <div class="house-block${ANGLE_BY_HOUSE[num] ? " angular-house" : ""}">
+    <div id="prev-maison-${num}" class="house-block${ANGLE_BY_HOUSE[num] ? " angular-house" : ""}">
         <div class="house-banner">
             <div class="house-title">${L.maison} ${num}</div>
             <div class="house-meta">
@@ -1168,7 +1173,7 @@ const renderHouseBlock = (m) => {
 // ── Bloc contexte natal avancé (harmonisation avec le rapport Thème) ──
 let natalAdvancedHTML = '';
 if (dispositorTreeH?.finalDispositors?.length > 0 || accidentalDignityH.length > 0 || hayzPlanetsH.length > 0 || besiegedPlanetsH.length > 0 || moonVOCH) {
-    natalAdvancedHTML = `<div class="house-block" style="page-break-before:always;margin-bottom:45px">
+    natalAdvancedHTML = `<div id="prev-natal-avance" class="house-block" style="page-break-before:always;margin-bottom:45px">
         <div class="house-banner" style="background:${tc.bg}">
             <div class="house-title">🔬 ${L.ctxNatal}</div>
             <div class="house-meta"><span class="type-badge" style="background:${tc.badge};color:${tc.badgeTxt}">${L.techClassiques}</span></div>
@@ -1216,7 +1221,7 @@ if (dispositorTreeH?.finalDispositors?.length > 0 || accidentalDignityH.length >
 // ── Forme du thème (Jones) + Signes interceptés ──
 let chartShapeHTML = '';
 if (chartShapeH.shape || interceptedSignsH.length > 0 || natalStatsH.almutem_figuris) {
-    chartShapeHTML = `<div class="house-block" style="margin-bottom:30px"><div class="house-banner" style="background:${tc.bg}">
+    chartShapeHTML = `<div id="prev-forme-theme" class="house-block" style="margin-bottom:30px"><div class="house-banner" style="background:${tc.bg}">
         <div class="house-title">📐 ${L.structTheme}</div>
         <div class="house-meta"><span class="type-badge" style="background:${tc.badge};color:${tc.badgeTxt}">${L.gouvFormeInt}</span></div>
     </div><div class="house-content">`;
@@ -1247,7 +1252,7 @@ if (chartShapeH.shape || interceptedSignsH.length > 0 || natalStatsH.almutem_fig
 // ── Profil de sensibilité ──
 let sensitivityHTML = '';
 if (sensitivityProfileH) {
-    sensitivityHTML = `<div class="house-block" style="margin-bottom:30px"><div class="house-banner" style="background:#1F3864">
+    sensitivityHTML = `<div id="prev-sensibilites" class="house-block" style="margin-bottom:30px"><div class="house-banner" style="background:#1F3864">
         <div class="house-title">🎯 ${L.sensibilite}</div>
         <div class="house-meta"><span class="type-badge" style="background:#2E5FA3;color:white">${L.receptTransits}</span></div>
     </div><div class="house-content">
@@ -1271,7 +1276,7 @@ const _renderHeatmap = (hd, bgColor, badgeBg, badgeTxt) => {
     const getTC = (v) => v / maxI >= 0.5 ? '#fff' : '#1e3a8a';
     const _nBg = (n) => n >= 75 ? '#1e40af' : n >= 50 ? '#3b82f6' : n >= 25 ? '#93c5fd' : '#dbeafe';
     const _nTc = (n) => n >= 50 ? '#fff' : '#1e3a8a';
-    let h = `<div class="house-block" style="margin-bottom:45px"><div class="house-banner" style="background:${bgColor}"><div class="house-title">${hd.title}</div><div class="house-meta"><span class="type-badge" style="background:${badgeBg};color:${badgeTxt}">${hd.subtitle}</span>`;
+    let h = `<div id="prev-heatmap" class="house-block" style="margin-bottom:45px"><div class="house-banner" style="background:${bgColor}"><div class="house-title">${hd.title}</div><div class="house-meta"><span class="type-badge" style="background:${badgeBg};color:${badgeTxt}">${hd.subtitle}</span>`;
     if (hd.profLord) h += `<span class="type-badge" style="background:#fff8e1;color:#8b6914;margin-left:8px">♛ ${hd.profLord} (${L.seigneur}) ×1.5</span>`;
     if (hd.firdMajor) h += `<span class="type-badge" style="background:#e8f0fe;color:#1F3864;margin-left:8px">⏳ ${hd.firdMajor} (${L.firdaria}) ×1.3</span>`;
     h += `</div></div><div class="house-content">`;
@@ -1388,7 +1393,7 @@ if (allMondiaux.length > 0) {
     }).join("");
     const llGH = llG.length ? `<div class="mondial-sub">${L.cyclesLL}</div>${renderMondG(llG,"#fafafa")}` : "";
     const rlGH = rlG.length ? `<div class="mondial-sub activation-sub">${L.activationsRL}</div>${renderMondG(rlG,"#eef2fb")}` : "";
-    mondiauxGlobalHTML = `<div class="house-block" style="margin-bottom:45px">
+    mondiauxGlobalHTML = `<div id="prev-mondiaux" class="house-block" style="margin-bottom:45px">
         <div class="house-banner" style="background:${tc.bg}">
             <div class="house-title">⊛ ${L.aspectsMond2}</div>
             <div class="house-meta"><span class="type-badge" style="background:${tc.badge};color:${tc.badgeTxt}">${allMondiaux.length} ${L.aspCyclesAll}</span></div>
@@ -1411,6 +1416,44 @@ for (const _m of maisons) {
     delete _m.cycles_vie; delete _m.profection;
     delete _m.signes_presents;
 }
+
+/** Sommaire : ancres #prev-* + liens internes (PDF cliquable via Chromium/Gotenberg, sans chaîne aval). */
+let _prevHelioToc = false;
+if (chartRulerTrad) _prevHelioToc = true;
+else if (helioConditions) {
+    for (const _k of Object.keys(helioConditions)) {
+        const _v = helioConditions[_k];
+        if (_v && _v.condition) { _prevHelioToc = true; break; }
+    }
+}
+const _escPrevToc = (t) => String(t).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/"/g, "&quot;");
+const prevTocRows = [];
+const pushPrevToc = (id, label) => { if (id && label) prevTocRows.push({ id, label }); };
+if (_prevHelioToc) pushPrevToc("prev-helio", L.tocHelioBloc);
+if (eclipseNatalH) pushPrevToc("prev-eclipse", L.neeSousEcl);
+if (_primaryDirections && _primaryDirections.length > 0) pushPrevToc("prev-dirs-primaires", L.dirPrimaires);
+if (_solarArcRows.length > 0) pushPrevToc("prev-arcs-solaires", L.solarArcTitle);
+if (firdariaActive) pushPrevToc("prev-firdaria", L.firdariaTitle);
+if (progressionsRaw) pushPrevToc("prev-progressions", L.progSec);
+if (_rsRaw) pushPrevToc("prev-rev-solaire", L.revSolaire);
+if (_rlRaw) pushPrevToc("prev-rev-lunaires", L.revLunaires);
+if (_tpRaw && _tpRaw.length > 0) pushPrevToc("prev-transits-prog", L.transitsProg);
+if (chartShapeHTML) pushPrevToc("prev-forme-theme", L.structTheme);
+if (heatmapHTML) pushPrevToc("prev-heatmap", L.tocHeatmap);
+if (natalAdvancedHTML) pushPrevToc("prev-natal-avance", L.ctxNatal);
+if (sensitivityHTML) pushPrevToc("prev-sensibilites", L.sensibilite);
+if (mondiauxGlobalHTML) pushPrevToc("prev-mondiaux", L.aspectsMond2);
+for (let _hi = 1; _hi <= 12; _hi++) pushPrevToc(`prev-maison-${_hi}`, `${L.maison} ${_hi}`);
+const renderPrevTocHtml = () => {
+    if (!prevTocRows.length) return "";
+    const items = prevTocRows.map((r) =>
+        `<li style="margin:5px 0"><a href="#${r.id}" style="font-family:'Playfair Display',Georgia,serif;font-size:0.95em;font-weight:600;color:#1F3864;text-decoration:none;border-bottom:1px solid #cbd5e1">${_escPrevToc(r.label)}</a></li>`
+    ).join("");
+    return `<nav class="prev-toc" id="prev-sommaire-nav" aria-label="${_escPrevToc(L.tocAria)}" style="background:#ffffff;border:1px solid #e2e8f0;border-radius:10px;padding:18px 22px 20px;margin:0 0 22px">
+<h2 style="font-family:'Playfair Display',Georgia,serif;font-size:1.2em;color:#1F3864;margin:0 0 14px;text-align:center;font-weight:700">${_escPrevToc(L.tocTitle)}</h2>
+<ul style="list-style:none;padding:0;margin:0">${items}</ul>
+</nav><div class="prev-toc-pagebreak" style="page-break-after:always;break-after:page;height:0;margin:0;padding:0;overflow:hidden" aria-hidden="true"></div>`;
+};
 
 const html = `<!DOCTYPE html>
 <html lang="${isEN ? 'en' : 'fr'}">
@@ -1491,11 +1534,14 @@ const html = `<!DOCTYPE html>
         .rl-badge{color:#1F3864;background:#e8f0fe;border-color:#1F3864}
         .dual-house{font-size:0.75rem;color:#94a3b8;font-weight:700;background:#f1f5f9;padding:1px 8px;border-radius:8px}
         .empty{font-style:italic;color:#cbd5e1;padding:8px 4px;font-size:0.9rem}
+        .prev-toc a { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
         @media print{
             body{padding:0;background:white}
             .report-container{box-shadow:none;padding:20px}
             .main-header { padding: 35px 25px; margin-bottom: 30px; }
             .main-header h1 { font-size: 28px; }
+            .prev-toc { page-break-after: avoid; break-after: avoid; }
+            .prev-toc-pagebreak { page-break-after: always !important; break-after: page !important; }
             .house-block { page-break-after: always; break-after: page; }
             .house-block:last-child { page-break-after: auto; break-after: auto; }
             @page { margin-bottom: 20mm; @bottom-center { content: counter(page) " / " counter(pages); font-size: 9pt; color: #888; } }
@@ -1551,11 +1597,12 @@ const html = `<!DOCTYPE html>
 </head>
 <body>
 <div class="report-container">
-    <div class="main-header">
+    <div id="prev-intro" class="main-header">
         <h1>${L.titre} —<br>${prenomNom}</h1>
         <p class="subtitle">${_lumHeaderDP}</p>
         <p class="details">${labelType.toUpperCase()} &middot; ${dateEntreeStr} ➔ ${dateSortieStr}</p>
     </div>
+__PREV_TOC_PLACEHOLDER__
     ${(() => {
         const helioLines = [];
         if (helioConditions) {
@@ -1571,7 +1618,7 @@ const html = `<!DOCTYPE html>
             });
         }
         if (helioLines.length === 0 && !chartRulerTrad) return '';
-        let html = '<div style="background:#eef2fb;border:1px solid #2E5FA3;border-radius:10px;padding:14px 18px;margin:0 0 20px">';
+        let html = '<div id="prev-helio" style="background:#eef2fb;border:1px solid #2E5FA3;border-radius:10px;padding:14px 18px;margin:0 0 20px">';
         if (chartRulerTrad) {
             html += `<div style="font-weight:700;color:#1F3864;margin-bottom:8px;font-size:1em">👑 ${L.coMaitre} <strong>${chartRulerTrad}</strong></div>`;
         }
@@ -1582,8 +1629,8 @@ const html = `<!DOCTYPE html>
         html += '</div>';
         return html;
     })()}
-    ${eclipseNatalH ? `<div style="background:linear-gradient(135deg,#fff0e6,#fff8f5);border:2px solid #7c2d12;border-radius:10px;padding:14px 18px;margin:0 0 20px;"><div style="color:#7c2d12;font-weight:700;font-size:1.05em;margin-bottom:6px">⚡ ${L.neeSousEcl}</div><div>${L.eclipse} <strong>${eclipseNatalH.type}</strong> ${L.de} <strong>${eclipseNatalH.astre}</strong> ${L.en} <strong>${eclipseNatalH.sign}</strong> — ${L.maison} <strong>${eclipseNatalH.house}</strong> (${((eclipseNatalH.degree??0)%30).toFixed(1)}°). ${L.eclNatDesc}${eclipseNatalH.house} ${L.eclNatDesc2}</div></div>` : ""}
-    ${(etoileMatchesNatH.length || etoileCuspNatH.length) ? `<div style="background:#fff8e1;border:1px solid #ffb300;border-radius:8px;padding:10px 16px;margin:0 0 16px;color:#5d4037">★ ${L.themeStellair} ${[...new Set([...etoileMatchesNatH.map(e=>e.etoile),...etoileCuspNatH.map(e=>e.etoile)])].join(' · ')} ${L.voirSection}</div>` : ""}
+    ${eclipseNatalH ? `<div id="prev-eclipse" style="background:linear-gradient(135deg,#fff0e6,#fff8f5);border:2px solid #7c2d12;border-radius:10px;padding:14px 18px;margin:0 0 20px;"><div style="color:#7c2d12;font-weight:700;font-size:1.05em;margin-bottom:6px">⚡ ${L.neeSousEcl}</div><div>${L.eclipse} <strong>${eclipseNatalH.type}</strong> ${L.de} <strong>${eclipseNatalH.astre}</strong> ${L.en} <strong>${eclipseNatalH.sign}</strong> — ${L.maison} <strong>${eclipseNatalH.house}</strong> (${((eclipseNatalH.degree??0)%30).toFixed(1)}°). ${L.eclNatDesc}${eclipseNatalH.house} ${L.eclNatDesc2}</div></div>` : ""}
+    ${(etoileMatchesNatH.length || etoileCuspNatH.length) ? `<div id="prev-stellar" style="background:#fff8e1;border:1px solid #ffb300;border-radius:8px;padding:10px 16px;margin:0 0 16px;color:#5d4037">★ ${L.themeStellair} ${[...new Set([...etoileMatchesNatH.map(e=>e.etoile),...etoileCuspNatH.map(e=>e.etoile)])].join(' · ')} ${L.voirSection}</div>` : ""}
     ${"" /* Parans Brady — SUPPRIMÉ du rapport Prévisions (déjà présent dans le DHN) */}
     ${_primaryDirections && _primaryDirections.length > 0 ? (() => {
         const aspGlyph = {"Conjonction":"☌","Opposition":"☍","Carré":"□","Trigone":"△","Sextile":"⚹"};
@@ -1593,7 +1640,7 @@ const html = `<!DOCTYPE html>
             const orbBold = dp.orbYears <= 0.5 ? 'font-weight:700' : '';
             return `<tr style="background:${bg}"><td style="padding:7px 12px;font-weight:600">${glyphs[dp.promissor]||''}  ${dp.promissor}</td><td style="padding:7px 12px;text-align:center;font-size:1.1em">${aspGlyph[dp.aspect]||dp.aspect}</td><td style="padding:7px 12px;font-weight:600">${glyphs[dp.significator]||''} ${dp.significator}</td><td style="padding:7px 12px;text-align:center;font-size:0.85em;color:#6b7280">${dp.direction}</td><td style="padding:7px 12px;text-align:center">${dp.exactAge.toFixed(1)} ans</td><td style="padding:7px 12px;text-align:center;color:${orbCol};${orbBold}">${dp.orbYears.toFixed(2)} an${dp.orbYears >= 2 ? 's' : ''}</td><td style="padding:7px 12px;text-align:center;font-size:0.85em">M${dp.promHouse||'?'} → M${dp.sigHouse||'?'}</td></tr>`;
         }).join('');
-        return `<div class="house-block" style="page-break-before:always;margin-bottom:30px">
+        return `<div id="prev-dirs-primaires" class="house-block" style="page-break-before:always;margin-bottom:30px">
             <div class="house-banner" style="background:linear-gradient(135deg,#4a1d96,#7c3aed)">
                 <div class="house-title" style="color:white">🔱 ${L.dirPrimaires}</div>
                 <div class="house-meta"><span class="type-badge" style="background:#fbbf24;color:#1a1a2e;font-weight:700">${_primaryDirections.length} ${_primaryDirections.length>1?L.dirsActives:L.dirActive}</span><span class="type-badge" style="background:rgba(255,255,255,0.2);color:white;margin-left:6px">${L.methodeDP}</span></div>
@@ -1624,7 +1671,7 @@ const html = `<!DOCTYPE html>
             const noteCell = row.note ? escSA(row.note) : '—';
             return `<tr style="background:${bg}"><td style="padding:7px 10px;font-weight:600">${gDir} ${escSA(row.directed)}<div style="font-size:0.72rem;color:#9a3412;font-weight:500">${escSA(row.dirSign)} · M${row.dirHouse}</div></td><td style="padding:7px 10px;text-align:center;font-size:1.05em">${aspGlyphSA[row.aspect] || row.aspect}</td><td style="padding:7px 10px;font-weight:600">${gTgt} ${escSA(row.target)}</td><td style="padding:7px 10px;text-align:center;font-weight:600">M${row.targetHouse}</td><td style="padding:7px 10px;text-align:center;font-weight:600">${orbDisp}</td><td style="padding:7px 10px;font-size:0.82rem;color:#57534e">${noteCell}</td></tr>`;
         }).join('');
-        return `<div class="house-block" style="page-break-before:always;break-before:page;margin-bottom:30px">
+        return `<div id="prev-arcs-solaires" class="house-block" style="page-break-before:always;break-before:page;margin-bottom:30px">
             <div class="house-banner" style="background:linear-gradient(135deg,#9a3412,#ea580c)">
                 <div class="house-title" style="color:white">☀ ${L.solarArcTitle}</div>
                 <div class="house-meta"><span class="type-badge" style="background:#ffedd5;color:#9a3412;font-weight:700">${_solarArcRows.length} ${L.solarArcCountLbl}</span><span class="type-badge" style="background:rgba(255,255,255,0.22);color:white;margin-left:6px">${L.solarArcBadge}</span></div>
@@ -1638,7 +1685,7 @@ const html = `<!DOCTYPE html>
             </div>
         </div>`;
     })() : ''}
-    ${firdariaActive ? `<div class="house-block" style="${((_primaryDirections && _primaryDirections.length > 0) || _solarArcRows.length > 0) ? 'page-break-before:always;break-before:page;' : ''}margin-bottom:30px">
+    ${firdariaActive ? `<div id="prev-firdaria" class="house-block" style="${((_primaryDirections && _primaryDirections.length > 0) || _solarArcRows.length > 0) ? 'page-break-before:always;break-before:page;' : ''}margin-bottom:30px">
         <div class="house-banner" style="background:${tc.bg}">
             <div class="house-title">⏳ ${L.firdariaTitle}</div>
             <div class="house-meta"><span class="type-badge" style="background:${tc.badge};color:${tc.badgeTxt}">${L.periodeMaj} ${firdariaActive.major}</span></div>
@@ -1664,7 +1711,7 @@ const html = `<!DOCTYPE html>
             ? `<div class="section-title" style="color:#2E5FA3;margin-top:18px;page-break-before:always">🔮 ${L.aspEvtProg}</div>` +
               _progAspNoSA.map(a => { const txt = typeof a === 'string' ? a : `${a.pProg || '?'} en ${a.aspect || '?'} à ${a.pNat || '?'} natal (M${a.maisonNat || '?'}) — orbe ${a.exactitude || '?'}°`; return `<div class="timeline-item" style="border-left-color:#2E5FA3;background:#eef2fb"><div class="event-text" style="font-size:0.9rem">${txt}</div></div>`; }).join('')
             : '';
-        return `<div class="house-block" style="margin-bottom:45px">
+        return `<div id="prev-progressions" class="house-block" style="margin-bottom:45px">
             <div class="house-banner" style="background:${tc.bg}">
                 <div class="house-title">🔮 ${L.progSec}</div>
                 <div class="house-meta"><span class="type-badge" style="background:${tc.badge};color:${tc.badgeTxt}">${L.age} ~${progAge} ${L.ans}</span></div>
@@ -1682,7 +1729,7 @@ const html = `<!DOCTYPE html>
         const escH = (t) => String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
         const rsLines = (_rsRaw.text || '').split('\n').filter(l => l.trim());
         const rsItemsHTML = rsLines.map(l => `<div class="timeline-item" style="border-left-color:#e8a735;background:#fffbeb"><div class="event-text" style="font-size:0.9rem">${escH(l)}</div></div>`).join('');
-        return `<div class="house-block" style="margin-bottom:45px">
+        return `<div id="prev-rev-solaire" class="house-block" style="margin-bottom:45px">
             <div class="house-banner" style="background:#b8860b">
                 <div class="house-title">🌞 ${L.revSolaire}</div>
                 <div class="house-meta"><span class="type-badge" style="background:#fff8e1;color:#8b6914">${L.date} : ${_rsRaw.date || '?'}</span>${_rsRaw.ascSign ? `<span class="type-badge" style="background:#fff8e1;color:#8b6914;margin-left:8px">${L.ascRS} ${_rsRaw.ascSign} → M${_rsRaw.ascHouse || '?'}</span>` : ''}</div>
@@ -1693,7 +1740,7 @@ const html = `<!DOCTYPE html>
     ${_rlRaw ? (() => {
         const escH = (t) => String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
         const rlItemsHTML = (_rlRaw.lines || []).map(l => `<div class="timeline-item" style="border-left-color:#7c3aed;background:#f5f3ff"><div class="event-text" style="font-size:0.85rem">${escH(l)}</div></div>`).join('');
-        return `<div class="house-block" style="margin-bottom:45px">
+        return `<div id="prev-rev-lunaires" class="house-block" style="margin-bottom:45px">
             <div class="house-banner" style="background:#5b21b6">
                 <div class="house-title">🌙 ${L.revLunaires}</div>
                 <div class="house-meta"><span class="type-badge" style="background:#ede9fe;color:#5b21b6">${_rlRaw.count || '?'} ${L.retLunaires}</span></div>
@@ -1709,7 +1756,7 @@ const html = `<!DOCTYPE html>
             const bc = isPrecise ? '#1d4ed8' : '#64748b';
             return `<div class="timeline-item" style="border-left-color:${bc};background:${bg}"><div class="event-text" style="font-size:0.85rem">${escH(t)}</div></div>`;
         }).join('');
-        return `<div class="house-block" style="margin-bottom:45px">
+        return `<div id="prev-transits-prog" class="house-block" style="margin-bottom:45px">
             <div class="house-banner" style="background:#1e40af">
                 <div class="house-title">🎯 ${L.transitsProg}</div>
                 <div class="house-meta"><span class="type-badge" style="background:#dbeafe;color:#1e40af">${_tpRaw.length} aspect(s)</span></div>
@@ -1727,6 +1774,8 @@ const html = `<!DOCTYPE html>
 </body>
 </html>`;
 
+const htmlOut = html.replace("__PREV_TOC_PLACEHOLDER__", renderPrevTocHtml());
+
 const safeFilename = titrePrincipal
     .normalize("NFD").replace(/[\u0300-\u036f]/g,"")
     .replace(/[^a-zA-Z0-9_\-]/g,"_").replace(/_+/g,"_").replace(/^_|_$/g,"");
@@ -1741,7 +1790,7 @@ return [{
     },
     binary: {
         html_file: {
-            data: Buffer.from(html,"utf8").toString("base64"),
+            data: Buffer.from(htmlOut,"utf8").toString("base64"),
             mimeType: "text/html",
             fileName: "index.html" // Requis par Gotenberg
         }

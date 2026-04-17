@@ -111,7 +111,7 @@ let html = `<!DOCTYPE html>
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Source+Sans+3:ital,wght@0,400;0,600;0,700;1,400&display=swap');
     * { box-sizing: border-box; }
-    body { font-family: 'Source Sans 3', 'Segoe UI', sans-serif; background: #ffffff; color: #2c2c3a; padding: 20px; font-size: 17px; line-height: 1.65; }
+    body { font-family: 'Source Sans 3', 'Segoe UI', sans-serif; background: #ffffff; color: #2c2c3a; padding: 20px; font-size: 16px; line-height: 1.6; }
     .container { max-width: 1000px; margin: auto; background: white; padding: 30px; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,.05); }
     .main-header { background: #1F3864; padding: 52px 44px 48px; color: white; text-align: center; border-radius: 14px; margin-bottom: 20px; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     .main-header h1 { font-family: 'Playfair Display', Georgia, serif; font-size: 36px; font-weight: 700; letter-spacing: 0.3px; color: #ffffff; margin: 0 0 10px; line-height: 1.35; }
@@ -178,7 +178,9 @@ let html = `<!DOCTYPE html>
     .fiabilite-badge.low { color: #ef4444; border-color: #ef4444; }
     @media print {
         @page { size: A4 portrait; margin: 10mm 12mm 18mm; @bottom-center { content: counter(page) " / " counter(pages); font-size: 9pt; color: #888; } }
-        body { padding: 0; background: white; font-size: 11pt; color: #000; }
+        body { padding: 0; background: white; font-size: 12pt; color: #000; }
+        .syn-doc-toc { page-break-after: avoid; break-after: avoid; }
+        .syn-doc-toc-pagebreak { page-break-after: always !important; break-after: page !important; }
         .container { padding: 0; box-shadow: none; border: none; max-width: 100%; margin: 0; }
         .main-header { padding: 35px 25px; margin-bottom: 20px; }
         .main-header h1 { font-size: 28px; }
@@ -207,10 +209,11 @@ let html = `<!DOCTYPE html>
 <div class="container">`;
 
 // ── HEADER ──
-html += `<div class="main-header">
+html += `<div class="main-header" id="syn-doc-intro">
     <h1>${headerTitle}</h1>
     <p class="details">${escH(isEN ? (typoConfig.label_en || typoConfig.label_fr || typologie) : (typoConfig.label_fr || typologie))}</p>
 </div>`;
+html += `__SYN_DOC_TOC_PLACEHOLDER__`;
 
 // ── FICHE SYNASTRIE — Executive Summary Card (R2) ──
 {
@@ -257,7 +260,7 @@ _penCard.slice(0, 3).forEach(p => { _sumDefis.push(_chLabels[p.id] || p.id.repla
 
 const _sc2 = globalScore >= 75 ? "#166534" : globalScore >= 50 ? "#1F3864" : globalScore >= 30 ? "#92400e" : "#991b1b";
 
-html += `<div style="page-break-after:always;margin-bottom:20px">
+html += `<div id="syn-doc-fiche" style="page-break-after:always;margin-bottom:20px">
 <h2 class="section-title">${isEN ? 'Synastry Summary Card' : 'Fiche Synastrie'}</h2>
 <div style="display:flex;gap:16px;margin-top:15px">
 <div style="flex:1;display:flex;flex-direction:column;gap:12px">
@@ -326,7 +329,7 @@ const fmtCoord = (p) => {
     return parts.length > 0 ? `<br><span style="font-size:0.85em;color:#64748b">${escH(parts.join(' · '))}</span>` : '';
 };
 
-html += `<div class="duo">
+html += `<div class="duo" id="syn-doc-identites">
     <div class="card card-a">
         <h3>&#9728; ${prenomA} ${nomA}</h3>
         <p><strong>${isEN ? 'Birth' : 'Naissance'} :</strong> ${escH(persoA.date || '?')} · ${escH((persoA.heure || '?').replace(':','H'))} · ${escH(persoA.lieu || '?')}${fmtCoord(persoA)}</p>
@@ -343,7 +346,7 @@ html += `<div class="duo">
 const _t1All = [...(input.inter_aspects_tier1_b_to_a || []), ...(input.inter_aspects_tier1_a_to_b || [])];
 
 // ── STATISTIQUES RÉCAPITULATIVES (remonté en haut) ──
-html += `<h2 class="section-title">${isEN ? 'Summary Statistics' : 'Statistiques Récapitulatives'}</h2>`;
+html += `<h2 class="section-title" id="syn-doc-stats">${isEN ? 'Summary Statistics' : 'Statistiques Récapitulatives'}</h2>`;
 
 const almuten = input.synastry_almuten || {};
 const m7cross = input.m7_cross_analysis || {};
@@ -367,7 +370,7 @@ if (globalScore > 0) {
     const _gaugeDash = (globalScore / 100) * _gaugeCirc;
     const _gaugeGradient = globalScore >= 75 ? '#16a34a' : globalScore >= 50 ? '#2563eb' : globalScore >= 30 ? '#d97706' : '#dc2626';
 
-    html += `<div style="text-align:center;margin:15px 0 10px;padding:20px;background:linear-gradient(135deg,#eef2fb,#dbeafe);border:2px solid #2E5FA3;border-radius:12px">
+    html += `<div id="syn-doc-score" style="text-align:center;margin:15px 0 10px;padding:20px;background:linear-gradient(135deg,#eef2fb,#dbeafe);border:2px solid #2E5FA3;border-radius:12px">
         <div style="font-family:'Playfair Display',serif;font-size:1.1em;color:#1F3864;margin-bottom:8px">${isEN ? 'Overall Compatibility Score' : 'Score de Compatibilité Global'}</div>
         <svg width="160" height="160" viewBox="0 0 160 160" style="margin:0 auto;display:block">
   <circle cx="80" cy="80" r="${_gaugeR}" fill="none" stroke="#e5e7eb" stroke-width="${_gaugeStroke}"/>
@@ -605,7 +608,7 @@ const sortedAinB = relevantTop
 const maxActBinA = sortedBinA.length > 0 ? Math.max(...sortedBinA.map(x => x.ts.total), 1) : 1;
 const maxActAinB = sortedAinB.length > 0 ? Math.max(...sortedAinB.map(x => x.ts.total), 1) : 1;
 
-html += `<h2 class="section-title page-break">${isEN ? 'Key Houses — Activation Ranking' : 'Maisons Clés — Classement par Activation'}</h2>`;
+html += `<h2 class="section-title page-break" id="syn-doc-maisons-cles">${isEN ? 'Key Houses — Activation Ranking' : 'Maisons Clés — Classement par Activation'}</h2>`;
 html += `<p class="decl-intro">${isEN ? 'Key houses for this typology ranked by total activation (Tension + Support). Score = weighted score normalized 0-100.' : 'Maisons clés pour cette typologie classées par activation totale (Tension + Support). Score = score pondéré normalisé 0-100.'}</p>`;
 
 function renderTopBar(item, maxAct, barColorMain) {
@@ -640,7 +643,7 @@ const topActBinA = scores.top_activation_b_in_a || [];
 const topActAinB = scores.top_activation_a_in_b || [];
 const relevantHouses = [...principales, ...secondaires].sort((a, b) => a - b);
 
-html += `<h2 class="section-title">${isEN ? 'Tension / Support — Key Houses' : 'Tension / Support — Maisons Clés'}</h2>`;
+html += `<h2 class="section-title" id="syn-doc-tension">${isEN ? 'Tension / Support — Key Houses' : 'Tension / Support — Maisons Clés'}</h2>`;
 html += `<p class="decl-intro">${isEN ? 'Tension (warm colors) vs Support (cool colors) breakdown for typology-relevant houses only. Sorted by total activation. Bar width = proportion of max activation.' : 'Répartition Tension (couleurs chaudes) vs Support (couleurs froides) pour les maisons pertinentes à la typologie. Classement par activation totale. Largeur = proportion de l\'activation max.'}</p>`;
 
 function renderTSBars(tsMap, label, cardClass) {
@@ -729,7 +732,7 @@ const _cFusion = _t1All.filter(a => a.nature === "fusion").length;
 const _cHarmo = _t1All.filter(a => a.nature === "harmonie").length;
 const _cTendu = _t1All.filter(a => a.nature === "tension").length;
 const _cAjust = _t1All.filter(a => a.nature === "ajustement").length;
-html += `<h2 class="section-title page-break">${isEN ? 'Synastry Bi-Wheel' : 'Bi-Roue Synastrique'}</h2>
+html += `<h2 class="section-title page-break" id="syn-doc-bi-roue">${isEN ? 'Synastry Bi-Wheel' : 'Bi-Roue Synastrique'}</h2>
 <div class="aspects-bar">
     <span style="display:flex;align-items:center;gap:6px;"><svg width="22" height="10"><line x1="0" y1="5" x2="22" y2="5" stroke="#9900dd" stroke-width="3"/></svg><span style="color:#9900dd;font-weight:bold">${isEN ? 'Conjunction' : 'Conjonction'}</span></span>
     <span style="display:flex;align-items:center;gap:6px;"><svg width="22" height="10"><line x1="0" y1="5" x2="22" y2="5" stroke="#cc0000" stroke-width="2.5"/></svg><span style="color:#cc0000;font-weight:bold">Opposition</span></span>
@@ -888,7 +891,7 @@ if (bwPlanetsA.length > 0 && bwPlanetsB.length > 0) {
 }
 
 // ── LÉGENDE DES SYMBOLES — Harmonisé avec N8N Theme Repport ──
-html += `<div class="page-break">
+html += `<div class="page-break" id="syn-doc-symbols-legend">
     <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:15px;margin-top:20px;text-align:left;font-size:1.05em;border-top:1px solid #eee;padding-top:20px;">
         <div><h2 class="section-title" style="margin:0 0 15px 0!important">${isEN ? 'Planets and Objects' : 'Planètes et Objets'}</h2>
             <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><span style="font-size:1.4em;width:25px;text-align:center;font-weight:bold">☉</span> ${isEN ? 'Sun' : 'Soleil'}</div>
@@ -967,7 +970,7 @@ interAspectsTier1BtoA.forEach(a => {
     if (!matLookup[k]) matLookup[k] = a;
 });
 
-html += `<h2 class="section-title page-break">${isEN ? 'Synastry Aspect Matrix' : 'Matrice des Aspects Synastriques'}</h2>`;
+html += `<h2 class="section-title page-break" id="syn-doc-matrice">${isEN ? 'Synastry Aspect Matrix' : 'Matrice des Aspects Synastriques'}</h2>`;
 html += `<p class="decl-intro">${isEN ? 'Cross-reference matrix: rows = '+prenomA+', columns = '+prenomB+'. Cell color = aspect nature.' : 'Matrice croisée : lignes = '+prenomA+', colonnes = '+prenomB+'. Couleur = nature de l\'aspect.'}</p>`;
 
 html += `<table style="font-size:10px;text-align:center;border-collapse:collapse"><tr><th style="background:#1F3864;color:white;font-size:9px;padding:3px 4px">${prenomA} ↓ \\ ${prenomB} →</th>`;
@@ -1004,7 +1007,7 @@ html += `</div>`;
 }
 
 // ── COMPATIBILITÉ ÉLÉMENTAIRE / MODALE ──
-html += `<h2 class="section-title page-break">${isEN ? 'Elemental & Modal Compatibility' : 'Compatibilité Élémentaire et Modale'}</h2>`;
+html += `<h2 class="section-title page-break" id="syn-doc-elements">${isEN ? 'Elemental & Modal Compatibility' : 'Compatibilité Élémentaire et Modale'}</h2>`;
 
 const elColors = { "Feu": "#dc2626", "Terre": "#65a30d", "Air": "#0ea5e9", "Eau": "#6366f1" };
 const elEN = { "Feu": "Fire", "Terre": "Earth", "Air": "Air", "Eau": "Water" };
@@ -1168,7 +1171,7 @@ if (cuspAspBtoA.length > 0 || cuspAspAtoB.length > 0) {
 // ── (section "Scoring des Maisons par Typologie" supprimée — redondante avec Top Maisons + T/S) ──
 
 // ── SUPERPOSITIONS EN MAISONS ──
-html += `<h2 class="section-title page-break">${isEN ? 'Overlays: Planets in Houses' : 'Superpositions : Planètes en Maisons'}</h2>`;
+html += `<h2 class="section-title page-break" id="syn-doc-overlays">${isEN ? 'Overlays: Planets in Houses' : 'Superpositions : Planètes en Maisons'}</h2>`;
 
 const HOUSE_DESC_FR = {
     1: "Identité, apparence, ego, vitalité, comportement instinctif",
@@ -1289,7 +1292,7 @@ Object.entries(GRID_ASP_SYM).forEach(([name, sym]) => {
 html += `</div>`;
 
 // ── INTER-ASPECTS TIER 1 ──
-html += `<h2 class="section-title page-break">${isEN ? 'Major Inter-Aspects (Tier 1)' : 'Inter-Aspects Majeurs (Tier 1)'}<span class="fiabilite-badge">${isEN ? '✓ High reliability' : '✓ Fiabilité élevée'}</span></h2>`;
+html += `<h2 class="section-title page-break" id="syn-doc-tier1">${isEN ? 'Major Inter-Aspects (Tier 1)' : 'Inter-Aspects Majeurs (Tier 1)'}<span class="fiabilite-badge">${isEN ? '✓ High reliability' : '✓ Fiabilité élevée'}</span></h2>`;
 html += `<p class="decl-intro">${isEN ? 'Aspects between main planets (Sun&#8594;Pluto, Chiron, Nodes, Angles). Sorted by descending score.' : 'Aspects entre les planètes principales (Soleil&#8594;Pluton, Chiron, N&#339;uds, Angles). Triés par score décroissant.'}</p>`;
 
 const NATURE_ROW_BG = {
@@ -2030,7 +2033,7 @@ if (moonTerms && moonTerms.moon_term_a && moonTerms.moon_term_b) {
 }
 
 // ── PAGE DE LÉGENDE COMPLÈTE (R4) ──
-html += `<h2 class="section-title page-break">${isEN ? 'Complete Legend' : 'Légende Complète'}</h2>`;
+html += `<h2 class="section-title page-break" id="syn-doc-legend">${isEN ? 'Complete Legend' : 'Légende Complète'}</h2>`;
 html += `<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:15px;font-size:0.92em">`;
 
 html += `<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:16px">
@@ -2107,11 +2110,43 @@ html += `</div>`;
 
 html += `</div></body></html>`;
 
+function buildSynDocTocHtml() {
+    const rows = [];
+    const push = (id, fr, en) => rows.push({ id, fr, en });
+    push("syn-doc-fiche", "Fiche synastrie", "Synastry summary card");
+    push("syn-doc-identites", "Identités des deux personnes", "Two birth profiles");
+    push("syn-doc-stats", "Statistiques récapitulatives", "Summary statistics");
+    if (globalScore > 0) {
+        push("syn-doc-score", "Score détaillé et synthèse", "Detailed score & synthesis");
+    }
+    push("syn-doc-maisons-cles", "Maisons clés (activation)", "Key houses (activation)");
+    push("syn-doc-tension", "Tension / support", "Tension / support");
+    push("syn-doc-bi-roue", "Bi-roue synastrique", "Synastry bi-wheel");
+    push("syn-doc-symbols-legend", "Légende symboles (planètes, signes)", "Symbol legend (planets, signs)");
+    push("syn-doc-matrice", "Matrice des aspects", "Aspect matrix");
+    push("syn-doc-elements", "Compatibilité élémentaire et modale", "Elemental & modal compatibility");
+    push("syn-doc-overlays", "Superpositions en maisons", "Overlays: planets in houses");
+    push("syn-doc-tier1", "Inter-aspects majeurs (Tier 1)", "Major inter-aspects (Tier 1)");
+    push("syn-doc-legend", "Légende complète", "Complete legend");
+    const navAria = isEN ? "Table of contents" : "Sommaire";
+    const title = isEN ? "Contents" : "Sommaire";
+    const items = rows.map((r) => {
+        const lab = isEN ? r.en : r.fr;
+        return `<li style="margin:5px 0"><a href="#${r.id}" style="font-family:'Playfair Display',Georgia,serif;font-size:0.95em;font-weight:600;color:#1F3864;text-decoration:none;border-bottom:1px solid #cbd5e1">${escH(lab)}</a></li>`;
+    }).join("");
+    return `<nav class="syn-doc-toc" id="syn-doc-sommaire-nav" aria-label="${escH(navAria)}" style="background:#ffffff;border:1px solid #e2e8f0;border-radius:10px;padding:18px 22px 20px;margin:0 0 22px">
+<h2 style="font-family:'Playfair Display',Georgia,serif;font-size:1.2em;color:#1F3864;margin:0 0 14px;text-align:center;font-weight:700">${escH(title)}</h2>
+<ul style="list-style:none;padding:0;margin:0">${items}</ul>
+</nav><div class="syn-doc-toc-pagebreak" style="page-break-after:always;break-after:page;height:0;margin:0;padding:0;overflow:hidden" aria-hidden="true"></div>`;
+}
+
+const htmlOut = html.replace("__SYN_DOC_TOC_PLACEHOLDER__", buildSynDocTocHtml());
+
 return [{
     json: { success: true },
     binary: {
         html_file: {
-            data: Buffer.from(html, 'utf8').toString('base64'),
+            data: Buffer.from(htmlOut, 'utf8').toString('base64'),
             mimeType: 'text/html',
             fileName: `index.html`
         }

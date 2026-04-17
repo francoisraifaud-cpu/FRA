@@ -242,6 +242,32 @@ const MAISONS_META_EN = [
 ];
 const activeMaisons = isEN ? MAISONS_META_EN : MAISONS_META;
 
+function buildThemeFinalTocHtml() {
+    const rows = [];
+    const push = (id, fr, en) => rows.push({ id, fr, en });
+    if (data.synthese && String(data.synthese).trim()) {
+        push("theme-final-synthese", "Synthèse globale", "Global summary");
+    }
+    if (_paranResults.length > 0) {
+        push("theme-final-parans", "Parans d'étoiles fixes (Brady)", "Fixed star parans (Brady)");
+    }
+    push("theme-final-maisons", "Maisons astrologiques", "Astrological houses");
+    activeMaisons.forEach((m) => {
+        push(`theme-final-m${m.n}`, `Maison ${m.n}`, `House ${m.n}`);
+    });
+    if (!rows.length) return "";
+    const navAria = isEN ? "Table of contents" : "Sommaire";
+    const title = isEN ? "Contents" : "Sommaire";
+    const items = rows.map((r) => {
+        const lab = isEN ? r.en : r.fr;
+        return `<li style="margin:5px 0"><a href="#${r.id}" style="font-family:'Playfair Display',Georgia,serif;font-size:0.95em;font-weight:600;color:#1F3864;text-decoration:none;border-bottom:1px solid #cbd5e1">${esc(lab)}</a></li>`;
+    }).join("");
+    return `<nav class="theme-final-toc" id="theme-final-sommaire-nav" aria-label="${esc(navAria)}" style="background:#ffffff;border:1px solid #e2e8f0;border-radius:10px;padding:18px 22px 20px;margin:0 0 22px">
+<h2 style="font-family:'Playfair Display',Georgia,serif;font-size:1.2em;color:#1F3864;margin:0 0 14px;text-align:center;font-weight:700">${esc(title)}</h2>
+<ul style="list-style:none;padding:0;margin:0">${items}</ul>
+</nav><div class="theme-final-toc-pagebreak" style="page-break-after:always;break-after:page;height:0;margin:0;padding:0;overflow:hidden" aria-hidden="true"></div>`;
+}
+
 const html = `<!DOCTYPE html>
 <html lang="${isEN ? 'en' : 'fr'}">
 <head>
@@ -249,7 +275,10 @@ const html = `<!DOCTYPE html>
  <meta name="viewport" content="width=device-width, initial-scale=1.0">
  <title>${isEN ? 'Birth Chart Report' : 'Rapport Thème Astral'} — ${esc(data.nomAffiche)}</title>
  <style>
+  @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Source+Sans+3:ital,wght@0,400;0,600;0,700;1,400&display=swap');
   @media print {
+   .theme-final-toc { page-break-after: avoid; break-after: avoid; }
+   .theme-final-toc-pagebreak { page-break-after: always !important; break-after: page !important; }
    .house-section { page-break-after: always; break-after: page; }
    .house-section:last-child { page-break-after: auto; break-after: auto; }
    .synthese-section { page-break-after: always; break-after: page; }
@@ -259,18 +288,22 @@ const html = `<!DOCTYPE html>
 </head>
 <body style="margin: 0; padding: 0; background-color: #ffffff;">
  <div style="font-family: 'Source Sans 3', 'Segoe UI', sans-serif; font-size: 16px; font-weight: 400; line-height: 1.75; color: #2c2c3a; background: #ffffff; max-width: 820px; margin: 0 auto; padding: 28px 20px 60px;">
-  <div style="background: #1F3864; padding: 52px 44px 48px; color: white; text-align: center; border-radius: 14px; margin-bottom: 8px;">
+  <div id="theme-final-intro" style="background: #1F3864; padding: 52px 44px 48px; color: white; text-align: center; border-radius: 14px; margin-bottom: 8px;">
    <h1 style="font-family: 'Playfair Display', Georgia, serif; font-size: 36px; font-weight: 700; letter-spacing: 0.3px; color: #ffffff; margin: 0 0 10px;">${isEN ? 'Birth Chart Report' : 'Rapport Thème Astral'} — ${esc(data.nomAffiche)}</h1>
    <p style="font-size: 14px; font-weight: 400; letter-spacing: 1px; color: #8ab4f8; margin: 0 0 6px;">${esc(_lumHeaderTF)}</p>
    <p style="font-size: 15.5px; font-weight: 400; color: #aac4ff; letter-spacing: 0.5px; margin: 8px 0 0;">${esc(data.date)} · ${esc(data.heure)} · ${esc(data.lieu)}</p>
   </div>
+__THEME_FINAL_TOC_PLACEHOLDER__
 
   ${data.synthese ? `
+  <div id="theme-final-synthese">
   <div style="background: #1F3864; padding: 15px 26px; border-radius: 8px; margin: 44px 0 22px;"><h2 style="font-family: 'Playfair Display', Georgia, serif; font-size: 18px; font-weight: 600; color: white; letter-spacing: 0.2px; margin: 0;">🔭&nbsp; ${isEN ? 'Global Summary' : 'Synthèse Globale'}</h2></div>
   <div class="synthese-section" style="background: #ffffff; border-radius: 12px; border: 1px solid #e0e0e0; padding: 28px 30px; margin-bottom: 44px;">${md(data.synthese)}</div>
+  </div>
   ` : ''}
 
   ${_paranResults.length > 0 ? `
+  <div id="theme-final-parans">
   <div style="background: #1F3864; padding: 15px 26px; border-radius: 8px; margin: 44px 0 22px;"><h2 style="font-family: 'Playfair Display', Georgia, serif; font-size: 18px; font-weight: 600; color: white; letter-spacing: 0.2px; margin: 0;">🌟&nbsp; ${isEN ? 'Fixed Star Parans (Brady Method)' : "Parans d'Étoiles Fixes (méthode Brady)"}</h2></div>
   <div style="background: #ffffff; border-radius: 12px; border: 1px solid #e0e0e0; padding: 20px 26px; margin-bottom: 44px;">
     <p style="font-size: 14px; color: #64748b; font-style: italic; margin: 0 0 14px;">${isEN ? 'A paran forms when a fixed star and a planet simultaneously occupy a cardinal angle. It is a deep and permanent stellar bond.' : "Un paran se forme quand une étoile fixe et une planète se trouvent simultanément sur un angle cardinal. C'est un lien stellaire profond et permanent."}</p>
@@ -279,9 +312,10 @@ const html = `<!DOCTYPE html>
       ${_paranResults.map(pr => `<tr style="border-bottom:1px solid #d0daf0;"><td style="padding:8px 10px;font-weight:600;color:#1F3864;">★ ${esc(pr.etoile)}</td><td style="padding:8px;text-align:center;color:#2E5FA3;">${esc(pr.angle_etoile)}</td><td style="padding:8px 10px;font-weight:600;color:#1F3864;">${esc(pr.planete)}</td><td style="padding:8px;text-align:center;color:#2E5FA3;">${esc(pr.angle_planete)}</td><td style="padding:8px;text-align:center;font-weight:bold;color:${pr.orb <= 0.5 ? '#1F3864' : '#2E5FA3'};">${pr.orb}°</td></tr>${pr.interpretation ? `<tr style="background:#eef2fb;"><td colspan="5" style="padding:6px 12px;font-size:13px;color:#2E5FA3;font-style:italic;">${esc(pr.interpretation)}</td></tr>` : ''}`).join('')}
     </table>
   </div>
+  </div>
   ` : ''}
 
-  <div style="background: #1F3864; padding: 15px 26px; border-radius: 8px; margin: 44px 0 22px;"><h2 style="font-family: 'Playfair Display', Georgia, serif; font-size: 18px; font-weight: 600; color: white; letter-spacing: 0.2px; margin: 0;">🏠&nbsp; ${isEN ? 'Astrological Houses' : 'Maisons Astrologiques'}</h2></div>
+  <div id="theme-final-maisons" style="background: #1F3864; padding: 15px 26px; border-radius: 8px; margin: 44px 0 22px;"><h2 style="font-family: 'Playfair Display', Georgia, serif; font-size: 18px; font-weight: 600; color: white; letter-spacing: 0.2px; margin: 0;">🏠&nbsp; ${isEN ? 'Astrological Houses' : 'Maisons Astrologiques'}</h2></div>
   ${activeMaisons.map(m => {
     const houseData = (astroData.maisons || []).find(h => h.maison === m.n) || { segments: [] };
     const cuspideSigne = (houseData.segments || []).find(s => s.type === "Cuspide")?.signe || "";
@@ -300,7 +334,7 @@ const html = `<!DOCTYPE html>
     (_lotsByHouseTF[m.n] || []).forEach(ln => { if (!locatairesLabels.includes(ln)) locatairesLabels.push(ln); });
 
     return `
-    <div class="house-section" style="background: #ffffff; border-radius: 12px; margin: 22px 0; border: 1px solid #e0e0e0; overflow: hidden;">
+    <div id="theme-final-m${m.n}" class="house-section" style="background: #ffffff; border-radius: 12px; margin: 22px 0; border: 1px solid #e0e0e0; overflow: hidden;">
      <div style="background: #2E5FA3; padding: 16px 22px;">
       <table width="100%" border="0" cellspacing="0" cellpadding="0">
        <tr>
@@ -327,7 +361,7 @@ const html = `<!DOCTYPE html>
         }).join('')}
         ${(_stellarByCusp[m.n] || []).map(ec => {
             const prec = (ec.precision || '').includes('forte') ? '★★' : '★';
-            return '<span style="display:inline-block;background:#fff8e1;color:#5d4037;font-size:14px;font-weight:600;padding:3px 10px;border-radius:20px;margin:2px 3px;border:1px solid #ffb300;">' + prec + ' ' + esc(ec.etoile) + ' (Cuspide)</span>';
+            return '<span style="display:inline-block;background:#fff8e1;color:#5d4037;font-size:14px;font-weight:600;padding:3px 10px;border-radius:20px;margin:2px 3px;border:1px solid #ffb300;">' + prec + ' ' + esc(ec.etoile) + ' (' + (isEN ? 'Cusp' : 'Cuspide') + ')</span>';
         }).join('')}
      </div>
      <div style="background: #f4f6ff; border-left: 4px solid #2E5FA3; padding: 11px 20px;">
@@ -340,4 +374,6 @@ const html = `<!DOCTYPE html>
 </body>
 </html>`;
 
-return [{ json: { ...data, html: html, isComplete: true } }];
+const htmlOut = html.replace("__THEME_FINAL_TOC_PLACEHOLDER__", buildThemeFinalTocHtml());
+
+return [{ json: { ...data, html: htmlOut, isComplete: true } }];
