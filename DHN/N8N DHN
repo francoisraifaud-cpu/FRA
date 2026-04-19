@@ -845,17 +845,34 @@ if(confSigneTxt||confHeureTxt){
   html+='</div>';
 }
 
-// [D v5.4 → v5.8 P1.2] Top 3 candidats équivalents — affichage ÉLARGI suite au benchmark celebs.
-// Avant : alternatives masquées en confiance "Moyenne" (cas Saint Laurent / Gainsbourg : labellisés
-// "Moyenne" mais prédiction fausse → utilisateur n'avait pas accès aux pistes alternatives).
-// Maintenant : seule "Forte" masque les alternatives. Toute confiance ≤ Moyenne expose le Top 3
-// (n°2 et n°3 par pic par signe) pour permettre à l'utilisateur d'arbitrer en cas de doute.
-// On expose ici les n°2 et n°3 par "pic par signe" (ascPeaksSorted[1] et [2]) avec breakdown
-// Arcs/Prog/RS/Q et top-3 validations.
+// [D v5.4 → v5.9.1] Top candidats équivalents — affichage ÉLARGI + garantie qTopSign.
+// v5.8 P1.2 : seule "Forte" masque les alternatives ; ≤ Moyenne expose les pics par signe.
+// v5.9.1 Fix A : on garantit la présence des pics des top-N signes du questionnaire (Q) dans
+// la liste, même si leur score total les classerait plus bas. Sans ça, un signe pointé fortement
+// par le Q mais battu par des arcs/prog bruyants devient invisible (cas Bardot v5.9 : Sagittaire
+// top-1 Q absent du Top 3 affiché alors qu'il est le vrai ASC ; idem YSL/Verseau).
+// v5.9.1 Fix B : si confSigneLabel ∈ {Très faible, Faible}, on élargit à 4 alternatives (au lieu
+// de 2) et on garantit les top-3 Q (cas De Gaulle : Balance 3e Q rendu visible).
 const showAlternatives=(confLabelGlobal!=='Forte')&&ascPeaksSorted.length>=2;
 if(showAlternatives){
-  const altCount=Math.min(2,ascPeaksSorted.length-1);
-  const alts=ascPeaksSorted.slice(1,1+altCount).map(e=>e[1]);
+  const lowSigneConf=(confSigneLabel==='Très faible'||confSigneLabel==='Faible');
+  const targetAltCount=lowSigneConf?4:2;
+  const altCount=Math.min(targetAltCount,ascPeaksSorted.length-1);
+  const forcedQDepth=lowSigneConf?3:2;
+  const bestSignNorm=normSignName(best.ascSign||'');
+  const forcedSignsNorm=[];
+  for(let qi=0;qi<Math.min(forcedQDepth,(ranked||[]).length);qi++){
+    const sN=normSignName(ranked[qi]?.sign||'');
+    if(sN&&sN!==bestSignNorm&&forcedSignsNorm.indexOf(sN)===-1)forcedSignsNorm.push(sN);
+  }
+  const altPool=ascPeaksSorted.slice(1);
+  const forcedAlts=[],otherAlts=[];
+  for(const ePool of altPool){
+    const sN=normSignName(ePool[1]?.ascSign||ePool[0]||'');
+    if(forcedSignsNorm.indexOf(sN)!==-1)forcedAlts.push(ePool[1]);
+    else otherAlts.push(ePool[1]);
+  }
+  const alts=forcedAlts.concat(otherAlts).slice(0,altCount);
   html+='<div style="margin:10px 0 18px;padding:14px 16px;border-radius:8px;border:1px dashed '+confColor+';background:#fff8ee">';
   html+='<p style="margin:0 0 10px;font-size:13px;color:#222">'+(altCount>1?T('altIntroPlural',{n:altCount,x:sf(best.totalScore)}):T('altIntroSingle',{x:sf(best.totalScore)}))+'</p>';
   for(let i=0;i<alts.length;i++){
