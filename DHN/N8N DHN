@@ -520,8 +520,21 @@ const detail=scorerItems.map((meta_raw,i)=>{
     }
   }
 
+  // [v5.10 Fix A] Cap soft des arcs anormaux. Bench v5.9.1 : Hugo Lion 46.8 (outlier
+  // +17 vs mediane ~30 sur les 4 cas profiles : Hugo 46.8, DG 35.2, Beauvoir 29.4,
+  // Bardot 28.8) ecrase tout autre signal et fait gagner un faux ASC contre Scorpion
+  // (vrai). On dampe lineairement le surplus au-dela de ARC_CAP=35 avec coefficient
+  // ARC_DAMP=0.2 : valeurs saines (<=35) intactes, Hugo Lion 46.8 -> 37.4 (perte 9.4).
+  // arcScoreRaw conserve pour tracabilite et debug bench. Si insuffisant en bench,
+  // resserrer ARC_DAMP a 0.1 puis cap dur a 35.
+  const ARC_CAP=35;
+  const ARC_DAMP=0.2;
+  const arcScoreRaw=arcScore;
+  if(arcScore>ARC_CAP){
+    arcScore=Math.round((ARC_CAP+(arcScore-ARC_CAP)*ARC_DAMP)*10)/10;
+  }
   const totalScore=wScore+arcScore+progScore+srScore;
-  return{time,ascDeg,mcDeg,ascSign,wSign,wScoreRaw,wScore,arcScore,progScore,srScore,totalScore,arcDetails,progDetails,srDetails,src};
+  return{time,ascDeg,mcDeg,ascSign,wSign,wScoreRaw,wScore,arcScore,arcScoreRaw,progScore,srScore,totalScore,arcDetails,progDetails,srDetails,src};
 });
 
 const cleanDetail=detail.filter(d=>d!==null);
@@ -806,6 +819,22 @@ try{
     if(cc<2&&(confSigneLabel==='Forte'||confSigneLabel==='Moyenne')){
       confSigneLabel='Faible';
     }
+    // [v5.10 Fix B] Degrader la confiance signe en cas de desaccord fort entre le Top-1
+    // questionnaire et le signe predit. Cas YSL v5.9.1 : best=Scorpion, qTopSign=Verseau
+    // (conv Q 1.47x sur 22 vs 15) -> label initial "Moyenne" mais signe FAUX, l'utilisateur
+    // recevait un faux signal de fiabilite. Si qTopSign existe ET difere de best.ascSign
+    // normalise ET qConvergence >= 0.30 (Q vraiment convergent), on degrade d'un cran.
+    // Effet collateral utile : "Moyenne" -> "Faible" declenche Fix B v5.9.1 (4 alts au lieu
+    // de 2) et top-3 Q forces -> Verseau remonte plus visible. Cas deja Faible/Tres faible
+    // non affectes (plancher). Cas best == qTopSign non affectes (Beauvoir, Gainsbourg,
+    // Deneuve, Proust dans le bench actuel).
+    if(qTopSign && qConvergence>=0.30){
+      const bestSignNorm=normSignName(best?.wSign||best?.ascSign||'');
+      if(bestSignNorm && bestSignNorm!==qTopSign){
+        if(confSigneLabel==='Forte')confSigneLabel='Moyenne';
+        else if(confSigneLabel==='Moyenne')confSigneLabel='Faible';
+      }
+    }
   }
   const bestSignKey=best.wSign||best.ascSign||'?';
   const sameSignSlots=validDetail.filter(d=>((d.wSign||d.ascSign||'?')===bestSignKey)).sort((a,b)=>b.totalScore-a.totalScore);
@@ -872,6 +901,18 @@ if(showAlternatives){
     if(forcedSignsNorm.indexOf(sN)!==-1)forcedAlts.push(ePool[1]);
     else otherAlts.push(ePool[1]);
   }
+  // [v5.10 Fix C] Trier forcedAlts par rang Q (top-1 Q en pole) au lieu de par score
+  // total. Cas YSL v5.10.A+B : Verseau (top-1 Q, vrai ASC) etait alt #2 derriere
+  // Sagittaire (top-3 Q) car Sag avait un total brut superieur. Le top-1 Q en pole
+  // signale a l'utilisateur que le questionnaire converge fortement sur ce signe.
+  // Effet sur autres cas : Hugo (Scorpion top-1 Q deja en alt #1, non affecte),
+  // Bardot (Sagittaire top-1 Q deja en alt #1, non affecte). De Gaulle : Balance
+  // (top-3 Q, vrai ASC) glisse de alt #2 a alt #3 mais reste visible dans 4 alts.
+  forcedAlts.sort((a,b)=>{
+    const ia=forcedSignsNorm.indexOf(normSignName(a.wSign||a.ascSign||''));
+    const ib=forcedSignsNorm.indexOf(normSignName(b.wSign||b.ascSign||''));
+    return ia-ib;
+  });
   const alts=forcedAlts.concat(otherAlts).slice(0,altCount);
   html+='<div style="margin:10px 0 18px;padding:14px 16px;border-radius:8px;border:1px dashed '+confColor+';background:#fff8ee">';
   html+='<p style="margin:0 0 10px;font-size:13px;color:#222">'+(altCount>1?T('altIntroPlural',{n:altCount,x:sf(best.totalScore)}):T('altIntroSingle',{x:sf(best.totalScore)}))+'</p>';
