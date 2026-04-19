@@ -543,16 +543,23 @@ for(const d of validDetail){
   const sr=d.srScore||0;
   if(sr>techPeaks.sr.score)techPeaks.sr={sign:s,score:sr};
 }
-const qTopSign=(ranked&&ranked[0])?String(ranked[0].sign||'').trim():null;
+// [v5.8 P2.1 fix] Normalisation des noms de signes pour comparaison robuste : le Scorer
+// expose les noms SANS accent ("Belier", "Gemeaux") tandis que l'API astro renvoie les noms
+// AVEC accent ("Bélier", "Gémeaux"). Sans cette normalisation, qTopSign === s échouait
+// silencieusement pour Bélier/Gémeaux → coherenceCount sous-évalué (bug détecté sur le retest
+// Gainsbourg v5.8 : Bélier qTopSign mais bonus de cohérence non appliqué).
+function normSignName(x){return String(x||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();}
+const qTopSign=(ranked&&ranked[0])?normSignName(ranked[0].sign):null;
 const COHERENCE_PER_TECH=0.06;
 for(const d of validDetail){
   const s=d.wSign||d.ascSign||'?';
+  const sN=normSignName(s);
   let aligned=0;
   if(s!=='?'){
-    if(qTopSign&&s===qTopSign)aligned++;
-    if(techPeaks.arc.sign===s)aligned++;
-    if(techPeaks.prog.sign===s)aligned++;
-    if(techPeaks.sr.sign===s)aligned++;
+    if(qTopSign&&sN===qTopSign)aligned++;
+    if(techPeaks.arc.sign&&normSignName(techPeaks.arc.sign)===sN)aligned++;
+    if(techPeaks.prog.sign&&normSignName(techPeaks.prog.sign)===sN)aligned++;
+    if(techPeaks.sr.sign&&normSignName(techPeaks.sr.sign)===sN)aligned++;
   }
   d.coherenceCount=aligned;
   d.coherenceBonus=aligned*COHERENCE_PER_TECH;
