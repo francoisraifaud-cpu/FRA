@@ -14,8 +14,11 @@ function labelLooksFullDay(lab){
   const t=String(lab||'').replace(/[\s\u00A0\u202F\uFEFF]/g,'').replace(/h/gi,':').replace(/[\u2013\u2014\u2212]/g,'-');
   return /^0+:0+-24(:0+)?$/i.test(t)||/^0+:0+-23:59$/i.test(t);
 }
+// [P-window v5.3] Le scan est désormais RESTREINT à la plage (288 slots devient ~N slots de la fenêtre).
+// Le HTML de plageHtml est construit plus bas (après l'init du helper i18n T()), à partir de _plageRaw.
 let plageHtml='';
 let plageBounds=null;
+let _plageRaw=null;
 try{
   const pm=firstItem._plageMeta?JSON.parse(firstItem._plageMeta):null;
   if(pm&&pm.active){
@@ -24,11 +27,9 @@ try{
     const journeeEntiere=journeeNum||labelLooksFullDay(pm.label);
     if(!journeeEntiere){
       const lab=String(pm.label||'').replace(/</g,'');
-      if(pm.ignored){
-        plageHtml='<p style="font-size:13px;color:#444">Plage indiquée : <b>'+lab+'</b> (heure locale) — <span style="color:#c60">aucune fenêtre ASC cohérente avec le questionnaire ; la plage est ignorée pour filtrer le résultat.</span></p>';
-      }else{
+      _plageRaw={lab:lab,ignored:Boolean(pm.ignored)};
+      if(!pm.ignored){
         plageBounds={lo:loN,hiInc:hiN,label:lab};
-        plageHtml='<p style="font-size:13px;color:#444">Plage indiquée : <b>'+lab+'</b> (heure locale). Scan : <b>grille 5 min sur 24 h</b>. Recommandation affichée = meilleur score <em>dans</em> cette plage ; le meilleur sur toute la journée est rappelé juste sous l’encadré violet lorsqu’il diffère.</p>';
       }
     }
   }
@@ -67,13 +68,34 @@ const events=[];
 for(const[k,v]of Object.entries(evtRaw)){
   if(!v||!k.startsWith('evt'))continue;
   const lbl=v.replace(/(\d{2}\/\d{2}\/\d{4})/g,'').trim();
+  // [P8 v5.2] Type = premier token alphanumérique (ex. "voyage_important", "deces_proche", "accident").
+  // Sert à appliquer EVT_AFFINITY plus bas (bonus ×N sur les aspects vers les planètes/angles attendus pour ce type).
+  const typ=(lbl.toLowerCase().match(/^[a-z_]+/)||[''])[0];
   const allDates=[...v.matchAll(/(\d{2})\/(\d{2})\/(\d{4})/g)];
   for(const dm of allDates.slice(0,3)){
-    events.push({label:lbl+' '+dm[0],day:parseInt(dm[1]),month:parseInt(dm[2]),year:parseInt(dm[3])});
+    events.push({label:lbl+' '+dm[0],type:typ,day:parseInt(dm[1]),month:parseInt(dm[2]),year:parseInt(dm[3])});
   }
 }
 const evtCount=events.length;
-const qFactor=evtCount>=4?0.45:evtCount>=3?0.55:evtCount>=2?0.75:1;
+const baseQFactor=evtCount>=4?0.45:evtCount>=3?0.55:evtCount>=2?0.75:1;
+// [v5.8 P2.3] qFactor adaptatif : si le questionnaire pointe TRÈS clairement un signe (top1
+// nettement détaché du top2 ET score absolu confortable), on rehausse son poids même avec
+// beaucoup d'événements. Pourquoi : avec evtCount>=4, qFactor=0.45 noie un questionnaire
+// pourtant fiable sous des arcs/prog/RS bruyants. Le boost reste modéré (max +0.10) pour ne
+// pas faire dérailler le système quand le questionnaire est ambigu.
+let qConvergence=0,qTopAbs=0;
+try{
+  if(ranked&&ranked.length>=2){
+    const s0=Number(ranked[0]?.score)||0;
+    const s1=Number(ranked[1]?.score)||0;
+    qTopAbs=s0;
+    if(s0>0)qConvergence=(s0-s1)/s0;
+  }
+}catch(eQc){}
+const qBoost=(qConvergence>=0.50&&qTopAbs>=12)?0.10
+            :(qConvergence>=0.30&&qTopAbs>=8)?0.05
+            :0;
+const qFactor=Math.min(1,baseQFactor+qBoost);
 
 let natalPlanets=[];
 try{
@@ -84,6 +106,64 @@ try{
 }catch(e){natalPlanets=[]}
 const ANGLE_NAMES=['Ascendant','Descendant','Milieu du Ciel','Imum Coeli','MC','IC'];
 const natalBodies=natalPlanets.filter(p=>!ANGLE_NAMES.includes(p.name));
+
+// [P8 v5.2] Matrice d'affinité événement → planètes/angles attendus.
+// Quand un aspect (arc, progression, RS) cible une planète/angle attendu pour ce type d'événement,
+// on applique un bonus multiplicatif (par défaut ×1.5). Les aspects neutres (cible non listée) restent ×1.
+// Ce typage est de la sémantique astrologique standard, pas du tuning ad-hoc : il rend les aspects
+// "sémantiquement cohérents" plus discriminants que les aspects "coïncidents".
+const EVT_AFFINITY={
+  mariage:{p:['V\u00e9nus','Lune','Jupiter'],a:['Descendant']},
+  pacs:{p:['V\u00e9nus','Lune','Jupiter'],a:['Descendant']},
+  rencontre:{p:['V\u00e9nus','Lune','Jupiter'],a:['Descendant']},
+  rencontre_amoureuse:{p:['V\u00e9nus','Lune','Jupiter'],a:['Descendant']},
+  rupture:{p:['V\u00e9nus','Mars','Pluton','Uranus'],a:['Descendant']},
+  divorce:{p:['V\u00e9nus','Mars','Pluton','Uranus','Saturne'],a:['Descendant']},
+  separation:{p:['V\u00e9nus','Mars','Uranus','Saturne'],a:['Descendant']},
+  enfant:{p:['Lune','V\u00e9nus','Jupiter']},
+  naissance_enfant:{p:['Lune','V\u00e9nus','Jupiter']},
+  grossesse:{p:['Lune','V\u00e9nus','Jupiter']},
+  deces_proche:{p:['Saturne','Pluton','Lune']},
+  deuil:{p:['Saturne','Pluton','Lune']},
+  deces:{p:['Saturne','Pluton']},
+  accident:{p:['Mars','Uranus','Pluton','Saturne']},
+  blessure:{p:['Mars','Uranus','Pluton','Saturne']},
+  agression:{p:['Mars','Pluton','Uranus']},
+  maladie:{p:['Saturne','Mars','Neptune','Chiron']},
+  hospitalisation:{p:['Saturne','Mars','Neptune','Pluton']},
+  chirurgie:{p:['Mars','Pluton','Saturne']},
+  operation:{p:['Mars','Pluton','Saturne']},
+  demenagement:{p:['Lune','Saturne'],a:['Imum Coeli','IC']},
+  emmenagement:{p:['Lune'],a:['Imum Coeli','IC']},
+  voyage_important:{p:['Jupiter','Mercure','Neptune']},
+  voyage:{p:['Jupiter','Mercure']},
+  expatriation:{p:['Jupiter','Uranus','Neptune']},
+  immigration:{p:['Jupiter','Uranus','Neptune']},
+  carriere:{p:['Soleil','Jupiter','Saturne'],a:['Milieu du Ciel','MC']},
+  promotion:{p:['Soleil','Jupiter','Saturne'],a:['Milieu du Ciel','MC']},
+  reussite:{p:['Soleil','Jupiter'],a:['Milieu du Ciel','MC']},
+  licenciement:{p:['Saturne','Uranus','Pluton'],a:['Milieu du Ciel','MC']},
+  chomage:{p:['Saturne','Uranus'],a:['Milieu du Ciel','MC']},
+  echec_pro:{p:['Saturne','Neptune'],a:['Milieu du Ciel','MC']},
+  creation_entreprise:{p:['Soleil','Jupiter','Uranus','Mars'],a:['Milieu du Ciel','MC']},
+  heritage:{p:['Pluton','V\u00e9nus','Jupiter','Saturne']},
+  achat_immobilier:{p:['V\u00e9nus','Saturne','Jupiter'],a:['Imum Coeli','IC']},
+  formation:{p:['Mercure','Jupiter']},
+  etudes:{p:['Mercure','Jupiter']},
+  diplome:{p:['Mercure','Jupiter','Saturne']},
+  spirituel:{p:['Neptune','Jupiter']},
+  illumination:{p:['Neptune','Jupiter']},
+  rencontre_pro:{p:['Mercure','Jupiter','Saturne'],a:['Milieu du Ciel','MC']}
+};
+const AFFINITY_BONUS=1.5;
+function affinityBonus(evtType,targetName){
+  if(!evtType)return 1;
+  const a=EVT_AFFINITY[evtType];
+  if(!a)return 1;
+  if((a.p||[]).includes(targetName))return AFFINITY_BONUS;
+  if((a.a||[]).includes(targetName))return AFFINITY_BONUS;
+  return 1;
+}
 
 function normDeg(d){return((d%360)+360)%360}
 function aspDist(a,b){const d=Math.abs(normDeg(a)-normDeg(b));return Math.min(d,360-d)}
@@ -166,7 +246,7 @@ function getFromPlanets(pItem){
 const PS={'Lune':1.5,'Soleil':1.0,'Mercure':1.0,'V\u00e9nus':1.0,'Mars':0.7,'Jupiter':0.3,'Saturne':0.3,'Uranus':0.15,'Neptune':0.15,'Pluton':0.15};
 function ps(n){return PS[n]||0.5;}
 
-function countProgHits(progSlice,slotAsc,slotMc,targets){
+function countProgHits(progSlice,slotAsc,slotMc,targets,slotJD){
   if(!progSlice||progSlice.length===0)return{score:0,details:[]};
   const data=progSlice.map(it=>it.json).filter(d=>d&&d.planetes&&d.date);
   if(data.length===0)return{score:0,details:[]};
@@ -179,16 +259,33 @@ function countProgHits(progSlice,slotAsc,slotMc,targets){
     for(const d of data){const dd=toDecDate(d.date);if(Math.abs(dd-evtDec)<minDist){minDist=Math.abs(dd-evtDec);closest=d;}}
     if(!closest?.planetes)continue;
     const pp=closest.planetes;
+    // [P-detangles v5.6] Recalcul LOCAL des angles progress\u00e9s pAsc/pMc pour CE cr\u00e9neau et CET \u00e9v\u00e9nement.
+    // Avant : on prenait pp['Ascendant'] / pp['MC'] de l'API, calcul\u00e9s pour une heure de naissance unique
+    // (milieu de plage), donc identiques pour tous les slots du scan et faux pour les slots loin du milieu.
+    // Maintenant : progression secondaire = jour-pour-an. L'instant progress\u00e9 = naissance candidate + age (j).
+    // pAsc/pMc d\u00e9pendent fortement de l'heure de naissance candidate (~15\u00b0/h), pAsc = ASC sid\u00e9ral \u00e0 l'instant
+    // birthCand + age. Les plan\u00e8tes progress\u00e9es (Lune, etc.) restent prises de l'API, ~insensibles \u00e0 l'heure.
+    let pAscLocal,pMcLocal;
+    if(slotJD!==undefined){
+      const ageY=evtDec-birthDecimal;
+      const progJD=slotJD+ageY;
+      pAscLocal=calcASCjd(progJD);
+      pMcLocal=calcMCjd(progJD);
+    }
+    // [P8 v5.2] Pour les progressions, le bonus d'affinité s'applique sur la PLANÈTE PROGRESSÉE
+    // (la "source" qui transporte la sémantique de l'événement). Ex : voyage_important + pJupiter ↔ nXxx ⇒ ×1.5.
     if(slotAsc!==undefined){
       for(const pn of progPlanets){
         if(!pp[pn])continue;
+        const ab=affinityBonus(evt.type,pn);
         const asp=bestAspect(pp[pn].longitude_absolue,slotAsc,1.0);
         if(asp){
           const key='p'+pn+'_'+asp.name+'_nASC';
           const dup=seen.has(key);if(!dup)seen.add(key);
           const tight=1-asp.ao/asp.ou;
-          const w=Math.round(asp.weight*pw(pn)*ps(pn)*tight*(dup?0.25:1)*10)/10;
-          if(w>=0.3){score+=w;details.push(evt.label+': p'+pn+' '+asp.name+' nASC ('+w.toFixed(1)+' '+asp.ao.toFixed(2)+'\u00B0'+(dup?'*':'')+')');
+          let w=Math.round(asp.weight*pw(pn)*ps(pn)*tight*(dup?0.25:1)*10)/10;
+          if(ab>1)w=Math.round(w*ab*10)/10;
+          if(w>=0.3){score+=w;details.push(evt.label+': p'+pn+' '+asp.name+' nASC ('+w.toFixed(1)+' '+asp.ao.toFixed(2)+'\u00B0'+(dup?'*':'')+(ab>1?' \u2295':'')+')');
           }
         }
       }
@@ -196,28 +293,43 @@ function countProgHits(progSlice,slotAsc,slotMc,targets){
     if(slotMc!==undefined){
       for(const pn of progPlanets){
         if(!pp[pn])continue;
+        const ab=affinityBonus(evt.type,pn);
         const asp=bestAspect(pp[pn].longitude_absolue,slotMc,1.0);
         if(asp){
           const key='p'+pn+'_'+asp.name+'_nMC';
           const dup=seen.has(key);if(!dup)seen.add(key);
           const tight=1-asp.ao/asp.ou;
-          const w=Math.round(asp.weight*pw(pn)*ps(pn)*tight*(dup?0.25:1)*10)/10;
-          if(w>=0.3){score+=w;details.push(evt.label+': p'+pn+' '+asp.name+' nMC ('+w.toFixed(1)+' '+asp.ao.toFixed(2)+'\u00B0'+(dup?'*':'')+')');
+          let w=Math.round(asp.weight*pw(pn)*ps(pn)*tight*(dup?0.25:1)*10)/10;
+          if(ab>1)w=Math.round(w*ab*10)/10;
+          if(w>=0.3){score+=w;details.push(evt.label+': p'+pn+' '+asp.name+' nMC ('+w.toFixed(1)+' '+asp.ao.toFixed(2)+'\u00B0'+(dup?'*':'')+(ab>1?' \u2295':'')+')');
           }
         }
       }
     }
-    const pAsc=pp['Ascendant']?.longitude_absolue;
-    const pMc=pp['MC']?.longitude_absolue;
+    // [P-detangles v5.6] Priorit\u00e9 : valeur locale recalcul\u00e9e par cr\u00e9neau ; fallback API si slotJD indisponible.
+    const pAsc=(pAscLocal!==undefined)?pAscLocal:pp['Ascendant']?.longitude_absolue;
+    const pMc=(pMcLocal!==undefined)?pMcLocal:pp['MC']?.longitude_absolue;
+    // [P-circular-asp v5.1] Pénalité pour les aspects "auto-référents" entre angle progressé et angle natal.
+    // pASC↔nASC, pASC↔nMC, pMC↔nASC, pMC↔nMC (et leurs équivalents DSC/IC) sont mathématiquement
+    // sur-exprimés au slot candidat car n* dépend du slot et p* en est quasi indépendant : trouver une
+    // conjonction parfaite revient à résoudre l'équation auto-référente, pas à valider une info externe.
+    const CIRC_PEN=0.2;
+    // [P8 v5.2] Pour pASC↔np / pMC↔np, le bonus s'applique sur la CIBLE NATALE (np.name)
+    // car c'est elle qui porte la sémantique. Le bonus s'empile avec la pénalité circulaire
+    // (un voyage_important sur Jupiter natal reste valide même si Jupiter ≠ angle).
     if(pAsc!==undefined){
       for(const np of targets){
         const asp=bestAspect(pAsc,np.deg,1.0);
         if(asp){
+          const isCirc=ANGLE_NAMES.includes(np.name);
+          const ab=affinityBonus(evt.type,np.name);
           const key='pASC_'+asp.name+'_n'+np.name;
           const dup=seen.has(key);if(!dup)seen.add(key);
           const tight=1-asp.ao/asp.ou;
-          const w=Math.round(asp.weight*pw(np.name)*1.5*tight*(dup?0.25:1)*10)/10;
-          if(w>=0.3){score+=w;details.push(evt.label+': pASC '+asp.name+' n'+np.name+' ('+w.toFixed(1)+' '+asp.ao.toFixed(2)+'\u00B0'+(dup?'*':'')+')');
+          let w=Math.round(asp.weight*pw(np.name)*1.5*tight*(dup?0.25:1)*10)/10;
+          if(isCirc)w=Math.round(w*CIRC_PEN*10)/10;
+          if(ab>1)w=Math.round(w*ab*10)/10;
+          if(w>=0.3){score+=w;details.push(evt.label+': pASC '+asp.name+' n'+np.name+' ('+w.toFixed(1)+' '+asp.ao.toFixed(2)+'\u00B0'+(dup?'*':'')+(isCirc?' \u21BB':'')+(ab>1?' \u2295':'')+')');
           }
         }
       }
@@ -226,11 +338,15 @@ function countProgHits(progSlice,slotAsc,slotMc,targets){
       for(const np of targets){
         const asp=bestAspect(pMc,np.deg,1.0);
         if(asp){
+          const isCirc=ANGLE_NAMES.includes(np.name);
+          const ab=affinityBonus(evt.type,np.name);
           const key='pMC_'+asp.name+'_n'+np.name;
           const dup=seen.has(key);if(!dup)seen.add(key);
           const tight=1-asp.ao/asp.ou;
-          const w=Math.round(asp.weight*pw(np.name)*tight*(dup?0.25:1)*10)/10;
-          if(w>=0.3){score+=w;details.push(evt.label+': pMC '+asp.name+' n'+np.name+' ('+w.toFixed(1)+' '+asp.ao.toFixed(2)+'\u00B0'+(dup?'*':'')+')');
+          let w=Math.round(asp.weight*pw(np.name)*tight*(dup?0.25:1)*10)/10;
+          if(isCirc)w=Math.round(w*CIRC_PEN*10)/10;
+          if(ab>1)w=Math.round(w*ab*10)/10;
+          if(w>=0.3){score+=w;details.push(evt.label+': pMC '+asp.name+' n'+np.name+' ('+w.toFixed(1)+' '+asp.ao.toFixed(2)+'\u00B0'+(dup?'*':'')+(isCirc?' \u21BB':'')+(ab>1?' \u2295':'')+')');
           }
         }
       }
@@ -285,9 +401,14 @@ const detail=scorerItems.map((meta_raw,i)=>{
   else{ascDeg=mathAscDeg;ascSign=mathSign;src='math';}
   if(!ascSign&&ascDeg!==undefined)ascSign=signOf(ascDeg);
 
+  // [P3 v5.0] Ancien comportement : on jetait l'API d\u00e8s qu'elle divergeait du calcul math, mais
+  // _windowSign et mathSign \u00e9taient calcul\u00e9s par la m\u00eame fonction => trustApi \u00e9tait quasi toujours faux.
+  // Nouveau : on garde l'API par d\u00e9faut, on ne bascule sur math que si l'\u00e9cart angulaire d\u00e9passe 5\u00b0
+  // (signe d'un d\u00e9salignement d'items entre Scorer / Scan fin planetes / Scan fin maisons).
   if(ascSign&&ascSign!==mathSign){
-    const trustApi=sgn.includes(win)&&ascSign===win&&win!==mathSign;
-    if(!trustApi){
+    const _absDiff=Math.abs(ascDeg-mathAscDeg);
+    const dist=Math.min(_absDiff,360-_absDiff);
+    if(dist>5){
       ascDeg=mathAscDeg;
       ascSign=mathSign;
       if(src==='houses'||src==='planets')src=src+'+t';
@@ -318,13 +439,15 @@ const detail=scorerItems.map((meta_raw,i)=>{
       const dirASC=normDeg(ascDeg+age);
       const dirMC=mcDeg!==undefined?normDeg(mcDeg+age):null;
       for(const p of slotTargets){
+        const ab=affinityBonus(evt.type,p.name);
         const aspA=bestAspect(dirASC,p.deg);
         if(aspA){
           const kA='dASC_'+aspA.name+'_'+p.name;
           const dupA=arcSeen.has(kA);if(!dupA)arcSeen.add(kA);
           const tight=1-aspA.ao/aspA.ou;
-          const w=Math.round(aspA.weight*pw(p.name)*tight*(dupA?0.5:1)*10)/10;
-          if(w>=0.3){arcScore+=w;arcDetails.push(evt.label+': dirASC '+aspA.name+' '+p.name+' ('+w.toFixed(1)+' '+aspA.ao.toFixed(2)+'\u00B0'+(dupA?'*':'')+')');}
+          let w=Math.round(aspA.weight*pw(p.name)*tight*(dupA?0.5:1)*10)/10;
+          if(ab>1)w=Math.round(w*ab*10)/10;
+          if(w>=0.3){arcScore+=w;arcDetails.push(evt.label+': dirASC '+aspA.name+' '+p.name+' ('+w.toFixed(1)+' '+aspA.ao.toFixed(2)+'\u00B0'+(dupA?'*':'')+(ab>1?' \u2295':'')+')');}
         }
         if(dirMC!==null){
           const aspM=bestAspect(dirMC,p.deg);
@@ -332,8 +455,9 @@ const detail=scorerItems.map((meta_raw,i)=>{
             const kM='dMC_'+aspM.name+'_'+p.name;
             const dupM=arcSeen.has(kM);if(!dupM)arcSeen.add(kM);
             const tight=1-aspM.ao/aspM.ou;
-            const w=Math.round(aspM.weight*pw(p.name)*tight*(dupM?0.5:1)*10)/10;
-            if(w>=0.3){arcScore+=w;arcDetails.push(evt.label+': dirMC '+aspM.name+' '+p.name+' ('+w.toFixed(1)+' '+aspM.ao.toFixed(2)+'\u00B0'+(dupM?'*':'')+')');}
+            let w=Math.round(aspM.weight*pw(p.name)*tight*(dupM?0.5:1)*10)/10;
+            if(ab>1)w=Math.round(w*ab*10)/10;
+            if(w>=0.3){arcScore+=w;arcDetails.push(evt.label+': dirMC '+aspM.name+' '+p.name+' ('+w.toFixed(1)+' '+aspM.ao.toFixed(2)+'\u00B0'+(dupM?'*':'')+(ab>1?' \u2295':'')+')');}
           }
         }
       }
@@ -342,7 +466,11 @@ const detail=scorerItems.map((meta_raw,i)=>{
 
   let progScore=0;let progDetails=[];
   if(validProg.length>0){
-    const ph=countProgHits(validProg,ascDeg,mcDeg,slotTargets);
+    // [P-detangles v5.6] On calcule le JD de la naissance candidate (slot) et on le passe \u00e0 countProgHits
+    // pour qu'il recalcule pAsc/pMc localement \u00e0 chaque \u00e9v\u00e9nement (jour-pour-an depuis birthCand).
+    const utSlot=(hh+mm/60)-tz;
+    const slotJD=jdFull(birthY,birthM,birthD,utSlot);
+    const ph=countProgHits(validProg,ascDeg,mcDeg,slotTargets,slotJD);
     progScore=ph.score;
     progDetails=ph.details;
   }
@@ -357,22 +485,36 @@ const detail=scorerItems.map((meta_raw,i)=>{
       const srJD=findSRjd(natalSun.deg,eY,birthM,birthD);
       const srAsc=calcASCjd(srJD);
       const srMc=calcMCjd(srJD);
+      // [P-circular-asp v5.1 RS] Même pénalité ×0.2 que pour les progressions sur les aspects
+      // srASC/srMC vs angles natals du slot (auto-référents : srASC dépend très peu du slot,
+      // nASC/nMC en dépendent fortement → conjonction parfaite = équation auto-réalisatrice).
+      const SR_CIRC_PEN=0.2;
+      // [P8 v5.2] Pour les RS, on collecte tous les types d'événements de l'année pour appliquer
+      // l'affinité (ex 2008 = accident + deces_proche → Pluton bonifié sous deux titres mais ×1.5 une seule fois).
+      const yearTypes=[...new Set(events.filter(e=>e.year===eY).map(e=>e.type).filter(Boolean))];
+      const yearAffin=name=>yearTypes.some(t=>affinityBonus(t,name)>1)?AFFINITY_BONUS:1;
       for(const p of slotTargets){
+        const isCircSR=ANGLE_NAMES.includes(p.name);
+        const ab=yearAffin(p.name);
         const aspA=bestAspect(srAsc,p.deg,3.0);
         if(aspA){
           const kA='srASC_'+aspA.name+'_'+p.name;
           const dupA=srSeen.has(kA);if(!dupA)srSeen.add(kA);
           const tight=1-aspA.ao/aspA.ou;
-          const w=Math.round(aspA.weight*pw(p.name)*tight*(dupA?0.5:1)*10)/10;
-          if(w>=0.3){srScore+=w;srDetails.push(eY+': srASC '+aspA.name+' '+p.name+' ('+w.toFixed(1)+')');}
+          let w=Math.round(aspA.weight*pw(p.name)*tight*(dupA?0.5:1)*10)/10;
+          if(isCircSR)w=Math.round(w*SR_CIRC_PEN*10)/10;
+          if(ab>1)w=Math.round(w*ab*10)/10;
+          if(w>=0.3){srScore+=w;srDetails.push(eY+': srASC '+aspA.name+' '+p.name+' ('+w.toFixed(1)+(isCircSR?' \u21BB':'')+(ab>1?' \u2295':'')+')');}
         }
         const aspM=bestAspect(srMc,p.deg,3.0);
         if(aspM){
           const kM='srMC_'+aspM.name+'_'+p.name;
           const dupM=srSeen.has(kM);if(!dupM)srSeen.add(kM);
           const tight=1-aspM.ao/aspM.ou;
-          const w=Math.round(aspM.weight*pw(p.name)*tight*(dupM?0.5:1)*10)/10;
-          if(w>=0.3){srScore+=w;srDetails.push(eY+': srMC '+aspM.name+' '+p.name+' ('+w.toFixed(1)+')');}
+          let w=Math.round(aspM.weight*pw(p.name)*tight*(dupM?0.5:1)*10)/10;
+          if(isCircSR)w=Math.round(w*SR_CIRC_PEN*10)/10;
+          if(ab>1)w=Math.round(w*ab*10)/10;
+          if(w>=0.3){srScore+=w;srDetails.push(eY+': srMC '+aspM.name+' '+p.name+' ('+w.toFixed(1)+(isCircSR?' \u21BB':'')+(ab>1?' \u2295':'')+')');}
         }
       }
     }
@@ -384,6 +526,40 @@ const detail=scorerItems.map((meta_raw,i)=>{
 
 const cleanDetail=detail.filter(d=>d!==null);
 const validDetail=cleanDetail.filter(d=>d.ascDeg!==undefined);
+
+// [v5.8 P2.1] Reranking par COHÉRENCE multi-techniques.
+// Constat benchmark (Bardot/Gainsbourg/Saint Laurent/Beauvoir/Hugo/de Gaulle) : le bon créneau a
+// souvent un PIC d'une des techniques mais perd au total contre un faux pic où une seule
+// technique sort très haut "par hasard". On corrige en bonifiant les slots dont le SIGNE
+// est plébiscité par PLUSIEURS techniques indépendantes (questionnaire, arcs, progressions, RS).
+// Bonus +6% par technique alignée (max 4 → +24%). N'ajoute pas de "fait nouveau" : amplifie un
+// signal de convergence déjà présent. Préserve totalScoreRaw pour traçabilité.
+const techPeaks={arc:{sign:null,score:-1},prog:{sign:null,score:-1},sr:{sign:null,score:-1}};
+for(const d of validDetail){
+  const s=d.wSign||d.ascSign||'?';
+  if(s==='?')continue;
+  if(d.arcScore>techPeaks.arc.score)techPeaks.arc={sign:s,score:d.arcScore};
+  if(d.progScore>techPeaks.prog.score)techPeaks.prog={sign:s,score:d.progScore};
+  const sr=d.srScore||0;
+  if(sr>techPeaks.sr.score)techPeaks.sr={sign:s,score:sr};
+}
+const qTopSign=(ranked&&ranked[0])?String(ranked[0].sign||'').trim():null;
+const COHERENCE_PER_TECH=0.06;
+for(const d of validDetail){
+  const s=d.wSign||d.ascSign||'?';
+  let aligned=0;
+  if(s!=='?'){
+    if(qTopSign&&s===qTopSign)aligned++;
+    if(techPeaks.arc.sign===s)aligned++;
+    if(techPeaks.prog.sign===s)aligned++;
+    if(techPeaks.sr.sign===s)aligned++;
+  }
+  d.coherenceCount=aligned;
+  d.coherenceBonus=aligned*COHERENCE_PER_TECH;
+  d.totalScoreRaw=d.totalScore;
+  d.totalScore=Math.round(d.totalScore*(1+d.coherenceBonus)*100)/100;
+}
+
 const bestGlobal=validDetail.length>0?pickBest(validDetail):null;
 let bestPlage=null;
 if(plageBounds&&validDetail.length>0){
@@ -400,13 +576,8 @@ const bestTime=best.time;
 const hasPlanets=natalPlanets.length>0;
 function sf(v){return typeof v==='number'?v.toFixed(1):v;}
 const te=(best.arcScore||0)+(best.progScore||0)+(best.srScore||0);
-let method;
-if(te>0){
-  method='Arcs('+sf(best.arcScore)+')+Prog('+sf(best.progScore)+')+RS('+sf(best.srScore||0)+')';
-  method+=qFactor<1?'+Quest(aj. '+sf(best.wScore)+', brut '+sf(best.wScoreRaw||0)+' ×'+qFactor+')':'+Quest('+sf(best.wScore)+')';
-}else{
-  method='Questionnaire ('+(best.wSign||'?')+') brut '+sf(best.wScoreRaw||0)+' pts'+(qFactor<1?', utilisé ×'+qFactor:'');
-}
+let method='';
+// [i18n v5.5] `method` est construit plus bas, après l'initialisation du helper T() (besoin de vars.langue).
 
 const windowGroups={};
 for(const d of cleanDetail){
@@ -427,68 +598,319 @@ const ascPeaksSorted=Object.entries(bestByAsc).sort((a,b)=>b[1].totalScore-a[1].
 const nAnalysed=validDetail.length;
 const gridFull=nAnalysed>=280;
 let scanMetaNote='';
-try{const sm=firstItem._scanMeta?JSON.parse(firstItem._scanMeta):null;if(sm&&sm.slots)scanMetaNote=' Métadonnée Scorer : '+sm.slots+' créneau(x) ('+(sm.mode||'')+').';}catch(eM){}
-const picScopeTxt=gridFull?'sur la grille 5 min / 24 h (tous les créneaux).':'sur les '+nAnalysed+' créneau(x) réellement analysés dans ce scan (grille partielle — pas toute la journée).';
+// scanMetaNote est construit après le helper T() (défini juste en dessous) et utilise donc T('scorerMeta', …).
+// Initialisation à '' ici ; remplissage dans un second try/catch immédiatement après l'initialisation de T.
+// [i18n v5.5] Détection langue de sortie depuis Extract Variables (vars.langue = "Français" | "English").
+// Why: le formulaire site permet à l'utilisateur de choisir la langue du rapport ; le mail doit suivre
+// ce choix. Si vars.langue manque ou ne matche pas "English" (case-insensitive), on tombe en FR (défaut).
+// Note de scope : on traduit uniquement les chaînes éditoriales du mail. Les noms de planètes/signes/
+// types d'événements (issus du moteur swiss-eph et du payload utilisateur) restent en FR — chantier séparé
+// si besoin de traduire le contenu technique (Soleil→Sun, Balance→Libra, etc.).
+const isEN = (function(){
+  const L = String(vars?.langue||'').trim().toLowerCase();
+  return L==='english' || L==='en' || L==='anglais';
+})();
+const STR = {
+  fr: {
+    title: 'Resultat de Rectification',
+    forPersonBornAt: 'Pour <b>{prenom} {nom}</b>, ne(e) le {date} a {lieu}',
+    plageIgnored: 'Plage indiquée : <b>{lab}</b> (heure locale) — <span style="color:#c60">aucune fenêtre ASC cohérente avec le questionnaire ; la plage est ignorée pour filtrer le résultat.</span>',
+    plageRestricted: 'Plage indiquée : <b>{lab}</b> (heure locale). Scan restreint à cette fenêtre (grille 5 min). Recommandation = meilleur score <em>dans</em> la plage. Pour explorer 24 h, indiquer 00H00–24H00.',
+    estimatedBirthTime: 'Heure de naissance estimee',
+    ascendant: 'Ascendant {sign}',
+    eventCountWeight: '{n} date(s) d\u2019événements : pondération questionnaire ×{q} pour privilégier arcs, progressions et RS.',
+    notPercents: 'Les totaux ne sont pas des pourcentages ni une probabilité.',
+    marginGap: ' Écart 1er / 2e meilleur score ({scope}) : {x}.',
+    scopeFullDay: 'grille 24 h complète',
+    scopeAnalysed: 'parmi les créneaux analysés',
+    confGlobalLabel: 'Score de confiance global : ',
+    confSign: '<b>Signe ({sign})</b> : <b>{label}</b>{gap}',
+    confSignGap: ' — écart au 2e signe : {x} pt ({y} %)',
+    confTime: '<b>Heure ({time})</b> : <b>{label}</b>{gap}',
+    confTimeGap: ' — écart au 2e meilleur créneau du même signe : {x} pt ({y} %)',
+    confLowHourWarn: '\u26A0 Plusieurs créneaux du même signe sont quasi à égalité : le <b>signe</b> est fiable, l\u2019<b>heure</b> est à considérer à <b>±10\u201320 min</b> plutôt qu\u2019à la minute affichée. Pour départager, des dates d\u2019événements plus précises (jour exact) ou un événement supplémentaire à fort impact aideraient.',
+    confLowSignWarn: '\u26A0 Les techniques (questionnaire / arcs / progressions / RS) ne convergent pas clairement sur un signe : le résultat reste <b>indicatif</b>. Considérer les alternatives ci-dessous comme plausibles.',
+    altIntroSingle: '<b>Pas convaincu ?</b> Voici l\u2019alternative la plus proche (écart total faible vs candidat principal {x}) :',
+    altIntroPlural: '<b>Pas convaincu ?</b> Voici les {n} alternatives les plus proches (écart total faible vs candidat principal {x}) :',
+    altRow: '<b>Alternative {i}</b> : <b>{time}</b> \u2014 ASC <b>{sign}</b> ({deg}) \u00B7 Total <b>{x}</b> <span style="color:#888;font-size:11px">(écart au candidat principal : {gap} pt / {pct} %)</span>',
+    altMainValidations: '<i>Principales validations</i> : ',
+    altFooter: 'Ces créneaux ont des scores quasi équivalents : la précision actuelle ne permet pas de trancher automatiquement. Si vous reconnaissez un de ces moments dans la journée (lever du jour, repas, soirée\u2026), c\u2019est probablement le bon. Pour départager, des dates d\u2019événements plus précises ou un événement supplémentaire à fort impact aideraient.',
+    bestGlobalIntro: '<b>Meilleur créneau sur toute la journée</b> (hors contrainte de plage) : <b>{time}</b>, ASC {sign} \u2014 total {x}.',
+    bestGlobalNote: 'L\u2019heure en tête de mail est le meilleur <em>uniquement entre {plage}</em> (ici {time}, total {x}). Les deux existent sur la même grille 5 min ; le total = arcs + progressions + RS + questionnaire (pondéré). Un 2e signe au questionnaire (ex. Verseau) peut donc gagner dans une fenêtre horaire alors qu\u2019un autre créneau reste n\u00B01 sur 24 h.',
+    top5Help: 'Le <b>Top 5 ASC</b> classe les <em>signes</em> selon les réponses : ce n\u2019est pas un classement d\u2019heures. À chaque minute testée, l\u2019ASC réel est recalculé ; les points questionnaire de ce créneau suivent cet ASC. Avec plusieurs dates de vie, le poids du questionnaire est réduit : arcs, progressions et RS décident souvent du pic du total.',
+    peakBySignIntro: '<b>Pic par signe (grille Q)</b> : pour chaque signe, créneau au <b>total</b> max ',
+    peakBySignFooter: '. <span style="color:#666">Tableaux et points Q : <b>signe ASC affiché</b> (après réponse API ; recalcul local = Src « +t »). Les points questionnaire reprennent le score de ce signe ; si Scorer et API concordent contre le calcul local, l\u2019API est conservée.</span>',
+    picScopeFull: 'sur la grille 5 min / 24 h (tous les créneaux).',
+    picScopePartial: 'sur les {n} créneau(x) réellement analysés dans ce scan (grille partielle \u2014 pas toute la journée).',
+    top5Title: 'Top 5 ASC (questionnaire)',
+    top5Note: '<b>Ce n\u2019est pas la même chose que l\u2019heure estimée.</b> Le Top 5 = uniquement les signes que le <em>questionnaire</em> valorise. L\u2019heure en tête = le créneau où le <b>total</b> (arcs + progressions + RS + questionnaire pondéré) est maximal sur la grille. Un signe peut être <b>absent du Top 5</b> et gagner quand même : à cette minute, les <b>progressions / RS / arcs</b> peuvent être si élevés qu\u2019ils dépassent un créneau « Sagittaire » ou « Verseau » avec plus de points Q mais moins d\u2019événements.',
+    validationsTitle: 'Validation',
+    eventsLine: 'Evenements: ',
+    weightingLegend: 'Pondération orbe: exact=100%, large=faible | Arcs: Angles x2, Perso x1.5, *=dedup x0.5 | Prog: Lune x1.5, Perso x1, Lents x0.3, *=dedup x0.25, \u21BB=auto-référent angle\u2194angle x0.2 | RS: ASC/MC RS vs natal, orbe 3°, *=dedup x0.5, \u21BB=auto-référent x0.2 | \u2295=affinité sémantique événement\u2194planète x{x} (ex. voyage\u2194Jupiter, accident\u2194Mars, deces\u2194Saturne/Pluton)',
+    natalUnavailable: 'Positions natales indisponibles.',
+    noArcMatch: 'Aucune correspondance arcs/progressions.',
+    arcsTitle: 'Arcs solaires ({x} pts)',
+    progTitle: 'Progressions API ({x} pts)',
+    srTitle: 'Révolutions Solaires ({x} pts)',
+    qGridSignTitle: 'Signe grille Q : {sign} (pts Q grille 5 min{w} : {score})',
+    qGridSignWeight: ', pond. ×{q}',
+    thHeure: 'Heure', thASC: 'ASC', thDeg: 'Deg', thSrc: 'Src', thArc: 'Arc', thProg: 'Prog', thRS: 'RS', thTot: 'Tot',
+    coverage: '<b>Couverture</b> : {n} créneau(x) avec ASC dans ce rapport ; {m} item(s) Scorer.',
+    scorerMeta: ' Métadonnée Scorer : {x} créneau(x) ({mode}).',
+    partialScanNote: ' \u2014 <b>scan partiel</b> : seuls les signes présents dans ces créneaux apparaissent en table ; le « Pic par signe » compare les totaux <em>uniquement</em> sur cet ensemble (pas sur 288 pas de 5 min).',
+    natalLine: 'Natales (planetes): ',
+    alignWarn: 'Alignement : {n} créneaux (scorer) vs {p} réponses planètes et {h} maisons \u2014 en cas d\u2019échecs HTTP partiels, les lignes peuvent se décaler ; vérifier le scan.',
+    pairedHint: 'Appariement planètes/maisons → créneau via <b>pairedItem</b> (n8n), pas seulement la position dans la liste.',
+    confLabels: { 'Forte':'Forte', 'Moyenne':'Moyenne', 'Faible':'Faible', 'Très faible':'Très faible', 'Inconnue':'Inconnue' },
+    methodArcsProg: 'Arcs({a})+Prog({p})+RS({r})',
+    methodQuestAdj: '+Quest(aj. {w}, brut {raw} ×{q})',
+    methodQuestRaw: '+Quest({w})',
+    methodQuestionnaireOnly: 'Questionnaire ({sign}) brut {raw} pts{w}',
+    methodQuestionnaireUsed: ', utilisé ×{q}',
+  },
+  en: {
+    title: 'Birth Time Rectification — Result',
+    forPersonBornAt: 'For <b>{prenom} {nom}</b>, born on {date} in {lieu}',
+    plageIgnored: 'Specified window: <b>{lab}</b> (local time) \u2014 <span style="color:#c60">no ASC window consistent with the questionnaire; this window is ignored when filtering the result.</span>',
+    plageRestricted: 'Specified window: <b>{lab}</b> (local time). Scan restricted to this window (5-min grid). Recommendation = best score <em>within</em> the window. To explore the full day, specify 00H00\u201324H00.',
+    estimatedBirthTime: 'Estimated birth time',
+    ascendant: 'Ascendant {sign}',
+    eventCountWeight: '{n} life-event date(s): questionnaire weight ×{q} to favour solar arcs, progressions and solar returns.',
+    notPercents: 'Totals are neither percentages nor probabilities.',
+    marginGap: ' Gap between 1st and 2nd best score ({scope}): {x}.',
+    scopeFullDay: 'full 24-h grid',
+    scopeAnalysed: 'across analysed slots',
+    confGlobalLabel: 'Overall confidence: ',
+    confSign: '<b>Sign ({sign})</b>: <b>{label}</b>{gap}',
+    confSignGap: ' \u2014 gap to 2nd sign: {x} pt ({y} %)',
+    confTime: '<b>Time ({time})</b>: <b>{label}</b>{gap}',
+    confTimeGap: ' \u2014 gap to 2nd best slot of the same sign: {x} pt ({y} %)',
+    confLowHourWarn: '\u26A0 Several slots of the same sign are nearly tied: the <b>sign</b> is reliable, the <b>time</b> should be considered within <b>±10\u201320 min</b> rather than the exact minute shown. To narrow it down, more precise event dates (exact day) or one extra high-impact event would help.',
+    confLowSignWarn: '\u26A0 The techniques (questionnaire / arcs / progressions / solar returns) do not clearly converge on a single sign: the result remains <b>indicative</b>. Consider the alternatives below as plausible.',
+    altIntroSingle: '<b>Not convinced?</b> Here is the closest alternative (small total gap vs main candidate {x}):',
+    altIntroPlural: '<b>Not convinced?</b> Here are the {n} closest alternatives (small total gap vs main candidate {x}):',
+    altRow: '<b>Alternative {i}</b>: <b>{time}</b> \u2014 ASC <b>{sign}</b> ({deg}) \u00B7 Total <b>{x}</b> <span style="color:#888;font-size:11px">(gap to main candidate: {gap} pt / {pct} %)</span>',
+    altMainValidations: '<i>Main validations</i>: ',
+    altFooter: 'These slots have nearly equivalent scores: current precision does not allow an automatic decision. If you recognise one of these moments in the day (sunrise, mealtime, evening\u2026), it is probably the right one. To narrow it down, more precise event dates or one extra high-impact event would help.',
+    bestGlobalIntro: '<b>Best slot over the whole day</b> (without window constraint): <b>{time}</b>, ASC {sign} \u2014 total {x}.',
+    bestGlobalNote: 'The time at the top of this email is the best <em>only within {plage}</em> (here {time}, total {x}). Both exist on the same 5-min grid; total = arcs + progressions + solar returns + weighted questionnaire. A different 2nd sign in the questionnaire (e.g. Verseau) may therefore win within a time window even though another slot remains #1 over 24 h.',
+    top5Help: 'The <b>Top 5 ASC</b> ranks <em>signs</em> based on the answers: it is not a ranking of times. At each tested minute the actual ASC is recomputed; questionnaire points for that slot follow this ASC. With several life events, questionnaire weight is reduced: arcs, progressions and solar returns often decide the peak of the total.',
+    peakBySignIntro: '<b>Peak per sign (Q grid)</b>: for each sign, slot at maximum <b>total</b> ',
+    peakBySignFooter: '. <span style="color:#666">Tables and Q points: <b>ASC sign shown</b> (after API response; local recompute = Src \u00AB +t \u00BB). Questionnaire points reflect that sign\u2019s score; if Scorer and API agree against the local computation, the API is preserved.</span>',
+    picScopeFull: 'on the 5-min / 24-h grid (every slot).',
+    picScopePartial: 'on the {n} slot(s) actually analysed in this scan (partial grid \u2014 not the full day).',
+    top5Title: 'Top 5 ASC (questionnaire)',
+    top5Note: '<b>This is not the same as the estimated time.</b> The Top 5 = only the signs the <em>questionnaire</em> favours. The top time = the slot where the <b>total</b> (arcs + progressions + solar returns + weighted questionnaire) is maximal across the grid. A sign can be <b>absent from the Top 5</b> and still win: at that minute, <b>progressions / solar returns / arcs</b> may be high enough to beat a \u00ABSagittaire\u00BB or \u00ABVerseau\u00BB slot with more Q points but fewer events.',
+    validationsTitle: 'Validation',
+    eventsLine: 'Events: ',
+    weightingLegend: 'Orb weighting: exact=100%, wide=low | Arcs: Angles x2, Personal x1.5, *=dedup x0.5 | Prog: Moon x1.5, Personal x1, Slow x0.3, *=dedup x0.25, \u21BB=self-referent angle\u2194angle x0.2 | SR: SR ASC/MC vs natal, orb 3°, *=dedup x0.5, \u21BB=self-referent x0.2 | \u2295=event\u2194planet semantic affinity x{x} (e.g. travel\u2194Jupiter, accident\u2194Mars, death\u2194Saturn/Pluto)',
+    natalUnavailable: 'Natal positions unavailable.',
+    noArcMatch: 'No arc/progression match.',
+    arcsTitle: 'Solar arcs ({x} pts)',
+    progTitle: 'API progressions ({x} pts)',
+    srTitle: 'Solar returns ({x} pts)',
+    qGridSignTitle: 'Q-grid sign: {sign} (5-min Q points{w}: {score})',
+    qGridSignWeight: ', weight ×{q}',
+    thHeure: 'Time', thASC: 'ASC', thDeg: 'Deg', thSrc: 'Src', thArc: 'Arc', thProg: 'Prog', thRS: 'SR', thTot: 'Tot',
+    coverage: '<b>Coverage</b>: {n} slot(s) with ASC in this report; {m} Scorer item(s).',
+    scorerMeta: ' Scorer metadata: {x} slot(s) ({mode}).',
+    partialScanNote: ' \u2014 <b>partial scan</b>: only the signs present in these slots appear in the table; \u00ABPeak per sign\u00BB compares totals <em>only</em> within this set (not over the 288 5-min steps).',
+    natalLine: 'Natal (planets): ',
+    alignWarn: 'Alignment: {n} slots (scorer) vs {p} planet responses and {h} houses \u2014 partial HTTP failures may shift rows; verify the scan.',
+    pairedHint: 'Planets/houses pairing → slot via <b>pairedItem</b> (n8n), not just list position.',
+    confLabels: { 'Forte':'Strong', 'Moyenne':'Medium', 'Faible':'Low', 'Très faible':'Very low', 'Inconnue':'Unknown' },
+    methodArcsProg: 'Arcs({a})+Prog({p})+SR({r})',
+    methodQuestAdj: '+Quest(adj. {w}, raw {raw} ×{q})',
+    methodQuestRaw: '+Quest({w})',
+    methodQuestionnaireOnly: 'Questionnaire ({sign}) raw {raw} pts{w}',
+    methodQuestionnaireUsed: ', used ×{q}',
+  }
+};
+function T(key, p){
+  const dict = isEN ? STR.en : STR.fr;
+  let s = dict[key];
+  if (s === undefined) s = STR.fr[key] !== undefined ? STR.fr[key] : key;
+  if (typeof s !== 'string') return s;
+  if (!p) return s;
+  return s.replace(/\{(\w+)\}/g, function(_, n){ return (p[n]!==undefined && p[n]!==null) ? String(p[n]) : ''; });
+}
+function TConfLabel(label){
+  const dict = isEN ? STR.en.confLabels : STR.fr.confLabels;
+  return dict[label] || label;
+}
+const picScopeTxt = gridFull ? T('picScopeFull') : T('picScopePartial', { n: nAnalysed });
+try{const sm=firstItem._scanMeta?JSON.parse(firstItem._scanMeta):null;if(sm&&sm.slots)scanMetaNote=T('scorerMeta',{x:sm.slots,mode:sm.mode||''});}catch(eM){}
+if(_plageRaw){
+  if(_plageRaw.ignored){
+    plageHtml='<p style="font-size:13px;color:#444">'+T('plageIgnored',{lab:_plageRaw.lab})+'</p>';
+  } else {
+    plageHtml='<p style="font-size:13px;color:#444">'+T('plageRestricted',{lab:_plageRaw.lab})+'</p>';
+  }
+}
+
+// [i18n v5.5] Reconstruction de `method` selon la langue (la version FR construite plus haut est écrasée).
+if(typeof te !== 'undefined' && te > 0){
+  method = T('methodArcsProg', { a: sf(best.arcScore), p: sf(best.progScore), r: sf(best.srScore||0) });
+  method += qFactor < 1
+    ? T('methodQuestAdj', { w: sf(best.wScore), raw: sf(best.wScoreRaw||0), q: qFactor })
+    : T('methodQuestRaw', { w: sf(best.wScore) });
+} else {
+  const w = qFactor < 1 ? T('methodQuestionnaireUsed', { q: qFactor }) : '';
+  method = T('methodQuestionnaireOnly', { sign: best.wSign||'?', raw: sf(best.wScoreRaw||0), w: w });
+}
 
 let html='<div style="font-family:Arial,sans-serif;max-width:700px;margin:0 auto;padding:20px">';
-html+='<h2 style="color:#5B4A9E">Resultat de Rectification</h2>';
-html+='<p>Pour <b>'+(vars?.prenom||'')+' '+(vars?.nom||'')+'</b>, ne(e) le '+(vars?.date||'')+' a '+(vars?.lieu||'')+'</p>'+plageHtml;
+html+='<h2 style="color:#5B4A9E">'+T('title')+'</h2>';
+html+='<p>'+T('forPersonBornAt',{prenom:vars?.prenom||'',nom:vars?.nom||'',date:vars?.date||'',lieu:vars?.lieu||''})+'</p>'+plageHtml;
 html+='<div style="background:#eee8ff;padding:20px;border-radius:10px;text-align:center;margin:20px 0">';
-html+='<p style="font-size:14px;margin:0 0 5px;color:#666">Heure de naissance estimee</p>';
+html+='<p style="font-size:14px;margin:0 0 5px;color:#666">'+T('estimatedBirthTime')+'</p>';
 html+='<p style="font-size:36px;font-weight:bold;margin:0;color:#5B4A9E">'+bestTime+'</p>';
-html+='<p style="font-size:18px;margin:5px 0 0">Ascendant '+(best.ascSign||'?')+'</p>';
+html+='<p style="font-size:18px;margin:5px 0 0">'+T('ascendant',{sign:best.ascSign||'?'})+'</p>';
 html+='<p style="font-size:12px;margin:8px 0 0;color:#888">'+method+'</p>';
 if(qFactor<1){
-  html+='<p style="font-size:11px;margin-top:10px;color:#555">'+evtCount+' date(s) d\'événements : pondération questionnaire ×'+qFactor+' pour privilégier arcs, progressions et RS.</p>';
+  html+='<p style="font-size:11px;margin-top:10px;color:#555">'+T('eventCountWeight',{n:evtCount,q:qFactor})+'</p>';
 }
 const byScore=[...validDetail].sort((a,b)=>b.totalScore-a.totalScore);
 let marginTxt='';
 if(byScore.length>=2){
   const s0=byScore[0].totalScore;
   const runner=byScore.find(x=>x.totalScore<s0-1e-9);
-  if(runner)marginTxt=' Écart 1er / 2e meilleur score ('+(gridFull?'grille 24 h complète':'parmi les créneaux analysés')+') : '+sf(s0-runner.totalScore)+'.';
+  if(runner)marginTxt=T('marginGap',{scope:gridFull?T('scopeFullDay'):T('scopeAnalysed'),x:sf(s0-runner.totalScore)});
 }
-html+='<p style="font-size:11px;margin-top:8px;color:#666">Les totaux ne sont pas des pourcentages ni une probabilité.'+marginTxt+'</p></div>';
+html+='<p style="font-size:11px;margin-top:8px;color:#666">'+T('notPercents')+marginTxt+'</p></div>';
+
+// [P2 v5.1] Score de confiance — deux niveaux indépendants : signe (écart au 2e signe) et heure (écart au 2e créneau du même signe).
+let confLabelGlobal='Inconnue', confColor='#888', confSigneTxt='', confHeureTxt='', confEcartS=null, confEcartH=null, confSigneLabel='Inconnue', confHeureLabel='Inconnue';
+try{
+  const sortedSig=ascPeaksSorted.map(e=>e[1].totalScore);
+  let ecartSrel=null;
+  if(sortedSig.length>=2&&sortedSig[0]>0){
+    confEcartS=sortedSig[0]-sortedSig[1];
+    ecartSrel=confEcartS/sortedSig[0];
+    // [v5.8 P1.3] Seuils durcis suite au benchmark celebs (0/6 top-1 ASC correct sur l'ancien
+    // calibrage qui labellisait "Moyenne" des prédictions à 9-15% d'écart pourtant fausses).
+    // Nouveau : on demande un écart ABSOLU plus large + cohérence multi-techniques pour autoriser
+    // les labels >= Moyenne. Sinon plafond "Faible" (annonce honnête de l'incertitude).
+    if(ecartSrel>=0.20)confSigneLabel='Forte';
+    else if(ecartSrel>=0.10)confSigneLabel='Moyenne';
+    else if(ecartSrel>=0.04)confSigneLabel='Faible';
+    else confSigneLabel='Très faible';
+    const cc=Number(best?.coherenceCount)||0;
+    if(cc<2&&(confSigneLabel==='Forte'||confSigneLabel==='Moyenne')){
+      confSigneLabel='Faible';
+    }
+  }
+  const bestSignKey=best.wSign||best.ascSign||'?';
+  const sameSignSlots=validDetail.filter(d=>((d.wSign||d.ascSign||'?')===bestSignKey)).sort((a,b)=>b.totalScore-a.totalScore);
+  let ecartHrel=null;
+  if(sameSignSlots.length>=2&&sameSignSlots[0].totalScore>0){
+    confEcartH=sameSignSlots[0].totalScore-sameSignSlots[1].totalScore;
+    ecartHrel=confEcartH/sameSignSlots[0].totalScore;
+    // [v5.8 P1.3] Seuils heure également durcis : un "Forte" à 5% c'était trompeur, vu qu'on
+    // se trompait souvent quand même sur le SIGNE — l'heure exacte importe peu si le signe est faux.
+    if(ecartHrel>=0.08)confHeureLabel='Forte';
+    else if(ecartHrel>=0.03)confHeureLabel='Moyenne';
+    else if(ecartHrel>=0.01)confHeureLabel='Faible';
+    else confHeureLabel='Très faible';
+  }
+  const confRank={'Forte':3,'Moyenne':2,'Faible':1,'Très faible':0,'Inconnue':-1};
+  const rS=confRank[confSigneLabel]??-1, rH=confRank[confHeureLabel]??-1;
+  const minR=Math.min(rS,rH);
+  confLabelGlobal=Object.keys(confRank).find(k=>confRank[k]===minR)||'Inconnue';
+  confColor=minR>=3?'#1d8a3a':minR===2?'#b8860b':minR===1?'#d97706':'#c0392b';
+  const sGap = confEcartS!=null ? T('confSignGap',{x:sf(confEcartS),y:(ecartSrel*100).toFixed(1)}) : '';
+  const hGap = confEcartH!=null ? T('confTimeGap',{x:sf(confEcartH),y:(ecartHrel*100).toFixed(2)}) : '';
+  confSigneTxt = T('confSign',{sign:best.ascSign||'?',label:TConfLabel(confSigneLabel),gap:sGap});
+  confHeureTxt = T('confTime',{time:best.time||'?',label:TConfLabel(confHeureLabel),gap:hGap});
+}catch(eConf){}
+
+if(confSigneTxt||confHeureTxt){
+  html+='<div style="margin:16px 0;padding:14px 16px;border-radius:8px;border-left:5px solid '+confColor+';background:#fafafa">';
+  html+='<p style="margin:0 0 8px;font-size:14px;color:#222">'+T('confGlobalLabel')+'<span style="color:'+confColor+';font-weight:bold">'+TConfLabel(confLabelGlobal)+'</span></p>';
+  if(confSigneTxt)html+='<p style="margin:2px 0;font-size:12px;color:#444">'+confSigneTxt+'</p>';
+  if(confHeureTxt)html+='<p style="margin:2px 0;font-size:12px;color:#444">'+confHeureTxt+'</p>';
+  if(confHeureLabel==='Très faible'||confHeureLabel==='Faible'){
+    html+='<p style="margin:8px 0 0;font-size:11px;color:#a04000;line-height:1.5">'+T('confLowHourWarn')+'</p>';
+  }
+  if(confSigneLabel==='Très faible'||confSigneLabel==='Faible'){
+    html+='<p style="margin:6px 0 0;font-size:11px;color:#a04000;line-height:1.5">'+T('confLowSignWarn')+'</p>';
+  }
+  html+='</div>';
+}
+
+// [D v5.4 → v5.8 P1.2] Top 3 candidats équivalents — affichage ÉLARGI suite au benchmark celebs.
+// Avant : alternatives masquées en confiance "Moyenne" (cas Saint Laurent / Gainsbourg : labellisés
+// "Moyenne" mais prédiction fausse → utilisateur n'avait pas accès aux pistes alternatives).
+// Maintenant : seule "Forte" masque les alternatives. Toute confiance ≤ Moyenne expose le Top 3
+// (n°2 et n°3 par pic par signe) pour permettre à l'utilisateur d'arbitrer en cas de doute.
+// On expose ici les n°2 et n°3 par "pic par signe" (ascPeaksSorted[1] et [2]) avec breakdown
+// Arcs/Prog/RS/Q et top-3 validations.
+const showAlternatives=(confLabelGlobal!=='Forte')&&ascPeaksSorted.length>=2;
+if(showAlternatives){
+  const altCount=Math.min(2,ascPeaksSorted.length-1);
+  const alts=ascPeaksSorted.slice(1,1+altCount).map(e=>e[1]);
+  html+='<div style="margin:10px 0 18px;padding:14px 16px;border-radius:8px;border:1px dashed '+confColor+';background:#fff8ee">';
+  html+='<p style="margin:0 0 10px;font-size:13px;color:#222">'+(altCount>1?T('altIntroPlural',{n:altCount,x:sf(best.totalScore)}):T('altIntroSingle',{x:sf(best.totalScore)}))+'</p>';
+  for(let i=0;i<alts.length;i++){
+    const a=alts[i];
+    const ecartA=best.totalScore-a.totalScore;
+    const ecartPct=best.totalScore>0?(ecartA/best.totalScore*100).toFixed(1):'?';
+    // Note: 'Arcs / Prog / RS / Q' restent abréviations universelles côté breakdown — on ne traduit que SR/RS via thRS.
+    const breakdown='Arcs '+sf(a.arcScore||0)+' \u00b7 Prog '+sf(a.progScore||0)+' \u00b7 '+T('thRS')+' '+sf(a.srScore||0)+' \u00b7 Q '+sf(a.wScore||0);
+    const topDet=[].concat(a.arcDetails||[],a.progDetails||[],a.srDetails||[]).slice(0,3);
+    const degTxt=a.ascDeg!==undefined?a.ascDeg.toFixed(1)+'\u00B0':'?';
+    html+='<div style="margin:6px 0;padding:10px 12px;background:#fff;border-radius:6px;border-left:3px solid '+confColor+'">';
+    html+='<p style="margin:0 0 4px;font-size:13px;color:#222">'+T('altRow',{i:(i+1),time:a.time,sign:a.ascSign||'?',deg:degTxt,x:sf(a.totalScore),gap:sf(ecartA),pct:ecartPct})+'</p>';
+    html+='<p style="margin:2px 0 0;font-size:11px;color:#555">'+breakdown+'</p>';
+    if(topDet.length>0){
+      html+='<p style="margin:4px 0 0;font-size:11px;color:#666">'+T('altMainValidations')+topDet.join(' \u00b7 ')+'</p>';
+    }
+    html+='</div>';
+  }
+  html+='<p style="margin:8px 0 0;font-size:11px;color:#a04000;line-height:1.45">'+T('altFooter')+'</p>';
+  html+='</div>';
+}
+
 if(plageBounds&&bestGlobal&&best&&bestGlobal.time!==best.time){
-  const plLab=plageBounds.label||'votre plage';
+  const plLab=plageBounds.label||(isEN?'your window':'votre plage');
   html+='<div style="font-size:13px;color:#333;margin:14px 0;padding:14px;background:#f5f0ff;border-radius:8px;border-left:4px solid #5B4A9E">';
-  html+='<p style="margin:0 0 8px"><b>Meilleur créneau sur toute la journée</b> (hors contrainte de plage) : <b>'+bestGlobal.time+'</b>, ASC '+(bestGlobal.ascSign||'?')+' — total '+sf(bestGlobal.totalScore)+'.</p>';
-  html+='<p style="margin:0;font-size:12px;color:#555">L’heure en tête de mail est le meilleur <em>uniquement entre '+plLab+'</em> (ici '+best.time+', total '+sf(best.totalScore)+'). Les deux existent sur la même grille 5 min ; le total = arcs + progressions + RS + questionnaire (pondéré). Un 2e signe au questionnaire (ex. Verseau) peut donc gagner dans une fenêtre horaire alors qu’un autre créneau reste n°1 sur 24 h.</p>';
+  html+='<p style="margin:0 0 8px">'+T('bestGlobalIntro',{time:bestGlobal.time,sign:bestGlobal.ascSign||'?',x:sf(bestGlobal.totalScore)})+'</p>';
+  html+='<p style="margin:0;font-size:12px;color:#555">'+T('bestGlobalNote',{plage:plLab,time:best.time,x:sf(best.totalScore)})+'</p>';
   html+='</div>';
 }
 if(events.length>0){
-  html+='<p style="font-size:11px;color:#666;margin:12px 0;line-height:1.45">Le <b>Top 5 ASC</b> classe les <em>signes</em> selon les réponses : ce n’est pas un classement d’heures. À chaque minute testée, l’ASC réel est recalculé ; les points questionnaire de ce créneau suivent cet ASC. Avec plusieurs dates de vie, le poids du questionnaire est réduit : arcs, progressions et RS décident souvent du pic du total.</p>';
+  html+='<p style="font-size:11px;color:#666;margin:12px 0;line-height:1.45">'+T('top5Help')+'</p>';
 }
 
 if(ascPeaksSorted.length>0){
   const peakLine=ascPeaksSorted.slice(0,12).map(([sign,d])=>sign+' <b>'+d.time+'</b> ('+sf(d.totalScore)+')').join(' \u00b7 ');
   const more=ascPeaksSorted.length>12?' \u2026':'';
-  html+='<p style="font-size:12px;color:#333;margin:12px 0;padding:10px 12px;background:#faf8ff;border-radius:6px;border:1px solid #e8e0f5"><b>Pic par signe (grille Q)</b> : pour chaque signe, créneau au <b>total</b> max '+picScopeTxt+' — '+peakLine+more+'. <span style="color:#666">Tableaux et points Q : <b>signe ASC affiché</b> (après réponse API ; recalcul local = Src « +t »). Les points questionnaire reprennent le score de ce signe ; si Scorer et API concordent contre le calcul local, l’API est conservée.</span></p>';
+  html+='<p style="font-size:12px;color:#333;margin:12px 0;padding:10px 12px;background:#faf8ff;border-radius:6px;border:1px solid #e8e0f5">'+T('peakBySignIntro')+picScopeTxt+' \u2014 '+peakLine+more+T('peakBySignFooter')+'</p>';
 }
 
-html+='<h3>Top 5 ASC (questionnaire)</h3><ol>'+ranked.map(r=>'<li><b>'+r.sign+'</b> \u2014 '+r.score+' pts</li>').join('')+'</ol>';
-html+='<p style="font-size:11px;color:#444;margin:10px 0 0;line-height:1.5"><b>Ce n’est pas la même chose que l’heure estimée.</b> Le Top 5 = uniquement les signes que le <em>questionnaire</em> valorise. L’heure en tête = le créneau où le <b>total</b> (arcs + progressions + RS + questionnaire pondéré) est maximal sur la grille. Un signe peut être <b>absent du Top 5</b> et gagner quand même : à cette minute, les <b>progressions / RS / arcs</b> peuvent être si élevés qu’ils dépassent un créneau « Sagittaire » ou « Verseau » avec plus de points Q mais moins d’événements.</p>';
+html+='<h3>'+T('top5Title')+'</h3><ol>'+ranked.map(r=>'<li><b>'+r.sign+'</b> \u2014 '+r.score+' pts</li>').join('')+'</ol>';
+html+='<p style="font-size:11px;color:#444;margin:10px 0 0;line-height:1.5">'+T('top5Note')+'</p>';
 
 if(events.length>0){
-  html+='<h3>Validation</h3>';
-  html+='<p style="font-size:12px">Evenements: '+events.map(e=>e.label).join(', ')+'</p>';
-  html+='<p style="font-size:10px;color:#888">Pond\u00e9ration orbe: exact=100%, large=faible | Arcs: Angles x2, Perso x1.5, *=dedup x0.5 | Prog: Lune x1.5, Perso x1, Lents x0.3, *=dedup x0.25 | RS: ASC/MC RS vs natal, orbe 3\u00B0, *=dedup x0.5</p>';
-  if(!hasPlanets){html+='<p style="color:#c60">Positions natales indisponibles.</p>';}
+  html+='<h3>'+T('validationsTitle')+'</h3>';
+  html+='<p style="font-size:12px">'+T('eventsLine')+events.map(e=>e.label).join(', ')+'</p>';
+  html+='<p style="font-size:10px;color:#888">'+T('weightingLegend',{x:AFFINITY_BONUS})+'</p>';
+  if(!hasPlanets){html+='<p style="color:#c60">'+T('natalUnavailable')+'</p>';}
   else{
     if(best.arcDetails&&best.arcDetails.length>0){
-      html+='<h4 style="margin:10px 0 5px">Arcs solaires ('+sf(best.arcScore)+' pts)</h4>';
+      html+='<h4 style="margin:10px 0 5px">'+T('arcsTitle',{x:sf(best.arcScore)})+'</h4>';
       html+='<ul style="font-size:12px">'+best.arcDetails.map(d=>'<li>'+d+'</li>').join('')+'</ul>';
     }
     if(best.progDetails&&best.progDetails.length>0){
-      html+='<h4 style="margin:10px 0 5px">Progressions API ('+sf(best.progScore)+' pts)</h4>';
+      html+='<h4 style="margin:10px 0 5px">'+T('progTitle',{x:sf(best.progScore)})+'</h4>';
       html+='<ul style="font-size:12px">'+best.progDetails.map(d=>'<li>'+d+'</li>').join('')+'</ul>';
     }
     if(best.srDetails&&best.srDetails.length>0){
-      html+='<h4 style="margin:10px 0 5px">R\u00e9volutions Solaires ('+sf(best.srScore||0)+' pts)</h4>';
+      html+='<h4 style="margin:10px 0 5px">'+T('srTitle',{x:sf(best.srScore||0)})+'</h4>';
       html+='<ul style="font-size:12px">'+best.srDetails.map(d=>'<li>'+d+'</li>').join('')+'</ul>';
     }
     if((best.arcDetails||[]).length===0&&(best.progDetails||[]).length===0&&(best.srDetails||[]).length===0){
-      html+='<p style="color:#999">Aucune correspondance arcs/progressions.</p>';
+      html+='<p style="color:#999">'+T('noArcMatch')+'</p>';
     }
   }
 }
@@ -505,9 +927,10 @@ const wkChrono=Object.keys(windowGroups).sort((a,b)=>{
 });
 for(const wk of wkChrono){
   const wg=windowGroups[wk];
-  html+='<h3>Signe grille Q : '+wg.sign+' (pts Q grille 5 min'+(qFactor<1?', pond. ×'+qFactor:'')+' : '+wg.score+')</h3>';
+  const wTxt = qFactor<1 ? T('qGridSignWeight',{q:qFactor}) : '';
+  html+='<h3>'+T('qGridSignTitle',{sign:wg.sign,w:wTxt,score:wg.score})+'</h3>';
   html+='<table style="width:100%;border-collapse:collapse;font-size:12px">';
-  html+='<tr style="background:#5B4A9E;color:white"><th style="padding:4px">Heure</th><th style="padding:4px">ASC</th><th style="padding:4px">Deg</th><th style="padding:4px">Src</th><th style="padding:4px">Arc</th><th style="padding:4px">Prog</th><th style="padding:4px">RS</th><th style="padding:4px">Tot</th></tr>';
+  html+='<tr style="background:#5B4A9E;color:white"><th style="padding:4px">'+T('thHeure')+'</th><th style="padding:4px">'+T('thASC')+'</th><th style="padding:4px">'+T('thDeg')+'</th><th style="padding:4px">'+T('thSrc')+'</th><th style="padding:4px">'+T('thArc')+'</th><th style="padding:4px">'+T('thProg')+'</th><th style="padding:4px">'+T('thRS')+'</th><th style="padding:4px">'+T('thTot')+'</th></tr>';
   html+=wg.items.map(d=>{
     const isBest=d.time===bestTime;const bg=isBest?'background:#e8dff5;font-weight:bold':'';
     return '<tr style="border-bottom:1px solid #eee;'+bg+'"><td style="padding:3px;text-align:center">'+d.time+(isBest?' \u2605':'')+'</td><td style="padding:3px;text-align:center">'+d.ascSign+'</td><td style="padding:3px;text-align:center">'+(d.ascDeg!==undefined?d.ascDeg.toFixed(1)+'\u00B0':'?')+'</td><td style="padding:3px;text-align:center;color:#888;font-size:10px">'+d.src+'</td><td style="padding:3px;text-align:center">'+(d.arcScore?sf(d.arcScore):'-')+'</td><td style="padding:3px;text-align:center">'+(d.progScore?sf(d.progScore):'-')+'</td><td style="padding:3px;text-align:center">'+(d.srScore?sf(d.srScore):'-')+'</td><td style="padding:3px;text-align:center;font-weight:bold">'+(d.totalScore?sf(d.totalScore):'-')+'</td></tr>';
@@ -515,13 +938,13 @@ for(const wk of wkChrono){
   html+='</table>';
 }
 
-html+='<p style="font-size:10px;color:'+(gridFull?'#888':'#a60')+';margin-top:16px;line-height:1.4"><b>Couverture</b> : '+nAnalysed+' créneau(x) avec ASC dans ce rapport ; '+scorerItems.length+' item(s) Scorer.'+scanMetaNote+(gridFull?'':' — <b>scan partiel</b> : seuls les signes présents dans ces créneaux apparaissent en table ; le « Pic par signe » compare les totaux <em>uniquement</em> sur cet ensemble (pas sur 288 pas de 5 min).')+'</p>';
-html+='<p style="font-size:10px;color:#aaa;margin-top:10px">Natales (planetes): '+(natalBodies.length>0?natalBodies.map(p=>p.name+' '+p.deg.toFixed(1)).join(', '):'n/a')+'</p>';
+html+='<p style="font-size:10px;color:'+(gridFull?'#888':'#a60')+';margin-top:16px;line-height:1.4">'+T('coverage',{n:nAnalysed,m:scorerItems.length})+scanMetaNote+(gridFull?'':T('partialScanNote'))+'</p>';
+html+='<p style="font-size:10px;color:#aaa;margin-top:10px">'+T('natalLine')+(natalBodies.length>0?natalBodies.map(p=>p.name+' '+p.deg.toFixed(1)).join(', '):'n/a')+'</p>';
 if(alignCountMismatch){
-  html+='<p style="font-size:11px;color:#c60;margin-top:8px">Alignement : '+scorerItems.length+' créneaux (scorer) vs '+planetItems.length+' réponses planètes et '+housesItems.length+' maisons — en cas d’échecs HTTP partiels, les lignes peuvent se décaler ; vérifier le scan.</p>';
+  html+='<p style="font-size:11px;color:#c60;margin-top:8px">'+T('alignWarn',{n:scorerItems.length,p:planetItems.length,h:housesItems.length})+'</p>';
 }
 if(usedPairedJoin){
-  html+='<p style="font-size:10px;color:#176;margin-top:4px">Appariement planètes/maisons → créneau via <b>pairedItem</b> (n8n), pas seulement la position dans la liste.</p>';
+  html+='<p style="font-size:10px;color:#176;margin-top:4px">'+T('pairedHint')+'</p>';
 }
 html+='</div>';
 
