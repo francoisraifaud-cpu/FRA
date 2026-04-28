@@ -454,7 +454,13 @@ Score individuel par transit T→Natal :
 
 ### 3.x Moteur de Signatures Événementielles — MDSE (`N8N Prev`, section 12b)
 
-Le MDSE détecte des combinaisons astrologiques classiques multi-technique, multi-maison et génère des alertes thématiques. Il est codé **deux fois de manière ISO** : dans `N8N Prev` et dans `N8N Prev Repport` (contrainte architecturale des branches parallèles).
+Le MDSE détecte des combinaisons astrologiques classiques multi-technique, multi-maison et génère des alertes thématiques.
+
+> **⚠ Mise à jour avril 2026 — audit ISO Priorité 1 (`SITE/scripts/PREV-ISO-AUDIT.md`)** : contrairement à ce qu'affirmait la documentation pré-Sprint 14, le MDSE n'est **plus codé ISO** dans les deux nœuds. La situation réelle est :
+> - **`N8N Prev` (Super noeud1)** = moteur principal complet, contient les Paliers 1 → 10B (`EVENT_SIGNATURES`, `_MDSE_TEMPORAL_TYPES`, `_MDSE_REPECHE_TYPES`, `_mdsePickPeaksByDensity`, `_mdsePickByConvergence`, etc.). Variables sans suffixe (`_mdseResults`, `aspectsSuiviLent`, …).
+> - **`N8N Prev Repport` (Super noeud2 / "Analyseur Technique v")** = **fallback de secours uniquement**. Contient un MDSE ancien (variables suffixées `A` : `_mdseResultsA`, `_allSlowAspA`, …) qui n'est utilisé que si `_prevEventSignatures` (S1) est vide en runtime — ce qui ne se produit jamais en régime nominal.
+>
+> Le tableau ci-dessous décrit la convention de nommage des variables résiduelles dans S2 (utiles pour comprendre les fallbacks), mais la logique métier vivante (Paliers 1 → 10B) est strictement dans S1.
 
 #### 14 catégories de signatures
 
@@ -1055,10 +1061,14 @@ Les arcs solaires et progressions secondaires P→N n'ont pas de date ponctuelle
 
 ### Fichiers modifiés
 
+> **⚠ Mise à jour avril 2026 — audit ISO Priorité 1 (`SITE/scripts/PREV-ISO-AUDIT.md`)** : la note Sprint 14 ci-dessous est partiellement obsolète. Le calcul heatmap a été *remis* dans `N8N Prev` ultérieurement, et **enrichi de 5 amplificateurs pyramidaux** (DIRECTIONS PRIMAIRES, FIRDARIA, RS ASC HOUSE, RETOUR NODAL, CASCADE — lignes 10402-10501). `N8N Prev Repport` exécute toujours son calcul local mais l'**écrase ensuite par celui de S1** via le **callback upstream ISO v10.4** (lignes 2298-2321). Cinq tests live (bardot, einstein, curie, hawking, ali) confirment que la heatmap finale consommée = S1 (top3 et max identiques, écarts ≤ 0.1 = arrondi quantifié à 1 décimale).
+>
+> **Conséquence pratique** : ne PAS supprimer le calcul heatmap de `N8N Prev`. Si vous le faites, le callback upstream ne récupérera plus rien et la heatmap retombera à sa version « pauvre » de `N8N Prev Repport` (sans amplificateurs pyramidaux).
+
 | Fichier | Modifications |
 |---|---|
-| **`N8N Prev`** | **Sprint 14** : **Suppression du moteur heatmap dupliqué** (~624 lignes). Le moteur ISO v2 a été retiré car, malgré un code logique identique, des écarts persistaient avec `N8N Prev Repport` (cause : mutation partagée de `natalPlanets` via injection des lots hermétiques + divergences potentielles de `$input` entre branches N8N parallèles). Les 3 rapports HTML utilisent désormais la heatmapData unique calculée par `N8N Prev Repport`. |
-| **`N8N Prev Repport`** | **Sprint 13** : Correction séquence Firdaria diurne. **Sprint 14** : Aucune modification — ce nœud est désormais la **source unique** de la heatmap pour les 3 rapports. |
+| **`N8N Prev`** | **Sprint 14 (obsolète)** : Suppression du moteur heatmap dupliqué (~624 lignes). **Avril 2026** : moteur heatmap **réintroduit et enrichi** des 5 amplificateurs pyramidaux (DP / Firdaria / RS ASC / Retour Nodal / Cascade). Cette heatmap est désormais la **source réelle** consommée par les rapports via le callback upstream depuis `N8N Prev Repport`. |
+| **`N8N Prev Repport`** | **Sprint 13** : Correction séquence Firdaria diurne. **Sprint 14** : "source heatmap" déclarée. **Avril 2026** : reste publisher, mais son calcul local est écrasé par celui de `N8N Prev` via le callback **ISO v10.4** (lignes 2298-2321) — c'est ce qui arrive en pipeline normal. Sa heatmap locale ne sert plus que de **fallback de secours** si `N8N Prev` n'a pas publié `heatmapData`. |
 | **`N8N Prev Repport HTML`** | **Sprint 14** : Ajout de `"N8N Prev Repport"` en tête de la liste de fallback pour `heatmapData`. |
 | **`N8N Prev Repport HTML Tech`** | **Sprint 13** : Page breaks par maison. **Sprint 14** : Ajout de `"N8N Prev Repport"` en tête de la liste de fallback pour `heatmapData`. |
 | **`N8N Prev Repport HTML Final`** | **Sprint 13** : Page breaks par maison. **Sprint 14** : Idem — fallback `heatmapData` prioritaire vers `N8N Prev Repport`. |
