@@ -4,9 +4,19 @@ for (const _it of $input.all()) {
     if (_it.json?.heatmapData) { _heatDataEarly = _it.json.heatmapData; break; }
 }
 if (!_heatDataEarly) {
-    for (const nn of ["Analyseur Technique v","Super noeud2","N8N Prev","Merge","Merge1","Merge2"]) {
+    // Palier 12 fix : "Super noeud2" était un alias historique inexistant → "Super noeud1".
+    for (const nn of ["Super noeud1","Analyseur Technique v","Merge 4 fichiers4","Merge","Merge1","Merge2","Merge3"]) {
         try { const d = $(nn).first()?.json?.heatmapData; if (d) { _heatDataEarly = d; break; } } catch(e) {}
     }
+}
+// Palier 12 fix : ré-injection eventSignatures si absent.
+if (_heatDataEarly && (!_heatDataEarly.eventSignatures || _heatDataEarly.eventSignatures.length === 0)) {
+    try {
+        const sup = $("Super noeud1").first()?.json;
+        if (sup?.eventSignatures?.length) _heatDataEarly.eventSignatures = sup.eventSignatures;
+        if (sup?.compoundEvents?.length && !_heatDataEarly.compoundEvents?.length) _heatDataEarly.compoundEvents = sup.compoundEvents;
+        if (sup?.ageMilestones?.length && !_heatDataEarly.ageMilestones?.length) _heatDataEarly.ageMilestones = sup.ageMilestones;
+    } catch(e) {}
 }
 
 // ── NETTOYAGE MÉMOIRE — Libérer les items d'entrée inutilisés ──
@@ -360,7 +370,9 @@ let _heatmapHtml = '';
         var _rL=function(r){return r==="SOLIDE"?(isEN?'✅ Reliable':'✅ Fiable'):r==="PROBABLE"?(isEN?'◉ Probable':'◉ Probable'):r==="POSSIBLE"?(isEN?'△ Possible':'△ Possible'):(isEN?'○ Fragile':'○ Fragile');};
         var _rC=function(r){return r==="SOLIDE"?'#166534':r==="PROBABLE"?'#1e40af':r==="POSSIBLE"?'#854d0e':'#94a3b8';};
         o += '<div style="page-break-before:always;break-before:page;margin-top:16px;padding:14px 18px;background:#fafbff;border:1px solid #d0daf0;border-radius:8px"><div style="font-size:13px;font-weight:700;color:#1e3a8a;margin-bottom:10px">' + (isEN ? '🔍 Event Signatures' : '🔍 Signatures Événementielles') + '</div>';
-        _hd.eventSignatures.forEach(function(sig) {
+        // v19.12 (F2) : ne mentionner que les sigs reportable=true (level !== low) — debug/data conservés
+        var _displaySigs = _hd.eventSignatures.filter(function(s){ return s.reportable !== false; });
+        _displaySigs.forEach(function(sig) {
             var bg=_sB[sig.level]||_sB.low, brd=_sR[sig.level]||_sR.low, tx=_sT[sig.level]||_sT.low;
             var dl=(sig.qualifiedLabel && sig.qualifiedLabel !== sig.label) ? sig.qualifiedLabel : sig.label;
             o += '<div style="margin-bottom:10px;padding:10px 14px;background:'+bg+';border-left:4px solid '+brd+';border-radius:4px">';
@@ -369,6 +381,20 @@ let _heatmapHtml = '';
             if (sig.convergence >= 4) o += ' · '+sig.convergence+'/12 '+(isEN?'techniques':'techniques');
             o += '</div>';
             if (sig.pnaTier) { var _pC2={PRIMAIRE:'#991b1b',SECONDAIRE:'#1e40af',TERTIAIRE:'#94a3b8'}; o += '<div style="margin-top:2px;font-size:9px;color:'+ (_pC2[sig.pnaTier]||'#94a3b8') +'">\u{1F9EC} '+(isEN?'Natal Profile':'Profil natal')+': '+(sig.pnaTier==='PRIMAIRE'?(isEN?'★ Priority domain':'★ Domaine prioritaire'):sig.pnaTier==='SECONDAIRE'?(isEN?'◉ Secondary domain':'◉ Domaine secondaire'):(isEN?'○ Minor domain':'○ Domaine mineur'))+' ('+(isEN?'weight':'poids')+' '+(sig.pnaWeight||'\u2014')+')</div>'; }
+            // Sprint 26-27 : Promesse natale (NP 0-15)
+            if (sig.s25Parasite && typeof sig.s25Parasite.np === 'number') {
+                var _np=sig.s25Parasite.np;
+                var _npBg=_np>=10?'#dcfce7':_np>=6?'#dbeafe':_np>=3?'#fef9c3':'#fee2e2';
+                var _npTx=_np>=10?'#166534':_np>=6?'#1e40af':_np>=3?'#854d0e':'#991b1b';
+                var _npLbl=_np>=10?(isEN?'Strong natal disposition':'Forte disposition natale'):_np>=6?(isEN?'Marked natal disposition':'Disposition natale marquée'):_np>=3?(isEN?'Mild natal disposition':'Disposition natale modeste'):(isEN?'Weak natal disposition':'Disposition natale faible');
+                o += '<div style="margin-top:2px;display:inline-block;padding:1px 6px;background:'+_npBg+';border-radius:3px;font-size:8px;font-weight:700;color:'+_npTx+'">\u{1F3AF} '+_npLbl+' '+_np+'/15</div>';
+            }
+            // Sprint 27 : promotion structurelle
+            if (sig.s27Promotion) {
+                var _s27=sig.s27Promotion;
+                var _s27Pct=Math.round((_s27.boost-1)*100);
+                o += ' <span style="display:inline-block;padding:1px 6px;background:#ede9fe;border-radius:3px;font-size:8px;font-weight:700;color:#5b21b6;margin-left:4px">\u26A1 '+(isEN?'Structurally boosted':'Promu structurellement')+' +'+_s27Pct+'% ('+_s27.signals+' '+(isEN?'signals':'signaux')+')</span>';
+            }
             if (sig.progMoonMonths && sig.progMoonMonths.length > 0) o += '<div style="margin-top:1px;font-size:8px;color:#7c3aed">\u{1F319} '+(isEN?'Prog. Moon: months ':'Lune prog. : mois ')+sig.progMoonMonths.join(', ')+'</div>';
             if (sig.maleficOverride && sig.maleficOverride.length > 0) o += '<div style="margin-top:1px;font-size:8px;color:#dc2626">\u26A0\uFE0F '+sig.maleficOverride.join(', ')+' \u2192 '+(isEN?'penalty':'p\u00e9nalit\u00e9')+' \u00d7'+(sig.maleficPenalty||'?')+'</div>';
             if (sig.nodalReturn) o += '<div style="margin-top:1px;font-size:8px;color:#7c3aed">\u260A '+sig.nodalReturn+'</div>';
@@ -383,7 +409,7 @@ let _heatmapHtml = '';
             if (sig.firdConfirmed) o += '<div style="margin-top:1px;font-size:8px;color:#b45309">\u23F3 '+(isEN?'Time-lord':'Chronocrateur')+' : '+sig.firdConfirmed+'</div>';
             if ((sig.pyramidLevel||0) >= 2) { var _pyrBg2 = sig.pyramidLevel >= 3 ? '#fef3c7' : '#ede9fe'; var _pyrTx2 = sig.pyramidLevel >= 3 ? '#92400e' : '#5b21b6'; var _pyrLbl2 = sig.pyramidLevel >= 3 ? (isEN?'\u{1F53A} Full Pyramid':'\u{1F53A} Pyramide compl\u00e8te') : (isEN?'\u{1F3DB}\uFE0F Primary Dir. confirmed':'\u{1F3DB}\uFE0F Dir. primaire confirm\u00e9e'); o += '<div style="margin-top:2px;display:inline-block;padding:1px 6px;background:'+_pyrBg2+';border-radius:3px;font-size:8px;font-weight:700;color:'+_pyrTx2+'">'+_pyrLbl2+'</div>'; }
             if (sig.counterIndicators > 0) o += '<div style="margin-top:1px;font-size:8px;color:#d97706">\u{1F6E1}\uFE0F '+sig.counterIndicators+(isEN?' counter-ind.':' contre-ind.')+(sig.counterDetails && sig.counterDetails.length > 0 ? ' : '+sig.counterDetails.slice(0,2).join('; ') : '')+'</div>';
-            if (sig.peakWindow) { var _dd = (sig.triggerDates && sig.triggerDates.length > 0 ? sig.triggerDates : (sig.peakWindow.peakDates||[])).slice(0,4).map(function(d){return (d||'').slice(5)}).filter(Boolean); o += '<div style="margin-top:3px;font-size:10px;color:#64748b">📌 '+(sig.peakWindow.start||'').slice(5)+' → '+(sig.peakWindow.end||'').slice(5)+(_dd.length > 0 ? ' · ⚡ '+_dd.join(', ') : '')+'</div>'; }
+            if (sig.peakWindow) { var _srcD = (sig.peakWindow.displayDates && sig.peakWindow.displayDates.length > 0) ? sig.peakWindow.displayDates : (sig.displayDates && sig.displayDates.length > 0 ? sig.displayDates : (sig.triggerDates && sig.triggerDates.length > 0 ? sig.triggerDates : (sig.peakWindow.peakDates||[]))); var _dd = _srcD.slice(0,5).map(function(d){return (d||'').slice(5)}).filter(Boolean); o += '<div style="margin-top:3px;font-size:10px;color:#64748b">📌 '+(sig.peakWindow.start||'').slice(5)+' → '+(sig.peakWindow.end||'').slice(5)+(_dd.length > 0 ? ' · ⚡ '+_dd.join(', ') : '')+'</div>'; }
             if (sig.guidance) o += '<div style="margin-top:4px;font-size:10px;color:#475569;font-style:italic">'+sig.guidance+'</div>';
             o += '</div>';
         });

@@ -4,9 +4,23 @@ for (const _it of $input.all()) {
     if (_it.json?.heatmapData) { _heatDataEarly = _it.json.heatmapData; break; }
 }
 if (!_heatDataEarly) {
-    for (const nn of ["Analyseur Technique v","Super noeud2","N8N Prev","Merge","Merge1","Merge2"]) {
+    // Palier 12 fix : "Super noeud2" était un alias historique inexistant → on cherche "Super noeud1".
+    // Fallback étendu : Super noeud1 broadcast heatmapData uniquement sur item[0] ; le passage par
+    // les LLM (Maison N + Synthèse) puis Merge2/3/Découpage/Traducteur perd les clés non-output.
+    // On scrute donc tous les items connus + on appelle directement le node Super noeud1.
+    for (const nn of ["Super noeud1","Analyseur Technique v","Merge 4 fichiers4","Merge","Merge1","Merge2","Merge3"]) {
         try { const d = $(nn).first()?.json?.heatmapData; if (d) { _heatDataEarly = d; break; } } catch(e) {}
     }
+}
+// Palier 12 fix : eventSignatures peuvent aussi disparaître entre Super noeud1 et l'arrivée ici.
+// On les ré-injecte dans _heatDataEarly si on les trouve sur Super noeud1 alors qu'elles manquent.
+if (_heatDataEarly && (!_heatDataEarly.eventSignatures || _heatDataEarly.eventSignatures.length === 0)) {
+    try {
+        const sup = $("Super noeud1").first()?.json;
+        if (sup?.eventSignatures?.length) _heatDataEarly.eventSignatures = sup.eventSignatures;
+        if (sup?.compoundEvents?.length && !_heatDataEarly.compoundEvents?.length) _heatDataEarly.compoundEvents = sup.compoundEvents;
+        if (sup?.ageMilestones?.length && !_heatDataEarly.ageMilestones?.length) _heatDataEarly.ageMilestones = sup.ageMilestones;
+    } catch(e) {}
 }
 
 // ── NETTOYAGE MÉMOIRE — Libérer les items d'entrée inutilisés ──
@@ -399,20 +413,41 @@ const heatmapAndSignaturesChunkFinal = (() => {
         var _sB={high:'#fef2f2',medium:'#fffbeb',low:'#f0fdf4'}, _sR={high:'#fca5a5',medium:'#fcd34d',low:'#86efac'}, _sT={high:'#991b1b',medium:'#92400e',low:'#166534'};
         var _rL=function(r){return r==="SOLIDE"?'✅ Fiable':r==="PROBABLE"?'◉ Probable':r==="POSSIBLE"?'△ Possible':'○ Fragile';};
         var _rC=function(r){return r==="SOLIDE"?'#166534':r==="PROBABLE"?'#1e40af':r==="POSSIBLE"?'#854d0e':'#94a3b8';};
-        var _confLbl = function(c) { return c >= 75 ? (isEN ? 'Very likely' : 'Très probable') : c >= 55 ? (isEN ? 'Likely' : 'Probable') : c >= 40 ? (isEN ? 'Possible' : 'Possible') : (isEN ? 'To watch' : 'À surveiller'); };
+        // Sprint 32 / Axe B (B.1) : pivot éditorial — le moteur détecte des CONFIGURATIONS
+        // astrologiques actives, pas la probabilité d'occurrence d'un événement précis.
+        // L'audit Année Témoin (PREV-AUDIT-TEMOIN.md) montre que les mêmes configurations
+        // peuvent sortir en année neutre. On parle donc d'INTENSITÉ de configuration plutôt
+        // que de probabilité d'événement, pour aligner la promesse client sur la réalité du moteur.
+        var _confLbl = function(c) { return c >= 75 ? (isEN ? 'Very strong configuration' : 'Configuration très intense') : c >= 55 ? (isEN ? 'Marked configuration' : 'Configuration marquée') : c >= 40 ? (isEN ? 'Present configuration' : 'Configuration présente') : (isEN ? 'Subtle background' : 'Toile de fond'); };
         var _confCol = function(c) { return c >= 75 ? '#166534' : c >= 55 ? '#1e40af' : c >= 40 ? '#854d0e' : '#94a3b8'; };
         var _fmtDt = function(d) { if (!d) return ''; var p = d.split('-'); return p.length === 3 ? p[2]+'/'+p[1] : d.slice(5); };
         o += '<div style="page-break-before:always;break-before:page;margin-top:16px;padding:18px 22px;background:#fafbff;border:1px solid #d0daf0;border-radius:10px"><div style="font-size:15px;font-weight:700;color:#1e3a8a;margin-bottom:14px">' + (isEN ? '🔍 Key Themes of the Period' : '🔍 Thématiques Clés de la Période') + '</div>';
-        o += '<p style="font-size:11px;color:#64748b;margin:0 0 14px;line-height:1.5">' + (isEN ? 'These themes are identified by the convergence of multiple astrological techniques. They represent the major orientations of the period.' : 'Ces thématiques sont identifiées par la convergence de plusieurs techniques astrologiques. Elles représentent les grandes orientations de la période.') + '</p>';
-        _hd.eventSignatures.forEach(function(sig) {
+        // Sprint 32 / Axe B (B.2) : disclaimer épistémologique honnête.
+        // Évite la promesse implicite « événement X va arriver à 92 % de chance ».
+        o += '<p style="font-size:11px;color:#64748b;margin:0 0 14px;line-height:1.55">' + (isEN ? 'These themes correspond to <strong>major astrological configurations</strong> active during the period, identified by the convergence of multiple techniques. They indicate <em>archetypal currents</em> that may express themselves in different forms depending on personal context (relational, professional, family, inner, symbolic…). They are not deterministic predictions of specific events.' : 'Ces thématiques correspondent à des <strong>configurations astrologiques majeures</strong> actives sur la période, identifiées par la convergence de plusieurs techniques. Elles indiquent des <em>courants archétypaux</em> qui peuvent s\'exprimer sous différentes formes selon le contexte personnel (relationnel, professionnel, familial, intérieur, symbolique…). Ce ne sont pas des prédictions déterministes d\'événements spécifiques.') + '</p>';
+        // v19.12 (F2) : filtre rapport (reportable=true, level !== low) — debug/data conservés
+        var _displaySigs = _hd.eventSignatures.filter(function(s){ return s.reportable !== false; });
+        _displaySigs.forEach(function(sig) {
             var bg=_sB[sig.level]||_sB.low, brd=_sR[sig.level]||_sR.low, tx=_sT[sig.level]||_sT.low;
             var dl=(sig.qualifiedLabel && sig.qualifiedLabel !== sig.label) ? sig.qualifiedLabel : sig.label;
             var pct = sig.confidence || 0;
             o += '<div style="margin-bottom:14px;padding:14px 18px;background:'+bg+';border-left:5px solid '+brd+';border-radius:6px">';
             o += '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px"><span style="font-size:14px;color:'+tx+';font-weight:700">'+sig.icon+' '+dl+'</span><span style="font-size:11px;font-weight:600;color:'+_confCol(pct)+';background:#fff;padding:2px 10px;border-radius:12px;border:1px solid '+_confCol(pct)+'">'+_confLbl(pct)+'</span></div>';
             o += '<div style="margin-top:6px;background:#e5e7eb;border-radius:4px;height:6px;overflow:hidden"><div style="height:100%;width:'+pct+'%;background:'+brd+';border-radius:4px"></div></div>';
-            if (sig.peakWindow) { var _dd = _fmtDt(sig.peakWindow.start), _de = _fmtDt(sig.peakWindow.end); o += '<div style="margin-top:8px;font-size:12px;color:#475569">📅 '+(isEN ? 'Period: ' : 'Période : ')+'<strong>'+_dd+' → '+_de+'</strong></div>'; }
+            if (sig.peakWindow) { var _dd = _fmtDt(sig.peakWindow.start), _de = _fmtDt(sig.peakWindow.end); o += '<div style="margin-top:8px;font-size:12px;color:#475569">📅 '+(isEN ? 'Period: ' : 'Période : ')+'<strong>'+_dd+' → '+_de+'</strong></div>'; var _srcDates = (sig.peakWindow.displayDates && sig.peakWindow.displayDates.length > 0) ? sig.peakWindow.displayDates : (sig.displayDates && sig.displayDates.length > 0 ? sig.displayDates : (sig.peakWindow.triggerDates && sig.peakWindow.triggerDates.length > 0 ? sig.peakWindow.triggerDates : (sig.peakWindow.peakDates || []))); var _keyDates = _srcDates.slice(0, 5).map(_fmtDt).filter(Boolean); if (_keyDates.length > 0) { o += '<div style="margin-top:4px;font-size:12px;color:#475569">⚡ '+(isEN ? 'Key dates: ' : 'Dates clés : ')+'<strong>'+_keyDates.join(' · ')+'</strong></div>'; } }
             if ((sig.pyramidLevel||0) >= 2) { var _pyrBg3 = sig.pyramidLevel >= 3 ? '#fef3c7' : '#ede9fe'; var _pyrTx3 = sig.pyramidLevel >= 3 ? '#92400e' : '#5b21b6'; var _pyrLbl3 = sig.pyramidLevel >= 3 ? (isEN?'\u{1F53A} Very strong convergence':'\u{1F53A} Convergence tr\u00e8s forte') : (isEN?'\u{1F3DB}\uFE0F Strong traditional foundation':'\u{1F3DB}\uFE0F Base traditionnelle solide'); o += '<div style="margin-top:6px;display:inline-block;padding:2px 10px;background:'+_pyrBg3+';border-radius:10px;font-size:11px;font-weight:600;color:'+_pyrTx3+'">'+_pyrLbl3+'</div>'; }
+            // Sprint 26-27 : badge pédagogique "Disposition natale" — visible pour l'utilisateur final
+            if (sig.s25Parasite && typeof sig.s25Parasite.np === 'number' && sig.s25Parasite.np >= 6) {
+                var _np3 = sig.s25Parasite.np;
+                var _npBg3 = _np3 >= 10 ? '#dcfce7' : '#dbeafe';
+                var _npTx3 = _np3 >= 10 ? '#166534' : '#1e40af';
+                var _npLbl3 = _np3 >= 10 ? (isEN ? 'Strong natal disposition' : 'Forte disposition natale') : (isEN ? 'Marked natal disposition' : 'Disposition natale marquée');
+                o += ' <span style="display:inline-block;padding:2px 10px;background:'+_npBg3+';border-radius:10px;font-size:11px;font-weight:600;color:'+_npTx3+';margin-left:6px">\u{1F3AF} '+_npLbl3+'</span>';
+            }
+            // Sprint 27 : badge "Confirmé par concordance natale" pour les sigs promues
+            if (sig.s27Promotion) {
+                o += ' <span style="display:inline-block;padding:2px 10px;background:#ede9fe;border-radius:10px;font-size:11px;font-weight:600;color:#5b21b6;margin-left:6px">\u26A1 '+(isEN ? 'Confirmed by natal concordance' : 'Confirmé par concordance natale')+'</span>';
+            }
             if (sig.guidance) o += '<div style="margin-top:8px;font-size:13px;color:#334155;line-height:1.55">'+sig.guidance+'</div>';
             o += '</div>';
         });

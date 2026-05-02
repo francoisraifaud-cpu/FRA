@@ -1,0 +1,121 @@
+{
+  "name": "N8N DHN ERROR HANDLER (fragment v5.5)",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "e0000000-0000-4000-8000-000000000001",
+      "name": "Error Trigger DHN",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [
+        12000,
+        4500
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// [DHN v5.5 — C-n8n] Build Failed Payload\n// Why: lorsqu'un nœud du workflow DHN plante (API down, JS error, timeout…),\n// la commande reste bloquée en 'processing' côté site et l'utilisateur n'est\n// jamais notifié. Ce nœud construit le payload `failed` pour le callback site.\n//\n// Source de l'orderId :\n//   - Le payload Error Trigger expose $json.execution + $json.workflow mais PAS\n//     les données métier des nœuds qui ont tourné.\n//   - On tente donc d'accéder aux nœuds 'Extract Variables' (DHN) ou 'Webhook'\n//     du workflow planté via la syntaxe $(node) qui fonctionne en error workflow\n//     uniquement si l'Error Trigger est dans le MÊME workflow que celui qui plante.\n//   - Si l'erreur survient AVANT que ces nœuds aient tourné (très rare —\n//     auth Webhook, etc.), orderId sera null et le site logguera l'incident sans\n//     pouvoir lier à une commande.\n\nconst err = $input.first()?.json || {};\nconst execution = err.execution || {};\nconst workflow = err.workflow || {};\n\nfunction safeNode(nodeName) {\n  try {\n    const j = $(nodeName).first()?.json;\n    return j && typeof j === 'object' ? j : null;\n  } catch (e) {\n    return null;\n  }\n}\n\nfunction readOrderId() {\n  const candidates = ['Extract Variables', 'Extract Variables DHN', 'Extract Variables DHN1', 'Extract Variables1', 'Webhook'];\n  for (const n of candidates) {\n    const j = safeNode(n);\n    if (!j) continue;\n    if (typeof j.orderId === 'string' && j.orderId.trim()) return j.orderId.trim();\n    const body = j.body && typeof j.body === 'object' && !Array.isArray(j.body) ? j.body : null;\n    if (body && typeof body.orderId === 'string' && body.orderId.trim()) return body.orderId.trim();\n  }\n  return null;\n}\n\nconst orderId = readOrderId();\nconst execId = (execution.id !== undefined && execution.id !== null) ? String(execution.id) : null;\nconst errNode = execution.error?.node?.name || execution.lastNodeExecuted || null;\nconst errMsg = execution.error?.message || execution.error?.description || 'Erreur n8n DHN sans message';\n\n// Tronqué à 500 char pour rester raisonnable côté DB (lastError).\nconst safeMsg = String('[' + (errNode || '?') + '] ' + errMsg).slice(0, 500);\n\nreturn [{\n  json: {\n    orderId: orderId,\n    status: 'failed',\n    error: safeMsg,\n    n8nExecutionId: execId,\n    _meta: {\n      workflowId: workflow.id || null,\n      workflowName: workflow.name || null,\n      errorNode: errNode,\n      hasOrderId: Boolean(orderId)\n    }\n  }\n}];\n"
+      },
+      "id": "e0000000-0000-4000-8000-000000000002",
+      "name": "Build Failed Payload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        12300,
+        4500
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://site-rapports-astro.vercel.app/api/webhooks/n8n-order-status",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-Site-Webhook-Secret",
+              "value": "={{ $vars.N8N_WEBHOOK_SECRET }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify({ orderId: $json.orderId, status: 'failed', error: $json.error, n8nExecutionId: $json.n8nExecutionId }) }}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true,
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "e0000000-0000-4000-8000-000000000003",
+      "name": "POST FAILED DHN",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        12600,
+        4500
+      ]
+    }
+  ],
+  "connections": {
+    "Error Trigger DHN": {
+      "main": [
+        [
+          {
+            "node": "Build Failed Payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Failed Payload": {
+      "main": [
+        [
+          {
+            "node": "POST FAILED DHN",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "_instructions": [
+    "OBJECTIF :",
+    "  Notifier le site lorsque le workflow DHN plante (API down, JS error, timeout…)",
+    "  pour que la commande passe en statut 'failed' et que l'utilisateur soit prévenu",
+    "  (au lieu de rester en 'processing' indéfiniment).",
+    "",
+    "INSTALLATION (option 1 — RECOMMANDÉE — Error Trigger inline) :",
+    "  1) Dans le workflow DHN principal (GLOBAL DHN), faire 'Import from File' ou copier-coller",
+    "     les 3 nœuds de ce fragment. Ils s'isolent automatiquement (Error Trigger n'a pas",
+    "     besoin de connexion en amont — il se déclenche sur erreur du workflow qui le contient).",
+    "  2) Vérifier que la variable n8n $vars.N8N_WEBHOOK_SECRET est bien configurée.",
+    "  3) Déclencher le workflow normalement : si tout va bien, l'Error Trigger ne se déclenche pas.",
+    "     Si un nœud plante, il envoie automatiquement un POST 'failed' au site.",
+    "",
+    "INSTALLATION (option 2 — Error Workflow séparé) :",
+    "  1) Importer ce fragment comme un nouveau workflow nommé 'DHN Error Handler'.",
+    "  2) Dans le workflow DHN principal → menu 'Settings' → 'Error Workflow' → choisir 'DHN Error Handler'.",
+    "  3) ⚠ Limite connue : un Error Workflow séparé n'a PAS accès aux nœuds $('Extract Variables')",
+    "     du workflow planté → l'orderId sera systématiquement null. Le site logguera l'incident",
+    "     mais ne pourra pas marquer la commande failed. Préférer l'option 1 chaque fois que possible.",
+    "",
+    "TEST :",
+    "  - Forcer un échec en dégradant temporairement une URL d'API dans le workflow DHN",
+    "    (ex. /western/planets → /western/planetes) puis relancer le webhook avec un payload valide.",
+    "  - Vérifier dans n8n que l'Error Trigger se déclenche, que Build Failed Payload renvoie",
+    "    { orderId: '<id>', status: 'failed', error: '[Nom du nœud] message…', n8nExecutionId: '<id>' },",
+    "    et que POST FAILED DHN renvoie HTTP 200 avec { ok: true }.",
+    "  - Côté site, vérifier que la commande passe en status 'failed' avec lastError renseigné.",
+    "",
+    "CONTRAT CALLBACK :",
+    "  Voir SITE/lib/n8n-order-status-callback.ts (parseN8nOrderStatusPayload).",
+    "  Champs requis : orderId (string), status: 'failed'. Optionnels : error (≤500 char), n8nExecutionId."
+  ]
+}

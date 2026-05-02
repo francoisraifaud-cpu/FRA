@@ -16,10 +16,11 @@ N8N_WEBHOOK_SECRET=m0gTWmHSVkmy823F3gMqZr0aVHqyAtvoPy4IXDIfizI
 # Remplacer les variables site (Vercel / .env.local) par l’URL POST affichée sur le nœud Webhook
 # en mode Production (souvent …/webhook/prev-site-order, etc., si paths alignés sur les exports JSON).
 #
-# | Rapport      | Workflow (éditeur)                                                                 |
-# |-------------|-------------------------------------------------------------------------------------|
-# | Prévisions  | https://tedwarehouseastro.app.n8n.cloud/workflow/4mjgklWWwjCF8fze                 |
-# | Synastrie   | https://tedwarehouseastro.app.n8n.cloud/workflow/mujzhQgDu8pyTWzl                 |
-# | DHN         | https://tedwarehouseastro.app.n8n.cloud/workflow/Qp8WkBhPEvYbdb9j                |
+# | Rapport     | Workflow n8n (PROD)                                                                 |
+# |------------|--------------------------------------------------------------------------------------|
+# | Thème      | https://tedwarehouseastro.app.n8n.cloud/workflow/TVJVzhKmUdfgPmRd   (THEME - PROD)    |
+# | Prévisions | https://tedwarehouseastro.app.n8n.cloud/workflow/Qp8WkBhPEvYbdb9j   (PREV — PROD)    |
+# | Synastrie  | https://tedwarehouseastro.app.n8n.cloud/workflow/4mjgklWWwjCF8fze   (SYN — PROD)     |
+# | DHN        | https://tedwarehouseastro.app.n8n.cloud/workflow/mujzhQgDu8pyTWzl   (DHN — PROD)     |
 #
-# Si l’ordre PREV / SYN / DHN ne correspond pas à tes trois workflows, corrige ce tableau.
+# Source alignée sur l’instance : voir aussi `SITE/scripts/n8n-prod-workflows.json`.

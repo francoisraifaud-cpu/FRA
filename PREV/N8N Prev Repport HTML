@@ -945,7 +945,16 @@ if (_solarArcRows.length === 0 && maisons?.length) {
 // ── NETTOYAGE MÉMOIRE Phase 1 — Supprimer les champs lourds extraits + duplications ──
 let _heatData = null;
 for (const _it of items) { if (_it.heatmapData) { _heatData = _it.heatmapData; break; } }
-if (!_heatData) { for (const nn of ["Analyseur Technique v","Super noeud2","N8N Prev","Merge","Merge1"]) { try { const d = $(nn).first()?.json?.heatmapData; if (d) { _heatData = d; break; } } catch(e) {} } }
+if (!_heatData) { for (const nn of ["Super noeud1","Analyseur Technique v","Merge 4 fichiers4","Merge","Merge1","Merge2","Merge3"]) { try { const d = $(nn).first()?.json?.heatmapData; if (d) { _heatData = d; break; } } catch(e) {} } }
+// Palier 12 fix : ré-injection eventSignatures si absent (perdu via la chaîne LLM).
+if (_heatData && (!_heatData.eventSignatures || _heatData.eventSignatures.length === 0)) {
+    try {
+        const sup = $("Super noeud1").first()?.json;
+        if (sup?.eventSignatures?.length) _heatData.eventSignatures = sup.eventSignatures;
+        if (sup?.compoundEvents?.length && !_heatData.compoundEvents?.length) _heatData.compoundEvents = sup.compoundEvents;
+        if (sup?.ageMilestones?.length && !_heatData.ageMilestones?.length) _heatData.ageMilestones = sup.ageMilestones;
+    } catch(e) {}
+}
 for (const _it of items) {
     delete _it.prompt_user;
     delete _it.prompt_system;
@@ -1315,8 +1324,12 @@ const _renderHeatmap = (hd, bgColor, badgeBg, badgeTxt) => {
         const _sT = {high:'#991b1b',medium:'#92400e',low:'#166534'};
         const _rB = (r) => r==="SOLIDE"?L.fiable:r==="PROBABLE"?L.probable:r==="POSSIBLE"?L.possible:L.fragile;
         const _rC = (r) => r==="SOLIDE"?'#166534':r==="PROBABLE"?'#1e40af':r==="POSSIBLE"?'#854d0e':'#94a3b8';
-        h += `<div style="page-break-before:always;break-before:page;margin-top:16px;padding:14px 18px;background:#fafbff;border:1px solid #d0daf0;border-radius:8px"><div style="font-size:0.85rem;font-weight:700;color:#1e3a8a;margin-bottom:10px">${isEN ? '🔍 Event Signatures' : '🔍 Signatures Événementielles'}</div>`;
-        hd.eventSignatures.forEach((sig, idx) => {
+        // Sprint 32 / Axe B : titre aligné sur le pivot éditorial (configurations actives, pas événements prédits)
+        h += `<div style="page-break-before:always;break-before:page;margin-top:16px;padding:14px 18px;background:#fafbff;border:1px solid #d0daf0;border-radius:8px"><div style="font-size:0.85rem;font-weight:700;color:#1e3a8a;margin-bottom:10px">${isEN ? '🔍 Active Astrological Configurations' : '🔍 Configurations astrologiques actives'}</div>`;
+        // v19.12 (F2) : ne mentionner que les sigs reportable=true (level !== low, calculé S1).
+        // Les sigs filtrées (low conf) restent dans heatmap/data (debug/recall) mais masquées au lecteur.
+        const _displaySigs = hd.eventSignatures.filter(s => s.reportable !== false);
+        _displaySigs.forEach((sig, idx) => {
             const bg=_sB[sig.level]||_sB.low, brd=_sR[sig.level]||_sR.low, tx=_sT[sig.level]||_sT.low;
             const dl = sig.qualifiedLabel && sig.qualifiedLabel !== sig.label ? sig.qualifiedLabel : sig.label;
             h += `<div style="margin-bottom:10px;padding:10px 14px;background:${bg};border-left:4px solid ${brd};border-radius:4px">`;
@@ -1326,6 +1339,20 @@ const _renderHeatmap = (hd, bgColor, badgeBg, badgeTxt) => {
             if (sig.safetyOverride) h += ` <span style="color:#dc2626;font-size:0.62rem">🔒 ${L.reinsSec}</span>`;
             h += `</div>`;
             if (sig.pnaTier) { const _pC = {PRIMAIRE:'#991b1b',SECONDAIRE:'#1e40af',TERTIAIRE:'#94a3b8'}; h += `<div style="margin-top:2px;font-size:0.65rem;color:${_pC[sig.pnaTier]||'#94a3b8'}">🧬 ${L.profilNat} ${sig.pnaTier === 'PRIMAIRE' ? L.domPrioritaire : sig.pnaTier === 'SECONDAIRE' ? L.domSecondaire : L.domMineur} (${L.poids} ${sig.pnaWeight||'—'})</div>`; }
+            // Sprint 26-27 : badge "Promesse natale" (score 0-15) — indique la prédisposition naturelle du thème natal au type d'événement
+            if (sig.s25Parasite && typeof sig.s25Parasite.np === 'number') {
+                const _np = sig.s25Parasite.np;
+                const _npBg = _np >= 10 ? '#dcfce7' : _np >= 6 ? '#dbeafe' : _np >= 3 ? '#fef9c3' : '#fee2e2';
+                const _npTx = _np >= 10 ? '#166534' : _np >= 6 ? '#1e40af' : _np >= 3 ? '#854d0e' : '#991b1b';
+                const _npLbl = _np >= 10 ? (isEN ? 'Strong natal disposition' : 'Forte disposition natale') : _np >= 6 ? (isEN ? 'Marked natal disposition' : 'Disposition natale marquée') : _np >= 3 ? (isEN ? 'Mild natal disposition' : 'Disposition natale modeste') : (isEN ? 'Weak natal disposition' : 'Disposition natale faible');
+                h += `<div style="margin-top:2px;display:inline-block;padding:1px 6px;background:${_npBg};border-radius:3px;font-size:0.6rem;font-weight:700;color:${_npTx}">🎯 ${_npLbl} ${_np}/15</div>`;
+            }
+            // Sprint 27 : badge "Promotion structurelle" — sig boostée par concordance NP fort + appuis natal/progressé
+            if (sig.s27Promotion) {
+                const _s27 = sig.s27Promotion;
+                const _s27Pct = Math.round((_s27.boost - 1) * 100);
+                h += ` <span style="display:inline-block;padding:1px 6px;background:#ede9fe;border-radius:3px;font-size:0.6rem;font-weight:700;color:#5b21b6;margin-left:4px">⚡ ${isEN ? 'Structurally boosted' : 'Promu structurellement'} +${_s27Pct}% (${_s27.signals} ${isEN ? 'signals' : 'signaux'})</span>`;
+            }
             if (sig.progMoonMonths?.length > 0) h += `<div style="margin-top:1px;font-size:0.62rem;color:#7c3aed">🌙 ${L.luneProg} ${sig.progMoonMonths.join(', ')}</div>`;
             if (sig.maleficOverride?.length > 0) h += `<div style="margin-top:1px;font-size:0.62rem;color:#dc2626">⚠️ ${sig.maleficOverride.join(', ')} → ${L.penalite} ×${sig.maleficPenalty||'?'}</div>`;
             if (sig.nodalReturn) h += `<div style="margin-top:1px;font-size:0.62rem;color:#7c3aed">☊ ${sig.nodalReturn}</div>`;
@@ -1341,7 +1368,14 @@ const _renderHeatmap = (hd, bgColor, badgeBg, badgeTxt) => {
             if ((sig.pyramidLevel||0) >= 2) { const _pyrBg = sig.pyramidLevel >= 3 ? '#fef3c7' : '#ede9fe'; const _pyrTx = sig.pyramidLevel >= 3 ? '#92400e' : '#5b21b6'; const _pyrLbl = sig.pyramidLevel >= 3 ? (isEN ? '🔺 Full Pyramid' : '🔺 Pyramide complète') : (isEN ? '🏛️ Primary Dir. confirmed' : '🏛️ Dir. primaire confirmée'); h += `<div style="margin-top:2px;display:inline-block;padding:1px 6px;background:${_pyrBg};border-radius:3px;font-size:0.6rem;font-weight:700;color:${_pyrTx}">${_pyrLbl}</div>`; }
             if (sig.counterIndicators > 0) h += `<div style="margin-top:1px;font-size:0.62rem;color:#d97706">🛡️ ${sig.counterIndicators} ${L.contreInd}${sig.counterDetails?.length > 0 ? ' : ' + sig.counterDetails.slice(0,2).join('; ') : ''}</div>`;
             if (sig.peakWindow) {
-              const dispDates = (sig.triggerDates?.length > 0 ? sig.triggerDates : sig.peakWindow?.peakDates || []).slice(0,4).map(d => d?.slice(5)).filter(Boolean);
+              // Palier 14 / Patch H : displayDates équilibrées (passe H1 Super noeud1).
+              // Fallback sur triggerDates puis peakDates si non disponibles.
+              const _src = (sig.peakWindow.displayDates?.length > 0)
+                ? sig.peakWindow.displayDates
+                : (sig.displayDates?.length > 0
+                    ? sig.displayDates
+                    : (sig.triggerDates?.length > 0 ? sig.triggerDates : (sig.peakWindow.peakDates || [])));
+              const dispDates = _src.slice(0,5).map(d => d?.slice(5)).filter(Boolean);
               h += `<div style="margin-top:3px;font-size:0.68rem;color:#64748b">📌 ${sig.peakWindow.start?.slice(5)||''} → ${sig.peakWindow.end?.slice(5)||''}${dispDates.length > 0 ? ' · ⚡ ' + dispDates.join(', ') : ''}</div>`;
             }
             if (sig.guidance) h += `<div style="margin-top:4px;font-size:0.7rem;color:#475569;font-style:italic">${sig.guidance}</div>`;

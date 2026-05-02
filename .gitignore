@@ -1,1 +1,5 @@
 node_modules/
+
+# Backups timestampés (locaux, ne pas versionner)
+*.backup-*.json
+*.backup-*
