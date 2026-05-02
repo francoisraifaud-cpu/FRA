@@ -1,8 +1,9 @@
 # DOCUMENTATION WORKFLOW — PRÉVISIONS ASTROLOGIQUES
 
-**Version** : v18.1 (Sprint 23.1 — Harmonisation inter-workflows v4.0)
+**Version** : v18.3 (Sprint Y — pont signatures → narratif, ultra fiables uniquement, déployé et **validé live** 2026-05-02 via exec 11446)
 **Plateforme** : n8n Cloud
 **Auteur** : François Raifaud
+**État moteur** : post-X stable. Cumul session "fiabilisation Top-1" 2026 (Sprints U + W + X) : Top-1 large primaire 54 → 58 (+4), Top-1 strict primaire 14 → 18 (+4), bruit témoin HC≥80 -29 (123 → 94, -24 %), 0 régression sur 12 métriques Top-K. Sprint X issu d'une boucle de feedback test bout-en-bout réel → audit cohorte → cap calibré (premier sprint déclenché par production live). Détails complets : `SITE/scripts/PREV-SUPER-BENCH.md`.
 
 ---
 
@@ -1535,3 +1536,301 @@ Réduction de l'empreinte mémoire de **~60-70%** sur l'ensemble de l'exécution
 | Mémoire n8n Cloud | Budget limité (~256-512 Mo) — tout payload >10 Ko doit être traité avec précaution | Monitoring, binary systématique pour les sorties HTML |
 | NLP résolution Lune | Progressed Moon calculée à partir d'un snapshot statique — la Lune prog. bouge ~12°/an | Interpolation entre `closestProg` et `secondProg` |
 | RS sans maisons RS | La Révolution Solaire ne calcule pas de maisons RS propres | Calcul mathématique des maisons RS |
+
+---
+
+## 24. CHANGELOG — SESSION FIABILISATION TOP-1 (2026-04 → 2026-05)
+
+Session post-v18.2 dédiée à la **réduction du bruit des "voleurs Top-1"** (codes qui prennent le rang 1 dans des cas où ils ne sont pas l'événement primaire). Méthode : audits `peakDebug.conditions` sur n=100 cas event-year + n=100 cas témoin (années neutres), simulations A/B sur NDJSON avant déploiement, validation post-bench Top-K systématique.
+
+### 24.1 Cohorte de référence
+
+- **EVT n=100** (`SITE/scripts/prev-bench-volume-100-manifest.json`) : 100 personnalités × année événementielle vérifiée.
+- **TEM n=100** (`SITE/scripts/prev-bench-volume-100-temoin-manifest.json`) : 100 personnalités × année neutre (sans événement biographique notable) — sert de référence anti-bruit.
+- Métriques Top-K : LP/LE × T1/T3/T5 (large primaire/enrichi) et SP/SE × T1/T3/T5 (strict primaire/enrichi).
+
+### 24.2 Sprints 28 → 32 (avril 2026)
+
+Phase initiale "anti-bruit générique" + caps conditionnels ciblés :
+
+| Sprint | Action | Marqueur payload | Effet bench |
+|---|---|---|---|
+| 28 | Fallback thématique inter-codes | — | Top-1 14 → 14, Top-3 cumul +1 |
+| 29 | Promotion S27 sous conditions | `s27Promotion` | Top-1 14 → 15 |
+| 30 | Anti-bruit générique sur sigs ≥ 75 | `s30CapApplied` | Top-1 15 → 16 |
+| 31 | Audit MANUEL des FP majeurs | (audit, pas de code) | Diagnostic |
+| 32 | Cap DEUIL=85 si ni eclipse_in_house ni transit_to_progressed | `s32DeuilCap` | Top-1 16 (validé) |
+
+Détails : `SITE/scripts/PREV-SUPER-BENCH.md` sections Sprints 28→32.
+
+### 24.3 Sprints H1 → J (audits ciblés, 2026-05-01)
+
+Diagnostics en profondeur sans modification de code :
+- **H1** : audit MARIAGE (rejet boost — code déjà bien calibré)
+- **H2** : audit ACCIDENT (alarme universelle, ratio FP/VP élevé identifié)
+- **I + J** : enrichissement biographique manuel des cas HC≥80 hors-cible (cohorte n=100)
+
+### 24.4 Sprints K → R — Caps conditionnels par code (méthode V32E étendue)
+
+Pattern systématique : pour chaque code "voleur", identifier un **discriminateur contextuel** (condition astrologique présente en VP mais rare en TEM), puis cap conditionnel si discriminateur absent.
+
+| Sprint | Code | Condition discriminante | Cap si absente | Marqueur |
+|---|---|---|---|---|
+| K | SEPARATION | aspect Saturne dur sur Vénus/Lune | 80 | `sKSepCap` |
+| L | ENFANT | aspects sur Vénus/Lune progressées | 80 | `sLEnfCap` |
+| N | CARRIERE_DOWN | (rejet — méthodologique) | — | — |
+| O | VOYAGE | code parasite généralisé | cap 75 | `sOVoyCap` |
+| P | multi-codes parasites | méthode O étendue | variable | `sPParaCap` |
+| Q | JURIDIQUE_DOWN | `nodes_in_houses` | 70 | `sQJurCap` |
+| R | SPIRITUEL | `ruler_transit` | 70 | `sRSpiCap` |
+
+### 24.5 Sprint S — Affinage du booster étoiles fixes (2026-05-01)
+
+**Audit** (`PREV-AUDIT-FIXED-STARS.md`) : 6 étoiles dans `_STAR_AMPS` (Algol, Aldébaran, Régulus, Spica, Antarès, Sirius). Spica génère des FP massifs sur SANTE_UP (0 VP / 20 TEM) et MARIAGE (1 VP / 21 TEM).
+
+**Sprint S V2** : booster fixed_star (P11 amplifier) **désactivé** pour SANTE_UP et MARIAGE via `_S_STARS_DISABLED`. Marqueur `sSStarSkip` exporté. **Validation** : 0 régression sur 12/12 métriques Top-K.
+
+### 24.6 Sprints T-mini / T-light — Tentatives extension étoiles fixes (2026-05-01) — **ÉCHEC, rollback**
+
+Le node n8n `3c. Étoiles Fixes` calcule **23 étoiles** mais le scoring n'en exploite que 6. Tentatives d'extension :
+
+| Tentative | Modification | Résultat |
+|---|---|---|
+| **T-mini** | Étendre `_STAR_AMPS` à 16 étoiles + ajouter conditions `fixed_star` à 5 EVENT_SIGNATURES orphelines | +43 TEM HC≥80, régression Top-K → **rollback** |
+| **T-light** | Étendre `_STAR_AMPS` à 14 étoiles seul (sans toucher EVENT_SIGNATURES) | +43 TEM HC≥80, contamination Top-1 témoin sur 22 cas → **rollback** |
+
+**Cause racine** : le booster P11 fixed_star est un **multiplicateur aveugle**. Sans condition discriminante `fixed_star: true` dans `EVENT_SIGNATURES`, il amplifie indistinctement le bruit de fond. Conclusion : les 6 étoiles historiques restent ; les 17 autres sont disponibles côté pipeline upstream mais inutilisées dans le scoring (utilisables pour affichage informatif uniquement).
+
+### 24.7 Sprint U — Cap doux 90 sur 6 codes voleurs (2026-05-02) — **VALIDÉ**
+
+**Audit Top-1 manqués** (`PREV-AUDIT-TOP1-FAILS.md`) sur n=100 post-S V2 : 46 fails / 100 cas, dont **31 fails (67 %) ont le bon code en rang 2-3** (récupérables par re-ranking modéré).
+
+Voleurs Top-1 dans les fails : JURIDIQUE_DOWN=10, ACCIDENT=8, JURIDIQUE_UP=7, SANTE_UP=5, FINANCE_UP=4, ENFANT=3 — atteignent souvent conf 95 (cap atteint) sur des cas où ils ne sont pas l'événement primaire.
+
+**Implémentation** (Super noeud1 ~ligne 11930) :
+```js
+const _U_CAP_VOLEURS = {
+  JURIDIQUE_DOWN: 90, JURIDIQUE_UP: 90, ACCIDENT: 90,
+  SANTE_UP: 90, FINANCE_UP: 90, ENFANT: 90
+};
+_mdseResults.forEach(sig => {
+  const cap = _U_CAP_VOLEURS[sig.code];
+  if (!cap || sig.confidence <= cap) return;
+  sig._sUVolCap = { code: sig.code, before: sig.confidence, after: cap, ... };
+  sig.confidence = cap;
+  sig.level = sig.confidence >= 55 ? "high" : sig.confidence >= 35 ? "medium" : "low";
+});
+```
+
+Marqueur : `sUVolCap` (champ `sigPayload`).
+
+**Validation post-bench** :
+
+| Métrique | post-S V2 | **post-U** | Δ |
+|---|---:|---:|---:|
+| Top-1 large primaire | 54 | **56** | **+2** |
+| Top-1 strict primaire | 14 | **16** | **+2** |
+| Top-3 strict primaire | 36 | **38** | **+2** |
+| Top-3 strict enrichi | 50 | **51** | **+1** |
+| Régressions Top-K | — | 0/12 | — |
+
+Cap effectif : 29 sigs EVT + 28 sigs TEM (top : ACCIDENT 10/18, ENFANT 9/2, JURIDIQUE_DOWN 5/4). 24 VP cappées (95→90) sans changer le rang Top-1.
+
+### 24.8 Sprint V — Audit ACCIDENT (2026-05-02) — **investigation, pas de déploiement**
+
+Tentative de cap conditionnel ACCIDENT (le code le plus bruyant : 6 VP / 23 FP-EVT / 46 FP-TEM HC≥80, ratio FP/VP = 11.5×).
+
+**Discriminateurs identifiés** : Mars-Conjonction-Pluton (ratio 3.29), Mars-Opposition-Saturne/Uranus/Chiron (ratio 1.5-1.9), Mars-M1/8 ou M1/6 (ratio 1.7-1.9). **Mais** n VP=6 trop petit pour stats fiables, aucun discriminateur présent dans tous les VP.
+
+**Simulation 9 variantes** (`PREV-SIMULATE-ACCIDENT-CAP.md`) : aucune viable. Soit perte de 3 VP critiques (Lennon/Rabin/Chopin), soit régression Top-K (-2 LP T1 minimum), soit gain marginal (2/46 TEM cappés).
+
+**Audit comparatif tous codes** (`PREV-AUDIT-CODES-DISC.md`) confirme : 5 codes auditables sur 9 ont n VP < 5, donc non-discrimables sur cette cohorte. Conclusion : pas de cap conditionnel ACCIDENT viable sans extension de cohorte.
+
+### 24.9 Sprint W — Calibration HC par code (2026-05-02) — **VALIDÉ**
+
+Pivot post-V : audit comparatif révèle **FINANCE_UP = 0 VP** HC≥80 sur 100 cas (aucun cas type=finance dans la cohorte) et **DEUIL = 2 VP / 14 FP-TEM** (bruit témoin élevé). Stratégie : caps **sous le seuil HC=80** pour ces codes structurellement parasites par cohorte.
+
+**Implémentation** (Super noeud1, après Sprint U) :
+```js
+const _W_CAPS = { FINANCE_UP: 70, DEUIL: 79 };
+_mdseResults.forEach(sig => {
+  const cap = _W_CAPS[sig.code];
+  if (!cap || sig.confidence <= cap) return;
+  sig._sWCapHc = { code: sig.code, before: sig.confidence, after: cap, ... };
+  sig.confidence = cap;
+  sig.level = sig.confidence >= 55 ? "high" : sig.confidence >= 35 ? "medium" : "low";
+});
+```
+
+Marqueur : `sWCapHc` (champ `sigPayload`).
+
+**Validation post-bench** :
+
+| Métrique | post-U | **post-W** | Δ |
+|---|---:|---:|---:|
+| Top-1 large primaire | 56 | **58** | **+2** |
+| Top-1 large enrichi | 68 | **69** | **+1** |
+| Top-1 strict primaire | 16 | **18** | **+2** |
+| Top-1 strict enrichi | 33 | **35** | **+2** |
+| Bruit TEM DEUIL HC≥80 | 14 | **0** | **-14** |
+| Bruit TEM FINANCE_UP HC≥80 | 12 | **0** | **-12** |
+| Bruit TEM total HC≥80 | 123 | **97** | **-26 (-21 %)** |
+| Régressions Top-K | — | 0/12 | — |
+
+Cap effectif : 23 sigs EVT + 30 sigs TEM (FINANCE_UP 16/16, DEUIL 7/14). 15 VP cappées sans changer le Top-K (LE T1 monte de 68 → 69 — preuve que ces VP étaient surcôtées et empêchaient d'autres signaux légitimes de prendre Top-1).
+
+> **Note réversibilité** : `FINANCE_UP=70` est conditionné par l'absence de cas type=finance dans la cohorte n=100. Si la cohorte est étendue avec des cas finance avérés, le cap doit être réévalué en fonction du n VP HC≥80 résultant.
+
+### 24.10 Bilan session fiabilisation (cumul Sprints S V2 + U + W + X)
+
+| Métrique | Pré-session (post-S V1) | post-S V2 | post-U | post-W | **post-X** | Δ session |
+|---|---:|---:|---:|---:|---:|---:|
+| Top-1 large primaire | 54 | 54 | 56 | 58 | **58** | **+4** |
+| Top-1 large enrichi | 68 | 68 | 68 | 69 | **69** | **+1** |
+| Top-1 strict primaire | 14 | 14 | 16 | 18 | **18** | **+4** |
+| Top-1 strict enrichi | 33 | 33 | 33 | 35 | **35** | **+2** |
+| Top-1 SPIRITUEL FP EVT | n/a | 4 | 4 | 4 | **2** | **-2** |
+| Bruit SPIRITUEL HC≥80 EVT | n/a | 5 | 5 | 5 | **0** | **-5** |
+| Bruit SPIRITUEL HC≥80 TEM | n/a | 3 | 3 | 3 | **0** | **-3** |
+| Bruit témoin HC≥80 total | ≈ 123 | ≈ 123 | ≈ 123 | 97 | **94** | **-29 (-24 %)** |
+| Régressions Top-K | — | 0/12 | 0/12 | 0/12 | 0/12 | 0 |
+
+**+11 Top-1 cumulés** (LP+LE+SP+SE) sur Sprints U + W, **+ -2 FP Top-1 EVT** Sprint X, **-24 % bruit témoin total**, **0 régression** sur 4 sprints consécutifs — meilleure session de fiabilisation depuis Palier 7.
+
+### 24.10bis Sprint X — Cap SPIRITUEL=75 (extension `_W_CAPS`) (2026-05-02) — **VALIDÉ**
+
+Déclenché par test bout-en-bout réel sur François Raifaud année 2026 (exec n8n 11235) où SPIRITUEL=95 ressort Top-1 sans support biographique. Audit batch sur post-W EVT n=100 confirme : **0 VP / 5 FP HC≥80 / 4 Top-1 = 4 FP** (Thatcher 1979 = élection PM, Hendrix 1970 = mort, Poutine 2000 = élection, Federer 2003 = Wimbledon).
+
+**Implémentation** (Super noeud1, extension du bloc Sprint W) :
+```js
+const _W_CAPS = { FINANCE_UP: 70, DEUIL: 79, SPIRITUEL: 75 };
+```
+
+Aucun nouveau marker (réutilise `_sWCapHc`). Simulation V3/6 (`prev-simulate-cap-spirituel.mjs`) confirme cap 75 = sweet spot.
+
+**Validation post-bench** :
+
+| Métrique | post-W | **post-X** | Δ |
+|---|---:|---:|---:|
+| SPIRITUEL Top-1 EVT | 4 | **2** | **-2** |
+| SPIRITUEL HC≥80 EVT | 5 | **0** | **-5** |
+| SPIRITUEL HC≥95 EVT | 1 | **0** | -1 |
+| SPIRITUEL HC≥80 TEM | 3 | **0** | **-3** |
+| Top-K Large/Strict (12 métriques) | — | inchangées | 0/12 |
+
+Cas emblématique : `thatcher-1925 / 1979` SPIRITUEL 95 → 75 (cappée), JURIDIQUE_UP 83 prend Top-1.
+
+> **Pattern de fiabilisation par feedback live** : Sprint X est le premier sprint déclenché non par audit chronologique mais par **test bout-en-bout sur profil utilisateur**. Reproductible : tout Top-1 anormalement haut en production peut être audité en n=100 puis cappé si 0 VP confirmée.
+
+### 24.10ter Sprint Y — Pont signatures → narratif (ultra fiables uniquement) (2026-05-02) — ✅ **DÉPLOYÉ ET VALIDÉ LIVE**
+
+Déclenché par l'analyse de cohérence des 3 tests bout-en-bout post-Sprint X (Jérôme 11233, François 11234, François 11235). **Constat** : François 2025 (11234) a DEUIL Top-1=77 + 8 conditions astrologiques solides (éclipse 21/09 conj. Nœud Sud M8, Saturne aspecte M8, station Saturne sur natal le 13/07), mais le narratif Traducteur Prévisions ne mentionne ni "deuil" ni les fenêtres temporelles. Le LLM se reposait jusqu'ici uniquement sur la heatmap des maisons (`heatmapData`) sans accès direct au Top-K signatures.
+
+**Objectif** : injecter dans le `prompt_user` de tous les items finaux (12 maisons + synthèse) le Top-3 signatures **ultra fiables** avec leurs fenêtres temporelles + 3 leviers astrologiques principaux.
+
+**Contrainte utilisateur impérative** : « dans le narratif il faut prendre que les signatures ultra fiables ».
+
+**Définition "ultra fiable" (4 critères cumulatifs)** :
+1. `confidence ≥ 70` (high franc, marge sur le seuil 55)
+2. **PAS** de marker `_sUVolCap` ni `_sWCapHc` (exclut codes parasites cappés U/W/X)
+3. `≥ 3 conditions incluses` dans `_peakDebug.conditions` (corroboration multi-source)
+4. **Top-3 maximum** (tri descendant par confiance, anti-saturation prompt)
+
+Si **aucune** sig satisfait → bloc omis (narratif libre, fallback heatmap).
+
+**Implémentation** (Super noeud1, après les 2 injections existantes `_finalPctTable`/`_idTable` ~ligne 12130) :
+```js
+const _yReliable = (_mdseResults || [])
+  .filter(s => {
+    if ((s.confidence || 0) < 70) return false;
+    if (s._sUVolCap || s._sWCapHc) return false;
+    return (s._peakDebug?.conditions || []).filter(c => c?.included).length >= 3;
+  })
+  .sort((a, b) => b.confidence - a.confidence)
+  .slice(0, 3);
+// → Bloc "🎯 SIGNATURES ULTRA FIABLES — FENÊTRES ÉVÉNEMENTIELLES PRIORITAIRES"
+//   avec icône, label, confiance, peakDates (4) et leviers principaux (3).
+//   + consigne LLM stricte : ancrer aux fenêtres, citer le levier, ne PAS inventer.
+// → Marqueur payload : finalOutput[0].json._sYReliableSigs
+```
+
+**Validation technique (3/3 cas conformes)** : Bench `prev-bench-sy-test-manifest.json` → exécutions 11439/11440/11441.
+
+| Cas | `_sYReliableSigs.length` | Bloc dans 13/13 prompts | Top-3 sigs |
+|---|---:|---|---|
+| 11439 Jérôme 2026 | 3 | ✓ | SEPARATION 76 / ENFANT 73 / SANTE_UP 71 |
+| 11440 François 2025 | 3 | ✓ | DEUIL 77 / ACCIDENT 74 / SPIRITUEL 70 |
+| 11441 François 2026 | 0 | ✓ (absent comme attendu) | — (SPIRITUEL=75 cappé X exclu, autres < 70) |
+
+**Validation narrative** (LLM Traducteur) : ✅ validée via test bout-en-bout réel **exec 11446** (François 12/11/1987 13H15 Nantes — annuel 2025, 2026-05-02 13:05–13:29 UTC, durée 24 min 31 s, 90/90 nodes). Score : **3/3 critères primaires passés**.
+
+| Critère | post-W (11234) | post-Y (11446) | Δ | Verdict |
+|---|---:|---:|---:|---|
+| C1 SOFT "fin de cycle / transformation profonde" total | 13 | 17 | +4 | ✓ |
+| → en M8 / synthèse | 2 / 1 | 2 / 3 | 0 / +2 | ✓ ancrage renforcé en synthèse |
+| C2 fenêtres `21/09` / `13/07` / `28/04` | 1 / 1 / 0 | 3 / 3 / 1 | +2 / +2 / +1 | ✓ (28/04 = apparition ex nihilo) |
+| C3 leviers `éclipse` / `station Saturne` / `Saturne→M8` | 13 / 0 / 0 | 14 / 1 / 1 | +1 / +1 / +1 | ✓ (station + Saturne→M8 = apparitions ex nihilo) |
+| C4 effet bord (invasions hors Top-3) | naissance=79, finance=4 | naissance=85, finance=6 | +6 / +2 | ⚠️ à monitorer (naissance = biais préexistant post-W non causé par Y) |
+
+**Effets attribuables à Sprint Y** : la fenêtre `28/04`, le levier "marche à reculons de Saturne" (= station Saturne) et l'aspect "Saturne face au domaine de tes transformations intimes" (= Saturne→M8) **n'apparaissaient pas en post-W** et apparaissent en post-Y, exactement comme listés dans le bloc injecté pour DEUIL. Le label DEUIL "Fin de cycle / Transformation profonde (77 %)" est cité avec son score exact 3× dans la synthèse (vs 1× post-W). Sprint Y fait son travail.
+
+**Note critère 1 strict** : le mot "deuil" lui-même reste à 0 occurrence — **non bloquant**, la consigne LLM injectée par Sprint Y demande d'« ancrer aux fenêtres temporelles » et « citer le levier principal », pas d'utiliser le mot "deuil" stricto sensu. Le label déguisé "fin de cycle / transformation profonde" remplit la fonction (et est mieux toléré côté UX client).
+
+**Marker payload** : `_sYReliableSigs` (1er item finalOutput) — array `[{code,confidence,level,peakDates,condCount}]`. Confirmé sur 11446 : 3 sigs (DEUIL 77 / ACCIDENT 74 / SPIRITUEL 70).
+
+**Incident pendant validation (2026-05-02 12:19:44 UTC+2)** : le bloc Sprint Y a été silencieusement supprimé du `Super noeud1` prod par un édit indéterminé via l'éditeur n8n web entre le bench 11441 (11:40 UTC+2, Sprint Y présent) et le premier test live 11443 (12:20:51 UTC+2, OOM `WorkflowCrashedError` après 1.5 s). Conséquences : 11444 (François 2026, 25 min success) et 11445 (François 2025, 25 min success) ont tourné **sans Sprint Y**, faussant les premières analyses. Diagnostic posé via `GET /workflows/Qp8WkBhPEvYbdb9j` → recherche de `SIGNATURES ULTRA FIABLES` dans `Super noeud1.parameters.jsCode` → idx = -1 (alors que le fichier source local le contenait à la ligne 12130). Correction : redéploiement via `prev-deploy-supernode.mjs` à 13:03:16 UTC+2 (delta `+5 534 chars` = uniquement le bloc Sprint Y) puis relance live 11446 (validation OK).
+
+**Action préventive durcie** : `prev-deploy-supernode.mjs` étendu avec vérification défensive post-PUT (re-fetch + comparaison stricte + sentinelles `SIGNATURES ULTRA FIABLES` / `_sYReliableSigs`). Toujours déployer via ce script plutôt qu'éditer directement dans l'éditeur n8n web.
+
+**Outil de validation live** : `prev-sy-live-validate.mjs` (`npx dotenv -e .env.local -- node scripts/prev-sy-live-validate.mjs <exec_id> [baseline_id]`) — 4 critères auto-évalués + comparatif vs baseline locale. Mapping idx ajusté (0–11 = M1–M12, **12 = synthèse**) et regex compatibles caractères accentués (pas de `\b` devant `é/œ`).
+
+### 24.11 Marqueurs payload disponibles (cumulé)
+
+Les sigs exposent désormais les marqueurs suivants dans `sigPayload[].xxx` (présents = `null` si non appliqués) :
+
+| Marqueur | Source | Sémantique |
+|---|---|---|
+| `s25Parasite` | Sprint 25 | Score "parasite" et NP/15 |
+| `s27Promotion` | Sprint 27 | Boost de promotion + signaux concordants |
+| `s30CapApplied` | Sprint 30 | Cap anti-bruit générique |
+| `s32DeuilCap` | Sprint 32 | Cap DEUIL conditionnel |
+| `sKSepCap` | Sprint K | Cap SEPARATION conditionnel |
+| `sLEnfCap` | Sprint L | Cap ENFANT conditionnel |
+| `sOVoyCap` | Sprint O | Cap VOYAGE |
+| `sPParaCap` | Sprint P | Cap multi-codes parasites |
+| `sQJurCap` | Sprint Q | Cap JURIDIQUE_DOWN conditionnel |
+| `sRSpiCap` | Sprint R | Cap SPIRITUEL conditionnel |
+| `sSStarSkip` | Sprint S V2 | Booster `fixed_star` désactivé (SANTE_UP, MARIAGE) |
+| `sUVolCap` | Sprint U | Cap doux 90 (6 voleurs Top-1) |
+| `sWCapHc` | Sprint W + X | Cap calibration HC (FINANCE_UP=70, DEUIL=79, SPIRITUEL=75) |
+| `_sYReliableSigs` (1er item) | Sprint Y | Top-3 sigs ultra fiables injectées dans le narratif (`[]` si aucune) |
+
+Tous ces marqueurs incluent `before`, `after`, `reason` (et parfois `code`) pour traçabilité audit. `_sYReliableSigs` (Sprint Y) est en revanche un array exposé sur `finalOutput[0].json` (et non sur chaque sig).
+
+### 24.12 Outils de bench / audit disponibles (`SITE/scripts/`)
+
+| Script | Rôle |
+|---|---|
+| `prev-bench-volumerun.mjs` | Lance le bench EVT ou TEM (n=100) |
+| `prev-audit-top1-fails.mjs` | Audit Top-1 manqués (rang du bon code dans les fails) |
+| `prev-audit-recoverable.mjs` | Audit récupérables (Δ confidence pour passer Top-1) |
+| `prev-audit-codes-discriminator.mjs` | Audit discriminabilité par code (VP/FP-EVT/FP-TEM) |
+| `prev-audit-accident-discriminator.mjs` | Audit conditions ACCIDENT |
+| `prev-simulate-cap-voleurs.mjs` | Simulation A/B caps voleurs |
+| `prev-simulate-cap-85.mjs` | Simulation A/B calibration HC |
+| `prev-simulate-accident-cap.mjs` | Simulation A/B cap conditionnel ACCIDENT |
+| `prev-su-validate-final.mjs` | Validation post-déploiement Sprint U |
+| `prev-sw-validate-final.mjs` | Validation post-déploiement Sprint W |
+| `prev-simulate-cap-spirituel.mjs` | Simulation A/B cap SPIRITUEL (Sprint X) |
+| `prev-sx-validate-final.mjs` | Validation post-déploiement Sprint X |
+| `prev-bench-sy-test-manifest.json` | Manifest 3 cas test Sprint Y (Jérôme 2026 / François 2025 / François 2026) |
+| `prev-fetch-sy-test.mjs` | Validation Sprint Y bench (3 IDs hardcodés) : extrait `_sYReliableSigs` + bloc `prompt_user` + audit keywords |
+| `prev-sy-live-validate.mjs` | **Validation Sprint Y live (paramétré)** : `node scripts/prev-sy-live-validate.mjs <exec_id> [baseline_id]` — 4 critères auto + comparatif vs baseline locale |
+| `prev-fetch-recent-execs.mjs` | Récupère les N dernières exécutions live PREV (artefacts S1, S2, HTML) |
+| `prev-extract-narratifs-all.mjs` | Extrait les 13 narratifs (12 maisons + synthèse) d'une exec |
+| `prev-keywords-by-house.mjs` | Audit keyword par maison sur exec live |
+| `prev-coherence-analysis.mjs` | Analyse cohérence signatures ↔ narratif sur 3 cas live |
+| `generate-detailed-report.mjs` | Génère `bilan-personnalites.md` à partir du NDJSON |
+
+Document central historique : `PREV-SUPER-BENCH.md` (contient le détail de tous les Paliers v18 → v19 et tous les Sprints 23 → X).
+Bilan par cas (n=100, post-W) : `SITE/scripts/bilan-personnalites.md` (1380 lignes, généré 2026-05-02 06:16 UTC ; 99/100 détections, Top-1 strict 24/100, Excellent ≥75 % : 26 cas). À régénérer post-X pour intégrer le cap SPIRITUEL=75 (Sprint X impacte 6 cas dont thatcher-1979).
