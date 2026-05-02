@@ -4,26 +4,26 @@
       "parameters": {
         "jsCode": "// DHN — remplace le nœud HTTP « Geocodage » (Nominatim seul).\n// Si birth_place_lat / birth_place_lng valides dans Extract → pas d’appel Nominatim.\n// Nécessite nœud Code typeVersion ≥ 2.\n\nconst v = $input.first().json;\n\nfunction parseNum(x) {\n  if (x === null || x === undefined) return NaN;\n  if (typeof x === \"number\" && Number.isFinite(x)) return x;\n  if (typeof x === \"string\" && String(x).trim()) {\n    return parseFloat(String(x).trim().replace(\",\", \".\"));\n  }\n  return NaN;\n}\n\nconst lat0 = parseNum(v.birth_place_lat);\nconst lon0 = parseNum(v.birth_place_lng);\n\nif (\n  Number.isFinite(lat0) &&\n  Number.isFinite(lon0) &&\n  Math.abs(lat0) <= 90 &&\n  Math.abs(lon0) <= 180\n) {\n  const disp =\n    typeof v.birth_place_formatted_address === \"string\" && v.birth_place_formatted_address.trim()\n      ? v.birth_place_formatted_address.trim()\n      : [v.lieu, v.pays].filter(Boolean).join(\", \");\n  return [{ json: { lat: String(lat0), lon: String(lon0), display_name: disp } }];\n}\n\nconst lieu = encodeURIComponent((v.lieu || \"\").trim());\nconst pays = encodeURIComponent((v.pays || \"\").trim());\nconst url = `https://nominatim.openstreetmap.org/search?q=${lieu}%2C%20${pays}&format=json&limit=1`;\n\nconst rows = await this.helpers.httpRequest({\n  method: \"GET\",\n  url,\n  headers: { \"User-Agent\": \"n8n-dhn-2026\" },\n  json: true,\n});\n\nif (!Array.isArray(rows) || rows.length === 0) {\n  return [{ json: {} }];\n}\n\nconst r = rows[0];\nreturn [{ json: { lat: r.lat, lon: r.lon, display_name: r.display_name } }];\n"
       },
-      "id": "b681b9dd-2aa4-4d10-a776-873da81a59e5",
+      "id": "a96c674c-7719-4370-8559-c0bc7f7faeeb",
       "name": "Geocodage",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        8720,
-        4032
+        -1968,
+        288
       ]
     },
     {
       "parameters": {
         "jsCode": "function gn(n){try{return $(n).first()?.json||null}catch(e){return null}}\nconst vars = gn('Extract Variables DHN') || gn('Extract Variables DHN1') || gn('Extract Variables');\nif (!vars?.date) throw new Error('DHN : date introuvable — nœud Extract Variables (site) ou Extract Variables DHN (e-mail).');\nconst geo = $input.first().json;\nconst lat = geo.lat || geo[0]?.lat;\nconst lon = geo.lon || geo[0]?.lon;\nif (!lat) throw new Error('Ville introuvable: ' + JSON.stringify(geo).slice(0,200));\nconst d = vars.date.split('/');\nconst ts = Math.floor(new Date(Date.UTC(parseInt(d[2]),parseInt(d[1])-1,parseInt(d[0]),12)).getTime()/1000);\nreturn [{json:{lat:lat,lon:lon,timestamp:ts}}];"
       },
-      "id": "707900b1-e635-47eb-87ec-f002976fc5f6",
+      "id": "2ef3d9d4-5425-469e-9edb-b9e027fc3d43",
       "name": "Prepare Timezone",
       "type": "n8n-nodes-base.code",
       "typeVersion": 1,
       "position": [
-        8992,
-        4032
+        -1696,
+        288
       ]
     },
     {
@@ -34,7 +34,7 @@
           "parameters": [
             {
               "name": "key",
-              "value": "UV443YWQRYUC"
+              "value": "={{ $vars.TIMEZONEDB_KEY }}"
             },
             {
               "name": "format",
@@ -60,26 +60,39 @@
         },
         "options": {}
       },
-      "id": "684e76e5-a016-48e1-9506-26aef27ed8b3",
+      "id": "98ed8f20-cb1a-415a-8971-4b43db7ac10f",
       "name": "Get Timezone",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.1,
       "position": [
-        9280,
-        4032
+        -1456,
+        288
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// [P7 v5.4] TZ historique précise via luxon (TZDB IANA officielle).\n//\n// Pourquoi : TimezoneDB est correct pour lat/lon → IANA timezone, mais sa base\n// de règles DST historiques est moins exhaustive que la TZDB IANA officielle\n// embarquée dans luxon. Cas problématiques connus : Afrique du Nord avant 1990\n// (Tunisie a oscillé sur DST 1939-1944, 1977-1978, 1988-1990), Amérique latine,\n// anciens blocs soviétiques. Ce nœud autoritarise l'offset luxon et conserve\n// TimezoneDB en fallback si luxon n'est pas dispo ou zoneName manquant.\n//\n// Sur n8n Cloud, `DateTime` (luxon) est exposé globalement dans les Code nodes\n// (cf. docs.n8n.io/code/cookbook/luxon/). Pas besoin de require.\n\nfunction gn(n){try{return $(n).first()?.json||null}catch(e){return null}}\nconst vars = gn('Extract Variables DHN') || gn('Extract Variables DHN1') || gn('Extract Variables');\nif (!vars?.date) throw new Error('DHN P7 : date introuvable — nœud Extract Variables.');\nconst tzdb = $input.first().json || {};\n\nconst d = vars.date.split('/');\nconst yr = parseInt(d[2]), mo = parseInt(d[1]), da = parseInt(d[0]);\n\nconst zoneName = tzdb.zoneName || null;\nconst tzdbOffsetSec = Number.isFinite(tzdb.gmtOffset) ? tzdb.gmtOffset : null;\n\nlet offsetSec = tzdbOffsetSec;\nlet source = 'timezonedb';\nlet tzWarn = null;\n\ntry {\n  if (zoneName && typeof DateTime !== 'undefined') {\n    // Référence à 12:00 locale du jour de naissance : évite les sauts DST aux\n    // extrémités du jour (la valeur 12:00 est presque toujours dans une plage stable).\n    const dt = DateTime.fromObject({ year: yr, month: mo, day: da, hour: 12 }, { zone: zoneName });\n    if (dt.isValid) {\n      const luxOffsetSec = dt.offset * 60;\n      if (tzdbOffsetSec !== null && Math.abs(luxOffsetSec - tzdbOffsetSec) >= 60) {\n        tzWarn = 'Δ TimezoneDB vs luxon = ' + Math.round((luxOffsetSec - tzdbOffsetSec) / 60) + ' min sur ' + zoneName + ' au ' + vars.date + ' — luxon (IANA) prioritaire';\n      }\n      offsetSec = luxOffsetSec;\n      source = 'luxon';\n    } else {\n      tzWarn = 'luxon DateTime invalide pour zone ' + zoneName + ' — fallback TimezoneDB';\n    }\n  } else if (!zoneName) {\n    tzWarn = 'TimezoneDB ne retourne pas zoneName — utilisation gmtOffset brut';\n  } else {\n    tzWarn = 'luxon DateTime non disponible — fallback TimezoneDB';\n  }\n} catch (e) {\n  tzWarn = 'Erreur luxon : ' + (e.message || e) + ' — fallback TimezoneDB';\n}\n\nreturn [{\n  json: Object.assign({}, tzdb, {\n    gmtOffset: offsetSec,\n    gmtOffsetSource: source,\n    zoneNameUsed: zoneName,\n    tzWarn: tzWarn\n  })\n}];"
+      },
+      "id": "410df78a-ddb4-4056-b516-a077c780ec5e",
+      "name": "TZ Historique",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1216,
+        288
       ]
     },
     {
       "parameters": {
         "jsCode": "function gn(n){try{return $(n).first()?.json||null}catch(e){return null}}\nconst vars = gn('Extract Variables DHN') || gn('Extract Variables DHN1') || gn('Extract Variables');\nif (!vars?.date) throw new Error('DHN : date introuvable — nœud Extract Variables (site) ou Extract Variables DHN (e-mail).');\nconst prep = gn('Prepare Timezone') || gn('Prepare Timezone1');\nconst tz = $input.first().json;\nconst d = vars.date.split('/');\nconst yr=parseInt(d[2]),mo=parseInt(d[1]),da=parseInt(d[0]);\nconst lat=parseFloat(prep.lat),lon=parseFloat(prep.lon),tzh=tz.gmtOffset/3600;\nconst out=[];\nfor(let h=0;h<24;h++){\n  out.push({json:{body:JSON.stringify({year:yr,month:mo,date:da,hours:h,minutes:0,seconds:0,latitude:lat,longitude:lon,timezone:tzh,config:{observation_point:'geocentric',ayanamsha:'tropical',language:'fr'}})}});\n}\nreturn out;"
       },
-      "id": "8ec58816-e775-4e93-b0a6-7dfbf831cfb3",
+      "id": "83aca339-172d-44ea-9090-98addfe7495d",
       "name": "Preparer scan 24h",
       "type": "n8n-nodes-base.code",
       "typeVersion": 1,
       "position": [
-        9552,
-        4032
+        -992,
+        288
       ]
     },
     {
@@ -108,13 +121,13 @@
           "timeout": 30000
         }
       },
-      "id": "54db10d6-1a60-42ea-b87e-df4c6a71ca63",
+      "id": "fe7a31cf-8e1a-4743-aa0d-474196d7534b",
       "name": "Scan Planetes",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.1,
       "position": [
-        9840,
-        4032
+        -736,
+        288
       ],
       "retryOnFail": true,
       "maxTries": 3,
@@ -125,13 +138,13 @@
       "parameters": {
         "jsCode": "const items=$input.all();\nfunction fp(it,fr,en){return(it.json?.output||[]).find(p=>p.planet?.fr===fr||p.planet?.en===en)}\nconst scan=items.map((it,i)=>{const a=fp(it,'Ascendant','Ascendant'),m=fp(it,'Lune','Moon');return{h:i,ascSign:a?.zodiac_sign?.name?.fr||'?',ascDeg:a?.fullDegree,moonSign:m?.zodiac_sign?.name?.fr||'?'}});\nconst trans=[];\nfor(let i=0;i<scan.length-1;i++){if(scan[i].ascSign!==scan[i+1].ascSign)trans.push({from:scan[i].ascSign,to:scan[i+1].ascSign,afterH:i,beforeH:i+1})}\nconst pad=n=>String(n).padStart(2,'0');\nconst toT=m=>pad(Math.floor(m/60))+':'+pad(m%60);\nconst bds=[0,...trans.map(t=>t.beforeH*60),1440];\nconst fen=[];\nfor(let i=0;i<bds.length-1;i++){const s=bds[i],e=bds[i+1],ref=Math.min(Math.floor((s+30)/60),23);fen.push({index:i,ascSign:scan[ref]?.ascSign||'?',start:toT(s),end:toT(e),dureeMin:e-s})}\nreturn[{json:{nbFenetres:fen.length,fenetres:fen,transitions:trans,detail:scan.map(s=>pad(s.h)+'h -> ASC '+s.ascSign+' | Lune '+s.moonSign)}}];"
       },
-      "id": "bfbcf8df-e6d6-4b23-a811-a4b3e40f12f2",
+      "id": "6c1d27bd-91a9-44a5-a1e2-f3c5156a0b85",
       "name": "Analyser fenetres ASC",
       "type": "n8n-nodes-base.code",
       "typeVersion": 1,
       "position": [
-        10112,
-        4032
+        -480,
+        288
       ]
     }
   ],
@@ -159,6 +172,17 @@
       ]
     },
     "Get Timezone": {
+      "main": [
+        [
+          {
+            "node": "TZ Historique",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "TZ Historique": {
       "main": [
         [
           {
@@ -190,11 +214,15 @@
           }
         ]
       ]
+    },
+    "Analyser fenetres ASC": {
+      "main": [
+        []
+      ]
     }
   },
   "pinData": {},
   "meta": {
-    "templateCredsSetupCompleted": true,
     "instanceId": "b6efd2f1fad5a0a294db5a1a7e88dd550900216aaeb7344a19bf4cfc45267781"
   }
 }

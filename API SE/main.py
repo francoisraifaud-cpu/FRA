@@ -1,0 +1,718 @@
+from contextlib import asynccontextmanager
+import os
+import threading
+
+from fastapi import FastAPI, Query, Request
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel, ConfigDict
+import swisseph as swe
+from datetime import datetime, timedelta
+
+# SwissEph : le chemin semble lié au thread courant. Les routes sync FastAPI s'exécutent dans
+# le threadpool → set_ephe_path au import / lifespan (boucle asyncio) ne suffit pas.
+# On initialise une fois par thread worker (pas une fois par requête → évite fuites de FD).
+EPHE_PATH = "/opt/astro/api/ephe"
+_ephe_tls = threading.local()
+
+
+def ensure_ephe_path():
+    if getattr(_ephe_tls, "ready", False):
+        return
+    swe.set_ephe_path(EPHE_PATH)
+    _ephe_tls.ready = True
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    ensure_ephe_path()
+    yield
+
+
+app = FastAPI(lifespan=lifespan)
+
+
+@app.middleware("http")
+async def api_key_guard(request: Request, call_next):
+    """Si ASTRO_API_KEY est défini dans l'environnement du service, exiger le header X-API-Key."""
+    expected = (os.environ.get("ASTRO_API_KEY") or "").strip()
+    if not expected:
+        return await call_next(request)
+    path = request.url.path
+    if path in ("/health", "/docs", "/redoc", "/openapi.json") or path.startswith("/docs"):
+        return await call_next(request)
+    if request.headers.get("x-api-key") != expected:
+        return JSONResponse({"detail": "Unauthorized"}, status_code=401)
+    return await call_next(request)
+
+
+ZODIAC_SIGNS = [
+    {"number": 1,  "name": {"en": "Aries",       "fr": "Bélier"}},
+    {"number": 2,  "name": {"en": "Taurus",      "fr": "Taureau"}},
+    {"number": 3,  "name": {"en": "Gemini",      "fr": "Gémeaux"}},
+    {"number": 4,  "name": {"en": "Cancer",      "fr": "Cancer"}},
+    {"number": 5,  "name": {"en": "Leo",         "fr": "Lion"}},
+    {"number": 6,  "name": {"en": "Virgo",       "fr": "Vierge"}},
+    {"number": 7,  "name": {"en": "Libra",       "fr": "Balance"}},
+    {"number": 8,  "name": {"en": "Scorpio",     "fr": "Scorpion"}},
+    {"number": 9,  "name": {"en": "Sagittarius", "fr": "Sagittaire"}},
+    {"number": 10, "name": {"en": "Capricorn",   "fr": "Capricorne"}},
+    {"number": 11, "name": {"en": "Aquarius",    "fr": "Verseau"}},
+    {"number": 12, "name": {"en": "Pisces",      "fr": "Poissons"}},
+]
+
+PLANETS = [
+    {"id": swe.SUN,       "en": "Sun",       "fr": "Soleil"},
+    {"id": swe.MOON,      "en": "Moon",      "fr": "Lune"},
+    {"id": swe.MARS,      "en": "Mars",      "fr": "Mars"},
+    {"id": swe.MERCURY,   "en": "Mercury",   "fr": "Mercure"},
+    {"id": swe.JUPITER,   "en": "Jupiter",   "fr": "Jupiter"},
+    {"id": swe.VENUS,     "en": "Venus",     "fr": "Vénus"},
+    {"id": swe.SATURN,    "en": "Saturn",    "fr": "Saturne"},
+    {"id": swe.URANUS,    "en": "Uranus",    "fr": "Uranus"},
+    {"id": swe.NEPTUNE,   "en": "Neptune",   "fr": "Neptune"},
+    {"id": swe.PLUTO,     "en": "Pluto",     "fr": "Pluton"},
+    {"id": swe.CERES,     "en": "Ceres",     "fr": "Cérès"},
+    {"id": swe.VESTA,     "en": "Vesta",     "fr": "Vesta"},
+    {"id": swe.JUNO,      "en": "Juno",      "fr": "Junon"},
+    {"id": swe.PALLAS,    "en": "Pallas",    "fr": "Pallas"},
+    {"id": swe.CHIRON,    "en": "Chiron",    "fr": "Chiron"},
+    {"id": swe.MEAN_APOG, "en": "Lilith",    "fr": "Lilith"},
+    {"id": swe.MEAN_NODE, "en": "Mean Node", "fr": "Nœud moyen"},
+    {"id": swe.TRUE_NODE, "en": "True Node", "fr": "Nœud vrai"},
+]
+
+ZODIAC_SIGNS_LIST = [
+    "Bélier", "Taureau", "Gémeaux", "Cancer",
+    "Lion", "Vierge", "Balance", "Scorpion",
+    "Sagittaire", "Capricorne", "Verseau", "Poissons"
+]
+
+TRANSIT_OBJECTS = {
+    "Soleil":     {"id": swe.SUN,       "moseph": True},
+    "Mercure":    {"id": swe.MERCURY,   "moseph": True},
+    "Vénus":      {"id": swe.VENUS,     "moseph": True},
+    "Mars":       {"id": swe.MARS,      "moseph": True},
+    "Jupiter":    {"id": swe.JUPITER,   "moseph": True},
+    "Saturne":    {"id": swe.SATURN,    "moseph": True},
+    "Uranus":     {"id": swe.URANUS,    "moseph": True},
+    "Neptune":    {"id": swe.NEPTUNE,   "moseph": True},
+    "Pluton":     {"id": swe.PLUTO,     "moseph": True},
+    "Chiron":     {"id": swe.CHIRON,    "moseph": False},
+    "Ceres":      {"id": swe.CERES,     "moseph": False},
+    "Pallas":     {"id": swe.PALLAS,    "moseph": False},
+    "Junon":      {"id": swe.JUNO,      "moseph": False},
+    "Vesta":      {"id": swe.VESTA,     "moseph": False},
+    "Lilith":     {"id": swe.MEAN_APOG, "moseph": True},
+    "Noeud_Nord": {"id": swe.MEAN_NODE, "moseph": True},
+}
+
+# ─── Cache obliquité (change ~47"/siècle — stable à la journée) ──────────────
+_epsilon_cache: dict = {}
+
+def get_obliquity(jd: float) -> float:
+    """Obliquité de l'écliptique, cachée par JD entier pour éviter les recalculs."""
+    ensure_ephe_path()
+    key = int(jd)
+    if key not in _epsilon_cache:
+        # Vider *avant* d'insérer : l'ancien code faisait clear() après l'insert,
+        # ce qui supprimait la clé courante puis provoquait KeyError au return.
+        if len(_epsilon_cache) >= 1000:
+            _epsilon_cache.clear()
+        res, _ = swe.calc_ut(jd, swe.ECL_NUT, swe.FLG_SWIEPH)
+        _epsilon_cache[key] = res[0]
+    return _epsilon_cache[key]
+
+def calc_declinaison(lon: float, lat: float, epsilon: float) -> float:
+    """Conversion écliptique → déclinaison équatoriale (cotrans, microsecondes)."""
+    eq = swe.cotrans([lon, lat, 1.0], -epsilon)
+    return round(eq[1], 4)
+
+# ─── Utilitaires ─────────────────────────────────────────────────────────────
+
+class BirthData(BaseModel):
+    """Champs suisseph + optionnels (ex. config n8n) ignorés."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    year: int
+    month: int
+    date: int
+    hours: float
+    minutes: float
+    seconds: float
+    latitude: float
+    longitude: float
+    timezone: float
+
+
+class BatchPlanetsBody(BaseModel):
+    """A.3 — un seul POST pour N créneaux (même sémantique que N× /western/planets)."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    slots: list[BirthData]
+
+def get_zodiac(degree: float):
+    idx = int(degree / 30) % 12
+    return ZODIAC_SIGNS[idx]
+
+def to_julian(data: BirthData):
+    ensure_ephe_path()
+    ut = data.hours + data.minutes / 60 + data.seconds / 3600 - data.timezone
+    return swe.julday(data.year, data.month, data.date, ut)
+
+def parse_date(date_str: str) -> datetime:
+    for fmt in ("%d/%m/%Y", "%Y-%m-%d"):
+        try:
+            return datetime.strptime(date_str, fmt)
+        except ValueError:
+            continue
+    raise ValueError(f"Format de date non reconnu : {date_str}")
+
+# ─── /western/planets ─────────────────────────────────────────────────────────
+
+_BATCH_PLANETS_MAX_SLOTS = 400
+
+
+def planet_output_list(data: BirthData) -> list:
+    """Liste `output` (planètes + angles) pour une naissance — même schéma que l’historique."""
+    jd = to_julian(data)
+    epsilon = get_obliquity(jd)
+    houses, ascmc = swe.houses(jd, data.latitude, data.longitude, b"P")
+    result = []
+
+    asc_deg = ascmc[0]
+    result.append({
+        "planet":     {"en": "Ascendant", "fr": "Ascendant"},
+        "fullDegree": asc_deg,
+        "normDegree": asc_deg % 30,
+        "isRetro":    "False",
+        "zodiac_sign": get_zodiac(asc_deg),
+    })
+
+    for p in PLANETS:
+        # FLG_SPEED ajouté — corrige la détection rétrograde (bug original)
+        pos, _ = swe.calc_ut(jd, p["id"], swe.FLG_SWIEPH | swe.FLG_SPEED)
+        full  = pos[0]
+        lat   = pos[1]
+        dist  = pos[2]
+        speed = pos[3]
+        retro = "True" if speed < 0 else "False"
+        dec   = calc_declinaison(full, lat, epsilon)
+        result.append({
+            "planet":     {"en": p["en"], "fr": p["fr"]},
+            "fullDegree": full,
+            "normDegree": full % 30,
+            "isRetro":    retro,
+            "zodiac_sign": get_zodiac(full),
+            "latitude":         round(lat, 4),
+            "distance_ua":      round(dist, 6),
+            "vitesse_longitude": round(speed, 4),
+            "declinaison":      dec,
+        })
+
+    for deg, en, fr in [
+        ((ascmc[0] + 180) % 360, "Descendant", "Descendant"),
+        (ascmc[1],               "MC",          "Milieu du Ciel"),
+        ((ascmc[1] + 180) % 360, "IC",          "Imum Coeli"),
+    ]:
+        result.append({
+            "planet":     {"en": en, "fr": fr},
+            "fullDegree": deg,
+            "normDegree": deg % 30,
+            "isRetro":    "False",
+            "zodiac_sign": get_zodiac(deg),
+        })
+
+    return result
+
+
+@app.post("/western/planets")
+def calc_planets(data: BirthData):
+    ensure_ephe_path()
+    return {"statusCode": 200, "output": planet_output_list(data)}
+
+
+@app.post("/batch/western/planets")
+def calc_planets_batch(body: BatchPlanetsBody):
+    """N créneaux en une requête — ordre de `outputs` = ordre de `slots` (pour n8n / DHN)."""
+    n = len(body.slots)
+    if n > _BATCH_PLANETS_MAX_SLOTS:
+        return JSONResponse(
+            {"detail": f"Maximum {_BATCH_PLANETS_MAX_SLOTS} slots, reçu {n}"},
+            status_code=400,
+        )
+    if n == 0:
+        return {"statusCode": 200, "outputs": []}
+    ensure_ephe_path()
+    outputs = []
+    for slot in body.slots:
+        try:
+            outputs.append({"statusCode": 200, "output": planet_output_list(slot)})
+        except Exception as ex:
+            outputs.append({"statusCode": 500, "output": [], "error": str(ex)})
+    return {"statusCode": 200, "outputs": outputs}
+
+# ─── /western/houses ──────────────────────────────────────────────────────────
+
+@app.post("/western/houses")
+def calc_houses(data: BirthData):
+    jd = to_julian(data)
+    houses, ascmc = swe.houses(jd, data.latitude, data.longitude, b"P")
+    result = []
+    for i, deg in enumerate(houses):
+        result.append({
+            "House":      i + 1,
+            "degree":     deg,
+            "normDegree": deg % 30,
+            "zodiac_sign": get_zodiac(deg),
+        })
+    return {"statusCode": 200, "output": {"Houses": result}}
+
+# ─── /transits ────────────────────────────────────────────────────────────────
+
+def calc_planet_transit(jd: float, planet_id: int, use_moseph: bool, epsilon: float):
+    """Calcule position + déclinaison d'une planète en transit."""
+    ensure_ephe_path()
+    flags_list = (
+        [swe.FLG_MOSEPH | swe.FLG_SPEED]
+        if use_moseph
+        else [swe.FLG_SWIEPH | swe.FLG_SPEED, swe.FLG_MOSEPH | swe.FLG_SPEED]
+    )
+    for flag in flags_list:
+        try:
+            res, _ = swe.calc_ut(jd, planet_id, flag)
+            lon, lat, dist, speed = res[0], res[1], res[2], res[3]
+            source = "Moshier" if (flag & swe.FLG_MOSEPH) else "SwissEph"
+            dec = calc_declinaison(lon, lat, epsilon)
+            return {
+                # Champs existants — inchangés
+                "longitude_absolue": round(lon, 4),
+                "signe":             ZODIAC_SIGNS_LIST[int(lon / 30) % 12],
+                "degre_dans_signe":  round(lon % 30, 4),
+                "est_retrograde":    speed < 0,
+                "source":            source,
+                # Nouveaux champs
+                "latitude":          round(lat, 4),
+                "distance_ua":       round(dist, 6),
+                "vitesse_longitude":  round(speed, 4),
+                "declinaison":       dec,
+            }
+        except Exception:
+            continue
+    return None
+
+@app.get("/transits")
+def get_transits(
+    date_debut: str = Query(..., description="dd/mm/yyyy ou yyyy-mm-dd"),
+    date_fin:   str = Query(..., description="dd/mm/yyyy ou yyyy-mm-dd"),
+):
+    start = parse_date(date_debut)
+    end   = parse_date(date_fin)
+    results = []
+    current = start
+    while current <= end:
+        jd      = swe.julday(current.year, current.month, current.day, 12.0)
+        epsilon = get_obliquity(jd)  # une fois par jour, partagé entre toutes les planètes
+        day_data = {"date": current.strftime("%Y-%m-%d"), "planetes": {}}
+        for nom, cfg in TRANSIT_OBJECTS.items():
+            result = calc_planet_transit(jd, cfg["id"], cfg["moseph"], epsilon)
+            if result:
+                day_data["planetes"][nom] = result
+                if nom == "Noeud_Nord":
+                    lon_sud = (result["longitude_absolue"] + 180) % 360
+                    lat_sud = -result["latitude"]
+                    dec_sud = calc_declinaison(lon_sud, lat_sud, epsilon)
+                    day_data["planetes"]["Noeud_Sud"] = {
+                        # Champs existants
+                        "longitude_absolue": round(lon_sud, 4),
+                        "signe":             ZODIAC_SIGNS_LIST[int(lon_sud / 30) % 12],
+                        "degre_dans_signe":  round(lon_sud % 30, 4),
+                        "est_retrograde":    result["est_retrograde"],
+                        "source":            "calculé (opposition Noeud Nord)",
+                        # Nouveaux champs
+                        "latitude":          round(lat_sud, 4),
+                        "distance_ua":       result["distance_ua"],
+                        "vitesse_longitude":  round(-result["vitesse_longitude"], 4),
+                        "declinaison":       dec_sud,
+                    }
+        results.append(day_data)
+        current += timedelta(days=1)
+    return results
+
+# ─── /moon ────────────────────────────────────────────────────────────────────
+
+@app.get("/moon")
+def get_moon(
+    date_debut: str = Query(..., description="dd/mm/yyyy ou yyyy-mm-dd"),
+    date_fin:   str = Query(..., description="dd/mm/yyyy ou yyyy-mm-dd"),
+):
+    start  = parse_date(date_debut)
+    end    = parse_date(date_fin)
+    results = []
+    current = datetime(start.year, start.month, start.day, 0, 0)
+    end_dt  = datetime(end.year, end.month, end.day, 12, 0)
+    while current <= end_dt:
+        hour_decimal = current.hour + current.minute / 60.0
+        jd = swe.julday(current.year, current.month, current.day, hour_decimal)
+        epsilon = get_obliquity(jd)
+        try:
+            res, _ = swe.calc_ut(jd, swe.MOON, swe.FLG_MOSEPH | swe.FLG_SPEED)
+            lon, lat, dist, speed = res[0], res[1], res[2], res[3]
+            dec = calc_declinaison(lon, lat, epsilon)
+            results.append({
+                "date_heure": current.strftime("%Y-%m-%d %H:%M"),
+                "lune": {
+                    # Champs existants — inchangés
+                    "longitude_absolue": round(lon, 4),
+                    "signe":             ZODIAC_SIGNS_LIST[int(lon / 30) % 12],
+                    "degre_dans_signe":  round(lon % 30, 4),
+                    "vitesse_journaliere": round(speed, 4),
+                    # Nouveaux champs
+                    "latitude":    round(lat, 4),
+                    "distance_ua": round(dist, 6),
+                    "declinaison": dec,
+                },
+            })
+        except Exception:
+            pass
+        current += timedelta(hours=12)
+    return results
+
+# ─── /eclipses ────────────────────────────────────────────────────────────────
+
+@app.get("/eclipses")
+def get_eclipses(
+    date_debut: str = Query(..., description="dd/mm/yyyy ou yyyy-mm-dd"),
+    date_fin:   str = Query(..., description="dd/mm/yyyy ou yyyy-mm-dd"),
+):
+    # Ne pas appeler set_ephe_path("") ici : le processus sert d'autres routes en parallèle
+    # (threadpool FastAPI) et le chemin global n'est pas thread-safe. FLG_MOSEPH suffit pour
+    # sol_eclipse_when_glob / lun_eclipse_when.
+    ensure_ephe_path()
+    start    = parse_date(date_debut)
+    end      = parse_date(date_fin)
+    start_jd = swe.julday(start.year, start.month, start.day, 0.0)
+    end_jd   = swe.julday(end.year, end.month, end.day, 23.99)
+    eclipses = []
+
+    def jd_to_str(jd):
+        y, m, d, h = swe.revjul(jd)
+        hours = int(h); minutes = int((h - hours) * 60)
+        if minutes == 60:
+            hours += 1; minutes = 0
+        return datetime(y, m, d, hours, minutes).strftime("%Y-%m-%d %H:%M UTC")
+
+    def get_type(flags, lunar=False):
+        if flags & swe.ECL_TOTAL:          return "Totale"
+        if flags & swe.ECL_ANNULAR:        return "Annulaire"
+        if flags & swe.ECL_ANNULAR_TOTAL:  return "Hybride"
+        if flags & swe.ECL_PARTIAL:        return "Partielle"
+        if flags & swe.ECL_PENUMBRAL and lunar: return "Pénombrale"
+        return "Inconnue"
+
+    cur = start_jd
+    while cur < end_jd:
+        try:
+            res = swe.sol_eclipse_when_glob(cur, swe.FLG_MOSEPH)
+            flags, tret = res[0], res[1]
+            ejd = tret[0]
+            if ejd > end_jd: break
+            eclipses.append({"astre": "Soleil", "type": get_type(flags), "date_maximum": jd_to_str(ejd), "_jd": ejd})
+            cur = ejd + 10
+        except Exception:
+            break
+
+    cur = start_jd
+    while cur < end_jd:
+        try:
+            res = swe.lun_eclipse_when(cur, swe.FLG_MOSEPH)
+            flags, tret = res[0], res[1]
+            ejd = tret[0]
+            if ejd > end_jd: break
+            eclipses.append({"astre": "Lune", "type": get_type(flags, lunar=True), "date_maximum": jd_to_str(ejd), "_jd": ejd})
+            cur = ejd + 10
+        except Exception:
+            break
+
+    eclipses.sort(key=lambda x: x["_jd"])
+    for e in eclipses:
+        del e["_jd"]
+    return eclipses
+
+# ─── /health ──────────────────────────────────────────────────────────────────
+
+@app.get("/health")
+def health():
+    return {"status": "ok"}
+
+# ─── /progressions ────────────────────────────────────────────────────────────
+import calendar
+
+def next_month(dt: datetime) -> datetime:
+    month = dt.month % 12 + 1
+    year  = dt.year + (dt.month // 12)
+    day   = min(dt.day, calendar.monthrange(year, month)[1])
+    return dt.replace(year=year, month=month, day=day)
+
+@app.get("/progressions")
+def get_progressions(
+    date_debut: str = Query(...),
+    date_fin:   str = Query(...),
+    year: int = Query(...), month: int = Query(...), date: int = Query(...),
+    hours: float = Query(...), minutes: float = Query(...), seconds: float = Query(0),
+    latitude: float = Query(...), longitude: float = Query(...), timezone: float = Query(...),
+):
+    data = BirthData(year=year, month=month, date=date, hours=hours, minutes=minutes,
+                     seconds=seconds, latitude=latitude, longitude=longitude, timezone=timezone)
+    natal_jd = to_julian(data)
+    birth_dt = datetime(data.year, data.month, data.date)
+    start    = parse_date(date_debut)
+    end      = parse_date(date_fin)
+    results  = []
+    # Arc Solaire : calculer MC natal et Soleil natal une seule fois
+    natal_sun_pos, _ = swe.calc_ut(natal_jd, swe.SUN, swe.FLG_SWIEPH)
+    natal_sun_lon     = natal_sun_pos[0]
+    _, natal_ascmc    = swe.houses(natal_jd, data.latitude, data.longitude, b"P")
+    natal_mc          = natal_ascmc[1]
+    current  = start
+
+    while current <= end:
+        days_elapsed = (current - birth_dt).days
+        age_years    = days_elapsed / 365.25
+        prog_jd      = natal_jd + age_years
+        epsilon      = get_obliquity(prog_jd)
+        planetes     = {}
+
+        for p in PLANETS:
+            try:
+                pos, _ = swe.calc_ut(prog_jd, p["id"], swe.FLG_SWIEPH | swe.FLG_SPEED)
+                lon, lat, dist, speed = pos[0], pos[1], pos[2], pos[3]
+                dec = calc_declinaison(lon, lat, epsilon)
+                planetes[p["fr"]] = {
+                    "longitude_absolue": round(lon, 4),
+                    "signe":             ZODIAC_SIGNS_LIST[int(lon / 30) % 12],
+                    "degre_dans_signe":  round(lon % 30, 4),
+                    "est_retrograde":    speed < 0,
+                    "latitude":          round(lat, 4),
+                    "distance_ua":       round(dist, 6),
+                    "vitesse_longitude": round(speed, 4),
+                    "declinaison":       round(dec, 4),
+                }
+            except Exception:
+                pass
+
+        try:
+            # ── Arc Solaire pour MC et ASC progressés ──
+            prog_sun_pos, _ = swe.calc_ut(prog_jd, swe.SUN, swe.FLG_SWIEPH)
+            arc = prog_sun_pos[0] - natal_sun_lon
+            if arc >  180: arc -= 360
+            if arc < -180: arc += 360
+            prog_mc   = (natal_mc + arc) % 360
+            # MC écliptique → RAMC
+            eps_p     = get_obliquity(prog_jd)
+            eq        = swe.cotrans([prog_mc, 0.0, 1.0], -eps_p)
+            prog_ramc = eq[0] % 360
+            # RAMC + latitude → cuspides Placidus
+            _, prog_ascmc = swe.houses_armc(prog_ramc, data.latitude, eps_p, b"P")
+            prog_asc  = prog_ascmc[0]
+            for deg, key in [
+                (prog_asc,               "Ascendant"),
+                (prog_mc,                "MC"),
+                ((prog_asc + 180) % 360, "Descendant"),
+                ((prog_mc  + 180) % 360, "IC"),
+            ]:
+                planetes[key] = {
+                    "longitude_absolue": round(deg, 4),
+                    "signe":             ZODIAC_SIGNS_LIST[int(deg / 30) % 12],
+                    "degre_dans_signe":  round(deg % 30, 4),
+                    "est_retrograde":    False,
+                    "declinaison":       None,
+                }
+        except Exception:
+            pass
+
+        results.append({
+            "date":         current.strftime("%Y-%m-%d"),
+            "age_annees":   round(age_years, 4),
+            "jd_progresse": round(prog_jd, 6),
+            "planetes":     planetes,
+        })
+        current = next_month(current)
+
+    return results
+
+# ─── /progressions/eclipses ───────────────────────────────────────────────────
+
+def _check_local_sol(ejd_global: float, geopos: list) -> dict:
+    """Vérifie la visibilité locale d'une éclipse solaire déjà trouvée globalement."""
+    try:
+        retflag, tret, attr = swe.sol_eclipse_when_loc(
+            ejd_global - 0.5, geopos, False, swe.FLG_MOSEPH
+        )
+        ECL_VISIBLE = 0x100
+        if abs(tret[0] - ejd_global) < 1.0:
+            return {
+                "visible": bool(retflag & ECL_VISIBLE),
+                "magnitude": round(attr[0], 3),
+                "heure_locale_max": tret[0],
+            }
+        return {"visible": False, "magnitude": 0.0, "heure_locale_max": None}
+    except Exception:
+        return {"visible": False, "magnitude": 0.0, "heure_locale_max": None}
+
+
+def _check_local_lun(ejd_global: float, geopos: list) -> dict:
+    """Vérifie la visibilité locale d'une éclipse lunaire déjà trouvée globalement."""
+    try:
+        retflag, tret, attr = swe.lun_eclipse_when_loc(
+            ejd_global - 0.5, geopos, False, swe.FLG_MOSEPH
+        )
+        ECL_VISIBLE = 0x100
+        if abs(tret[0] - ejd_global) < 1.0:
+            return {
+                "visible": bool(retflag & ECL_VISIBLE),
+                "magnitude": round(attr[0], 3) if attr else 0.0,
+                "heure_locale_max": tret[0],
+            }
+        return {"visible": False, "magnitude": 0.0, "heure_locale_max": None}
+    except Exception:
+        return {"visible": False, "magnitude": 0.0, "heure_locale_max": None}
+
+
+@app.get("/progressions/eclipses")
+def get_progressions_eclipses(
+    date_debut: str = Query(...),
+    date_fin:   str = Query(...),
+    year: int = Query(...), month: int = Query(...), date: int = Query(...),
+    hours: float = Query(...), minutes: float = Query(...), seconds: float = Query(0),
+    latitude: float = Query(...), longitude: float = Query(...), timezone: float = Query(...),
+):
+    data = BirthData(year=year, month=month, date=date, hours=hours, minutes=minutes,
+                     seconds=seconds, latitude=latitude, longitude=longitude, timezone=timezone)
+    """
+    Éclipses dans la fenêtre progressée (1 jour = 1 an).
+    Recherche via when_glob (fiable), visibilité locale via when_loc.
+    Retourne la date de vie réelle où chaque éclipse se manifeste.
+    """
+    natal_jd = to_julian(data)
+    birth_dt = datetime(data.year, data.month, data.date)
+
+    start = parse_date(date_debut)
+    end   = parse_date(date_fin)
+
+    age_start     = (start - birth_dt).days / 365.25
+    age_end       = (end   - birth_dt).days / 365.25
+    prog_jd_start = natal_jd + age_start
+    prog_jd_end   = natal_jd + age_end
+
+    geopos = [data.longitude, data.latitude, 0.0]
+
+    def jd_to_str(jd):
+        y, m, d, h = swe.revjul(jd)
+        hh = int(h); mm = int((h - hh) * 60)
+        if mm == 60: hh += 1; mm = 0
+        return datetime(y, m, d, min(hh, 23), mm).strftime("%Y-%m-%d %H:%M UTC")
+
+    def jd_to_life(ejd):
+        years = ejd - natal_jd
+        life_dt = birth_dt + timedelta(days=years * 365.25)
+        return life_dt.strftime("%Y-%m-%d"), round(years, 4)
+
+    def get_pos(jd, planet_id):
+        try:
+            pos, _ = swe.calc_ut(jd, planet_id, swe.FLG_MOSEPH)
+            lon, lat = pos[0], pos[1]
+            dec = calc_declinaison(lon, lat, get_obliquity(jd))
+            return {
+                "longitude_absolue": round(lon, 4),
+                "signe":             ZODIAC_SIGNS_LIST[int(lon / 30) % 12],
+                "degre_dans_signe":  round(lon % 30, 4),
+                "declinaison":       round(dec, 4),
+            }
+        except Exception:
+            return None
+
+    def type_sol(f):
+        if f & swe.ECL_TOTAL:         return "Totale"
+        if f & swe.ECL_ANNULAR:       return "Annulaire"
+        if f & swe.ECL_ANNULAR_TOTAL: return "Hybride"
+        if f & swe.ECL_PARTIAL:       return "Partielle"
+        return "Inconnue"
+
+    def type_lun(f):
+        if f & swe.ECL_TOTAL:     return "Totale"
+        if f & swe.ECL_PARTIAL:   return "Partielle"
+        if f & swe.ECL_PENUMBRAL: return "Pénombrale"
+        return "Inconnue"
+
+    eclipses = []
+    MAX_ITER  = 50  # garde-fou anti-boucle infinie
+
+    # ── Éclipses solaires ────────────────────────────────────────────────────
+    cur, n = prog_jd_start, 0
+    while cur < prog_jd_end and n < MAX_ITER:
+        n += 1
+        try:
+            res = swe.sol_eclipse_when_glob(cur, swe.FLG_MOSEPH)
+            flags, tret = res[0], res[1]
+            ejd = tret[0]
+            if ejd == 0 or ejd > prog_jd_end:
+                break
+            life_date, age = jd_to_life(ejd)
+            local = _check_local_sol(ejd, geopos)
+            pos   = get_pos(ejd, swe.SUN)
+            eclipses.append({
+                "astre":                 "Soleil",
+                "type":                  type_sol(flags),
+                "date_progresse":        jd_to_str(ejd),
+                "date_vie":              life_date,
+                "age_annees":            age,
+                "visible_lieu_naissance": local["visible"],
+                "magnitude":             local["magnitude"],
+                "longitude_absolue":     pos["longitude_absolue"] if pos else None,
+                "signe":                 pos["signe"] if pos else None,
+                "degre_dans_signe":      pos["degre_dans_signe"] if pos else None,
+                "declinaison":           pos["declinaison"] if pos else None,
+                "_jd":                   ejd,
+            })
+            cur = ejd + 10
+        except Exception:
+            break
+
+    # ── Éclipses lunaires ────────────────────────────────────────────────────
+    cur, n = prog_jd_start, 0
+    while cur < prog_jd_end and n < MAX_ITER:
+        n += 1
+        try:
+            res = swe.lun_eclipse_when(cur, swe.FLG_MOSEPH)
+            flags, tret = res[0], res[1]
+            ejd = tret[0]
+            if ejd == 0 or ejd > prog_jd_end:
+                break
+            life_date, age = jd_to_life(ejd)
+            local = _check_local_lun(ejd, geopos)
+            pos   = get_pos(ejd, swe.MOON)
+            eclipses.append({
+                "astre":                 "Lune",
+                "type":                  type_lun(flags),
+                "date_progresse":        jd_to_str(ejd),
+                "date_vie":              life_date,
+                "age_annees":            age,
+                "visible_lieu_naissance": local["visible"],
+                "magnitude":             local["magnitude"],
+                "longitude_absolue":     pos["longitude_absolue"] if pos else None,
+                "signe":                 pos["signe"] if pos else None,
+                "degre_dans_signe":      pos["degre_dans_signe"] if pos else None,
+                "declinaison":           pos["declinaison"] if pos else None,
+                "_jd":                   ejd,
+            })
+            cur = ejd + 10
+        except Exception:
+            break
+
+    eclipses.sort(key=lambda x: x["_jd"])
+    for e in eclipses:
+        del e["_jd"]
+
+    return eclipses

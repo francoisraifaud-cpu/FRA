@@ -1,6 +1,6 @@
 # DOCUMENTATION WORKFLOW — DÉDUCTION DE L'HEURE DE NAISSANCE (DHN)
 
-**Version** : v5.11 (R2 plafond matrice M Capricorne 5→4, R1 ajout questions physiques q13/q14/q15 morphologie+démarche+élocution ; v5.10 cap arcs + dégradation conf désaccord Q + tri alts par rang Q ; v5.5 Phase 3 — UX & robustesse : presets fourchette horaire front, 3 événements minimum obligatoires, Error Trigger → callback `failed`, mail DHN traduit FR/EN ; v5.4 : TZ historique luxon ; v5.3 : confiance, anti-circulaire, typage événements, plage horaire effective)
+**Version doc** : v8.14 (avril 2026) — alignée sur le moteur **`Resultat final1`** en production (**`engineTag` `v8.14-affinity-ap106`**). Résumé historique v5.x : v5.11 (R2 matrice M, R1 q13–q15) ; v5.10 cap arcs ; v5.5 UX / 3 événements / Error Trigger / i18n mail ; v5.4 TZ luxon ; v5.3 confiance, anti-circulaire, P8, P-window. **Détail bench, commandes scripts et fiabilisation** : voir aussi `SITE/scripts/BENCHMARK-DHN-MANUEL.md`.
 **Plateforme** : n8n Cloud
 **Auteur** : François Raifaud
 
@@ -301,9 +301,9 @@ Seuil minimum : score ≥ 0.3 pour être comptabilisé.
 
 Si un même couple (arc_source, aspect, cible_natale) apparaît pour plusieurs événements, les occurrences suivantes sont pondérées à **×0.5** (marquées `*` dans le rapport).
 
-### 8.6 Bonus d'affinité sémantique (v5.2 — P8)
+### 8.6 Bonus d'affinité sémantique (v5.2 — P8, scission v8.14)
 
-Voir §15 (matrice complète `EVT_AFFINITY`). Lorsqu'une cible natale (planète ou angle) figure dans la liste d'affinité du **type d'événement** (ex. `accident → Mars/Uranus/Pluton/Saturne`, `voyage_important → Jupiter/Mercure/Neptune`), le score de l'aspect est multiplié par `AFFINITY_BONUS = 1.5` et marqué `⊕` dans le rapport. Pas de pénalité pour les cibles non listées (×1) : on renforce le signal cohérent sans éliminer les coïncidences.
+Voir §15 (matrice complète `EVT_AFFINITY`). Lorsqu'une **cible natale** (planète ou angle) d'un aspect **arc solaire dirigé** (`dirASC` / `dirMC` → planète/angle du slot) figure dans la liste d'affinité du **type d'événement**, le score est multiplié par **`AFFINITY_ARC_PROG`** (≈ **1,06** en v8.14 — bonus **doux** ; même matrice `EVT_AFFINITY`, cible correctement passée au calcul). Marqueur `⊕` dans le rapport lorsque le facteur > 1. **Motivation v8.14** : appliquer **×1,5** sur les arcs avec la cible corrigée faisait exploser l'`arcScore` sur certains cas bord (ex. bench naïf YSL) ; le multiplicateur **×1,5** reste pour **RS** et **transits lents** dans le même fichier `Resultat final1` (§10.5). Pas de pénalité pour les cibles non listées (×1).
 
 ---
 
@@ -349,9 +349,9 @@ Les aspects `pASC`/`pMC` ↔ `nASC`/`nMC`/`nDSC`/`nIC` sont **mathématiquement 
 
 **Correction** : multiplicateur `CIRC_PEN = 0.2` appliqué à ces aspects (marqués `↻` dans le rapport). Les autres aspects (`pPlanète` ↔ `nAngle`, `pAngle` ↔ `nPlanète`, `pPlanète` ↔ `nPlanète`) ne sont pas pénalisés car ils discriminent réellement entre slots.
 
-### 9.6 Bonus d'affinité sémantique (v5.2 — P8)
+### 9.6 Bonus d'affinité sémantique (v5.2 — P8, scission v8.14)
 
-Pour `pPlanète` ↔ `nAngle` : bonus appliqué sur la **planète progressée** (la "source" qui porte la sémantique de l'événement). Pour `pAngle` ↔ `nPlanète` : bonus appliqué sur la **cible natale**. Empilable avec `CIRC_PEN` (un voyage avec `pASC conj nDSC` reste pénalisé ↻ même si l'événement matche l'angle).
+Pour les **progressions** (planète progressée → ASC/MC du slot ; pASC/pMC → planète natale) : même règle sémantique P8 que v5.2, mais le multiplicateur appliqué est **`AFFINITY_ARC_PROG`** (≈ **1,06**), avec **cible explicite** (`pn` ou `np.name`) pour que la matrice `EVT_AFFINITY` s'applique là où le commentaire du code l'indique. Marqueur `⊕` si facteur > 1. Empilable avec `CIRC_PEN` (un voyage avec `pASC conj nDSC` reste pénalisé ↻ même si l'événement matche l'angle).
 
 ---
 
@@ -500,7 +500,7 @@ Affiché juste sous l'en-tête :
   - Arcs : Angles ×2, Personnelles ×1.5, `*` = dédup ×0.5
   - Progressions : Lune ×1.5, Personnelles ×1, Lentes ×0.3, `*` = dédup ×0.25, `↻` = auto-référent angle↔angle ×0.2 *(v5.1)*
   - RS : ASC/MC RS vs natal, orbe 3°, `*` = dédup ×0.5, `↻` = auto-référent ×0.2 *(v5.1)*
-  - `⊕` = affinité sémantique événement↔planète ×1.5 *(v5.2 — ex. voyage↔Jupiter, accident↔Mars, deces↔Saturne/Pluton)*
+  - `⊕` = affinité sémantique *(v8.14 : ×~1,06 arcs/prog si match `EVT_AFFINITY` ; ×1,5 RS / transits lents)*
 
 #### Arcs solaires
 - Liste détaillée : `événement: dirASC/dirMC aspect cible (score orbe°)`
@@ -576,7 +576,8 @@ Affiché juste sous l'en-tête :
 - `PW[p]` = poids planétaire cible (0.5 → 2.0)
 - `PS[p]` = vitesse progressée source (0.15 → 1.5)
 - `W[asp]` = poids de l'aspect (0.5 → 4)
-- `A(evt, cible) = AFFINITY_BONUS = 1.5` si `cible ∈ EVT_AFFINITY[evt.type]`, sinon `1` *(v5.2)*
+- `A_arcprog(evt, cible) = AFFINITY_ARC_PROG` (≈ **1,06** en v8.14) si `cible ∈ EVT_AFFINITY[evt.type]`, sinon `1` — **arcs dirigés + progressions** *(v8.14)*
+- `A_srtr(evt, cible) = AFFINITY_BONUS = 1.5` si match, sinon `1` — **révolutions solaires (yearAffin) + transits lents** *(inchangé v5.2)*
 - `C = CIRC_PEN = 0.2` si aspect angle progressé/RS ↔ angle natal, sinon `1` *(v5.1)*
 
 ### Matrice `EVT_AFFINITY` (v5.2 — extrait)
@@ -599,7 +600,7 @@ promotion        → p:[Soleil,Jupiter,Saturne]         a:[MC]
 ### Score arc pour un slot donné *(v5.2)*
 
 ```
-ArcScore(slot) = Σ_evt Σ_cible W[asp] × PW[cible] × T × dédup_factor × A(evt, cible)
+ArcScore(slot) = Σ_evt Σ_cible W[asp] × PW[cible] × T × dédup_factor × A_arcprog(evt, cible)
 ```
 
 Où `dédup_factor` = 1.0 (premier hit) ou 0.5 (doublon).
@@ -607,7 +608,7 @@ Où `dédup_factor` = 1.0 (premier hit) ou 0.5 (doublon).
 ### Score progression pour un slot donné *(v5.1 + v5.2)*
 
 ```
-ProgScore(slot) = Σ_evt Σ_cible W[asp] × PW[cible] × PS[source] × T × dédup_factor × C × A(evt, source_or_cible)
+ProgScore(slot) = Σ_evt Σ_cible W[asp] × PW[cible] × PS[source] × T × dédup_factor × C × A_arcprog(evt, source_or_cible)
 ```
 
 Où `dédup_factor` = 1.0 (premier hit) ou 0.25 (doublon), `C` = 1 (cas général) ou 0.2 (auto-référent angle↔angle).
@@ -615,7 +616,7 @@ Où `dédup_factor` = 1.0 (premier hit) ou 0.25 (doublon), `C` = 1 (cas généra
 ### Score RS pour un slot donné *(v5.1 + v5.2)*
 
 ```
-RSScore(slot) = Σ_année Σ_cible W[asp] × PW[cible] × T × dédup_factor × C × A(année_types, cible)
+RSScore(slot) = Σ_année Σ_cible W[asp] × PW[cible] × T × dédup_factor × C × A_srtr(année_types, cible)
 ```
 
 Où :
@@ -623,7 +624,7 @@ Où :
 - Orbe max = 3.0°
 - `dédup_factor` = 1.0 (premier hit) ou 0.5 (doublon inter-années)
 - `C` = 1 ou `SR_CIRC_PEN = 0.2` si la cible natale est un angle (auto-référence)
-- `A` = 1 ou 1.5 si **au moins un type d'événement de l'année** matche la cible
+- `A_srtr` = 1 ou **1,5** si **au moins un type d'événement de l'année** matche la cible
 
 ### Score total
 
@@ -655,7 +656,9 @@ best = argmax_slot Total(slot)
 | Intervalle scan fin | 5 min | Résolution temporelle du scan |
 | `CIRC_PEN` *(v5.1)* | 0.2 | Pénalité aspect angle progressé ↔ angle natal (auto-référent) |
 | `SR_CIRC_PEN` *(v5.1)* | 0.2 | Idem pour Révolutions Solaires (`srASC/MC` ↔ `nASC/MC/DSC/IC`) |
-| `AFFINITY_BONUS` *(v5.2)* | 1.5 | Bonus si cible ∈ matrice `EVT_AFFINITY[evt.type]` |
+| `AFFINITY_BONUS` *(v5.2, v8.14)* | **1.5** | Bonus **RS** (`yearAffin`) et **transits lents** si cible ∈ `EVT_AFFINITY` |
+| `AFFINITY_ARC_PROG` *(v8.14)* | **~1.06** | Bonus **arcs dirigés** + **progressions** (même matrice, cibles explicites ; valeur calibrée sur bench naïf + informé) |
+| `D11_TECH_MARGIN_MIN` *(v8.13)* | **4** (avant 3.5) | Pénalité locale du stack arcs+prog+RS si le pic 5 min n'est pas assez au-dessus du voisin ±30 min |
 | Seuils confiance *(v5.1)* | ≥20%/10–20%/3–10%/<3% | Forte / Moyenne / Faible / Très faible (% du top score) |
 
 ---
@@ -1059,3 +1062,17 @@ Validation après import :
 - Mais l'ASC RS tombe dans des **maisons natales différentes** selon le slot candidat
 - Les aspects ASC RS → angles nataux sont sensibles au slot car ASC/MC/DSC/IC changent avec l'heure de naissance
 - C'est un axe de validation **orthogonal** aux arcs (qui dépendent de l'âge) et aux progressions (qui dépendent des positions progressées)
+
+## §21 — État prod (avril 2026), bench et déploiement
+
+**Moteur en production** : nœud n8n **`Resultat final1`**, tag **`v8.14-affinity-ap106`** (arcs + progressions : bonus affinité **~1,06** ; RS + transits lents : **×1,5** inchangé).
+
+**Référence bench** : `SITE/scripts/BENCHMARK-DHN-MANUEL.md` — commandes `node SITE/scripts/dhn-benchmark.mjs …`, grilles naïve / informée, fichiers NDJSON `dhn-bench-naive-v814-*.ndjson`, `dhn-bench-informed-v814-*.ndjson`, résultats `dhn-bench-results-naive-v814-*.json`, `dhn-bench-results-informed-v814-*.json`.
+
+**Déploiement code** : `node SITE/scripts/dhn-deploy-code.mjs` (copie le JS du moteur vers le workflow n8n, nœud cible **`Resultat final1`**).
+
+**Rappels de fiabilisation récents** :
+- **v8.10** : `pn` / `np.name` pour progressions (évite bonus affinité sur mauvaise planète).
+- **v8.12** : cible d’arc corrigée (`targetPlanet` / `targetAngle`) pour l’affinité arcs.
+- **v8.13** : `D11_TECH_MARGIN_MIN` **4** (vs 3,5) — bench naïf **10/18**, informé **18/18**.
+- **v8.14** : split bonus arcs/prog (**~1,06**) vs RS/transits (**×1,5**) — bench naïf **10/18**, informé **18/18** ; évite régression bench naïf (ex. YSL) tout en gardant le discriminant fort sur RS.

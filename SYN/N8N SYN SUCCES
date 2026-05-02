@@ -2,15 +2,15 @@
   "nodes": [
     {
       "parameters": {
-        "jsCode": "/**\n * SYNASTRIE (SYN) — 3 PDF depuis le merge, sans renommage des PJ.\n * Classement par fileName = chaînes amont (doc SYN §10). Pas THÈME.\n */\nfunction pickPdfBinary(item) {\n  const bin = item.binary || {};\n  for (const key of Object.keys(bin)) {\n    const b = bin[key];\n    if (!b) continue;\n    const mime = String(b.mimeType || \"\").toLowerCase();\n    const ext = String(b.fileExtension || \"\").toLowerCase();\n    if (mime.includes(\"pdf\") || ext === \"pdf\") return b;\n  }\n  const keys = Object.keys(bin);\n  if (keys.length) return bin[keys[0]];\n  return null;\n}\n\nfunction normName(s) {\n  return String(s || \"\")\n    .toLowerCase()\n    .normalize(\"NFD\")\n    .replace(/\\p{M}/gu, \"\");\n}\n\nfunction bucketForFileName(fileName) {\n  const n = normName(fileName);\n  if (n.includes(\"rapport technique synastrie\")) return \"tech\";\n  if (n.includes(\"donnees techniques synastrie\")) return \"donnees\";\n  if (n.includes(\"rapport synastrie\") && !n.includes(\"technique\")) return \"main\";\n  return null;\n}\n\nconst items = $input.all();\nif (items.length === 0) return [];\n\nconst buckets = { main: null, tech: null, donnees: null };\nconst orphans = [];\n\nfor (const item of items) {\n  const pdf = pickPdfBinary(item);\n  if (!pdf) continue;\n  const b = bucketForFileName(pdf.fileName);\n  if (b && !buckets[b]) buckets[b] = pdf;\n  else orphans.push(pdf);\n}\n\nfor (const o of orphans) {\n  if (!buckets.main) buckets.main = o;\n  else if (!buckets.tech) buckets.tech = o;\n  else if (!buckets.donnees) buckets.donnees = o;\n}\n\nif (!buckets.main || !buckets.tech || !buckets.donnees) {\n  throw new Error(\n    \"Prépare email 3 PDF SYN : 3 PDF attendus (données, technique, rapport final). \" +\n      \"Reçu : \" +\n      [buckets.main, buckets.tech, buckets.donnees].filter(Boolean).length +\n      \". Vérifie les fileName : \" +\n      items\n        .map((i) => pickPdfBinary(i)?.fileName || \"(sans pdf)\")\n        .join(\" | \"),\n  );\n}\n\nlet extract = {};\ntry {\n  extract = $(\"Extract Variables SYN\").first().json || {};\n} catch (e) {\n  /* nœud absent en test isolé */\n}\n\nconst mailClient =\n  extract.mail ||\n  items.find((i) => i.json?.mail)?.json?.mail ||\n  items[0].json?.mailClient ||\n  items[0].json?.mail ||\n  null;\n\nfunction personDisplayName(p) {\n  if (!p || typeof p !== \"object\") return \"\";\n  const pre = String(p.prenom ?? \"\").trim();\n  const no = String(p.nom ?? \"\").trim();\n  return [pre, no].filter(Boolean).join(\" \").trim();\n}\n\nconst nameA = personDisplayName(extract.personne_a);\nconst nameB = personDisplayName(extract.personne_b);\n\nfunction isEnglishLang(raw) {\n  const s = String(raw ?? \"\")\n    .trim()\n    .toLowerCase()\n    .normalize(\"NFD\")\n    .replace(/\\p{M}/gu, \"\");\n  if (!s) return false;\n  if (s === \"en\" || s === \"english\" || s === \"anglais\") return true;\n  if (s.includes(\"english\") || s.includes(\"anglais\")) return true;\n  return false;\n}\n\nconst en = isEnglishLang(extract.langue);\nconst typoFr = String(extract.typologie || \"\").trim() || \"—\";\nconst typoEnMap = {\n  Amour: \"Love\",\n  Business: \"Business\",\n  \"Parent / Enfant\": \"Parent & Child\",\n  Fratrie: \"Siblings\",\n  Ami: \"Friendship\",\n  Mentorat: \"Mentorship\",\n  Colocataire: \"Roommates\",\n  Rivalité: \"Rivalry\",\n};\nconst typoEn = typoEnMap[typoFr] || typoFr;\nconst labelA = nameA || \"Person A\";\nconst labelB = nameB || \"Person B\";\nconst subjectPieces = en\n  ? [\"🌟 Synastry\", typoEn, labelA, labelB]\n  : [\"🌟 Synastrie\", typoFr, labelA, labelB];\nconst emailSubject = subjectPieces.filter(Boolean).join(\" — \");\n\nconst greetHtml = en ? \"<p>Hello,</p>\" : \"<p>Bonjour,</p>\";\n\nconst emailHtml = en\n  ? `${greetHtml}<p>Your three synastry documents (<strong>${typoEn}</strong>) are attached as PDFs: technical data, professional analysis report, and client-facing narrative.</p><p>Clear skies! 🌟</p>`\n  : `${greetHtml}<p>Vos trois documents de synastrie (<strong>${typoFr}</strong>) sont en pièces jointes au format PDF : données techniques, rapport d'analyse et rapport de synthèse.</p><p>Bonnes étoiles ! 🌟</p>`;\n\nreturn [\n  {\n    json: {\n      mailClient: mailClient || \"votre.adresse.test@gmail.com\",\n      typologie: typoFr,\n      langue: extract.langue ?? null,\n      emailSubject,\n      emailHtml,\n    },\n    binary: {\n      data: buckets.main,\n      data1: buckets.tech,\n      data2: buckets.donnees,\n    },\n  },\n];\n"
+        "jsCode": "/**\n * SYNASTRIE (SYN) — 3 PDF depuis le merge, sans renommage des PJ.\n * Classement par fileName = chaînes amont (doc SYN §10).\n * orderId : Webhook / Extract Variables SYN (commande site).\n */\nfunction pickPdfBinary(item) {\n  const bin = item.binary || {};\n  for (const key of Object.keys(bin)) {\n    const b = bin[key];\n    if (!b) continue;\n    const mime = String(b.mimeType || \"\").toLowerCase();\n    const ext = String(b.fileExtension || \"\").toLowerCase();\n    if (mime.includes(\"pdf\") || ext === \"pdf\") return b;\n  }\n  const keys = Object.keys(bin);\n  if (keys.length) return bin[keys[0]];\n  return null;\n}\n\nfunction normName(s) {\n  return String(s || \"\")\n    .toLowerCase()\n    .normalize(\"NFD\")\n    .replace(/\\p{M}/gu, \"\");\n}\n\nfunction bucketForFileName(fileName) {\n  const n = normName(fileName);\n  if (n.includes(\"rapport technique synastrie\")) return \"tech\";\n  if (n.includes(\"donnees techniques synastrie\")) return \"donnees\";\n  if (n.includes(\"rapport synastrie\") && !n.includes(\"technique\")) return \"main\";\n  return null;\n}\n\nconst items = $input.all();\nif (items.length === 0) return [];\n\nconst buckets = { main: null, tech: null, donnees: null };\nconst orphans = [];\n\nfor (const item of items) {\n  const pdf = pickPdfBinary(item);\n  if (!pdf) continue;\n  const b = bucketForFileName(pdf.fileName);\n  if (b && !buckets[b]) buckets[b] = pdf;\n  else orphans.push(pdf);\n}\n\nfor (const o of orphans) {\n  if (!buckets.main) buckets.main = o;\n  else if (!buckets.tech) buckets.tech = o;\n  else if (!buckets.donnees) buckets.donnees = o;\n}\n\nif (!buckets.main || !buckets.tech || !buckets.donnees) {\n  throw new Error(\n    \"Prépare email 3 PDF SYN : 3 PDF attendus (données, technique, rapport final). \" +\n      \"Reçu : \" +\n      [buckets.main, buckets.tech, buckets.donnees].filter(Boolean).length +\n      \". Vérifie les fileName : \" +\n      items\n        .map((i) => pickPdfBinary(i)?.fileName || \"(sans pdf)\")\n        .join(\" | \"),\n  );\n}\n\nlet extract = {};\ntry {\n  extract = $(\"Extract Variables SYN\").first().json || {};\n} catch (e) {\n  /* nœud absent en test isolé */\n}\n\nconst WEBHOOK_NAMES = [\"Webhook\", \"Webhook Syn\", \"Webhook SYN\", \"Webhook1\"];\nfunction readOrderIdFromWebhook() {\n  for (const name of WEBHOOK_NAMES) {\n    try {\n      const j = $(name).first().json;\n      const b =\n        j?.body !== undefined && j?.body !== null && typeof j.body === \"object\" && !Array.isArray(j.body)\n          ? j.body\n          : j;\n      let id = typeof b?.orderId === \"string\" ? b.orderId.trim() : \"\";\n      if (!id && typeof j?.orderId === \"string\") id = j.orderId.trim();\n      if (id) return id;\n    } catch (e) {}\n  }\n  return null;\n}\nconst EXTRACT_NAMES = [\n  \"Extract Variables\",\n  \"Extract Variables SYN\",\n  \"Extract Variables DHN\",\n  \"Extract Variables DHN1\",\n  \"Extract Variables1\",\n];\nfunction readOrderIdFromExtracts() {\n  for (const n of EXTRACT_NAMES) {\n    try {\n      const v = $(n).first()?.json?.orderId;\n      if (typeof v === \"string\" && v.trim()) return v.trim();\n    } catch (e) {}\n  }\n  return null;\n}\nfunction readOrderIdFromInputItems(items) {\n  for (const it of items) {\n    const id = it?.json?.orderId;\n    if (typeof id === \"string\" && id.trim()) return id.trim();\n  }\n  return null;\n}\n\nconst orderId =\n  readOrderIdFromInputItems(items) || readOrderIdFromWebhook() || readOrderIdFromExtracts();\nif (!orderId) {\n  throw new Error(\n    \"Prépare email 3 PDF SYN : orderId introuvable. Vérifiez Extract Variables SYN / Webhook (orderId).\",\n  );\n}\n\nconst mailClient =\n  extract.mail ||\n  items.find((i) => i.json?.mail)?.json?.mail ||\n  items[0].json?.mailClient ||\n  items[0].json?.mail ||\n  null;\n\nfunction personDisplayName(p) {\n  if (!p || typeof p !== \"object\") return \"\";\n  const pre = String(p.prenom ?? \"\").trim();\n  const no = String(p.nom ?? \"\").trim();\n  return [pre, no].filter(Boolean).join(\" \").trim();\n}\n\nconst nameA = personDisplayName(extract.personne_a);\nconst nameB = personDisplayName(extract.personne_b);\n\nfunction isEnglishLang(raw) {\n  const s = String(raw ?? \"\")\n    .trim()\n    .toLowerCase()\n    .normalize(\"NFD\")\n    .replace(/\\p{M}/gu, \"\");\n  if (!s) return false;\n  if (s === \"en\" || s === \"english\" || s === \"anglais\") return true;\n  if (s.includes(\"english\") || s.includes(\"anglais\")) return true;\n  return false;\n}\n\nconst en = isEnglishLang(extract.langue);\nconst typoFr = String(extract.typologie || \"\").trim() || \"—\";\nconst typoEnMap = {\n  Amour: \"Love\",\n  Business: \"Business\",\n  \"Parent / Enfant\": \"Parent & Child\",\n  Fratrie: \"Siblings\",\n  Ami: \"Friendship\",\n  Mentorat: \"Mentorship\",\n  Colocataire: \"Roommates\",\n  Rivalité: \"Rivalry\",\n};\nconst typoEn = typoEnMap[typoFr] || typoFr;\nconst labelA = nameA || \"Person A\";\nconst labelB = nameB || \"Person B\";\nconst subjectPieces = en\n  ? [\"🌟 Synastry\", typoEn, labelA, labelB]\n  : [\"🌟 Synastrie\", typoFr, labelA, labelB];\nconst emailSubject = subjectPieces.filter(Boolean).join(\" — \");\n\nconst greetHtml = en ? \"<p>Hello,</p>\" : \"<p>Bonjour,</p>\";\n\nconst emailHtml = en\n  ? `${greetHtml}<p>Your three synastry documents (<strong>${typoEn}</strong>) are attached as PDFs: technical data, professional analysis report, and client-facing narrative.</p><p>Clear skies! 🌟</p>`\n  : `${greetHtml}<p>Vos trois documents de synastrie (<strong>${typoFr}</strong>) sont en pièces jointes au format PDF : données techniques, rapport d'analyse et rapport de synthèse.</p><p>Bonnes étoiles ! 🌟</p>`;\n\nreturn [\n  {\n    json: {\n      orderId,\n      mailClient: mailClient || \"votre.adresse.test@gmail.com\",\n      typologie: typoFr,\n      langue: extract.langue ?? null,\n      emailSubject,\n      emailHtml,\n    },\n    binary: {\n      data: buckets.main,\n      data1: buckets.tech,\n      data2: buckets.donnees,\n    },\n  },\n];\n"
       },
-      "id": "66cbb9cb-ca3d-4466-a6e2-5a2c3ff531b4",
+      "id": "2f6d2450-8323-479a-88b4-7de629a2bd2c",
       "name": "Prépare email 3 PDF",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        3904,
-        3072
+        96,
+        4000
       ]
     },
     {
@@ -29,13 +29,13 @@
           "bccList": ""
         }
       },
-      "id": "a4c9c951-3bb8-4f5e-85ee-f1126b329a46",
+      "id": "e84b3cdd-1391-4b43-940e-47cfb9082477",
       "name": "Envoi Email avec PDF1",
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2.1,
       "position": [
-        4144,
-        3072
+        336,
+        4000
       ],
       "webhookId": "b7e803e5-3628-47d1-a692-84db339ebbce",
       "credentials": {
@@ -47,44 +47,105 @@
     },
     {
       "parameters": {
-        "jsCode": "const WEBHOOK_NODE='Webhook';const EXTRACT_NAMES=['Extract Variables','Extract Variables SYN','Extract Variables DHN','Extract Variables DHN1','Extract Variables1'];function readOrderIdFromWebhook(){try{const j=$(WEBHOOK_NODE).first().json;const b=j?.body!==undefined&&j?.body!==null&&typeof j.body==='object'&&!Array.isArray(j.body)?j.body:j;let id=typeof b?.orderId==='string'?b.orderId.trim():'';if(!id&&typeof j?.orderId==='string')id=j.orderId.trim();return id||null;}catch(e){return null;}}function readOrderIdFromExtracts(){for(const n of EXTRACT_NAMES){try{const v=$(n).first()?.json?.orderId;if(typeof v==='string'&&v.trim())return v.trim();}catch(e){}}return null;}const siteCallbackOrderId=readOrderIdFromWebhook()||readOrderIdFromExtracts();if(!siteCallbackOrderId)return[];return[{json:{siteCallbackOrderId}}];"
+        "jsCode": "/**\n * SYN — même rôle que THEME / PREV SITE 3 PDF tiers ; noms fichiers synastrie ; synTypology (codes site).\n * Brancher en parallèle depuis « Prépare email 3 PDF » (binaires, même branche que Gmail).\n */\nfunction pickPdfBinary(item) {\n  const bin = item.binary || {};\n  for (const key of Object.keys(bin)) {\n    const b = bin[key];\n    if (!b) continue;\n    const mime = String(b.mimeType || \"\").toLowerCase();\n    const ext = String(b.fileExtension || \"\").toLowerCase();\n    if (mime.includes(\"pdf\") || ext === \"pdf\") return b;\n  }\n  const keys = Object.keys(bin);\n  if (keys.length) return bin[keys[0]];\n  return null;\n}\nfunction normName(s) {\n  return String(s || \"\")\n    .toLowerCase()\n    .normalize(\"NFD\")\n    .replace(/\\p{M}/gu, \"\");\n}\nfunction bucketForFileName(fileName) {\n  const n = normName(fileName);\n  if (n.includes(\"rapport technique synastrie\")) return \"tech\";\n  if (n.includes(\"donnees techniques synastrie\")) return \"donnees\";\n  if (n.includes(\"rapport synastrie\") && !n.includes(\"technique\")) return \"main\";\n  return null;\n}\nfunction readOrderIdFromInputItems(items) {\n  for (const it of items) {\n    const id = it?.json?.orderId;\n    if (typeof id === \"string\" && id.trim()) return id.trim();\n  }\n  return null;\n}\nconst WEBHOOK_NAMES = [\"Webhook\", \"Webhook Syn\", \"Webhook SYN\", \"Webhook1\"];\nfunction readOrderIdFromWebhook() {\n  for (const name of WEBHOOK_NAMES) {\n    try {\n      const j = $(name).first().json;\n      const b =\n        j?.body !== undefined && j?.body !== null && typeof j.body === \"object\" && !Array.isArray(j.body)\n          ? j.body\n          : j;\n      let id = typeof b?.orderId === \"string\" ? b.orderId.trim() : \"\";\n      if (!id && typeof j?.orderId === \"string\") id = j.orderId.trim();\n      if (id) return id;\n    } catch (e) {}\n  }\n  return null;\n}\nconst EXTRACT_NAMES = [\n  \"Extract Variables\",\n  \"Extract Variables SYN\",\n  \"Extract Variables DHN\",\n  \"Extract Variables DHN1\",\n  \"Extract Variables1\",\n];\nfunction readOrderIdFromExtracts() {\n  for (const n of EXTRACT_NAMES) {\n    try {\n      const v = $(n).first()?.json?.orderId;\n      if (typeof v === \"string\" && v.trim()) return v.trim();\n    } catch (e) {}\n  }\n  return null;\n}\nconst buckets = { main: null, tech: null, donnees: null };\nconst orphans = [];\nlet items = [];\nfunction readPdfTripletFromBinary(b) {\n  if (!b?.data || !b?.data1 || !b?.data2) return null;\n  return { main: b.data, tech: b.data1, donnees: b.data2 };\n}\nconst triple =\n  readPdfTripletFromBinary($input.first()?.binary) ||\n  (() => {\n    try {\n      return readPdfTripletFromBinary($(\"Prépare email 3 PDF\").first()?.binary);\n    } catch (e) {\n      return null;\n    }\n  })();\nif (triple) {\n  buckets.main = triple.main;\n  buckets.tech = triple.tech;\n  buckets.donnees = triple.donnees;\n} else {\n  items = (() => {\n    try {\n      const g = $(\"Envoi Email avec PDF1\").all();\n      if (g && g.length) return g;\n    } catch (e) {}\n    return $input.all();\n  })();\n  if (items.length === 0) return [];\n  for (const item of items) {\n    const pdf = pickPdfBinary(item);\n    if (!pdf) continue;\n    const b = bucketForFileName(pdf.fileName);\n    if (b && !buckets[b]) buckets[b] = pdf;\n    else orphans.push(pdf);\n  }\n  for (const o of orphans) {\n    if (!buckets.main) buckets.main = o;\n    else if (!buckets.tech) buckets.tech = o;\n    else if (!buckets.donnees) buckets.donnees = o;\n  }\n}\nif (!buckets.main || !buckets.tech || !buckets.donnees) {\n  throw new Error(\n    \"SYN SITE 3 PDF tiers : 3 PDF requis. Reçu : \" +\n      [buckets.main, buckets.tech, buckets.donnees].filter(Boolean).length +\n      \". Sur n8n Cloud : branche ce nœud depuis « Prépare email 3 PDF » (même branche que Gmail).\",\n  );\n}\nconst orderId =\n  readOrderIdFromInputItems($input.all()) ||\n  readOrderIdFromInputItems(items) ||\n  readOrderIdFromWebhook() ||\n  readOrderIdFromExtracts();\nif (!orderId) {\n  throw new Error(\n    \"SYN SITE 3 PDF tiers : orderId introuvable. Vérifiez Extract Variables SYN / Webhook (orderId).\",\n  );\n}\nlet extractSynMeta = {};\ntry {\n  extractSynMeta = $(\"Extract Variables SYN\").first().json || {};\n} catch (e) {}\nconst _synMap = {\n  Amour: \"love\",\n  Business: \"business\",\n  \"Parent / Enfant\": \"parent_child\",\n  Fratrie: \"sibling\",\n  Ami: \"friend\",\n  Mentorat: \"mentorship\",\n  Colocataire: \"roommate\",\n  Rivalité: \"rivalry\",\n};\nconst _typ = String(extractSynMeta.typologie || \"\").trim();\nconst synTypology = _synMap[_typ] || null;\n\nconst execId =\n  typeof $execution !== \"undefined\" && $execution && $execution.id !== undefined && $execution.id !== null\n    ? String($execution.id)\n    : \"\";\nconst seq = [\n  { documentTier: \"narrative_final\", bin: buckets.main },\n  { documentTier: \"narrative_tech\", bin: buckets.tech },\n  { documentTier: \"data_technical\", bin: buckets.donnees },\n];\nreturn seq.map((s) => ({\n  json: {\n    orderId,\n    documentTier: s.documentTier,\n    n8nExecutionId: execId,\n    synTypology,\n  },\n  binary: { data: s.bin },\n}));\n"
       },
-      "id": "b52a7543-17f8-4d8b-a7c3-6f6afd839cad",
-      "name": "Succes DHN",
+      "id": "064cab5c-bed2-4d84-b466-c3350e2af340",
+      "name": "SYN SITE 3 PDF tiers",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        4384,
-        3072
+        336,
+        3696
+      ]
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "={{ 'https://blob.vercel-storage.com/syn/' + encodeURIComponent($json.orderId) + '/' + encodeURIComponent($json.documentTier) + '-' + encodeURIComponent($json.n8nExecutionId || 'run') + '.pdf' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-api-version",
+              "value": "7"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "binaryData",
+        "inputDataFieldName": "data",
+        "options": {
+          "response": {}
+        }
+      },
+      "id": "8a930839-19f3-4dbd-9dac-b41486a57797",
+      "name": "SYN PUT Blob PDF",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        576,
+        3696
+      ],
+      "retryOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const blobs = $input.all();\nconst metas = $('SYN SITE 3 PDF tiers').all();\nif (blobs.length !== metas.length) {\n  throw new Error(\n    'SYN merge Blob URL : réponses Blob (' +\n      blobs.length +\n      ') != items source (' +\n      metas.length +\n      ')',\n  );\n}\nreturn blobs.map((b, i) => {\n  const u = typeof b.json?.url === 'string' ? b.json.url.trim() : '';\n  const alt =\n    typeof b.json?.downloadUrl === 'string' ? b.json.downloadUrl.trim() : '';\n  const pdfUrl = u || alt;\n  if (!pdfUrl) {\n    throw new Error(\n      \"SYN merge Blob URL : pas d'URL HTTPS dans la réponse Vercel (index \" +\n        i +\n        \") : \" +\n        JSON.stringify(b.json),\n    );\n  }\n  return {\n    json: {\n      orderId: metas[i].json.orderId,\n      documentTier: metas[i].json.documentTier,\n      n8nExecutionId: metas[i].json.n8nExecutionId,\n      synTypology: metas[i].json.synTypology,\n      pdfUrl,\n    },\n  };\n});\n"
+      },
+      "id": "efcc01ce-a19f-47fe-b71a-e773076e0244",
+      "name": "SYN merge Blob URL + meta",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        816,
+        3696
       ]
     },
     {
       "parameters": {
         "method": "POST",
         "url": "https://site-rapports-astro.vercel.app/api/webhooks/n8n-order-status",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "X-Site-Webhook-Secret",
-              "value": "REMPLACER_PAR_LE_MEME_SECRET_QUE_SUR_VERCEL_N8N_WEBHOOK_SECRET"
-            }
-          ]
-        },
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
         "sendBody": true,
         "contentType": "raw",
         "rawContentType": "application/json",
-        "body": "={{ JSON.stringify({ orderId: $json.siteCallbackOrderId, status: 'delivered' }) }}",
+        "body": "={{ JSON.stringify({ orderId: $json.orderId, status: $json.documentTier === 'data_technical' ? 'delivered' : 'delivered_site', pdfUrl: $json.pdfUrl, documentTier: $json.documentTier, n8nExecutionId: $json.n8nExecutionId, synTypology: $json.synTypology || null }) }}",
         "options": {}
       },
-      "id": "7beb50e9-46fb-4ee6-966b-37dcc0c1f9f0",
-      "name": "POST SUCCES DHN",
+      "id": "6ae4b611-391e-444b-84d7-75604cd37894",
+      "name": "SYN POST site status",
       "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.4,
+      "typeVersion": 4.2,
       "position": [
-        4608,
-        3072
-      ]
+        1056,
+        3696
+      ],
+      "retryOnFail": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://site-rapports-astro.vercel.app/api/webhooks/n8n-order-status",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify({ orderId: $('Prépare email 3 PDF').first().json.orderId, status: 'delivered_email', n8nExecutionId: typeof $execution !== 'undefined' && $execution && $execution.id != null ? String($execution.id) : '' }) }}",
+        "options": {}
+      },
+      "id": "951fce1e-27be-4ad8-804d-ec8c1d0fa8c7",
+      "name": "SYN POST delivered_email",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        576,
+        4000
+      ],
+      "retryOnFail": true
     },
     {
       "parameters": {
@@ -93,10 +154,10 @@
       "type": "n8n-nodes-base.merge",
       "typeVersion": 3.2,
       "position": [
-        3680,
-        3056
+        -128,
+        3984
       ],
-      "id": "76a5fe44-04bd-47ee-93b3-d5c17cf333c6",
+      "id": "c0cf2db3-36ea-444f-b1c3-5b2e94f19d69",
       "name": "Merge9"
     }
   ],
@@ -108,6 +169,11 @@
             "node": "Envoi Email avec PDF1",
             "type": "main",
             "index": 0
+          },
+          {
+            "node": "SYN SITE 3 PDF tiers",
+            "type": "main",
+            "index": 0
           }
         ]
       ]
@@ -116,18 +182,40 @@
       "main": [
         [
           {
-            "node": "Succes DHN",
+            "node": "SYN POST delivered_email",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Succes DHN": {
+    "SYN SITE 3 PDF tiers": {
       "main": [
         [
           {
-            "node": "POST SUCCES DHN",
+            "node": "SYN PUT Blob PDF",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SYN PUT Blob PDF": {
+      "main": [
+        [
+          {
+            "node": "SYN merge Blob URL + meta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SYN merge Blob URL + meta": {
+      "main": [
+        [
+          {
+            "node": "SYN POST site status",
             "type": "main",
             "index": 0
           }
