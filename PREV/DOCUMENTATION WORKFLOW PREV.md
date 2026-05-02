@@ -1762,7 +1762,9 @@ const _yReliable = (_mdseResults || [])
 | 11440 François 2025 | 3 | ✓ | DEUIL 77 / ACCIDENT 74 / SPIRITUEL 70 |
 | 11441 François 2026 | 0 | ✓ (absent comme attendu) | — (SPIRITUEL=75 cappé X exclu, autres < 70) |
 
-**Validation narrative** (LLM Traducteur) : ✅ validée via test bout-en-bout réel **exec 11446** (François 12/11/1987 13H15 Nantes — annuel 2025, 2026-05-02 13:05–13:29 UTC, durée 24 min 31 s, 90/90 nodes). Score : **3/3 critères primaires passés**.
+**Validation narrative** (LLM Traducteur) : ✅ validée via tests bout-en-bout réels sur **les 2 branches du code Sprint Y** (cas critique + cas safety, 2026-05-02).
+
+**Cas critique exec 11446** (François 12/11/1987 13H15 Nantes — annuel 2025, 13:05–13:29 UTC, durée 24 min 31 s, 90/90 nodes). Score : **3/3 critères primaires passés**.
 
 | Critère | post-W (11234) | post-Y (11446) | Δ | Verdict |
 |---|---:|---:|---:|---|
@@ -1776,7 +1778,22 @@ const _yReliable = (_mdseResults || [])
 
 **Note critère 1 strict** : le mot "deuil" lui-même reste à 0 occurrence — **non bloquant**, la consigne LLM injectée par Sprint Y demande d'« ancrer aux fenêtres temporelles » et « citer le levier principal », pas d'utiliser le mot "deuil" stricto sensu. Le label déguisé "fin de cycle / transformation profonde" remplit la fonction (et est mieux toléré côté UX client).
 
-**Marker payload** : `_sYReliableSigs` (1er item finalOutput) — array `[{code,confidence,level,peakDates,condCount}]`. Confirmé sur 11446 : 3 sigs (DEUIL 77 / ACCIDENT 74 / SPIRITUEL 70).
+**Cas safety exec 11447** (François 12/11/1987 13H15 Nantes — annuel 2026, 13:50–14:13 UTC, durée 23 min 5 s, 90/90 nodes). Top 5 eventSignatures : SPIRITUEL 75 / VOYAGE 65 / RELOCATION 65 / DEUIL 56 / ACCIDENT 49 → 0 sig ultra-fiable (4/5 exclus par C1 `confidence < 70`, SPIRITUEL=75 exclu cap W/X et/ou conditions < 3).
+
+| Critère safety | Résultat | Verdict |
+|---|---:|---|
+| `_sYReliableSigs.length === 0` (array `[]`, **pas `null`**) | `[]` | ✓ branche `else` exécutée → preuve forte que Sprint Y est vivant en prod |
+| Bloc `🎯 SIGNATURES ULTRA FIABLES` dans 0/13 prompt_user | 0/13 | ✓ |
+| Pas d'invention "deuil" en M8/synthèse | 0/0 | ✓ |
+| Pas d'invention des fenêtres 2025 dans narratif 2026 | 0 | ✓ |
+| Pas d'invention des leviers spécifiques DEUIL (station Saturne, Saturne→M8) | 0/0 | ✓ |
+| Invasion "naissance" vs post-W (11444) | 78 vs 99 = -21 | ✓ variabilité Gemini favorable |
+
+→ Cas safety entièrement validé. La branche `else` du code Sprint Y se comporte conformément à la spec : pas d'injection prompt_user, marqueur `[]` exposé pour audit, narratif libre non pollué.
+
+**Marker payload** : `_sYReliableSigs` (1er item finalOutput) — array `[{code,confidence,level,peakDates,condCount}]` quand sigs ultra-fiables détectées, `[]` quand aucune. Confirmé live :
+- 11446 (François 2025) : 3 sigs (DEUIL 77 / ACCIDENT 74 / SPIRITUEL 70)
+- 11447 (François 2026) : `[]`
 
 **Incident pendant validation (2026-05-02 12:19:44 UTC+2)** : le bloc Sprint Y a été silencieusement supprimé du `Super noeud1` prod par un édit indéterminé via l'éditeur n8n web entre le bench 11441 (11:40 UTC+2, Sprint Y présent) et le premier test live 11443 (12:20:51 UTC+2, OOM `WorkflowCrashedError` après 1.5 s). Conséquences : 11444 (François 2026, 25 min success) et 11445 (François 2025, 25 min success) ont tourné **sans Sprint Y**, faussant les premières analyses. Diagnostic posé via `GET /workflows/Qp8WkBhPEvYbdb9j` → recherche de `SIGNATURES ULTRA FIABLES` dans `Super noeud1.parameters.jsCode` → idx = -1 (alors que le fichier source local le contenait à la ligne 12130). Correction : redéploiement via `prev-deploy-supernode.mjs` à 13:03:16 UTC+2 (delta `+5 534 chars` = uniquement le bloc Sprint Y) puis relance live 11446 (validation OK).
 
