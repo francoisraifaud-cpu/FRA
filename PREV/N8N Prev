@@ -3490,6 +3490,26 @@ const _MDSE_POLARITY_LABELS = {
   JURIDIQUE_UP:   {pos:"Succès juridique ou administratif",                  neg:"Résolution partielle / Compromis"},
   VOYAGE:         {pos:"Voyage enrichissant / Découverte",                   neg:"Horizons bousculés / Déplacement imprévu"}
 };
+// Sprint 9.1 (i18n EN) — labels polarité anglais alignés sur _MDSE_POLARITY_LABELS FR.
+// Sélection runtime via langueRapport (perso.langue) côté boucle d'application Phase C.
+const _MDSE_POLARITY_LABELS_EN = {
+  ACCIDENT:       {pos:"Controlled audacity and dynamism",                   neg:"Haste / Physical vulnerability"},
+  SANTE_DOWN:     {pos:"Body awareness",                                     neg:"Vitality decline / Recovery period"},
+  SANTE_UP:       {pos:"Carrying physical momentum",                         neg:"Slow and gradual improvement"},
+  DEUIL:          {pos:"Release of an old burden",                           neg:"Significant loss / Symbolic or real grief"},
+  MARIAGE:        {pos:"Lasting alliance / Chosen commitment",               neg:"Pressured commitment / Relational decision"},
+  SEPARATION:     {pos:"Release of an outgrown bond",                        neg:"Relational crisis / Bond rupture"},
+  ENFANT:         {pos:"Creative birth / Renewal",                           neg:"Delayed fertility / Difficult gestation"},
+  CARRIERE_UP:    {pos:"Ascension and increased visibility",                 neg:"Increased responsibilities to integrate"},
+  CARRIERE_DOWN:  {pos:"Chosen reorientation / Strategic pivot",             neg:"Professional destabilization"},
+  FINANCE_UP:     {pos:"Significant financial inflow",                       neg:"Conditional gain / Speculative caution"},
+  FINANCE_DOWN:   {pos:"Constructive financial cleansing",                   neg:"Financial pressure / Resource contraction"},
+  RELOCATION:     {pos:"New beginning / Setting expansion",                  neg:"Setting transition / Domestic instability"},
+  SPIRITUEL:      {pos:"Inner awakening / Consciousness expansion",          neg:"Existential reassessment / Introspection"},
+  JURIDIQUE_DOWN: {pos:"Necessary legal clarification",                      neg:"Litigation / Contractual blockage"},
+  JURIDIQUE_UP:   {pos:"Legal or administrative success",                    neg:"Partial resolution / Compromise"},
+  VOYAGE:         {pos:"Enriching journey / Discovery",                      neg:"Disrupted horizons / Unexpected travel"}
+};
 
 // D6 ISO: Transit sign map = signe dominant par comptage de jours (ISO N8N Prev Repport)
 const _transitSignMapMDSE = {};
@@ -9272,7 +9292,8 @@ _mdseResults.forEach(sig => {
 } catch(e) {}
 
 // --- CF5 : Labels contextuels v15.1 — 16 signatures + guidance PNA-aware ---
-try {
+// Sprint 9.1 (i18n EN) : dictionnaires sortis du try {} pour exposer _LABEL_OVERRIDES_EN
+// au scope global (consommé aussi par la ré-application Sprint 9.1 ligne ~12092).
 const _LABEL_OVERRIDES = {
   ACCIDENT:       { label: "Énergie en excès / Vigilance physique", guidance: { high: "Une convergence inhabituelle d'énergies Mars-Uranus invite à une vigilance accrue : ralentir, écouter le corps, éviter la précipitation.", medium: "Des énergies dynamiques mais instables sont actives — période demandant attention et prudence dans l'action.", low: "Un léger surplus d'énergie volatile se manifeste — maintenir l'ancrage et la prudence." }},
   SANTE_DOWN:     { label: "Fragilisation de la vitalité", guidance: { high: "Le corps demande une attention particulière — période de ralentissement nécessaire et de soins préventifs.", medium: "Des signaux de fatigue émergent — écouter le corps et adapter le rythme.", low: "Une légère baisse de vitalité invite à renforcer l'hygiène de vie." }},
@@ -9291,22 +9312,49 @@ const _LABEL_OVERRIDES = {
   JURIDIQUE_UP:   { label: "Dénouement favorable / Avancée contractuelle", guidance: { high: "Les secteurs des contrats et de la justice reçoivent un soutien puissant — période favorable aux résolutions et aux accords.", medium: "Un courant favorable traverse le domaine juridique et contractuel — opportunités de clarification.", low: "Des signaux positifs émergent sur le plan contractuel ou administratif." }},
   VOYAGE:         { label: "Ouverture d'horizons / Expansion", guidance: { high: "L'horizon s'ouvre avec force — période idéale pour les voyages, études ou expansion culturelle.", medium: "Des opportunités d'ouverture et de découverte se présentent — période favorable à l'exploration.", low: "Un appel vers l'ailleurs se manifeste doucement — curiosité et ouverture à cultiver." }}
 };
+// Sprint 9.1 (i18n EN) — labels CF5 + guidances PNA-aware en anglais.
+// Aligné 1:1 sur _LABEL_OVERRIDES FR. Sélection runtime selon langueRapport.
+const _LABEL_OVERRIDES_EN = {
+  ACCIDENT:       { label: "High energy / Physical vigilance", guidance: { high: "An unusual convergence of Mars-Uranus energies calls for heightened vigilance: slow down, listen to the body, avoid haste.", medium: "Dynamic but unstable energies are active — period demanding attention and caution in action.", low: "A slight surplus of volatile energy manifests — maintain grounding and prudence." }},
+  SANTE_DOWN:     { label: "Vitality weakening", guidance: { high: "The body asks for special attention — necessary slowdown period and preventive care.", medium: "Signals of fatigue emerge — listen to the body and adjust the pace.", low: "A slight drop in vitality invites reinforcing healthy habits." }},
+  SANTE_UP:       { label: "Renewed vitality / Revival", guidance: { high: "Vitality sectors receive powerful support — period favorable to physical renewal and momentum.", medium: "A surge of energy is felt — period favorable for adopting new habits.", low: "A gradual improvement in vitality begins gently." }},
+  DEUIL:          { label: "Cycle ending / Deep transformation", guidance: { high: "A major transformation is underway — a chapter closes to open another. Period of necessary letting go.", medium: "Energies of transformation and closure are active — welcome the changes consciously.", low: "A gentle transformation process operates deeply — period of inner maturation." }},
+  MARIAGE:        { label: "Commitment / Structuring alliance", guidance: { high: "The stars converge towards the sectors of unions and commitments — period favorable to lasting alliances and structuring relational decisions.", medium: "A soft tone oriented towards sharing and significant encounter.", low: "A discreet call towards commitment and sharing manifests in the background." }},
+  SEPARATION:     { label: "Redefining bonds / Reassessment", guidance: { high: "Relational structures undergo a period of deep reassessment. A cycle of redefining commitments is underway.", medium: "Relational tensions emerge, inviting clarification of expectations and mutual commitments.", low: "Relational questioning manifests in the background — period of reflection on bonds." }},
+  ENFANT:         { label: "Fertility / Creation / New project", guidance: { high: "The sector of creativity and fertility is powerfully activated — creation, personal projects or progeny.", medium: "Energies of creation and renewal are active — fertile period in a broad sense.", low: "A creative breath manifests — good time for personal projects." }},
+  CARRIERE_UP:    { label: "Recognition / Professional advancement", guidance: { high: "The professional sector receives powerful support — period of recognition, ascension and concretization.", medium: "Professional advancements take shape — period favorable to ambition.", low: "Positive signals emerge on the professional level." }},
+  CARRIERE_DOWN:  { label: "Professional restructuring / Reorientation", guidance: { high: "Professional structures are deeply questioned — period of necessary deconstruction before reconstruction.", medium: "Significant professional adjustments take shape — period of progressive reorientation.", low: "Professional questioning emerges in the background, inviting strategic reflection." }},
+  FINANCE_UP:     { label: "Resource expansion", guidance: { high: "Financial sectors are powerfully activated by expansion energies — period favorable to significant inflows.", medium: "A positive current crosses finances — opportunities for material improvement to seize.", low: "Favorable signals emerge on the material level." }},
+  FINANCE_DOWN:   { label: "Financial readjustment / Material caution", guidance: { high: "Financial structures are deeply shaken — caution with heavy commitments, reorganization period.", medium: "Financial adjustments are necessary — period of budgetary vigilance.", low: "Material questioning manifests — opportunity to revisit resource management." }},
+  RELOCATION:     { label: "Movement of life setting", guidance: { high: "A powerful need to change life setting manifests — period of major transition.", medium: "Desires for change of place or setting emerge — period of movement.", low: "A slight need to renew the life setting is felt." }},
+  SPIRITUEL:      { label: "Inner transformation / Quest for meaning", guidance: { high: "A profound inner transformation is underway — certainties collapse to make way for a broader understanding.", medium: "Inner questioning emerges — period favorable to introspection and the quest for meaning.", low: "A discreet call towards depth manifests — inner maturation underway." }},
+  JURIDIQUE_DOWN: { label: "Legal complexities / Contractual vigilance", guidance: { high: "The sectors of contracts and law are under high tension — professional support recommended.", medium: "Legal or contractual complexities require attention — period of vigilance.", low: "Minor contractual questioning manifests in the background." }},
+  JURIDIQUE_UP:   { label: "Favorable resolution / Contractual progress", guidance: { high: "The sectors of contracts and justice receive powerful support — period favorable to resolutions and agreements.", medium: "A favorable current crosses the legal and contractual domain — clarification opportunities.", low: "Positive signals emerge on the contractual or administrative level." }},
+  VOYAGE:         { label: "Opening of horizons / Expansion", guidance: { high: "The horizon opens with force — ideal period for travel, studies or cultural expansion.", medium: "Opportunities for opening and discovery present themselves — period favorable to exploration.", low: "A gentle call towards elsewhere manifests — curiosity and openness to cultivate." }}
+};
+const _LABEL_OVERRIDES_USED_MDSE = (langueRapport !== 'Français') ? _LABEL_OVERRIDES_EN : _LABEL_OVERRIDES;
+try {
 _mdseResults.forEach(sig => {
-  const override = _LABEL_OVERRIDES[sig.code];
+  const override = _LABEL_OVERRIDES_USED_MDSE[sig.code];
   if (override) {
     sig.label = override.label;
     sig.qualifiedLabel = override.label;
     if (override.guidance[sig.level]) sig.guidance = override.guidance[sig.level];
   }
 });
-// AXE 3 : Guidance PNA-aware — préfixe contextuel selon le tier natal
+// AXE 3 : Guidance PNA-aware — préfixe contextuel selon le tier natal (Sprint 9.1 i18n EN).
+const _PNA_PREFIXES = (langueRapport !== 'Français')
+  ? { primaire: "This domain is at the heart of your chart — you naturally navigate these energies. ",
+      tertiaire: "This domain is weakly emphasized in your chart — these movements may surprise and require more adaptation. " }
+  : { primaire: "Ce domaine est au cœur de votre thème — vous naviguez naturellement ces énergies. ",
+      tertiaire: "Ce domaine est peu marqué dans votre thème — ces mouvements peuvent surprendre et nécessiter plus d'adaptation. " };
 _mdseResults.forEach(sig => {
   const pna = _pnaProfile.sigPriority?.[sig.code];
   if (!pna) return;
   if (pna.tier === "PRIMAIRE") {
-    sig.guidance = "Ce domaine est au cœur de votre thème — vous naviguez naturellement ces énergies. " + sig.guidance;
+    sig.guidance = _PNA_PREFIXES.primaire + sig.guidance;
   } else if (pna.tier === "TERTIAIRE") {
-    sig.guidance = "Ce domaine est peu marqué dans votre thème — ces mouvements peuvent surprendre et nécessiter plus d'adaptation. " + sig.guidance;
+    sig.guidance = _PNA_PREFIXES.tertiaire + sig.guidance;
   }
 });
 } catch(e) {}
@@ -10390,7 +10438,8 @@ maisonsResult.forEach(m => {
 6. INTERDICTION D'EXTRAPOLATION : Ne PAS combiner deux informations séparées pour créer un lien non explicitement fourni (ex : "station Uranus + Algol natale sur l'IC" ≠ "Algol est activée par Uranus" SAUF si une fenêtre stellaire le confirme).
 7. DATES PRÉCISES (📌) : Quand un transit, une progression ou un arc solaire porte le marqueur 📌, la DATE FOURNIE est astronomiquement exacte (orbe < 0.3°). Tu DOIS mentionner cette date explicitement. Ne JAMAIS inventer de dates — utiliser UNIQUEMENT les dates des pics fournies dans les données.
 8. POIDS & PRIORITÉ : Les aspects avec un [poids] élevé (> 0.8) sont plus fiables et discriminants que les aspects à poids faible (< 0.4). Prioriser les aspects à poids élevé dans la rédaction. Ne PAS donner la même importance à un aspect serré (poids 1.2) et à un aspect large (poids 0.3).
-9. PYRAMIDE PRÉDICTIVE — HIÉRARCHIE DE LECTURE OBLIGATOIRE (6 couches, du sommet à la base) :
+9. MC / IC & ASPECTS NOMMÉS : Pour tout transit vers le Milieu du Ciel (M10), le Fond du Ciel / IC (M4) ou l'axe vertical, reprendre STRICTEMENT le nom d'aspect fourni dans les données (Conjonction / Opposition / Carré / etc.). « Face au sommet », « en miroir du point culminant », «exactement face au MC» = **opposition** au MC, PAS conjonction. INTERDIT d'écrire « conjonction au MC », « Uranus rejoint le MC », « fusion / union avec le MC » si les données indiquent opposition (ou autre). Ne pas utiliser « s'unir à » de façon floue pour entrelacer IC et MC sans nommer l'aspect exact. Si les dates 📌 ou le libellé technique placent le pic d'un Uranus–angle hors de la période du rapport ou comme pic déjà passé d'une autre année, ne pas en faire l'événement structurant de l'année courante — résiduel seulement si les données l'étayent. Même principe pour l'axe horizontal **Ascendant / Descendant** : « face à », « en miroir de l'autre », «au seuil du partenaire» ≠ conjonction à l'ASC si les données disent opposition (ou autre) ; ne pas renommer l'aspect.
+10. PYRAMIDE PRÉDICTIVE — HIÉRARCHIE DE LECTURE OBLIGATOIRE (6 couches, du sommet à la base) :
    a) TRAME DU DESTIN — Directions Primaires (quand disponibles) = les tournants inévitables de l'existence (durée d'influence 1-3 ans). Rien de majeur n'arrive si les DP ne l'ont pas promis ;
    b) ÉPOQUE DE VIE — Firdaria, Zodiacal Releasing, Bound Profections, Cycles de vie = le chronocrateur et le maître du temps. Colorent la période : quelle planète domine et quel domaine est activé ;
    c) CLIMAT ANNUEL — Progressions secondaires, Arcs solaires, Révolution Solaire, Révolutions Lunaires, Profections annuelles = quelle année précise l'événement se produit. Le terrain progressé doit soutenir le transit ;
@@ -10760,7 +10809,8 @@ promptSynth += `\n\n[⛔ CHARTE ANTI-HALLUCINATION — OBLIGATIONS STRICTES]
 6. INTERDICTION D'EXTRAPOLATION : Ne PAS combiner deux informations séparées pour créer un lien non fourni.
 7. DATES PRÉCISES (📌) : Quand un transit porte le marqueur 📌, la DATE est astronomiquement exacte (orbe < 0.3°). Tu DOIS mentionner cette date explicitement dans la rédaction. Ne JAMAIS inventer de dates.
 8. POIDS & PRIORITÉ : Prioriser les aspects à [poids] élevé (> 0.8). Un aspect serré (poids > 1.0) a plus de valeur prédictive qu'un aspect large (poids < 0.4).
-9. PYRAMIDE PRÉDICTIVE — HIÉRARCHIE DE LECTURE OBLIGATOIRE (6 couches, du sommet à la base) :
+9. MC / IC & ASPECTS NOMMÉS : Pour tout transit vers le Milieu du Ciel (M10), le Fond du Ciel / IC (M4) ou l'axe vertical, reprendre STRICTEMENT le nom d'aspect fourni dans les données (Conjonction / Opposition / Carré / etc.). « Face au sommet », « en miroir du point culminant », «exactement face au MC» = **opposition** au MC, PAS conjonction. INTERDIT d'écrire « conjonction au MC », « Uranus rejoint le MC », « fusion / union avec le MC » si les données indiquent opposition (ou autre). Ne pas utiliser « s'unir à » de façon floue pour entrelacer IC et MC sans nommer l'aspect exact. Si les dates 📌 ou le libellé technique placent le pic d'un Uranus–angle hors de la période du rapport ou comme pic déjà passé d'une autre année, ne pas en faire l'événement structurant de l'année courante — résiduel seulement si les données l'étayent. Même principe pour l'axe horizontal **Ascendant / Descendant** : « face à », « en miroir de l'autre », «au seuil du partenaire» ≠ conjonction à l'ASC si les données disent opposition (ou autre) ; ne pas renommer l'aspect.
+10. PYRAMIDE PRÉDICTIVE — HIÉRARCHIE DE LECTURE OBLIGATOIRE (6 couches, du sommet à la base) :
    a) TRAME DU DESTIN — Directions Primaires (quand disponibles) = les tournants inévitables (durée 1-3 ans). Rien de majeur n'arrive si les DP ne l'ont pas promis ;
    b) ÉPOQUE DE VIE — Firdaria, Zodiacal Releasing, Bound Profections, Cycles de vie = le chronocrateur, le maître du temps. Quelle planète domine et quel domaine est activé ;
    c) CLIMAT ANNUEL — Progressions secondaires, Arcs solaires, Révolution Solaire, Révolutions Lunaires, Profections annuelles = quelle année précise l'événement se produit ;
@@ -11461,10 +11511,12 @@ if (finalOutput.length > 0) {
       });
     }
     // Phase C : Polarity — modulée par PNA tier + direction _UP/_DOWN (v15.2)
+    // Sprint 9.1 (i18n EN) : sélection du dictionnaire polarité selon langueRapport.
+    const _polLabelsByLang = (langueRapport !== 'Français') ? _MDSE_POLARITY_LABELS_EN : _MDSE_POLARITY_LABELS;
     _mdseResults.forEach(sig => {
       if (sig._needsPolarity) {
         sig.polarity = _mdsePolarity(sig.code, sig.involvedHouses, sig.involvedPlanets, _tensionTotals, _supportTotals);
-        const pLabels = _MDSE_POLARITY_LABELS[sig.code];
+        const pLabels = _polLabelsByLang[sig.code];
         if (pLabels) {
           const pnaTier = sig._pnaTier;
           const isDirectional = sig.code.endsWith("_UP") || sig.code.endsWith("_DOWN");
@@ -12040,6 +12092,23 @@ if (finalOutput.length > 0) {
       }
     }
     _mdseResults.forEach(sig => { sig.guidance = EVENT_SIGNATURES[sig.code]?.guidanceText[sig.level] || sig.guidance; });
+    // Sprint 9.1 (i18n EN) : ré-application des guidances EN après les 3 overwrites
+    // (lignes 9810, 11449, 12092) qui ré-écrivent depuis EVENT_SIGNATURES (FR).
+    // Sans cela, les labels seraient EN mais les guidances resteraient FR.
+    if (langueRapport !== 'Français') {
+      _mdseResults.forEach(sig => {
+        const ovr = _LABEL_OVERRIDES_EN[sig.code];
+        if (ovr && ovr.guidance && ovr.guidance[sig.level]) {
+          sig.guidance = ovr.guidance[sig.level];
+          const pna = (typeof _pnaProfile !== 'undefined') ? _pnaProfile?.sigPriority?.[sig.code] : null;
+          if (pna && pna.tier === 'PRIMAIRE') {
+            sig.guidance = "This domain is at the heart of your chart — you naturally navigate these energies. " + sig.guidance;
+          } else if (pna && pna.tier === 'TERTIAIRE') {
+            sig.guidance = "This domain is weakly emphasized in your chart — these movements may surprise and require more adaptation. " + sig.guidance;
+          }
+        }
+      });
+    }
     _mdseResults.sort((a, b) => b.confidence - a.confidence);
     // v19.12 (F2) : seuil d'AFFICHAGE rapport découplé de la détection.
     // On utilise le `level` (déjà calculé : conf<35→low, <55→medium, >=55→high) pour décider :

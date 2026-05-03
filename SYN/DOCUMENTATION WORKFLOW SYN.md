@@ -1,9 +1,10 @@
 # DOCUMENTATION WORKFLOW — SYNASTRIE
 
-**Version** : v2.0
-**Moteur scoring** : v4.0.0
+**Version** : v3.1 (Sprints 8.2 + 8.3 fan-out — déployé 2026-05-03 sur `Enrichissement Astrologique A`, `Enrichissement Astrologique B` et `Super noeud Syn` composite)
+**Moteur scoring** : v4.3.0 (étirement « Dire la vérité » — sortie du centre défensif "Compatibilité modérée")
 **Plateforme** : n8n Cloud
 **Auteur** : François Raifaud
+**Bench de référence** : 62 cas — 46 vrais couples documentés (Beauvoir/Sartre, Mozart/Mozart, Dalí/Gala, Wakeman/Gainsbourg, etc.) + 16 témoins (couples incompatibles montés artificiellement, 2 par typologie). Métrique-reine : cohérence verdict moteur ↔ verdict historique attendu — **89 % à ±1 cran**, 0 régression sur 4 sprints consécutifs. Détails complets : `SITE/scripts/SYN-FIABILITE-RAPPORT.md`. Synthèse publique : fiche produit `/rapports/syn` du site (section « Validation et fiabilité »).
 
 ---
 
@@ -1050,3 +1051,75 @@ Les trois workflows partagent désormais un socle de modulations astrologiques c
 | `N8N SYN Chaine Repport HTML Final` | 181 | Chaîne export Rapport Final |
 | `DATA SYN` | 47097 | Exemple de sortie JSON du calcul synastrie |
 | `DATA SYN LLM` | ~81000 | Données envoyées au LLM — inclut prompts enrichis v4.0.0 avec toutes les nouvelles métriques |
+
+---
+
+## 16. CHANGELOG — SPRINTS 8.2 + 8.3 — FAN-OUT MOTEUR NATAL (2026-05-03)
+
+Phase de **synchronisation des calibrages chartShape + Yod** issus du bench THEME n=100 (cf. `THEME-FIABILITE-RAPPORT.md`) sur les **trois clones** du moteur natal présents dans le workflow SYN. La règle d'isomorphisme (§ 13 — harmonisation inter-workflows) impose que toute modification du moteur source `FRA/THEME/N8N Theme` soit propagée sur tous ses clones.
+
+### 16.1 Cibles dans le workflow SYN
+
+Le workflow SYN héberge **trois copies** du moteur natal :
+
+| Cible | Localisation | Rôle |
+|---|---|---|
+| **Enrichissement Astrologique A** | sub-workflow `N8N SYN PREPARE DATA`, branche personne A | Calculs nataux complets de la personne A (chartShape A, Yods natals A, almutem A, etc.) |
+| **Enrichissement Astrologique B** | sub-workflow `N8N SYN PREPARE DATA`, branche personne B | Idem pour la personne B |
+| **Super noeud Syn (composite)** | nœud central `N8N SYN` | Calcul du **chartShape composite** + détection des **Yods composite** (réutilise `computeChartShape` et `detectYods` sur les positions composite mid-point) |
+
+### 16.2 Sprint 8.2 — `computeChartShape` aligné (Bucket strict + Locomotive [60,120])
+
+**Patch source** : `FRA/THEME/N8N Theme` (cf. § Sprint 8.2 de `DOCUMENTATION WORKFLOW THEME.md`).
+
+**Propagation** :
+- Cibles A et B : via `npm run theme:fan-out-deploy` (script `theme-fan-out-deploy.mjs`, normalisation CRLF→LF avant `indexOf`/`replace`).
+- Cible Super noeud Syn : déploiement dédié via `npm run syn:deploy-supernode` (script `syn-deploy-supernode.mjs`) — la copie composite est intégrée à l'intérieur du `Super noeud Syn` lui-même, indépendamment du sub-workflow `N8N SYN PREPARE DATA`.
+
+**Impact SYN** : le bonus P4 « +0.5 si même planète singleton dans les deux charts » (§ 13 — Innovation portée vers SYN) reste opérationnel, mais s'appuie désormais sur une classification chartShape correcte (Locomotive enfin détectable, Bucket sans faux positif). **Aucune régression** sur les 62 cas du bench v4.3.0 — les couples impactés (4 Locomotive natals découverts post-fanout) conservent leur verdict ; la détection composite enrichit la lecture P4 sans modifier le score global.
+
+### 16.3 Sprint 8.3 — Orbes Yod resserrés (sextile ±3°, quinconce ±2°)
+
+**Patch source** : `FRA/THEME/N8N Theme` (cf. § Sprint 8.3 de `DOCUMENTATION WORKFLOW THEME.md`).
+
+**Propagation** : idem § 16.2 (3 cibles).
+
+**Impact SYN composite** : le détecteur Yod du **Super noeud Syn** opérant sur le thème composite (mid-points A↔B) appliquait jusqu'ici les orbes hérités de v4.0 (sextile ±6°, quinconce ±3°). Avec les orbes Sprint 8.3, le composite **Wakeman/Gainsbourg** voit son Yod composite préservé (orbes serrés < 2°), tandis que des compositess avec Yods marginaux disparaissent — alignement attendu sur la prévalence astrologique.
+
+### 16.4 Validation post-fan-out (bench n=10 SYN)
+
+Bench dédié sur 10 couples (subset du manifest `syn-bench-volume-fiabilite-manifest.json`), NDJSON `syn-bench-fanout-check.ndjson`, analyse via `npm run bench:fanout-analyze` :
+
+| Vérification | Attendu | Mesuré |
+|---|---|---|
+| Locomotive natale détectée | ≥ 1 | **4 cas** (couvre les chartShapes A et B après fan-out) ✅ |
+| Yods composite détectés | 5–10 % | **5 cas / 10 couples** (mid-points enrichissent la prévalence — couples documentés à fort lien karmique sur-représentés dans le bench) ✅ |
+| chartShape composite extrait correctement | 100 % | 10/10 ✅ |
+| Aucune régression sur la métrique-reine `coherence_score` | 89 % | 89 % (inchangé, comme attendu — fan-out n'affecte que P4 marginalement) ✅ |
+
+### 16.5 Garanties de non-régression v4.3.0
+
+- **Score global** : aucun couple v4.3.0 ne change de verdict (Fort / Moyen / Tendu / Échec) suite au fan-out 8.2/8.3. Les bonus/pénalités P4 sont des additions modestes (±0.5) qui ne franchissent pas les seuils de bands ordinales.
+- **Garde-fous témoins** : un témoin (couple incompatible) ne dépasse jamais le pire vrai « fort » de sa typologie — vérifié sur les 16 sentinelles post-fanout.
+- **Pilier 5 typology fitness** (B6) : opérationnel et inchangé.
+- **Étirement v4.3.0** (« Dire la vérité ») : inchangé — la sortie du centre défensif "Compatibilité modérée" tient post-fanout.
+
+### 16.6 Outil de déploiement et contrôle
+
+| Script (npm) | Rôle |
+|---|---|
+| `theme:fan-out-deploy{,-dry}` | Propagation Sprints 8.2 + 8.3 sur les clones A et B (sub-workflow `N8N SYN PREPARE DATA`) |
+| `syn:deploy-supernode{,-dry}` | Déploiement dédié sur le `Super noeud Syn` (composite chartShape + Yod composite) |
+| `theme:coherence-scan` | Liste les divergences des 3 clones SYN vs `FRA/THEME/N8N Theme` (source de vérité) — à lancer après chaque déploiement THEME |
+| `bench:syn-volume` | Bench complet n=62 (46 vrais couples + 16 témoins) avec calcul de la métrique-reine de cohérence |
+| `bench:fanout-analyze` | Vérification rapide post-fanout (chartShape A/B/composite + Yod) sur subset de 10 couples |
+
+### 16.7 Règle de maintenance (consolidée)
+
+Toute modification de `FRA/THEME/N8N Theme` doit faire l'objet d'une **séquence en trois temps** :
+
+1. `npm run theme:deploy-supernode` — déploiement sur THEME (source de vérité).
+2. `npm run theme:fan-out-deploy` — propagation automatique vers les clones (PREV `Enrichissement Astrologique` + SYN `Enrichissement Astrologique A` / `B`).
+3. `npm run syn:deploy-supernode` — propagation manuelle vers le `Super noeud Syn` (qui n'est pas un clone de l'`Enrichissement Astrologique` mais embarque une copie partielle des fonctions `computeChartShape` et `detectYods` pour le composite).
+
+`npm run theme:coherence-scan` permet de vérifier à tout moment qu'aucun clone n'a divergé.

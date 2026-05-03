@@ -1,8 +1,10 @@
 # DOCUMENTATION WORKFLOW — DÉDUCTION DE L'HEURE DE NAISSANCE (DHN)
 
-**Version doc** : v8.14 (avril 2026) — alignée sur le moteur **`Resultat final1`** en production (**`engineTag` `v8.14-affinity-ap106`**). Résumé historique v5.x : v5.11 (R2 matrice M, R1 q13–q15) ; v5.10 cap arcs ; v5.5 UX / 3 événements / Error Trigger / i18n mail ; v5.4 TZ luxon ; v5.3 confiance, anti-circulaire, P8, P-window. **Détail bench, commandes scripts et fiabilisation** : voir aussi `SITE/scripts/BENCHMARK-DHN-MANUEL.md`.
+**Version doc** : v8.14 (avril 2026, **revue 2026-05-03 pour cohérence inter-produits**) — alignée sur le moteur **`Resultat final1`** en production (**`engineTag` `v8.14-affinity-ap106`**). Résumé historique v5.x : v5.11 (R2 matrice M, R1 q13–q15) ; v5.10 cap arcs ; v5.5 UX / 3 événements / Error Trigger / i18n mail ; v5.4 TZ luxon ; v5.3 confiance, anti-circulaire, P8, P-window. **Détail bench, commandes scripts et fiabilisation** : voir aussi `SITE/scripts/BENCHMARK-DHN-MANUEL.md`.
 **Plateforme** : n8n Cloud
 **Auteur** : François Raifaud
+**Bench de référence** : 8 cas certifiés (heure attestée par acte d'état civil ou rating Astrothème AA — Bardot, Gainsbourg, Saint Laurent, Beauvoir, Hugo, de Gaulle, etc.). Calibration confiance honnête sur 6/6 cas testés (Faible / Moyenne / Forte). Méthode 100 % déterministe — aucune IA générative dans la chaîne. Synthèse publique : fiche produit `/rapports/dhn` du site (section « Validation et fiabilité »).
+**Cohérence inter-produits** : DHN possède son **propre moteur déterministe** (`Resultat final1`) et **n'est pas un clone** du moteur natal `FRA/THEME/N8N Theme`. Les patches Sprint 8.2 (`computeChartShape`) et Sprint 8.3 (orbes Yod) déployés sur THEME / PREV / SYN le 2026-05-03 ne s'appliquent **pas** à DHN — la rectification d'heure n'utilise ni la classification Jones Patterns ni la détection de Yods. Cf. § 22 ci-dessous.
 
 ---
 
@@ -1076,3 +1078,29 @@ Validation après import :
 - **v8.12** : cible d’arc corrigée (`targetPlanet` / `targetAngle`) pour l’affinité arcs.
 - **v8.13** : `D11_TECH_MARGIN_MIN` **4** (vs 3,5) — bench naïf **10/18**, informé **18/18**.
 - **v8.14** : split bonus arcs/prog (**~1,06**) vs RS/transits (**×1,5**) — bench naïf **10/18**, informé **18/18** ; évite régression bench naïf (ex. YSL) tout en gardant le discriminant fort sur RS.
+
+---
+
+## §22 — Cohérence inter-produits (revue 2026-05-03)
+
+**Périmètre des patches Sprint 8.2 / 8.3 / 9.1** (déployés sur THEME / PREV / SYN le 2026-05-03) :
+
+| Patch | Description | Impact DHN |
+|---|---|---|
+| Sprint 8.2 | Calibrage `computeChartShape` (Bucket strict 1–2 singletons + 2 gaps ≥ 60° ; Locomotive [60,120]) | **Aucun** — DHN n'utilise pas la classification Jones Patterns. |
+| Sprint 8.3 | Orbes Yod resserrés (sextile ±3°, quinconce ±2°) | **Aucun** — DHN n'utilise pas la détection de Yods. |
+| Sprint 9.1 | i18n EN sur les blocs MDSE non-LLM | **Aucun direct** — DHN n'embarque pas de moteur MDSE. La traduction des e-mails de notification DHN reste gérée par le pipeline i18n du site (cf. v5.5 — i18n mail). |
+
+**Rappel d'architecture** : le moteur DHN (`Resultat final1` dans le workflow `mujzhQgDu8pyTWzl`) est une chaîne **déterministe pure** combinant :
+
+- Questionnaire (matrice M `q1`–`q15`)
+- Arcs solaires (P8 affinité)
+- Progressions secondaires
+- Révolution solaire (×1,5 sur RS et transits lents)
+- Grille fine 5 min sur 24 h
+
+Aucun de ces niveaux n'invoque les fonctions `computeChartShape`, `detectYods`, `_computeNatalImportance`, `computeBesiegedPlanets` partagées entre THEME / PREV / SYN. DHN reste **isolé** du fan-out moteur natal et n'est pas concerné par la règle d'isomorphisme inter-workflows.
+
+**Audit cohérence** : le scan automatique `npm run theme:coherence-scan` (script `workflows-astro-coherence-scan.mjs`) parcourt tous les workflows actifs et **exclut DHN par design** (workflow ID `mujzhQgDu8pyTWzl` filtré dans la liste des cibles à comparer). Les divergences éventuelles entre `Resultat final1` et le code source `FRA/DHN/N8N DHN` sont contrôlées par le script dédié `dhn-deploy-code.mjs` et ses sentinelles propres (`engineTag`, `D11_TECH_MARGIN_MIN`, etc.).
+
+**Documentation publique alignée** : la fiche produit `/rapports/dhn` du site présente désormais (depuis le 2026-05-03) une section « Validation et fiabilité » qui résume la cohorte de référence (8 cas certifiés), la calibration de confiance (6/6), le caractère 100 % déterministe et la précision visée (±10–15 minutes). Les libellés et chiffres sont synchronisés avec ce document — toute évolution du moteur DHN doit donner lieu à une mise à jour conjointe de la fiche site (`SITE/lib/i18n/dictionary-fr.ts` et `dictionary-en.ts`, clés `rapports.dhn.reliability*`).

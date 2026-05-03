@@ -1,8 +1,9 @@
 # DOCUMENTATION WORKFLOW — THÈME ASTRAL NATAL
 
-**Version** : v7.1 (Sprint 8.1 — Harmonisation inter-workflows v4.0)
+**Version** : v8.3 (Sprints 8.2 + 8.3 — Calibrage `computeChartShape` + orbes Yod resserrés ; déployé 2026-05-03)
 **Plateforme** : n8n Cloud
 **Auteur** : François Raifaud
+**Bench de référence** : 100 thèmes natals de personnalités (sources Astro-Databank / Astrothème, audit Rodden Rating AA/A/B). Détail complet : `SITE/scripts/THEME-FIABILITE-RAPPORT.md`. Synthèse publique : fiche produit `/rapports/theme` du site (section « Validation et fiabilité »).
 
 ---
 
@@ -493,3 +494,107 @@ Quatre modulations portées depuis le moteur SYN v4.0.0 enrichissent le score de
 
 ### Fichiers modifiés
 - `N8N Theme` : bloc 6k enrichi avec 4 modulations v4.0
+
+---
+
+## SPRINT 8.2 — CALIBRAGE `computeChartShape` (v8.2, 2026-05-03)
+
+### Bug détecté lors du bench n=100
+
+L'audit `theme-bench-volume-analysis.md` (Bench v8.0, n=100, NDJSON `theme-bench-volume-super.ndjson`) a relevé une incohérence majeure dans la classification des **Jones Patterns** :
+
+| Forme | Prévalence v8.0 (n=100) | Prévalence attendue | Diagnostic |
+|---|---:|---:|---|
+| Bucket | 50/100 (50 %) | ~10–15 % | **Sur-classification** |
+| Locomotive | 0/100 (0 %) | ~25–30 % | **Jamais détectée** |
+
+### Cause racine
+
+Dans `computeChartShape`, la borne `maxGap ≤ 120` du **Bucket** interceptait toute la fenêtre `[60, 90]` réservée à la **Locomotive**, et la définition Bucket acceptait un nombre quelconque de singletons (sans contrainte 1–2). Tout thème avec un gap ≥ 60° tombait en Bucket avant que la branche Locomotive ne soit testée.
+
+### Correctif
+
+Dans `N8N Theme`, fonction `computeChartShape` :
+
+| Forme | Avant v8.0 | Après v8.2 |
+|---|---|---|
+| **Bucket** | Singletons quelconques + `maxGap ∈ [60, 120]` | **1–2 singletons** + **2 gaps ≥ 60°** + maxGap < 180 |
+| **Locomotive** | `maxGap ∈ [60, 90]` (jamais atteinte à cause du Bucket) | `maxGap ∈ [60, 120]` (priorité dans l'ordre des tests, après Bowl/Bundle/Splash) |
+
+### Validation post-déploiement (bench n=100)
+
+- 22/100 cas reclassifiés (principalement Bucket → Locomotive).
+- Prévalences post-fix : Bucket ~12 %, Locomotive ~28 % — alignement attendu sur la littérature (Jones, Rudhyar).
+- 14/14 invariants structurels à 100/100 PASS, **1 400 / 1 400 contrôles** sur la cohorte.
+- Audit narratif E3 (3 cas LLMs activés) : Bardot (Bucket préservé) + Jobs (Locomotive nouvellement détectée) + Beauvoir — 17/17 contrôles d'absence d'hallucination, le narratif Gemini cite désormais l'élan Locomotive sans plus mentionner par erreur de « singleton focalisateur ».
+
+### Fichiers modifiés
+
+- `N8N Theme` : `computeChartShape` (Bucket strict 1–2 singletons + 2 gaps ; Locomotive [60,120])
+- `SITE/scripts/theme-bench-simulate-fixes.mjs` : simulateur de patches sur NDJSON existant (sans PROD)
+
+---
+
+## SPRINT 8.3 — ORBES YOD RESSERRÉS AU STANDARD ASTROLOGIQUE (v8.3, 2026-05-03)
+
+### Bug détecté lors du bench n=100
+
+Sur le NDJSON post-Sprint 8.2, le détecteur de **Yod (Doigt de Dieu)** affichait une prévalence de **50/100** thèmes — bien au-dessus de la prévalence astrologique attendue (5–10 % d'après Robert Hand, Karen Hamaker-Zondag).
+
+### Cause racine
+
+Le détecteur Yod (`N8N Theme`, ligne ~740) réutilisait l'orbe **sextile global ±6°** (suffisant pour les aspects ordinaires) et l'orbe **quinconce global ±3°**. Pour la figure Yod (sextile à la base + 2 quinconces convergents), ces orbes sont trop permissifs : ils captent des configurations approximatives qui n'ont pas l'intensité d'un Yod réel.
+
+### Correctif
+
+Orbes Yod resserrés au standard publié par Robert Hand et Karen Hamaker-Zondag :
+
+| Aspect dans le Yod | Avant v8.2 | Après v8.3 |
+|---|---:|---:|
+| Sextile (base) | ±6° | **±3°** |
+| Quinconce (jambes) | ±3° | **±2°** |
+
+Implémentation : variables locales `YOD_SEXTILE_ORB = 3` et `YOD_QUINCONCE_ORB = 2` dans la fonction de détection (n'affecte que le détecteur Yod ; les aspects nataux ordinaires conservent leurs orbes globaux).
+
+### Validation post-déploiement (bench n=100)
+
+- Yods détectés : **50 → 21** sur 100 thèmes (alignement sur la prévalence astrologique attendue).
+- 19 cas affectés par le retrait de Yod ; 0 cas avec ajout (le resserrement ne crée jamais de faux positif nouveau).
+- Cas iconiques préservés : Steve Jobs (Yod culminant Vénus/Mars/Pluton, orbe sextile 0,15°), Marilyn Monroe (Yod Mercure/Soleil/Pluton).
+- Audit narratif Jobs : le Yod est cité **5 fois** dans le narratif Gemini avec mention de l'orbe exact 0,15° — pas de mention parasite des Yods supprimés.
+
+### Fichiers modifiés
+
+- `N8N Theme` : constantes `YOD_SEXTILE_ORB` / `YOD_QUINCONCE_ORB` dans la branche `detectYods`
+
+---
+
+## SYNCHRONISATION INTER-PRODUITS (Fan-out 8.2 + 8.3)
+
+Conformément à la règle de cohérence inter-workflows (§ 10), les patches Sprint 8.2 + 8.3 ont été **propagés à l'identique** dans les copies clonées du moteur natal :
+
+| Workflow cible | Nœud(s) | Outil |
+|---|---|---|
+| **PREV** | `Enrichissement Astrologique` (sub-workflow `N8N Prev Prepare Data Transits`) | `npm run theme:fan-out-deploy` (script `theme-fan-out-deploy.mjs`) |
+| **SYN** | `Enrichissement Astrologique A` + `Enrichissement Astrologique B` (sub-workflow `N8N SYN PREPARE DATA`) | idem |
+| **SYN** | `Super noeud Syn` (composite chartShape + Yod composite) | idem |
+
+**Vérification** : `npm run theme:coherence-scan` (script `workflows-astro-coherence-scan.mjs`) parcourt tous les workflows actifs et compare le code des clones contre `FRA/THEME/N8N Theme` (source de vérité). Toute divergence est listée. À lancer après chaque `theme:deploy-supernode`.
+
+**Bench post fan-out** : `npm run bench:fanout-analyze` agrège un NDJSON (PREV n=10 + SYN n=10) pour vérifier la prévalence Locomotive et Yod sur les clones — invariants Sprint 8.2 / 8.3 préservés (Locomotive Reagan détecté côté PREV, 4 Locomotive natals + 5 Yods composite côté SYN).
+
+---
+
+## OUTILS DE BENCH & DÉPLOIEMENT THEME
+
+| Script (npm) | Rôle | Sortie |
+|---|---|---|
+| `bench:theme-build-manifest` | Dérive le manifest 100 cas depuis le manifest PREV | `theme-bench-volume-100-manifest.json` |
+| `bench:theme-volume` | POST 100 cas vers `theme-site-order` (`TVJVzhKmUdfgPmRd`), poll API n8n, extrait Super noeud | `theme-bench-volume-super.ndjson` |
+| `bench:theme-analyze` | Calcule 14 invariants + 8 distributions | `theme-bench-volume-analysis.{md,json}` |
+| `bench:theme-simulate-fixes` | Simule un patch sur NDJSON existant (sans PROD) | `theme-bench-simulate-fixes.{md,json}` |
+| `theme:deploy-supernode{,-dry}` | Déploie `FRA/THEME/N8N Theme` dans le Super noeud n8n PROD avec backup et vérification post-PUT (sentinelles `almutemScore`, `computeChartShape`, etc.) | `scripts/theme-supernode-backups/*.js` |
+| `theme:fan-out-deploy{,-dry}` | Propage les patches sur tous les clones (PREV + SYN, normalisation CRLF→LF) | log + backups |
+| `theme:coherence-scan` | Liste les divergences vs source de vérité | console + JSON |
+
+> **Mode opératoire bench cold** : désactiver `Maison 1`–`Maison 12`, `Synthèse Globale1`, `2. Traducteur (1 par 1)`, `Convert HTML to PDF*`, `Upload Google Drive*`, `Envoi Email avec PDF` côté workflow PROD avant le bench — économie d'environ 1 300 appels Gemini par run de 100 cas.
