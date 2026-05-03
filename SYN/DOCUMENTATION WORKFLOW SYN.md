@@ -4,7 +4,7 @@
 **Moteur scoring** : v4.3.0 (étirement « Dire la vérité » — sortie du centre défensif "Compatibilité modérée")
 **Plateforme** : n8n Cloud
 **Auteur** : François Raifaud
-**Bench de référence** : 62 cas — 46 vrais couples documentés (Beauvoir/Sartre, Mozart/Mozart, Dalí/Gala, Wakeman/Gainsbourg, etc.) + 16 témoins (couples incompatibles montés artificiellement, 2 par typologie). Métrique-reine : cohérence verdict moteur ↔ verdict historique attendu — **89 % à ±1 cran**, 0 régression sur 4 sprints consécutifs. Détails complets : `SITE/scripts/SYN-FIABILITE-RAPPORT.md`. Synthèse publique : fiche produit `/rapports/syn` du site (section « Validation et fiabilité »).
+**Bench de référence** : 62 cas — 46 couples célèbres documentés (Simone de Beauvoir & Jean-Paul Sartre, Salvador Dalí & Gala, Frédéric Chopin & George Sand, John Lennon & Yoko Ono, et d'autres répartis sur les 8 typologies) + 16 paires-témoins (couples délibérément incompatibles, 2 par typologie) pour neutraliser les faux positifs. Métrique-reine : cohérence verdict moteur ↔ verdict historique attendu — **89 % à ±1 cran**, 0 régression sur 4 sprints consécutifs. Détails complets et liste exhaustive : `SITE/scripts/SYN-FIABILITE-RAPPORT.md`. Synthèse publique : fiche produit `/rapports/syn` du site (section « Validation et fiabilité »).
 
 ---
 
@@ -1084,7 +1084,7 @@ Le workflow SYN héberge **trois copies** du moteur natal :
 
 **Propagation** : idem § 16.2 (3 cibles).
 
-**Impact SYN composite** : le détecteur Yod du **Super noeud Syn** opérant sur le thème composite (mid-points A↔B) appliquait jusqu'ici les orbes hérités de v4.0 (sextile ±6°, quinconce ±3°). Avec les orbes Sprint 8.3, le composite **Wakeman/Gainsbourg** voit son Yod composite préservé (orbes serrés < 2°), tandis que des compositess avec Yods marginaux disparaissent — alignement attendu sur la prévalence astrologique.
+**Impact SYN composite** : le détecteur Yod du **Super noeud Syn** opérant sur le thème composite (mid-points A↔B) appliquait jusqu'ici les orbes hérités de v4.0 (sextile ±6°, quinconce ±3°). Avec les orbes Sprint 8.3, les composites où le Yod repose sur des orbes serrés (< 2°) voient leur Yod préservé, tandis que les Yods marginaux du composite disparaissent — alignement attendu sur la prévalence astrologique. Sur le bench n=10 SYN, **5 Yods composite** sont conservés (couples documentés à fort lien karmique sur-représentés).
 
 ### 16.4 Validation post-fan-out (bench n=10 SYN)
 
