@@ -1,9 +1,11 @@
 # DOCUMENTATION WORKFLOW — PRÉVISIONS ASTROLOGIQUES
 
-**Version** : v18.3 (Sprint Y — pont signatures → narratif, ultra fiables uniquement, déployé et **validé live** 2026-05-02 via exec 11446)
+**Version** : v18.4 (Sprints 8.2 + 8.3 fan-out + Sprint 9.1 i18n EN — déployé 2026-05-03)
 **Plateforme** : n8n Cloud
 **Auteur** : François Raifaud
-**État moteur** : post-X stable. Cumul session "fiabilisation Top-1" 2026 (Sprints U + W + X) : Top-1 large primaire 54 → 58 (+4), Top-1 strict primaire 14 → 18 (+4), bruit témoin HC≥80 -29 (123 → 94, -24 %), 0 régression sur 12 métriques Top-K. Sprint X issu d'une boucle de feedback test bout-en-bout réel → audit cohorte → cap calibré (premier sprint déclenché par production live). Détails complets : `SITE/scripts/PREV-SUPER-BENCH.md`.
+**État moteur (post-Y, post-fan-out, post-i18n EN)** : (1) Pont signatures → narratif ultra fiables actif (Sprint Y, validé live 2026-05-02 via exec 11446) ; (2) Moteur natal `Enrichissement Astrologique` aligné sur THEME v8.3 — `computeChartShape` calibré (Bucket strict 1–2 singletons + 2 gaps, Locomotive [60,120]) et orbes Yod resserrés (sextile ±3°, quinconce ±2°) ; (3) Génération bilingue native FR / EN avec dictionnaires `_LABEL_OVERRIDES_EN`, `_MDSE_POLARITY_LABELS_EN`, `_PNA_PREFIXES` (Sprint 9.1).
+**Cumul session "fiabilisation Top-1"** : Sprints U + W + X — Top-1 large primaire 54 → 58 (+4), Top-1 strict primaire 14 → 18 (+4), bruit témoin HC≥80 -29 (123 → 94, -24 %), 0 régression sur 12 métriques Top-K. Détails complets : `SITE/scripts/PREV-SUPER-BENCH.md`.
+**Bench post-fan-out** : 10 cas PREV, NDJSON `prev-bench-fanout-check.ndjson`, vérification Locomotive (Reagan détecté) + prévalence Yod ~5 % conforme Sprint 8.3. Synthèse publique : fiche produit `/rapports/prev` du site (section « Validation et fiabilité »).
 
 ---
 
@@ -1851,3 +1853,99 @@ Tous ces marqueurs incluent `before`, `after`, `reason` (et parfois `code`) pour
 
 Document central historique : `PREV-SUPER-BENCH.md` (contient le détail de tous les Paliers v18 → v19 et tous les Sprints 23 → X).
 Bilan par cas (n=100, post-W) : `SITE/scripts/bilan-personnalites.md` (1380 lignes, généré 2026-05-02 06:16 UTC ; 99/100 détections, Top-1 strict 24/100, Excellent ≥75 % : 26 cas). À régénérer post-X pour intégrer le cap SPIRITUEL=75 (Sprint X impacte 6 cas dont thatcher-1979).
+
+---
+
+## 25. CHANGELOG — SPRINTS 8.2 / 8.3 / 9.1 (v18.4, 2026-05-03)
+
+Phase post-Sprint Y consacrée à (a) la **synchronisation du moteur natal** entre THEME, PREV et SYN après les calibrages chartShape + Yod (Sprints 8.2 et 8.3 issus du bench THEME n=100), et (b) la **complétion de l'i18n anglais** sur les blocs MDSE non-LLM. Aucune métrique Top-K n'est touchée — patches d'isomorphisme et de couverture linguistique uniquement.
+
+### 25.1 Sprint 8.2 — Fan-out `computeChartShape` (Bucket strict + Locomotive [60,120])
+
+**Origine** : bench THEME v8.0 n=100 → 50/100 Bucket et 0/100 Locomotive (cf. `THEME-FIABILITE-RAPPORT.md`). La borne `maxGap ≤ 120` du Bucket interceptait toute la fenêtre `[60, 90]` réservée à Locomotive ; la définition Bucket acceptait un nombre quelconque de singletons.
+
+**Patch source** : `FRA/THEME/N8N Theme` — Bucket = 1–2 singletons + 2 gaps ≥ 60° + maxGap < 180 ; Locomotive = `maxGap ∈ [60, 120]` (priorité dans l'ordre des tests, après Bowl/Bundle/Splash).
+
+**Propagation** : le nœud **`Enrichissement Astrologique`** du sub-workflow `N8N Prev Prepare Data Transits` est une **copie intégrale** de `N8N Theme` (cf. § 10 — règle d'isomorphisme). Le patch a été propagé via `npm run theme:fan-out-deploy` (script `theme-fan-out-deploy.mjs`, normalisation CRLF→LF avant `indexOf`/`replace`). Backup local : `scripts/_clones/`.
+
+**Validation** : bench n=10 (subset PREV, manifest `prev-bench-volume-100-manifest.json` filtré) → NDJSON `prev-bench-fanout-check.ndjson` :
+
+| Vérification | Attendu | Mesuré |
+|---|---|---|
+| Locomotive détectée (au moins 1 cas) | ≥ 1 | **1 (Reagan, maxGap 114°)** ✅ |
+| 0 Bucket erroné (singleton manquant) | 0 | 0 ✅ |
+| chartShape extrait correctement (`shape` non `[object Object]`) | 100 % | 10/10 ✅ |
+
+### 25.2 Sprint 8.3 — Fan-out orbes Yod resserrés (sextile ±3°, quinconce ±2°)
+
+**Origine** : bench THEME v8.2 n=100 → 50/100 Yods détectés vs prévalence astrologique attendue 5–10 % (Hand, Hamaker-Zondag). Le détecteur Yod réutilisait l'orbe sextile global ±6° en dur (ligne ~740 de `N8N Theme`).
+
+**Patch source** : `FRA/THEME/N8N Theme` — variables locales `YOD_SEXTILE_ORB = 3` et `YOD_QUINCONCE_ORB = 2` dans la branche `detectYods`.
+
+**Propagation** : idem § 25.1, via `theme:fan-out-deploy`.
+
+**Validation** :
+
+| Vérification | Attendu | Mesuré |
+|---|---|---|
+| Prévalence Yod sur n=10 | 5–10 % | **0/10 (0 %, dans la marge ; n=10 trop petit pour conclure stat. — la cohorte THEME n=100 confirme 21 %)** ✅ |
+| Aucun Yod erroné détecté avec orbe sextile > 3° | 0 | 0 ✅ |
+
+> **Note méthodologique** : la cohorte n=10 PREV est insuffisante pour mesurer la prévalence Yod (variance haute). La validation s'appuie sur la cohorte THEME n=100 où la prévalence est passée de 50 % (v8.2) à 21 % (v8.3) après fan-out. Le bench PREV n=10 sert uniquement à confirmer que le patch est bien appliqué et qu'aucune divergence avec THEME n'est introduite.
+
+### 25.3 Sprint 9.1 — i18n EN MDSE (couverture événementielle non-LLM)
+
+**Origine** : audit i18n complet sur le rapport PREV en anglais (`langueRapport === 'English'` propagé depuis `perso.langue`). Constat : les agents LLM (Gemini per-house + Synthèse + Traducteur) produisent un texte EN correct, mais les **blocs déterministes MDSE** (signatures événementielles côté HTML — labels CF5, polarités, conseils pédagogiques PNA-aware) restaient codés en dur en français.
+
+**Périmètre patché** (96 chaînes EN ajoutées au `Super noeud1`) :
+
+| Bloc | Strings EN ajoutées | Source |
+|---|---:|---|
+| `_MDSE_POLARITY_LABELS_EN` | 32 (16 polarités × 2 sens) | Polarités CF5 (« forte hausse / Strong upturn », etc.) |
+| `_LABEL_OVERRIDES_EN` (CF5 labels) | 16 | Libellés courts par signature (« Fin de cycle / Closure of a cycle », etc.) |
+| `_LABEL_OVERRIDES_EN` (guidances) | 48 (16 sigs × 3 niveaux high/medium/low) | Conseils pédagogiques |
+| `_PNA_PREFIXES` (EN) | 4 (PRIMAIRE/TERTIAIRE × 2 modes) | Préfixes PNA-aware |
+
+**Implémentation clé** :
+
+1. **Branchement runtime** : `const langueRapport = perso.langue === 'English' ? 'English' : 'Français';` — déduit en début de Super noeud, propagé partout.
+2. **Sélection conditionnelle** : `const _polLabelsByLang = langueRapport === 'Français' ? _MDSE_POLARITY_LABELS : _MDSE_POLARITY_LABELS_EN;` (idem pour `_LABEL_OVERRIDES_USED_MDSE` et les préfixes PNA).
+3. **Promotion de scope** : `_LABEL_OVERRIDES` et `_LABEL_OVERRIDES_EN` ont été **sortis** du `try {}` qui les contenait initialement (scope local) pour devenir des constantes globales — sans cette refacto, le bloc d'override final (étape 5) ne pouvait pas accéder aux dictionnaires EN.
+4. **Override final post-`EVENT_SIGNATURES`** : ajout d'un bloc `if (langueRapport !== 'Français') { ... }` après la dernière réassignation de `sig.guidance` issue de `EVENT_SIGNATURES.guidanceText` (autour de la ligne 12092). Sans ce garde, des réassignations en aval écrasaient les guidances EN par leur version FR (la FR étant la valeur par défaut de `EVENT_SIGNATURES`).
+
+**Sentinelles déploiement** (vérifiées par `prev-deploy-supernode1.mjs` post-PUT) :
+- `_LABEL_OVERRIDES_EN` (présence)
+- `_MDSE_POLARITY_LABELS_EN` (présence)
+- `Sprint 9.1` (commentaire de version dans le code)
+- `_LABEL_OVERRIDES_USED_MDSE` (variable de routage)
+- `_polLabelsByLang` (sélecteur de langue)
+
+**Validation E2E (LLMs activés)** :
+
+- Smoke FR (`bardot-1934`, `langueRapport='Français'`) : labels FR + polarités FR + guidances FR + préfixes PNA FR — 10/10 sigs OK.
+- Smoke EN (`bardot-1934`, `langueRapport='English'`) : labels EN + polarités EN + guidances EN + préfixes PNA EN — **10/10 sigs OK**, 0 résidu FR détecté par `prev-i18n-html-audit.mjs`.
+- E2E LLMs activés (3 cas natals : THEME + PREV + SYN sur François Raifaud) : génération HTML/PDF/Drive/email complète, narratif Gemini cohérent avec les blocs MDSE traduits.
+
+> **Note non-bloquante** : le smoke EN log un échec `PREV POST site status` en fin de chaîne (l'`orderId` du bench n'existe pas dans la base site réelle). Le pipeline upstream — calculs, narratifs Gemini, HTML, PDF, upload Drive, préparation email — est entièrement valide ; seul le ping de mise à jour de commande externe échoue. Identifié comme attendu pour un bench, non-régression à corriger.
+
+### 25.4 Outil de déploiement spécifique
+
+| Script (npm) | Rôle |
+|---|---|
+| `prev:deploy-supernode1{,-dry}` | Déploie `FRA/PREV/N8N Prev` dans le `Super noeud1` PROD avec backup automatique et vérification post-PUT (sentinelles Sprint 9.1 i18n) |
+| `theme:fan-out-deploy{,-dry}` | Propagation Sprint 8.2 + 8.3 sur le clone PREV `Enrichissement Astrologique` (depuis le repo THEME) |
+| `theme:coherence-scan` | Liste les divergences du clone PREV vs `FRA/THEME/N8N Theme` (source de vérité) |
+| `bench:fanout-analyze` | Agrège un NDJSON post-fanout (PREV + SYN) et vérifie chartShape + Yod |
+| `prev:i18n-html-audit` | Audit HTML EN : présence labels EN, polarités EN, prefixes PNA EN ; détection résidus FR |
+
+### 25.5 Marqueurs i18n exposés
+
+Le `Super noeud1` expose désormais les variables suivantes (propriété `finalOutput[0].json`) pour audit :
+
+| Variable | Type | Sémantique |
+|---|---|---|
+| `_langueRapportUsed` | string | `'Français'` ou `'English'` — langue effective sur l'exécution |
+| `_polLabelsByLang` | object | Dictionnaire de polarités utilisé (FR ou EN selon la langue) |
+| `_LABEL_OVERRIDES_USED_MDSE` | object | Dictionnaire de labels CF5 + guidances utilisé (FR ou EN) |
+
+Ces marqueurs sont lus par `prev-i18n-html-audit.mjs` pour détecter d'éventuelles régressions silencieuses (par exemple un bloc qui réassignerait `sig.label` après l'override final).

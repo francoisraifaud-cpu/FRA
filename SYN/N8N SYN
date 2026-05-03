@@ -1,13 +1,35 @@
 // ==========================================
-// NOEUD CENTRAL SYNASTRIE v1.0
+// NOEUD CENTRAL SYNASTRIE v4.2.2 (= v4.2.0 + revert v4.3.0 + revert v4.4.0)
 // Superpositions en maisons (bidirectionnel)
 // Inter-aspects B↔A et A↔B
 // Contacts nodaux + Chiron
 // Thème composite (mi-points)
 // Grille typologique (8 typologies)
-// Scoring composite
+// Scoring composite v4.2.2 (B1-B6 fix, B7-B8 abandonnés)
 // Génération prompts LLM par maison + synthèse
-// =========================-=================
+// ----- v4.2.2 (2026-05-03) — REVERT v4.4.0 (B8 abandonné) -------------------
+//   v4.4.0 (B8) prévu pour libérer le signal `exact_bonus` du pilier 1 (caps
+//   8→12 et 4→6). Simulation à froid prédisait +4.3 pts stricte. En réel :
+//   3 cas borderline basculent moyen→fort à tort, 0 cas vraiment renforcé.
+//   Cohérence stricte 45.7% → 41.3%. → Retour à v4.2.0.
+// ----- v4.2.1 (2026-05-02) — REVERT v4.3.0 (B7/B7.1 abandonnés) ---------------
+// ----- v4.2.0 (2026-05-02) — focus AMONT LLM, justesse moteur -----
+//   B5 : `slot_X.score` exposait le brut weighted (mean=29.6, range -3.9..150.6).
+//        Désormais : score = `normalized` (rapport au théorique de la maison,
+//        borné [0,100] par construction, mean=56). `score_raw` conservé pour debug.
+//   B6 : ajout d'un PILIER 5 « typology fitness » dans `global_score`. Avant,
+//        les 4 piliers ignoraient totalement la grille typologique des maisons :
+//        Beauvoir/Sartre Amour=Coloc=46/46. Désormais le score capture la
+//        concentration de l'overlay sur les maisons typologiquement pertinentes
+//        (poids ∈ [0,15], soit ~12.5% du final). Diviseur 105→120.
+// ----- v4.1.0 (2026-05-02) -----
+//   B1 : amplitude typologique amplifiée x2 dans P4 + bonus secondaires
+//        + pénalité key_planets_absent (signal typologique discriminant).
+//   B2 : intensité recalibrée (caps additifs revus, seuils labels relevés
+//        70/55/35 vs 75/55/35) — distribution centrée ~50.
+//   B3 : viability_correction bidirectionnelle — bonus si fluidité ≫ intensité.
+//   B4 : scores de slots bornés [0,100] (Math.max/Math.min). Avant : -3.9 à +150.6.
+// ==========================================
 
 // ---- 0. CONFIGURATION ----
 const NODE_ENRICHISSEMENT_A = "Enrichissement A";
@@ -2309,6 +2331,14 @@ function computeGlobalScoreV3(ctx) {
             (PERSONAL_PLANETS.has(a.planete_source) || PERSONAL_PLANETS.has(a.planete_cible))
         ).length;
 
+        // v4.2.x (B8 abandonné) : la simulation à froid prédisait +4.3 pts
+        // strict en libérant les caps de exact_bonus (8→12 et 4→6) car ce
+        // sous-composant a Cohen d=0.88 (vs ratio à d=0.13). Mais en réel sur
+        // n=62 : 6 cas montent (+0.7 pts en moyenne sur global_score) sans
+        // gain de discrimination → 3 cas borderline (Bezos/Buffett, Dali/
+        // Chanel, Freud/Jung) basculent à tort moyen→fort par les seuils
+        // rigides. Cohérence stricte 45.7%→41.3%. Voir SYN-FIABILITE-RAPPORT
+        // §11. Caps remis à v4.2.0.
         let p1 = 10 + ratio * 20;
         p1 += Math.min(exactBonusT1, 8) * 0.5;
         p1 += Math.min(exactBonusT1Personal, 4) * 0.3;
@@ -3550,39 +3580,68 @@ function computeGlobalScoreV3(ctx) {
 
     if (typoConf) {
         const principalHouses = typoConf.principales || [];
+        const secondaryHouses = typoConf.secondaires || [];
         const keyPlanets = typoConf.planetes_cles || [];
         const keyAsp = allAsp.filter(a =>
             keyPlanets.includes(a.planete_source) || keyPlanets.includes(a.planete_cible)
         );
         const keyHarmony = keyAsp.filter(a => a.nature === "harmonie" || a.nature === "fusion").length;
         const keyTension = keyAsp.filter(a => a.nature === "tension").length;
-        p4 += Math.min(keyHarmony, 5) * 0.5;
-        p4 -= Math.min(keyTension, 3) * 0.3;
+        // v4.1.0 — B1 : amplitude typologique x2 (avant 0.5/0.3, max ±2.5/-0.9)
+        p4 += Math.min(keyHarmony, 5) * 1.0;
+        p4 -= Math.min(keyTension, 3) * 0.6;
         detail.pilier4.typo_key_harmony = keyHarmony;
         detail.pilier4.typo_key_tension = keyTension;
 
-        // P4-BONUS/PENALTY: Typological house activation
+        // P4-BONUS/PENALTY: Typological house activation (v4.1.0 amplifié)
         let activatedPrincipal = 0;
         let emptyPrincipal = 0;
+        let activatedSecondary = 0;
         for (const h of principalHouses) {
             const countA = (ovBA && ovBA[h]) ? ovBA[h].length : 0;
             const countB = (ovAB && ovAB[h]) ? ovAB[h].length : 0;
             if (countA > 0 || countB > 0) activatedPrincipal++;
             else emptyPrincipal++;
         }
-        if (activatedPrincipal === principalHouses.length) {
+        for (const h of secondaryHouses) {
+            const countA = (ovBA && ovBA[h]) ? ovBA[h].length : 0;
+            const countB = (ovAB && ovAB[h]) ? ovAB[h].length : 0;
+            if (countA > 0 || countB > 0) activatedSecondary++;
+        }
+        // v4.1.0 — bonus gradué (avant : binaire +1.5 si full house)
+        p4 += activatedPrincipal * 0.5;
+        p4 += activatedSecondary * 0.25;
+        if (activatedPrincipal === principalHouses.length && principalHouses.length >= 3) {
             p4 += 1.5;
             detail.pilier4.typo_all_principal_activated = true;
         }
         if (emptyPrincipal >= 2 && principalHouses.length >= 3) {
-            const pen = emptyPrincipal * 0.6;
+            // v4.1.0 — pénalité maisons principales vides amplifiée x1.67 (avant 0.6)
+            const pen = emptyPrincipal * 1.0;
             p4 -= pen;
             penalties.p4.push({ id: "principal_houses_empty", empty: emptyPrincipal, total: principalHouses.length, malus: -pen });
         }
         detail.pilier4.typo_principal_activated = activatedPrincipal;
+        detail.pilier4.typo_secondary_activated = activatedSecondary;
         detail.pilier4.typo_principal_empty = emptyPrincipal;
 
-        // P4-PENALTY: Overlay planets in exile in principal houses
+        // v4.1.0 — B1 nouveauté : pénalité quand les planètes-clés typologiques
+        // sont totalement absentes des inter-aspects (signal typologique faible).
+        const keyPlanetsInAsp = new Set();
+        for (const a of allAsp) {
+            if (keyPlanets.includes(a.planete_source)) keyPlanetsInAsp.add(a.planete_source);
+            if (keyPlanets.includes(a.planete_cible))  keyPlanetsInAsp.add(a.planete_cible);
+        }
+        const keyAbsent = keyPlanets.length - keyPlanetsInAsp.size;
+        if (keyAbsent >= 2) {
+            const pen = Math.min(keyAbsent, 4) * 0.5;
+            p4 -= pen;
+            penalties.p4.push({ id: "key_planets_absent", count: keyAbsent, malus: -pen });
+        }
+        detail.pilier4.typo_key_planets_in_aspects = keyPlanetsInAsp.size;
+        detail.pilier4.typo_key_planets_total = keyPlanets.length;
+
+        // P4-PENALTY: Overlay planets in exile in principal houses (inchangé)
         let exilInPrincipal = 0;
         for (const h of principalHouses) {
             for (const ov of [...(ovBA && ovBA[h] || []), ...(ovAB && ovAB[h] || [])]) {
@@ -3917,9 +3976,73 @@ function computeGlobalScoreV3(ctx) {
     detail.pilier4.penalties = penalties.p4;
     detail.pilier4.bonuses = bonuses.p4;
 
-    // ====== SCORE FINAL (normalisation 105→100) ======
-    const raw = (detail.pilier1.total || 0) + p2 + p3 + p4;
-    const final = Math.max(0, Math.min(100, Math.round(raw * 100 / 105)));
+    // ====== PILIER 5 — TYPOLOGY FITNESS (v4.2.1 = revert v4.2.0) ===============
+    // Diagnostic v4.1.0 : les 4 piliers ne consultent jamais la grille
+    // typologique des maisons. Conséquence : Beauvoir/Sartre Amour et Coloc
+    // sortent à 46/46 sur deux typologies pourtant très différentes
+    // (princ Amour=[5,7,8] vs princ Coloc=[4,6,2]).
+    //
+    // v4.2.0 (B6) : ce pilier mesure la CONCENTRATION de l'overlay (poids des
+    // planètes étrangères dans les maisons natales) sur les maisons typologi-
+    // quement pertinentes. Une concentration forte sur les principales = bonne
+    // adéquation à la typologie. Score ∈ [0,15], poids ~12.5% du final.
+    //
+    // v4.3.0 a tenté deux variantes (B7 symétrique × 50, B7.1 asymétrique
+    // -60/+25) qui ont AMPLIFIÉ le pilier mais aussi sur-récompensé les
+    // témoins fortuitement alignés. Cohérence stricte 45.7% → 42.2% sur n=62.
+    // → REVERT v4.2.0 (cf. SYN-PATCH-PROPOSAL.md "v4.3.0 abandonné").
+    //
+    // Pour décompresser plus loin, l'amélioration ne passe PAS par sur-pondérer
+    // le pilier 5 (l'effet rebondit sur les témoins) mais par d'autres pistes
+    // documentées dans le rapport (typology-aware fluidite/intensite, etc.).
+    function _computeTypoFitness(overlay1, overlay2, typoConf) {
+        const princ = typoConf?.principales || [];
+        const sec   = typoConf?.secondaires || [];
+        if (!princ.length) {
+            return { score: 12.5, wPrinc: 0, wSec: 0, wOth: 0, concentration: 0.5, note: "no_principal_houses" };
+        }
+        const all12 = [1,2,3,4,5,6,7,8,9,10,11,12];
+        const others = all12.filter(h => !princ.includes(h) && !sec.includes(h));
+        function avgOverlayWeight(overlay, houses) {
+            if (!houses.length) return 0;
+            let total = 0;
+            for (const h of houses) {
+                const entries = overlay[h] || [];
+                for (const e of entries) {
+                    let w = (e.poids || 0) * (e.planete_cle_typo ? 1.5 : 1.0);
+                    if (e.dignite === "Domicile" || e.dignite === "Exaltation") w *= 1.20;
+                    else if (e.dignite === "Exil" || e.dignite === "Chute") w *= 0.75;
+                    if (BENEFIC_OVERLAY.has(e.planete)) w *= 1.10;
+                    else if (MALEFIC_OVERLAY.has(e.planete)) w *= 0.85;
+                    if (e.retrograde) w *= 0.90;
+                    total += Math.max(0, w);
+                }
+            }
+            return total / houses.length;
+        }
+        const wPrinc = (avgOverlayWeight(overlay1, princ)  + avgOverlayWeight(overlay2, princ))  / 2;
+        const wSec   = (avgOverlayWeight(overlay1, sec)    + avgOverlayWeight(overlay2, sec))    / 2;
+        const wOth   = (avgOverlayWeight(overlay1, others) + avgOverlayWeight(overlay2, others)) / 2;
+        const totalRef = wPrinc + wSec + wOth + 0.001;
+        const concentration = (wPrinc * 1.0 + wSec * 0.5) / totalRef;
+        // v4.2.0/v4.2.1 : score = concentration × 15, range [0,15].
+        return {
+            score: +Math.max(0, Math.min(15, concentration * 15)).toFixed(1),
+            wPrinc: +wPrinc.toFixed(1),
+            wSec: +wSec.toFixed(1),
+            wOth: +wOth.toFixed(1),
+            concentration: +concentration.toFixed(3)
+        };
+    }
+    const _p5Result = _computeTypoFitness(overlayBinA, overlayAinB, typoConf);
+    const p5 = _p5Result.score;
+    detail.pilier5_typology = _p5Result;
+
+    // ====== SCORE FINAL (normalisation 120→100, pilier 5 v4.2.0) ============
+    // Évolution diviseur : v4.1.0=105 (p1+p2+p3+p4) → v4.2.0=120 (+p5=15).
+    // v4.3.0 (130, 125) abandonné. Retour stable à 120.
+    const raw = (detail.pilier1.total || 0) + p2 + p3 + p4 + p5;
+    const final = Math.max(0, Math.min(100, Math.round(raw * 100 / 120)));
 
     const totalPenalties = [...penalties.p1, ...penalties.p2, ...penalties.p3, ...penalties.p4]
         .map(p => ({ ...p, malus: +((typeof p.malus === 'number') ? p.malus.toFixed(1) : p.malus) * 1 }));
@@ -3951,32 +4074,75 @@ function computeGlobalScoreV3(ctx) {
     fluidite += (_dsCompRatio - 0.5) * 16;
     fluidite = Math.max(0, Math.min(100, Math.round(fluidite)));
 
+    // v4.1.0 — B2 : recalibrer intensité. Avant, somme max = 97 → 99% des
+    // couples sortaient ≥ 75 (« Très intense ») et la métrique n'était plus
+    // discriminante. Caps revus à la baisse + pente plus douce sur _dsTotalW.
+    // Nouvelle somme max théorique ≈ 84 (vs 97), distribution centrée ~50.
     let intensite = 8;
-    intensite += Math.min(_dsTotalW / 2.5, 25);
-    intensite += Math.min(_dsExacts, 8) * 2;
-    intensite += Math.min(_dsKarmic, 8) * 1.2;
-    intensite += Math.min(_dsDwH + _dsDwT, 5) * 2.5;
-    intensite += Math.min(totalPenalties.length + totalBonuses.length, 12) * 1.0;
-    intensite += Math.min(_dsP2P, 10) * 0.8;
-    intensite += Math.min(_dsShadow, 4) * 1.5;
+    intensite += Math.min(_dsTotalW / 3.5, 22);
+    intensite += Math.min(_dsExacts, 8) * 1.8;
+    intensite += Math.min(_dsKarmic, 8) * 1.0;
+    intensite += Math.min(_dsDwH + _dsDwT, 5) * 2.0;
+    intensite += Math.min(totalPenalties.length + totalBonuses.length, 12) * 0.8;
+    intensite += Math.min(_dsP2P, 10) * 0.7;
+    intensite += Math.min(_dsShadow, 4) * 1.3;
     intensite = Math.max(0, Math.min(100, Math.round(intensite)));
 
-    // ====== CORRECTIF DE VIABILITÉ RELATIONNELLE ======
-    // Quand l'intensité dépasse largement la fluidité, le score brut
-    // surestime la qualité vécue de la relation. On applique une correction
-    // proportionnelle au déséquilibre, toutes typologies confondues.
-    const _viabDelta = Math.max(0, intensite - fluidite - 15);
-    const _viabCorrection = Math.min(_viabDelta * 0.25, 15);
+    // ====== CORRECTIF DE VIABILITÉ RELATIONNELLE (v4.1.0 bidirectionnel) ======
+    // Quand l'intensité dépasse largement la fluidité, le score brut surestime
+    // la qualité vécue de la relation → pénalité.
+    // À l'inverse (v4.1.0), une fluidité ≫ intensité (relation paisible et
+    // équilibrée) mérite un petit bonus de viabilité.
+    const _viabDeltaPenal = Math.max(0, intensite - fluidite - 15);
+    const _viabDeltaBonus = Math.max(0, fluidite - intensite - 15);
+    const _viabCorrection = Math.min(_viabDeltaPenal * 0.25, 15) - Math.min(_viabDeltaBonus * 0.20, 8);
     const finalCorrected = Math.max(0, Math.min(100, Math.round(final - _viabCorrection)));
+
+    // ====== ÉTIREMENT v4.3.0 — DIRE LA VÉRITÉ ===============================
+    // Diagnostic v4.2.2 (n=62 bench réel) :
+    //  - Score brut compressé sur [44, 81] (40 % de l'amplitude théorique)
+    //  - 55 % des cas en "FORT" (Compatibilité modérée), 3 % en ÉCHEC, 8 % en
+    //    EXCEPTIONNEL → centre défensif tiède.
+    //  - Cause structurelle : sum max observable des 5 piliers = 100.1, mais
+    //    diviseur = 120 → score max théorique 83. Pilier 5 utilise 51 % de
+    //    son cap (max 10.2 / 15).
+    //
+    // Décision business (mandat "si la relation est foutue elle est foutue,
+    // si elle est exceptionnelle elle est exceptionnelle") : étirer la
+    // distribution autour du pivot 60 (~ moyenne témoins) avec α=2.0 pour
+    // utiliser toute l'amplitude [0, 100] avant l'attribution du label.
+    //
+    // Formule : score_étiré = clamp(50 + (finalCorrected − 60) × 2.0, 0, 100)
+    //
+    // Effet simulé sur le bench v3.0 (n=62) :
+    //  - Range : [44, 81] → [18, 92]
+    //  - Distribution :
+    //      EXCEPTIONNEL  8 % → 8 % (préservé, légère décompression haute)
+    //      FORT         55 % → 24 % (centre éclaté)
+    //      TENDU        34 % → 42 % (croissance, plus visible)
+    //      ÉCHEC         3 % → 26 % (relations toxiques enfin nommées)
+    //  - Δ vrais−témoins : 3.6 → 7.2 pts (signal amplifié)
+    //
+    // Traçabilité : score_brut et score_compressed conservés en sortie pour
+    // tableaux de bord et debug. Le score "officiel" exposé au LLM et au
+    // client est le score étiré.
+    const STRETCH_PIVOT = 60;
+    const STRETCH_ALPHA = 2.0;
+    const finalStretched = Math.max(0, Math.min(100,
+        Math.round(50 + (finalCorrected - STRETCH_PIVOT) * STRETCH_ALPHA)
+    ));
 
     const _dsFluidLabel = fluidite >= 70 ? "Très fluide" : fluidite >= 50 ? "Fluide" : fluidite >= 35 ? "Modéré" : "Tendu";
     const _dsFluidLabelEN = fluidite >= 70 ? "Very fluid" : fluidite >= 50 ? "Fluid" : fluidite >= 35 ? "Moderate" : "Tense";
-    const _dsIntenLabel = intensite >= 75 ? "Très intense" : intensite >= 55 ? "Intense" : intensite >= 35 ? "Modéré" : "Calme";
-    const _dsIntenLabelEN = intensite >= 75 ? "Very intense" : intensite >= 55 ? "Intense" : intensite >= 35 ? "Moderate" : "Calm";
+    // v4.1.0 — B2 : seuils relevés (avant : ≥75 « Très intense », sortie 99%).
+    const _dsIntenLabel = intensite >= 70 ? "Très intense" : intensite >= 55 ? "Intense" : intensite >= 35 ? "Modéré" : "Calme";
+    const _dsIntenLabelEN = intensite >= 70 ? "Very intense" : intensite >= 55 ? "Intense" : intensite >= 35 ? "Moderate" : "Calm";
 
     return {
-        score: finalCorrected,
+        score: finalStretched,
         score_brut: final,
+        score_compressed: finalCorrected,
+        stretch: { pivot: STRETCH_PIVOT, alpha: STRETCH_ALPHA },
         fluidite: fluidite,
         intensite: intensite,
         dual_score: {
@@ -3984,15 +4150,24 @@ function computeGlobalScoreV3(ctx) {
             intensite: { score: intensite, label: _dsIntenLabel, label_en: _dsIntenLabelEN },
             profil: `${_dsFluidLabel} / ${_dsIntenLabel}`,
             profil_en: `${_dsFluidLabelEN} / ${_dsIntenLabelEN}`,
-            viability_correction: _viabCorrection > 0 ? { delta: _viabDelta, correction: -Math.round(_viabCorrection * 10) / 10, score_brut: final, score_corrige: finalCorrected } : null
+            viability_correction: _viabCorrection !== 0 ? {
+                delta_penal: _viabDeltaPenal,
+                delta_bonus: _viabDeltaBonus,
+                delta: _viabDeltaPenal,
+                correction: -Math.round(_viabCorrection * 10) / 10,
+                score_brut: final,
+                score_corrige: finalCorrected,
+                direction: _viabCorrection > 0 ? "penalty" : "bonus"
+            } : null
         },
-        version: "v4.0.0",
-        qualitative_band: getQualitativeBand(finalCorrected, typoConf?.label_fr || ""),
+        version: "v4.3.0",
+        qualitative_band: getQualitativeBand(finalStretched, typoConf?.label_fr || ""),
         detail: {
             pilier1_aspectual: detail.pilier1,
             pilier2_karmique: detail.pilier2,
             pilier3_composite: detail.pilier3,
             pilier4_structural: detail.pilier4,
+            pilier5_typology: detail.pilier5_typology,
             penalties_summary: {
                 total_penalties: totalPenalties.length,
                 total_malus: +totalMalus.toFixed(1),
@@ -5702,12 +5877,25 @@ if (davisonChart && davisonChart.planetes.length > 0) {
 // P3.2 — Score global v3 avec détail piliers + pénalités
 const qualBand = globalScoreResult.qualitative_band || {};
 const _ds = globalScoreResult.dual_score || {};
+const _versionLabel = globalScoreResult.version || "v4.3.0";
+const _scoreCompressed = globalScoreResult.score_compressed;
+const _scoreBrut = globalScoreResult.score_brut;
+const _stretchInfo = globalScoreResult.stretch;
 synthPrompt += isEN
-    ? `### GLOBAL COMPATIBILITY SCORE: ${globalScore}/100 (${globalScoreResult.version || "v4.0.0"})\n`
-    : `### SCORE DE COMPATIBILITÉ GLOBAL : ${globalScore}/100 (${globalScoreResult.version || "v4.0.0"})\n`;
+    ? `### GLOBAL COMPATIBILITY SCORE: ${globalScore}/100 (${_versionLabel})\n`
+    : `### SCORE DE COMPATIBILITÉ GLOBAL : ${globalScore}/100 (${_versionLabel})\n`;
 synthPrompt += isEN
     ? `Interpretation: **${qualBand.band || "N/A"}** — ${qualBand.desc_en || qualBand.desc_fr || ""}\n`
     : `Interprétation : **${qualBand.band || "N/A"}** — ${qualBand.desc_fr || ""}\n`;
+// v4.3.0 — Étirement « Dire la vérité » : exposer les scores intermédiaires
+// pour que le LLM comprenne d'où vient le verdict final et ne tente pas de
+// "reconstruire" mentalement un score à partir de la somme brute des piliers
+// (qui sortirait à ~60-70 % alors que le score final peut être à 18 ou 92).
+if (typeof _scoreCompressed === "number" && typeof _scoreBrut === "number" && _stretchInfo) {
+    synthPrompt += isEN
+        ? `> Score derivation : raw pillar sum normalized = ${_scoreBrut}/100, viability-corrected = ${_scoreCompressed}/100, then **stretched** to ${globalScore}/100 (pivot=${_stretchInfo.pivot}, alpha=${_stretchInfo.alpha}). The stretching decompresses the natural [44,81] band onto the full [0,100] scale, so a 'difficult' verdict really means difficult and an 'exceptional' verdict really means exceptional. **Trust the stretched score and the band label** — do not infer a different verdict from the pillar breakdown.\n`
+        : `> Dérivation du score : somme normalisée des piliers = ${_scoreBrut}/100, après correctif de viabilité = ${_scoreCompressed}/100, puis **étirée** à ${globalScore}/100 (pivot=${_stretchInfo.pivot}, alpha=${_stretchInfo.alpha}). L'étirement décompresse la plage naturelle [44,81] sur toute l'échelle [0,100] : un verdict « difficile » signifie vraiment difficile, un verdict « exceptionnel » signifie vraiment exceptionnel. **Fais confiance au score étiré et au label de la band** — ne tente pas de reconstruire un verdict différent depuis la décomposition des piliers.\n`;
+}
 synthPrompt += isEN
     ? `### RELATIONAL PROFILE: Fluidity ${_ds.fluidite?.score || '?'}/100 (${_ds.fluidite?.label_en || '?'}) — Intensity ${_ds.intensite?.score || '?'}/100 (${_ds.intensite?.label_en || '?'})\n`
     : `### PROFIL RELATIONNEL : Fluidité ${_ds.fluidite?.score || '?'}/100 (${_ds.fluidite?.label || '?'}) — Intensité ${_ds.intensite?.score || '?'}/100 (${_ds.intensite?.label || '?'})\n`;
@@ -5723,6 +5911,7 @@ const _p1 = globalScoreDetail.pilier1_aspectual || {};
 const _p2 = globalScoreDetail.pilier2_karmique || {};
 const _p3 = globalScoreDetail.pilier3_composite || {};
 const _p4 = globalScoreDetail.pilier4_structural || {};
+const _p5 = globalScoreDetail.pilier5_typology || {};
 const _penSum = globalScoreDetail.penalties_summary || {};
 const _bonSum = globalScoreDetail.bonuses_summary || {};
 synthPrompt += `— P1 Qualité Aspectuelle : ${_p1.total || 0}/35 (ratio ${((_p1.ratio || 0) * 100).toFixed(0)}%, ${_p1.aspects_count || 0} aspects, ${_p1.exact_bonus || 0} exacts, ${_p1.retro_in_aspects || 0} impliquant rétrograde${_p1.aspect_reception_bonus ? ', réception +' + _p1.aspect_reception_bonus : ''}${_p1.cazimi ? ', CAZIMI: ' + _p1.cazimi.map(c => c.planet).join('/') : ''}${_p1.combust ? ', combustes: ' + _p1.combust.map(c => c.planet).join('/') : ''})\n`;
@@ -5736,6 +5925,7 @@ const homoStr = [...homoBonus.map(b => `${b.id.replace(/_soft$/,"").replace(/_/g
 const _signCompat = _p4.sign_compatibility || {};
 const _signStr = (_signCompat.pairs || []).map(p => `${p.planet}:${p.relation}(${p.pts > 0 ? '+' : ''}${p.pts})`).join(', ') || 'N/A';
 synthPrompt += `— P4 Compat. Structurelle : ${_p4.total || 0}/20 (éléments: ${_p4.element_relation || '?'}, ${_p4.elements_communs || 0} communs, modes: ${_p4.modes_communs || 0} communs, signes personnels: [${_signStr}] total ${_signCompat.score || 0}, typo: ${_p4.typo_principal_activated || 0}/${(_p4.typo_principal_activated || 0) + (_p4.typo_principal_empty || 0)} maisons activées, homonymes: ${homoStr})\n`;
+synthPrompt += `— P5 Adéquation Typologique : ${_p5.score || 0}/15 (concentration overlay sur maisons typologiques = ${(((_p5.concentration || 0) * 100).toFixed(0))}% — wPrinc=${_p5.wPrinc || 0}, wSec=${_p5.wSec || 0}, wOth=${_p5.wOth || 0}). Mesure la pertinence de la synastrie pour la typologie demandée (Amour, Business, etc.).\n`;
 if (_penSum.total_penalties > 0) {
     synthPrompt += `\n⚠ PÉNALITÉS APPLIQUÉES (${_penSum.total_penalties}, total ${_penSum.total_malus || 0} pts) :\n`;
     for (const pen of (_penSum.items || [])) {
@@ -5751,7 +5941,7 @@ if (_bonSum.total_bonuses > 0) {
     }
 }
 synthPrompt += `\nLes pénalités et bonus comportent une modulation élémentaire [elem] : « aversion » (signes adjacents, pas de qualité partagée → impact amplifié), « same_element » (résonance profonde → impact atténué), « compatible » (dialogue naturel), « incompatible » (cécité élémentaire → impact renforcé). Intègre cette nuance dans ton interprétation.\n`;
-synthPrompt += `v4.0.0 intègre : (1) compatibilité de signe fondamentale des planètes personnelles indépendamment des aspects, (2) modulation rétrogradation (planètes rétrogrades aggravent les tensions, atténuent les harmoniques), (3) réception dans les aspects (bonus quand une planète occupe la dignité de son partenaire d'aspect), (4) combuste/cazimi croisé (planète dans l'orbe du Soleil de l'autre), (5) modulation stationnaire intégrée par aspect, (6) pondération qualitative des contacts nodaux, (7) correctif de viabilité quand intensité >> fluidité, (8) pénalité structurelle renforcée quand 0 éléments ET 0 modes communs.\n`;
+synthPrompt += `${_versionLabel} intègre : (1) compatibilité de signe fondamentale des planètes personnelles indépendamment des aspects, (2) modulation rétrogradation (planètes rétrogrades aggravent les tensions, atténuent les harmoniques), (3) réception dans les aspects (bonus quand une planète occupe la dignité de son partenaire d'aspect), (4) combuste/cazimi croisé (planète dans l'orbe du Soleil de l'autre), (5) modulation stationnaire intégrée par aspect, (6) pondération qualitative des contacts nodaux, (7) correctif de viabilité quand intensité >> fluidité, (8) pénalité structurelle renforcée quand 0 éléments ET 0 modes communs, (9) pilier 5 « adéquation typologique » qui mesure la pertinence de l'overlay pour la relation demandée (v4.2.0+), (10) étirement post-score autour du pivot 60 pour décompresser la distribution naturelle [44,81] sur toute l'échelle [0,100] (v4.3.0+ — "dire la vérité").\n`;
 synthPrompt += `Utilise ce détail des 4 piliers, des pénalités ET des bonus pour structurer ta synthèse : commente les forces ET les faiblesses de chaque dimension de manière équilibrée et objective.\n\n`;
 
 const dwPairsData = globalScoreDetail?.pilier1_aspectual?.double_whammy_harmony_pairs || [];
@@ -6126,6 +6316,21 @@ const _slotResult = {
     }
 };
 
+// v4.2.0 — B5 : exposer le score NORMALIZED (rapporté au théorique de la maison,
+// déjà borné [0,100] par construction) au lieu du brut weighted. Le brut était
+// non comparable entre couples et causait des saturations à 150+ ou des
+// négatifs. La normalisation `weighted / theoretical * 100` est calculée par
+// computeHouseScore dès l'origine ; elle reste relative au pool d'overlay
+// effectif de chaque maison, donc plus juste pour comparer la qualité d'un
+// activement entre deux couples. `score_raw` est conservé pour debug.
+//
+// Ancien code v4.1.0 (B4) : `_boundSlotScore(p.score)` qui bornait le brut.
+// Nouveau code v4.2.0 (B5) : `p.normalized ?? 0`. Plus besoin de borner.
+function _safeSlotScore(s) {
+    if (typeof s !== "number" || !Number.isFinite(s)) return 0;
+    return Math.max(0, Math.min(100, s));
+}
+
 for (let i = 0; i < 6; i++) {
     if (_promptsA_sorted[i]) {
         const p = _promptsA_sorted[i];
@@ -6135,7 +6340,8 @@ for (let i = 0; i < 6; i++) {
             prompt_user: p.prompt_user + _CONSIGNE_MAISON,
             house: p.house,
             label: `Maison ${p.house} de ${personneA.prenom || 'A'} ${(personneA.nom || '').toUpperCase()}`,
-            score: p.score,
+            score: _safeSlotScore(p.normalized),
+            score_raw: p.score,
             is_principale: p.is_principale,
             category: 'perspective_a'
         };
@@ -6153,7 +6359,8 @@ for (let i = 0; i < 6; i++) {
             prompt_user: p.prompt_user + _CONSIGNE_MAISON,
             house: p.house,
             label: `Maison ${p.house} de ${personneB.prenom || 'B'} ${(personneB.nom || '').toUpperCase()}`,
-            score: p.score,
+            score: _safeSlotScore(p.normalized),
+            score_raw: p.score,
             is_principale: p.is_principale,
             category: 'perspective_b'
         };
