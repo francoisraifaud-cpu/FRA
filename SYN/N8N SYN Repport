@@ -289,7 +289,8 @@ ${(() => {
 </div>`;
 })()}
 <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:12px">
-    <div style="font-weight:600;font-size:0.82em;color:#1F3864;margin-bottom:6px">${isEN ? 'Top 5 Strongest Aspects' : 'Top 5 Aspects les plus forts'}</div>
+    <div style="font-weight:600;font-size:0.82em;color:#1F3864;margin-bottom:2px">${isEN ? 'Top 5 Strongest Aspects' : 'Top 5 Aspects les plus forts'}</div>
+    <div style="font-size:0.7em;color:#64748b;font-style:italic;margin-bottom:6px">${isEN ? '(Raw geometric score : orb + nature, before structural weighting)' : '(Score brut géométrique : orbe + nature, avant pondération structurelle)'}</div>
     ${_top5Asp.map(a => {
         const _nc = NATURE_LABELS[a.nature] || { color: "#374151", label: a.nature || "?" };
         return `<div style="display:flex;justify-content:space-between;align-items:center;font-size:0.82em;padding:2px 0;border-bottom:1px solid #f1f5f9"><span style="color:${_nc.color}">${escH(a.planete_source)} ${escH(a.aspect)} ${escH(a.planete_cible)}</span><span style="font-weight:700">${a.score}</span></div>`;
@@ -350,6 +351,7 @@ html += `<h2 class="section-title" id="syn-doc-stats">${isEN ? 'Summary Statisti
 
 const almuten = input.synastry_almuten || {};
 const m7cross = input.m7_cross_analysis || {};
+const keyHouseRulers = input.key_house_rulers_analysis || [];
 const sigAsp = input.signature_aspects || [];
 
 if (globalScore > 0) {
@@ -1085,8 +1087,8 @@ if (crossReceptions.length > 0) {
 // ── ASPECTS SIGNATURES (natal → synastrie) ──
 if (sigAsp.length > 0) {
     html += `<h2 class="section-title page-break">${isEN ? 'Signature Aspects' : 'Aspects Signatures'}</h2>`;
-    html += `<p class="decl-intro">${isEN ? 'Aspects already present in at least one natal chart AND replicated in synastry. These patterns are amplified by pre-existing resonance.' : 'Aspects déjà présents dans au moins un thème natal ET répliqués en synastrie. Ces schémas sont amplifiés par une résonance préexistante.'}</p>`;
-    html += `<table class="score-table"><tr><th>${isEN ? 'Pair' : 'Paire'}</th><th>Aspect</th><th>Nature</th><th>${isEN ? 'Orb' : 'Orbe'}</th><th>Score</th></tr>`;
+    html += `<p class="decl-intro">${isEN ? 'Aspects already present in at least one natal chart AND replicated in synastry. These patterns are amplified by pre-existing resonance. The score below is a weighted signature score (raw geometric score + structural weighting : house mastery, angular contact, double whammy).' : 'Aspects déjà présents dans au moins un thème natal ET répliqués en synastrie. Ces schémas sont amplifiés par une résonance préexistante. Le score ci-dessous est un score pondéré signature (score brut géométrique + pondération structurelle : maîtrise de maison, contact angulaire, double whammy).'}</p>`;
+    html += `<table class="score-table"><tr><th>${isEN ? 'Pair' : 'Paire'}</th><th>Aspect</th><th>Nature</th><th>${isEN ? 'Orb' : 'Orbe'}</th><th>${isEN ? 'Weighted Signature Score' : 'Score Pondéré Signature'}</th></tr>`;
     for (const s of sigAsp.slice(0, 12)) {
         const natColor = s.nature === 'harmonie' ? '#166534' : s.nature === 'tension' ? '#991b1b' : s.nature === 'fusion' ? '#7c3aed' : '#374151';
         html += `<tr><td><strong>${escH(s.pair)}</strong></td><td>${escH(s.aspect)}</td><td style="color:${natColor};font-weight:bold">${escH(s.nature)}</td><td>${s.orbe}°</td><td>${s.score}</td></tr>`;
@@ -1107,10 +1109,16 @@ if (doubleWhammies.length > 0) {
     html += `</table>`;
 }
 
-// ── MAÎTRES DE LA M7 CROISÉS ──
+// ── MAÎTRES DES MAISONS CLÉS — ANALYSE CROISÉE ──
+// v7.0.1 — Q57 audit 18223 : section étendue à toutes les maisons principales
+// de la typologie (M7 + autres). Les maisons secondaires sont volontairement
+// exclues du tableau (filtre Q18 astrologue) car leur signal narratif est
+// porté par d'autres blocs (key activations, m7_cross, etc.).
 if (m7cross.ruler_a && m7cross.ruler_b) {
-    html += `<h2 class="section-title">${isEN ? 'M7 Rulers Cross-Analysis' : 'Maîtres de la Maison 7 — Analyse Croisée'}</h2>`;
-    html += `<p class="decl-intro">${isEN ? 'The 7th house ruler indicates how each person approaches partnerships. Their cross-chart aspects reveal the natural compatibility of relational expectations.' : 'Le maître de la maison 7 indique comment chaque personne aborde le partenariat. Leurs aspects croisés révèlent la compatibilité naturelle des attentes relationnelles.'}</p>`;
+    html += `<h2 class="section-title">${isEN ? 'Key House Rulers — Cross-Analysis' : 'Maîtres des Maisons Clés — Analyse Croisée'}</h2>`;
+    html += `<p class="decl-intro">${isEN ? 'For each principal house of the typology, the planetary ruler reveals how each person approaches that life area. Their cross-chart aspects measure the natural compatibility of expectations and rhythms.' : 'Pour chaque maison principale de la typologie, le maître planétaire révèle la manière dont chaque personne aborde ce domaine de vie. Leurs aspects croisés mesurent la compatibilité naturelle des attentes et des rythmes.'}</p>`;
+
+    html += `<h3 style="color:#1F3864;font-size:1em;margin:14px 0 6px;font-family:'Playfair Display',serif">${isEN ? '◆ House 7 (Partnership)' : '◆ Maison 7 (Partenariat)'}</h3>`;
     const qualColor = m7cross.quality === 'favorable' ? '#059669' : m7cross.quality === 'challenging' ? '#dc2626' : '#d97706';
     const qualLabel = m7cross.quality === 'favorable' ? (isEN ? 'Favorable' : 'Favorable') : m7cross.quality === 'challenging' ? (isEN ? 'Challenging' : 'Difficile') : (isEN ? 'Mixed' : 'Mixte');
     html += `<div class="duo">`;
@@ -1126,6 +1134,35 @@ if (m7cross.ruler_a && m7cross.ruler_b) {
         }
         html += `</table>`;
     }
+
+    if (Array.isArray(keyHouseRulers) && keyHouseRulers.length > 0) {
+        html += `<h3 style="color:#1F3864;font-size:1em;margin:18px 0 6px;font-family:'Playfair Display',serif">${isEN ? '◆ Other Principal Houses of the Typology' : '◆ Autres Maisons Principales de la Typologie'}</h3>`;
+        html += `<table class="score-table"><tr><th>${isEN ? 'House' : 'Maison'}</th><th>${isEN ? 'Sign / Ruler' : 'Signe / Maître'} (${prenomA})</th><th>${isEN ? 'Sign / Ruler' : 'Signe / Maître'} (${prenomB})</th><th>${isEN ? 'Cross overlay' : 'Overlay croisé'}</th><th>${isEN ? 'Cross aspects' : 'Aspects croisés'}</th><th>${isEN ? 'Quality' : 'Qualité'}</th></tr>`;
+        for (const e of keyHouseRulers) {
+            const eqColor = e.quality === 'favorable' ? '#059669' : e.quality === 'challenging' ? '#dc2626' : '#d97706';
+            const eqLabel = e.quality === 'favorable' ? (isEN ? 'Favorable' : 'Favorable') : e.quality === 'challenging' ? (isEN ? 'Challenging' : 'Difficile') : (isEN ? 'Mixed' : 'Mixte');
+            const overlayBits = [];
+            if (e.ruler_a_in_house_b) overlayBits.push(`${escH(e.ruler_a || '?')} (${prenomA}) → M${e.ruler_a_in_house_b} (${prenomB})`);
+            if (e.ruler_b_in_house_a) overlayBits.push(`${escH(e.ruler_b || '?')} (${prenomB}) → M${e.ruler_b_in_house_a} (${prenomA})`);
+            const overlayHtml = overlayBits.length > 0 ? overlayBits.join('<br>') : '<span style="color:#94a3b8;font-style:italic">—</span>';
+            const aspCount = (e.cross_aspects || []).length;
+            html += `<tr>`;
+            html += `<td style="text-align:center;font-weight:700">M${e.house}</td>`;
+            html += `<td>${escH(e.ruler_a_sign || '—')} / <strong>${escH(e.ruler_a || '—')}</strong></td>`;
+            html += `<td>${escH(e.ruler_b_sign || '—')} / <strong>${escH(e.ruler_b || '—')}</strong></td>`;
+            html += `<td style="font-size:0.85em">${overlayHtml}</td>`;
+            html += `<td style="text-align:center">${aspCount}</td>`;
+            html += `<td style="color:${eqColor};font-weight:600">${eqLabel}</td>`;
+            html += `</tr>`;
+        }
+        html += `</table>`;
+    }
+
+    const _principales = (typoConfig.principales || []).slice().sort((a, b) => a - b);
+    const _secondaires = (typoConfig.secondaires || []).slice().sort((a, b) => a - b);
+    const _principalesStr = _principales.length > 0 ? _principales.map(h => `M${h}`).join(', ') : '—';
+    const _secondairesStr = _secondaires.length > 0 ? _secondaires.map(h => `M${h}`).join(', ') : '—';
+    html += `<p style="font-size:0.78em;color:#475569;font-style:italic;margin:10px 0 0;line-height:1.5;border-left:3px solid #cbd5e1;padding:6px 12px;background:#f8fafc">${isEN ? `<strong>Note :</strong> The absence of a key house from this list means that its planetary ruler does not form decisive cross-aspects with the partner's chart, OR that this house is secondary in the typology and is therefore voiced through other blocks. For "${escH(typoConfig.label_en || typoConfig.label_fr || '')}", principal houses are ${_principalesStr} ; secondary houses ${_secondairesStr}.` : `<strong>Note :</strong> L'absence d'une maison clé dans cette liste signifie que son maître planétaire ne forme pas d'inter-aspects décisifs avec le thème du partenaire, OU que cette maison est secondaire dans la typologie et donc portée par d'autres blocs narratifs. Pour « ${escH(typoConfig.label_fr || typoConfig.label_en || '')} », les maisons principales sont ${_principalesStr} ; les maisons secondaires ${_secondairesStr}.`}</p>`;
 }
 
 // ── ALMUTEN DE LA SYNASTRIE ──
@@ -1293,7 +1330,7 @@ html += `</div>`;
 
 // ── INTER-ASPECTS TIER 1 ──
 html += `<h2 class="section-title page-break" id="syn-doc-tier1">${isEN ? 'Major Inter-Aspects (Tier 1)' : 'Inter-Aspects Majeurs (Tier 1)'}<span class="fiabilite-badge">${isEN ? '✓ High reliability' : '✓ Fiabilité élevée'}</span></h2>`;
-html += `<p class="decl-intro">${isEN ? 'Aspects between main planets (Sun&#8594;Pluto, Chiron, Nodes, Angles). Sorted by descending score.' : 'Aspects entre les planètes principales (Soleil&#8594;Pluton, Chiron, N&#339;uds, Angles). Triés par score décroissant.'}</p>`;
+html += `<p class="decl-intro">${isEN ? 'Aspects between main planets (Sun&#8594;Pluto, Chiron, Nodes, Angles). Sorted by descending score. The "Sc." column shows the raw geometric score (orb + nature). For the structurally weighted score (house mastery, angular contact, double whammy), refer to the "Signature Aspects" section.' : 'Aspects entre les planètes principales (Soleil&#8594;Pluton, Chiron, N&#339;uds, Angles). Triés par score décroissant. La colonne "Sc." affiche le score brut géométrique (orbe + nature). Pour le score pondéré structurellement (maîtrise de maison, contact angulaire, double whammy), se référer à la section "Aspects Signatures".'}</p>`;
 
 const NATURE_ROW_BG = {
     fusion: "rgba(237,233,254,0.3)",
@@ -1309,7 +1346,8 @@ function formatMaisonSyn(m) {
 
 const ASPECT_SHORT = { "Conjonction": "Conj.", "Opposition": "Opp.", "Trigone": "Tri.", "Sextile": "Sex.", "Carré": "Car.", "Quinconce": "Quinc.", "Conjunction": "Conj.", "Trine": "Tri.", "Square": "Sq.", "Sextile": "Sex.", "Opposition": "Opp.", "Quincunx": "Qx." };
 function renderAspectTable(aspects, nameFrom, nameTo) {
-    let s = `<table><colgroup><col style="width:15%"><col style="width:7%"><col style="width:7%"><col style="width:15%"><col style="width:7%"><col style="width:10%"><col style="width:10%"><col style="width:4%"><col style="width:6%"><col style="width:5%"><col style="width:5%"></colgroup><thead><tr><th>${escH(nameFrom)}</th><th>Dig.</th><th style="text-align:center">${isEN ? 'Asp.' : 'Asp.'}</th><th>${escH(nameTo)}</th><th>Dig.</th><th style="text-align:center">${isEN ? 'Orb' : 'Orbe'}</th><th>Nature</th><th style="text-align:center">D.</th><th style="text-align:center">Sc.</th><th style="text-align:center">Ms</th><th style="text-align:center">Mc</th></tr></thead><tbody>`;
+    const _scTitle = isEN ? 'Sc. = Raw geometric score (orb + nature). Structurally weighted score available in "Signature Aspects".' : 'Sc. = Score brut géométrique (orbe + nature). Score pondéré structurellement disponible dans "Aspects Signatures".';
+    let s = `<table><colgroup><col style="width:15%"><col style="width:7%"><col style="width:7%"><col style="width:15%"><col style="width:7%"><col style="width:10%"><col style="width:10%"><col style="width:4%"><col style="width:6%"><col style="width:5%"><col style="width:5%"></colgroup><thead><tr><th>${escH(nameFrom)}</th><th>Dig.</th><th style="text-align:center">${isEN ? 'Asp.' : 'Asp.'}</th><th>${escH(nameTo)}</th><th>Dig.</th><th style="text-align:center">${isEN ? 'Orb' : 'Orbe'}</th><th>Nature</th><th style="text-align:center">D.</th><th style="text-align:center" title="${escH(_scTitle)}">Sc.</th><th style="text-align:center">Ms</th><th style="text-align:center">Mc</th></tr></thead><tbody>`;
     aspects.slice(0, 25).forEach(a => {
         const aspColor = ASPECT_COLORS[a.aspect] || '#475569';
         const natInfo = NATURE_LABELS[a.nature] || { color: "#1e40af", bg: "#dbeafe", label: a.nature || "?", tag: "tag-fusion" };
