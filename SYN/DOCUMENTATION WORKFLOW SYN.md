@@ -1,10 +1,31 @@
 # DOCUMENTATION WORKFLOW — SYNASTRIE
 
-**Version** : v3.1 (Sprints 8.2 + 8.3 fan-out — déployé 2026-05-03 sur `Enrichissement Astrologique A`, `Enrichissement Astrologique B` et `Super noeud Syn` composite)
-**Moteur scoring** : v4.3.0 (étirement « Dire la vérité » — sortie du centre défensif "Compatibilité modérée")
-**Plateforme** : n8n Cloud
+**Version courante** : moteur scoring **v6.8.0 (gelé, 2026-05-06)** + narration **v7.0.0 (GA, 2026-05-06)** — voir § 17.
+**Plateforme** : n8n Cloud (workflow ID `4mjgklWWwjCF8fze`, alias `SYN — PROD`)
 **Auteur** : François Raifaud
-**Bench de référence** : 62 cas — 46 couples célèbres documentés (Simone de Beauvoir & Jean-Paul Sartre, Salvador Dalí & Gala, Frédéric Chopin & George Sand, John Lennon & Yoko Ono, et d'autres répartis sur les 8 typologies) + 16 paires-témoins (couples délibérément incompatibles, 2 par typologie) pour neutraliser les faux positifs. Métrique-reine : cohérence verdict moteur ↔ verdict historique attendu — **89 % à ±1 cran**, 0 régression sur 4 sprints consécutifs. Détails complets et liste exhaustive : `SITE/scripts/SYN-FIABILITE-RAPPORT.md`. Synthèse publique : fiche produit `/rapports/syn` du site (section « Validation et fiabilité »).
+
+**Architecture binaire scoring / narration** (depuis 2026-05-06) :
+
+- **Moteur de scoring v6.8.0** — gelé. Aucune modification des coefficients, pivots, seuils de bandes ou algorithmes de pondération sans réouverture explicite (clauses Q51 du gel, voir § 17.1). L'historique complet des sprints v3.x → v5.0.0 → v6.x est conservé tel quel ci-dessous (§§ 3 à 16) pour traçabilité.
+- **Narration v7.0.0** — itère librement sur le `synthPrompt`, le lexique typologique, la structure des prompts et la valorisation des marqueurs, sans toucher à un seul coefficient de scoring. Champ `narrative_version` distinct de `version` (qui reste `6.8.0`).
+
+**Bench de référence post-arbitrages** (2026-05-06) :
+
+| Cohorte | Métrique | Valeur |
+|---|---|---|
+| 79 cas (v6.8.0 super.ndjson) | Cohérence tolérante Q46+Q52 | **96.2 %** |
+| 30 cas réels stratifiés sur 8 typologies + 5 témoins (v7.0.0-β.2 stratifié) | **Cohérence tolérante Q46+Q52+Q53** | **100 %** (30/30) |
+| 30 cas | Incohérences sévères (≥ 2 bandes) | **0** |
+| 5 témoins absurdes | Sentinelles violées | **0/5** |
+| Précision astrale brute estimée par l'astrologue | — | **≈ 95 %** |
+
+**Bench narration v7.0.0** (n=35) :
+- Lectures typologiques injectées : ≈ 19.9 / cas (8.7 synthèse + 11.2 maisons)
+- `narrative_version` conforme : 35/35
+- Drapeaux structurels : 0
+- Audit qualitatif manuel sur 7 cas critiques : 7/7 cohérents avec la réalité historique
+
+Détails complets : § 17 (v6.0 → v7.0.0 GA), `SITE/scripts/SYN-V7-CHANTIER.md`, `SITE/scripts/syn-bench-coherence-narrative-v7.0.0-beta2-rapport.md`. Synthèse publique : fiche produit `/rapports/syn` (section « Validation et fiabilité »).
 
 ---
 
@@ -195,9 +216,23 @@ Pour chaque personne (A et B) :
 
 ### 3.5 SCORING
 
-#### Score global (0–100) — `computeGlobalScoreV3` — Architecture 4 Piliers + Dual Score + Correctif de Viabilité (v4.0.0)
+#### Score global (0–100) — `computeGlobalScoreV3` — Architecture 6 Piliers + Dual Score + Veto qualitatif (v5.0.0)
 
-Le score v4.0.0 repose sur **4 piliers** indépendants, chacun plafonnés, dont la somme normalisée (105→100) donne le score brut. Un **correctif de viabilité** peut réduire le score brut quand l'intensité dépasse largement la fluidité. Le résultat est un **dual score** (Fluidité + Intensité) et un score global corrigé. Tous les malus sont arrondis à 1 décimale.
+Le score v5.0.0 repose sur **6 piliers** indépendants, chacun plafonnés, dont la somme normalisée (130→100, en pratique diviseur 126) donne le score brut. Un **correctif de viabilité durci** réduit le score brut quand l'intensité dépasse la fluidité (seuil 12, coef 0.35, cap 16). Un **étirement asymétrique** (pivot 55, α=1.4 au-dessus / α=1.8 sous le pivot) décompresse la distribution sans inflater les bandes hautes. Un **veto qualitatif** cappe la bande à 64 (haut de « Stimulante exigeante ») pour les configurations d'échec critiques en typologie Amour. Le résultat est un **dual score** (Fluidité + Intensité) et un score global corrigé. Tous les malus sont arrondis à 1 décimale.
+
+**v5.0.0 — nouveautés majeures (mai 2026)** :
+
+- **Pilier 6 « Cohérence typologique des maisons »** ([-2, +6] pts) : moyenne pondérée des maisons clés de la typologie (70% principales, 30% secondaires) dans les 2 directions overlay, modulée par : pénalité d'asymétrie (>15 d'écart entre A→B et B→A), pénalité par maison clé en polarité tension, pénalité maison d'ombre activée tendue. Comble la dissonance « score global élevé + maisons typo faibles » identifiée comme cause principale de faux positifs cliniques.
+- **Veto qualitatif** (typologie Amour) : 4 raisons déclenchent le cap à 64 :
+  1. `M7_weak_with_SN_dominance` — Maison 7 vide (norm < 25) ou en tension dans une direction + south_node_dominance
+  2. `destructive_quartet` — Pluton hard personal + Uranus affectif + fusions empoisonnées + south_node dominance
+  3. `intensity_explosion` — delta intensité−fluidité ≥ 30 + ≥4 fusions empoisonnées
+  4. `dw_tension_dominant` — DW tension ≥ 70% des DW harmonie + ≥3 fusions empoisonnées
+- **Caps pénalités relevés** : `pluton_hard_personal` (4→6), `mars_hard_luminaires` (3→4 et 0.7→0.8), `uranus_hard_affective` (3→4 et 0.6→0.7), `double_whammy_tension` (3→5), `south_node_dominance` (seuil 2→1, pondération par ratio sn/nn, cap −2.5).
+- **Stretch asymétrique** : pivot 55 (au lieu de 60), α=1.4 au-dessus / α=1.8 en-dessous. Empêche les faux « Magnétisme fort » qui n'ont pas la fluidité associée.
+- **Bande renommée** : « Alchimie remarquable » → « **Magnétisme fort** » (la promesse d'alchimie suggérait une longévité que le moteur ne peut pas garantir).
+
+Le score étiré est calculé en deux temps : (a) `computeGlobalScoreV3` calcule P1-P5 et expose `_finalize_ctx`, (b) après la boucle de scoring des maisons, `finalizeGlobalScoreWithPilier6` injecte P6, recalcule viability + stretch, applique le veto, et renseigne `globalScoreDetail.pilier6_typo_houses` + `globalScoreDetail.qualitative_veto` (si applicable).
 
 **Améliorations v3.3 par rapport à v3.2 :**
 - **P1** : Ajout bonus Soleil-Lune soft (+1.0 ou +1.5 si exact) — symétrie avec la pénalité `no_soleil_lune_soft`
@@ -585,7 +620,7 @@ Le score brut (0–100) est accompagné d'une **bande qualitative** adaptée au 
 | Typologie | ≥ 78/80/75 | ≥ 65/60 | ≥ 50/45 | < 50/45 |
 |---|---|---|---|---|
 | **Parent / Enfant** | Harmonie naturelle | Lien profond avec défis structurants | Relation complexe mais transformatrice | Tensions structurelles profondes |
-| **Amour** | Alchimie remarquable (≥80) | Bonne compatibilité (≥65) | Stimulante et exigeante (≥50) | Tensions dominantes |
+| **Amour** | Magnétisme fort (≥80, v5.0.0) | Bonne compatibilité (≥65) | Stimulante et exigeante (≥50) | Tensions dominantes |
 | **Business** | Synergie forte (≥75) | Partenariat viable (≥60) | Collaboration exigeante (≥45) | Risque de blocages |
 | **Générique** | Compatibilité forte (≥75) | Modérée (≥60) | Relation de croissance (≥45) | Difficile |
 
@@ -1123,3 +1158,197 @@ Toute modification de `FRA/THEME/N8N Theme` doit faire l'objet d'une **séquence
 3. `npm run syn:deploy-supernode` — propagation manuelle vers le `Super noeud Syn` (qui n'est pas un clone de l'`Enrichissement Astrologique` mais embarque une copie partielle des fonctions `computeChartShape` et `detectYods` pour le composite).
 
 `npm run theme:coherence-scan` permet de vérifier à tout moment qu'aucun clone n'a divergé.
+
+---
+
+## 17. CYCLES v6.x (CALIBRAGE FINAL DU MOTEUR) → v7.0.0 GA (NARRATION)
+
+Cette section consolide la sortie de la phase de calibrage post-v5.0.0 (sprints v6.0 → v6.8.0 — le moteur de scoring) puis le passage à un mode **scoring gelé / narration libre** matérialisé par la branche v7.0.0.
+
+### 17.1 Gel du moteur — `v6.8.0` (clauses Q51, 2026-05-06)
+
+À partir du 2026-05-06, **les coefficients de scoring sont figés à v6.8.0**. Toute modification du `Super noeud Syn` qui touche un coefficient (poids planétaire, pondération aspect, seuil de bande, pivot d'étirement, cap pénalité, etc.) est interdite par défaut.
+
+Conditions cumulatives de réouverture (clauses Q51) :
+
+1. Faille narrative majeure remontée par le bench textuel v7.x où un coefficient devient inévitable.
+2. Décision explicite de l'astrologue acceptant la dérogation.
+3. Modification marquée `v7.x — déroge au gel` dans le code, avec justification + bench scoring de non-régression.
+
+Sans ces 3 conditions réunies : **interdit**. L'avertissement est gravé en commentaire de tête du nœud `FRA/SYN/N8N SYN` (lignes 1-25).
+
+**Performance figée v6.8.0** (référence) :
+
+| Métrique | Valeur |
+|---|---|
+| Cohérence stricte (band exact) | 30.4 % (24/79 réels) |
+| **Cohérence stricte Q46+Q52** | 38.0 % (30/79) |
+| **Cohérence tolérante Q46+Q52** | **96.2 %** |
+| Incohérences sévères (≥ 2 bandes) hors Q46/Q52 | 3 |
+| Sentinelles témoins violées (Q50) | 0/8 typologies |
+| Q31 succès astral — tolérance Q46 | 90 % |
+
+Le champ `version` du `globalScoreResult` reste figé à `6.8.0`. Le champ `narrative_version` est ajouté en parallèle (initialement `v7.0.0-beta.1`, puis β.2, β.3, GA `v7.0.0`).
+
+### 17.2 Purification du dataset — Q46 + Q52 + Q53 + Q56-1 + Q56-2
+
+Le bench de référence a été purifié progressivement de ses biais d'annotation :
+
+| Arbitrage | Cas | Action |
+|---|---|---|
+| **Q46** (déjà acquis) | Trump/Merkel + similaires | Marqués `astral_correct_despite_history: true` — verdict moteur correct, écart = biais célébrité |
+| **Q52** (4 cas standards) | Macron/Merkel Business, Buffett/Gates Mentorat, Diana/Charles Amour, Chirac/Villepin Mentorat | Marqués `astral_correct_despite_history: true` |
+| **Q53** (7 couples Q31 intellectuels) | Tolkien/CSLewis, Bourdieu/Foucault, Kerouac/Ginsberg, et 4 autres | `expected_verdict` ré-annoté en `moyen` (ou `tendu` pour Kerouac/Ginsberg) — purification du biais célébrité |
+| **Q56-1** (post-bench β.1) | Federer/Nadal Rivalité | Marqué `astral_correct_despite_history: true` (miroir Trump/Merkel) |
+| **Q56-2** (post-bench β.1) | Macron/Brigitte Amour | `expected_verdict` ré-aligné `moyen` → `fort` (le moteur sortait gs=68 cohérent avec le biographique fort ; l'annotation antérieure pénalisait à tort l'écart d'âge non-astrologique) |
+
+Le manifest `SITE/scripts/syn-bench-volume-fiabilite-manifest.json` documente chaque ré-annotation avec sa raison astrologique.
+
+### 17.3 Narration v7.0.0 — chantier
+
+Branche **scoring gelé / narration libre**. Trois priorités astrologue (Q54), implémentées dans l'ordre :
+
+#### Priorité 1 — Profondeur typologique différenciée (Q54-D)
+
+Une **carte `TYPO_NARRATIVE_LEXICON`** est ajoutée dans `FRA/SYN/N8N SYN` à côté de `TYPOLOGY_GRID`. Pour chaque clé `(Planète A, Planète B, harm | hard)` reconnue dans le top des inter-aspects, le synthPrompt annote la ligne avec la formulation typologique imposée parmi les 8 typologies.
+
+Le LLM reçoit la consigne explicite : « Reprends ces formulations typologiques telles quelles dans le narratif ; ne les remplace pas par un vocabulaire générique. »
+
+Couverture lexique β.2 : 25 paires planétaires × 2 natures (harm/hard) × 8 typologies. Les helpers `_aspectNature`, `_normalizePlanetPair`, `_typoLexiconFor` (memoized) sont implémentés en hoisted function declarations pour éviter les TDZ avec `formatAspectsForHouse`.
+
+#### Priorité 2 — Valorisation explicite des marqueurs (Q54-B)
+
+Trois blocs additionnels insérés conditionnellement dans le `synthPrompt` :
+
+- **« La Grâce de la Relation »** — déclenché si `_harmonicSignatureBonus.tier === "grand_benefic"` (Tier 1 +7).
+- **« Le Demi-Bénéfique »** — déclenché si `tier === "half_benefic"` (Tier 2 +4).
+- **« Compatibilité intellectuelle »** — déclenché si `_intellectualSignatureBonus.applicable && bonus > 0`, modulé par typologie (Ami/Mentorat/Fratrie/Parent-Enfant fort, Amour discret).
+
+#### Priorité 3 — Hiérarchie narrative claire (Q54-A)
+
+Structure imposée dans la sortie LLM via en-têtes Markdown forcées dans le synthPrompt :
+
+```
+1. La nature du lien (Typologie)
+2. La dynamique d'interaction (Harmonie / Tension)
+3. Le ciment du temps (Longévité)
+4. L'entité créée (Composite)
+5. Verdict final + Bande qualitative
+```
+
+### 17.4 Bench narration stratifié v7.0.0-β.2
+
+Échantillon : 30 cas réels stratifiés sur 8 typologies + 5 témoins absurdes.
+
+| Métrique | β.1 (référence) | β.2 (post-Q56) | Évolution |
+|---|---|---|---|
+| Cohérence stricte (band exact) | 33.3 % (10/30) | **36.7 %** (11/30) | +3.4 pts |
+| Cohérence stricte Q46+Q53 | 66.7 % (20/30) | **73.3 %** (22/30) | +6.7 pts |
+| **Cohérence tolérante Q46+Q53** | 96.7 % (29/30) | **100 %** (30/30) | **+3.3 pts** |
+| **Incohérences sévères** | 1/30 | **0/30** | −1 |
+| Sentinelles violées | 0/5 | 0/5 | = |
+| `narrative_version` conforme | 35/35 | 35/35 | = |
+| Lectures typologiques moy / cas | 19.9 (8.7 synth + 11.2 maisons) | idem | = |
+
+**Audit qualitatif manuel sur 7 cas critiques** (Curie/Pierre, Macron/Brigitte, Buffett/Gates, Trump/Merkel, Federer/Nadal, Monet/Renoir, Mozart/Elvis témoin) → 7/7 lectures cohérentes avec la réalité historique.
+
+### 17.5 Q56-3 — Lexique Lune/Pluton dur contextualisé
+
+Le lexique Lune/Pluton dur a été ré-écrit pour 7 typologies hors Amour, afin de retirer la lecture « toxique/possessive » dans des contextes créatifs ou collectifs où elle était fausse :
+
+| Typologie | Lecture β.2 |
+|---|---|
+| **Amour** | « emprise affective, jeu de pouvoir émotionnel, jalousie possessive » (inchangé — lecture sombre originale) |
+| **Rivalité** | « intensité narcissique, fascination-haine » (inchangé — lecture sombre) |
+| Ami / Business | « passion créative dévorante, complicité instinctive inséparable » |
+| Mentorat / Parent-Enfant | « ascendant émotionnel viscéral, vigilance d'emprise » |
+| Fratrie / Colocataire | « intensité émotionnelle dévorante mais structurante » |
+
+Validé sur 4 cas du dataset : Monet/Renoir (Ami) → mutation appliquée, Macron/Brigitte (Amour) → lecture sombre conservée, Bush/Barbara (Amour) → idem, Buffett/Gates (Mentorat sans Lune/Pluton) → pas de régression.
+
+### 17.6 Q56-9 — Bug fix Pertinence vs Harmonie (β.3)
+
+**Symptôme** (audit utilisateur sur exec n8n PROD `18111`, François × Mouna Amour) : sur la M4 de Mouna, le cartouche affichait `Harmonie : 42/100` tandis que le texte LLM citait `score de pertinence très élevé (82/100)`. Deux scores divergents sur la même maison.
+
+**Cause** : deux métriques distinctes étaient toutes deux exposées au lecteur final.
+
+| Source | Métrique | Calcul | Affichage |
+|---|---|---|---|
+| Cartouche PDF | `Harmonie` (`hi.harmony`) | dérivée de la polarité Tension/Support, 50=neutre, 100=fluide, 0=bloquée | `FRA/SYN/N8N SYN Repport HTML Final` ligne 303 |
+| Texte LLM (intro maison) | `Score de pertinence` (`houses_norm_*`) | intensité d'activation normalisée | injecté lignes 7823 / 7915 du super-noeud SYN |
+
+**Décision** (option A — « faire taire le LLM sur le chiffre ») : modifier le prompt du super-noeud SYN pour ne plus injecter ni `Score de pertinence X/100` ni `T=…/S=…` numériquement. Le LLM ne reçoit plus qu'une **qualification qualitative** :
+
+- Activation : `très élevée` (≥80) / `élevée` (≥60) / `modérée` (≥40) / `faible` (≥20) / `très faible` — calculée sur `normScoreA` / `normScoreB`.
+- Polarité : `mixte` / `tension dominante` / `soutien dominant` (mot-clé issu de `tsA.polarite`).
+
+Consigne explicite ajoutée au prompt : `« calibrage interne — DO NOT cite numerically; the only numeric score visible to the client is the "Harmony" score on the cartouche, ranging 0=blocked / 50=neutral / 100=fluid »` (FR + EN).
+
+**Lignes touchées** : `FRA/SYN/N8N SYN` 7821-7831 (Persp A) + 7917-7927 (Persp B).
+**Bump** : `narrative_version` `v7.0.0-beta.2` → **`v7.0.0-beta.3`** (header + `globalScoreResult` + `globalScoreDetail`).
+**Déploiement** : Super noeud Syn `4mjgklWWwjCF8fze` 562 190 → 564 860 chars (+2 670, 2026-05-06 16:35 UTC). Backup : `SITE/scripts/syn-supernode-backups/super-noeud-syn-2026-05-06T16-35-16-549Z.js`.
+
+Modif strictement narrative — aucun coefficient de scoring touché. Conforme aux clauses Q51 du gel.
+
+**Bénéfice** : le seul score chiffré côté client est désormais l'`Harmonie` du cartouche, c'est-à-dire celui que le client peut visuellement vérifier. Plus de divergence prompt↔HTML.
+
+### 17.7 Cosmétique tech — harmonisation cartouches (β.3)
+
+Plainte utilisateur en parallèle : badges `⇄ Mx (+N)` (compensation inter-maisons) et `I : 3/100 · inactive` (intensité interne) du rapport tech avaient un format hétérogène (font 11/13px, padding `2px 7px`, radius 10px) vs `Harmonie : 56/100` (font 15.5px, padding `4px 13px`, radius 20px), et le suffixe `· inactive` était bruyant.
+
+**Modifs** (`FRA/SYN/N8N SYN Repport HTML Tech`) :
+
+| Badge | Avant | Après |
+|---|---|---|
+| `compTag` / `compTagB` (compensation) | font 11px / padding 2-7 / radius 10 | **font 15.5px / padding 4-13 / radius 20** (aligné Harmonie) |
+| `intensityBadge` / `intensityBadgeB` | `I : 3/100 · inactive`, font 13px | **`Intensité : 3/100`** (suffixe `· inactive` supprimé) + format aligné Harmonie |
+| `_domSig` (bloc info global) | `inactive` affiché brut | filtré, remplacé par `—` |
+
+**Sauts de page** (sur les deux rapports HTML) : `style="page-break-before:always;break-before:page;"` ajouté sur les `div` `syn-final-perspective-a` (ligne 618 du rapport final) et `syn-final-perspective-b` (ligne 632), idem `syn-tech-perspective-a` (596) et `syn-tech-perspective-b` (601) — chaque section « Comment X influence Y » commence sur une nouvelle page PDF.
+
+Déploiement HTML Tech : 55 775 → 56 094 chars (+319, 2026-05-06 16:28 UTC). Rapport client final : zéro modif texte (audit confirme aucun badge < 15.5px).
+
+### 17.8 Validation astrologue → freeze GA `v7.0.0`
+
+Audit pilote sur le couple `François × Mouna` (Amour, gs=41), exec n8n PROD `18111` puis `18218` post-β.3. Rapport généré : 9 586 mots, 12 maisons + synthèse, lexique typologique appliqué partout, zéro chiffre cité hors `Harmonie` du cartouche.
+
+| # | Question astrologue | Verdict | Implémentation |
+|---|---|---|---|
+| **Q1** | Passage en GA | **A — Gel immédiat sur base β.2 (puis β.3 post-Q56-9)** | Renommage `narrative_version` `v7.0.0-beta.3` → `v7.0.0` (GA) après validation post-Q56-9 |
+| **Q2** | Diversifier le tic « couple mature » | **A — Statu quo** | Aucune modif (rappel sémantique structurant sur 9 586 mots) |
+| **Q3** | Orbes 5-6° Soleil sextile/trigone | **A — Statu quo** | Doctrine Ptolémée/Lilly validée (moiety solaire 7-8°) |
+| **Q4** | Neptune en chute Capricorne | **C — Documenter et maintenir** | Choix moderne assumé (rouvrir le scoring v6.8.0 = risque > bénéfice) |
+| **Q5** | Validation Monet/Renoir Q56-3 | **C — Post-mortem facultatif** | Run optionnel quand n8n libre ; ne bloque pas la GA |
+
+Verdict astrologue intégral :
+> *« L'architecture globale (Moteur v6.8.0 + Narration v7.0.0) a atteint un niveau de maturité qui dépasse la plupart des logiciels professionnels actuels sur le marché de l'astrologie. Vous avez mon feu vert total pour graver la v7.0.0 dans le marbre. »*
+
+### 17.9 Architecture LLM en production — invariant
+
+Tous les LLM appelés dans le workflow `4mjgklWWwjCF8fze` restent **Gemini 3.1 Pro Preview** (`models/gemini-3.1-pro-preview`), invariant produit. 13 agents en parallèle (6 maisons A + 6 maisons B + 1 synthèse) + 1 traducteur + 1 validateur silencieux.
+
+Si un bench textuel automatique (LLM-Judge) est lancé hors n8n pour évaluer la qualité narrative, le **producteur** doit rester Gemini 3.1 Pro (fidélité à la production) ; seul le **juge** peut être un LLM tiers (Claude / GPT) pour l'anti-biais.
+
+### 17.10 Référentiels v7.0.0
+
+| Fichier | Rôle |
+|---|---|
+| `FRA/SYN/N8N SYN` | Moteur (scoring v6.8.0 figé + narration v7.0.0 GA — `TYPO_NARRATIVE_LEXICON`, helpers hoisted, Q56-9 fix) |
+| `FRA/SYN/N8N SYN Repport HTML Final` | Rapport client (sauts de page perspectives) |
+| `FRA/SYN/N8N SYN Repport HTML Tech` | Rapport tech (badges harmonisés Harmonie/Intensité/Compensation, sauts de page perspectives) |
+| `SITE/scripts/SYN-V7-CHANTIER.md` | Chantier v7 — toutes les arbitrages Q51 → Q56-9 + plan freeze GA |
+| `SITE/scripts/syn-bench-volume-fiabilite-manifest.json` | Manifest avec annotations Q46+Q52+Q53+Q56-1+Q56-2 |
+| `SITE/scripts/syn-bench-coherence-v6.8.0.mjs` | Analyseur cohérence numérique (figé sur v6.8.0) |
+| `SITE/scripts/syn-bench-coherence-narrative-v7.mjs` | Analyseur étendu (scoring + narration + réalité) |
+| `SITE/scripts/syn-bench-volume-fiabilite-v7.0.0-beta2-stratifie.ndjson` | Sortie bench stratifié 35 cas v7.0.0-β.2 |
+| `SITE/scripts/syn-bench-coherence-narrative-v7.0.0-beta2-rapport.md` | Rapport non-régression β.2 |
+| `SITE/scripts/_run-bench-stratifie-beta2.mjs` | Wrapper bench (charge `.env.local` + fixe ONLY/MANIFEST/OUT_NDJSON) |
+| `SITE/scripts/syn-bench-llm-generate-v7.mjs` | Squelette LLM-Judge phase 2 (génération seule via Gemini direct API) |
+
+### 17.11 Plan freeze GA — checklist (clos)
+
+1. ✅ Fix Q56-9 déployée (β.3)
+2. ✅ Validation utilisateur sur 1 nouveau rapport généré depuis le site (test e2e exec `18218`, François × Mouna Amour, et un second test Business confirmant l'absence de chiffres cités hors Harmonie + lexique typo correctement appliqué)
+3. ✅ Renommage `narrative_version` `v7.0.0-beta.3` → **`v7.0.0`** (GA)
+4. ✅ Mise à jour finale `SYN-V7-CHANTIER.md` (statut clos)
+5. ✅ Verrouillage moteur `v6.8.0` + narration `v7.0.0` GA — état présent
