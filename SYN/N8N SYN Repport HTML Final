@@ -234,8 +234,51 @@ function buildOverlayBadges(overlayPlanets, bgColor, textColor) {
         }).join('');
 }
 
+// v6.2.0 — Cartouches maisons : affichage HYBRIDE (Q1 astrologue D)
+// Règles :
+//   1. Maisons CLÉS (principales OU secondaires de la typo) :
+//      - Vide & non-compensée → afficher cartouche avec mention "Neutre / —"
+//      - Activée → afficher cartouche avec note d'Harmonie chiffrée
+//   2. Maisons NON-CLÉS :
+//      - Très activée (H≥70 ou H≤30 ou ≥3 overlay) → afficher cartouche
+//      - Sinon → MASQUER complètement (pas de bruit)
+const _syn_scores_final = synData.scores || {};
+const _principales_set = new Set(_typoConfig.principales || []);
+const _secondaires_set = new Set(_typoConfig.secondaires || []);
+const _isKeyHouse = (h) => _principales_set.has(h) || _secondaires_set.has(h);
+const _harmonyColor = (h) => {
+    if (h >= 75) return { bg: '#dcfce7', txt: '#166534' };       // vert
+    if (h >= 60) return { bg: '#dbeafe', txt: '#1e40af' };       // bleu
+    if (h >= 45) return { bg: '#fef3c7', txt: '#92400e' };       // ambre
+    if (h >= 30) return { bg: '#fed7aa', txt: '#c2410c' };       // orange
+    return { bg: '#fee2e2', txt: '#991b1b' };                    // rouge
+};
+const _shouldDisplayHouse = (h, hi, overlayCount) => {
+    if (_isKeyHouse(h)) return true;
+    if (hi && hi.harmony >= 70) return true;
+    if (hi && hi.harmony <= 30) return true;
+    if (overlayCount >= 3) return true;
+    return false;
+};
+const _isReallyEmpty = (hi, overlayCount, cuspCount) => {
+    if (!hi) return true;
+    if (hi.compensation) return false;
+    return (hi.empty === true) || (overlayCount === 0 && (cuspCount || 0) === 0);
+};
 let sectionsA = "";
-const sortedA = Object.entries(perspA).sort((a,b) => (b[1].score || 0) - (a[1].score || 0));
+const _hiBinA = _syn_scores_final.houses_hi_b_in_a || {};
+const _cuspBinA = synData.cusp_aspects_b_to_a || synData._synRef?.cusp_aspects_b_to_a || [];
+const _filteredA = Object.entries(perspA).filter(([houseNum]) => {
+    const h = parseInt(houseNum);
+    const hi = _hiBinA[h];
+    const overlayCount = (overlayBinA[String(h)] || []).length;
+    return _shouldDisplayHouse(h, hi, overlayCount);
+});
+const sortedA = _filteredA.sort((a, b) => {
+    const ha = (_hiBinA[parseInt(a[0])] || {}).harmony ?? 50;
+    const hb = (_hiBinA[parseInt(b[0])] || {}).harmony ?? 50;
+    return hb - ha;
+});
 sortedA.forEach(([houseNum, data]) => {
     const h = parseInt(houseNum);
     const hMeta = MAISONS_SYN[h] || { titre: isEN ? `House ${h}` : `Maison ${h}`, domaines: "", desc: "" };
@@ -243,6 +286,24 @@ sortedA.forEach(([houseNum, data]) => {
     const cuspSign = ruler.signe || '';
     const cuspIcon = ZODIAC_MAP[cuspSign] || '&#8962;';
     const overlayPlanets = overlayBinA[String(h)] || [];
+
+    // v6.2.0 — Score d'Harmonie pour la maison h (B sur A). Affichage hybride.
+    const hi = _hiBinA[h] || { harmony: 50, intensity: 0, empty: true };
+    const hScoreH = Math.round(hi.harmony);
+    const hScoreI = Math.round(hi.intensity);
+    const cuspCount = _cuspBinA.filter(c => c.maison_cuspide === h).length;
+    const isVraimentVide = _isReallyEmpty(hi, overlayPlanets.length, cuspCount);
+    const hCol = _harmonyColor(hScoreH);
+    const tooltipTxt = (isEN
+        ? `Harmony score (50 = neutral, 100 = highly fluid, 0 = strongly blocked). Internal intensity: ${hScoreI}/100.`
+        : `Note d\u2019harmonie (50 = neutre, 100 = très fluide, 0 = très bloquée). Intensité interne : ${hScoreI}/100.`);
+    // Si maison clé mais vide : afficher "Neutre / —" au lieu du score chiffré
+    const scoreBadge = isVraimentVide
+        ? `<span style="display:inline-block;background:#f1f5f9;color:#64748b;font-size:15.5px;font-weight:500;padding:4px 13px;border-radius:20px;margin:2px 3px;font-style:italic;" title="${isEN ? 'No major activation in this house — neutral domain for this couple' : 'Aucune activation majeure dans cette maison — domaine neutre pour ce couple'}">${isEN ? 'Neutral / —' : 'Neutre / —'}</span>`
+        : `<span style="display:inline-block;background:${hCol.bg};color:${hCol.txt};font-size:15.5px;font-weight:600;padding:4px 13px;border-radius:20px;margin:2px 3px;" title="${tooltipTxt}">${isEN ? 'Harmony:' : 'Harmonie :'} ${hScoreH}/100</span>`;
+    const princBadge = data.is_principale
+        ? `<span style="display:inline-block;background:#dbeafe;color:#1e40af;font-size:15.5px;font-weight:600;padding:4px 13px;border-radius:20px;margin:2px 3px;border:1px solid #2E5FA3;">${isEN ? 'Primary' : 'Principale'}</span>`
+        : '';
 
     sectionsA += `
     <div id="syn-final-a-${h}" class="house-section" style="background:#ffffff;border-radius:12px;margin:22px 0;border:1px solid #e0e0e0;overflow:hidden;">
@@ -262,16 +323,32 @@ sortedA.forEach(([houseNum, data]) => {
             ${buildOverlayBadges(overlayPlanets, '#e8f0fe', '#1F3864')}
             ${buildOverlayStarBadges(overlayPlanets, _etoileMatchesB, [], h)}
             ${overlayPlanets.filter(p => (p.tier || 3) <= 2).length === 0 ? `<span style="display:inline-block;background:#f5f5f5;color:#777;font-size:15.5px;font-weight:600;padding:4px 13px;border-radius:20px;margin:2px 3px;">${isEN ? 'No major overlay planets' : 'Aucune planète majeure en overlay'}</span>` : ''}
+            ${princBadge} ${scoreBadge}
         </div>
         <div style="background:#f4f6ff;border-left:4px solid #2E5FA3;padding:11px 20px;">
             <p style="font-size:15.5px;font-style:italic;font-weight:400;color:#1F3864;line-height:1.6;margin:0;text-align:justify;">${esc(hMeta.desc)}</p>
+        </div>
+        <div style="background:#f0f4fb;padding:8px 20px;border-bottom:1px solid #d0d8ea;">
+            <span style="font-size:13px;font-weight:600;color:#475569;">${isEN ? `Impact of ${esc(persoB)} on ${esc(persoA)}` : `Impact de ${esc(persoB)} sur ${esc(persoA)}`}</span>
         </div>
         <div style="padding:22px 26px;">${md(data.llm_text)}</div>
     </div>`;
 });
 
 let sectionsB = "";
-const sortedB = Object.entries(perspB).sort((a,b) => (b[1].score || 0) - (a[1].score || 0));
+const _hiAinB = _syn_scores_final.houses_hi_a_in_b || {};
+const _cuspAinB = synData.cusp_aspects_a_to_b || synData._synRef?.cusp_aspects_a_to_b || [];
+const _filteredB = Object.entries(perspB).filter(([houseNum]) => {
+    const h = parseInt(houseNum);
+    const hi = _hiAinB[h];
+    const overlayCount = (overlayAinB[String(h)] || []).length;
+    return _shouldDisplayHouse(h, hi, overlayCount);
+});
+const sortedB = _filteredB.sort((a, b) => {
+    const ha = (_hiAinB[parseInt(a[0])] || {}).harmony ?? 50;
+    const hb = (_hiAinB[parseInt(b[0])] || {}).harmony ?? 50;
+    return hb - ha;
+});
 sortedB.forEach(([houseNum, data]) => {
     const h = parseInt(houseNum);
     const hMeta = MAISONS_SYN[h] || { titre: isEN ? `House ${h}` : `Maison ${h}`, domaines: "", desc: "" };
@@ -279,6 +356,23 @@ sortedB.forEach(([houseNum, data]) => {
     const cuspSign = ruler.signe || '';
     const cuspIcon = ZODIAC_MAP[cuspSign] || '&#8962;';
     const overlayPlanets = overlayAinB[String(h)] || [];
+
+    // v6.2.0 — Score d'Harmonie pour la maison h (A sur B). Affichage hybride.
+    const hiB = _hiAinB[h] || { harmony: 50, intensity: 0, empty: true };
+    const hScoreHB = Math.round(hiB.harmony);
+    const hScoreIB = Math.round(hiB.intensity);
+    const cuspCountB = _cuspAinB.filter(c => c.maison_cuspide === h).length;
+    const isVraimentVideB = _isReallyEmpty(hiB, overlayPlanets.length, cuspCountB);
+    const hColB = _harmonyColor(hScoreHB);
+    const tooltipTxtB = (isEN
+        ? `Harmony score (50 = neutral, 100 = highly fluid, 0 = strongly blocked). Internal intensity: ${hScoreIB}/100.`
+        : `Note d\u2019harmonie (50 = neutre, 100 = très fluide, 0 = très bloquée). Intensité interne : ${hScoreIB}/100.`);
+    const scoreBadgeB = isVraimentVideB
+        ? `<span style="display:inline-block;background:#f1f5f9;color:#64748b;font-size:15.5px;font-weight:500;padding:4px 13px;border-radius:20px;margin:2px 3px;font-style:italic;" title="${isEN ? 'No major activation in this house — neutral domain for this couple' : 'Aucune activation majeure dans cette maison — domaine neutre pour ce couple'}">${isEN ? 'Neutral / —' : 'Neutre / —'}</span>`
+        : `<span style="display:inline-block;background:${hColB.bg};color:${hColB.txt};font-size:15.5px;font-weight:600;padding:4px 13px;border-radius:20px;margin:2px 3px;" title="${tooltipTxtB}">${isEN ? 'Harmony:' : 'Harmonie :'} ${hScoreHB}/100</span>`;
+    const princBadgeB = data.is_principale
+        ? `<span style="display:inline-block;background:#fed7aa;color:#c2410c;font-size:15.5px;font-weight:600;padding:4px 13px;border-radius:20px;margin:2px 3px;border:1px solid #c2410c;">${isEN ? 'Primary' : 'Principale'}</span>`
+        : '';
 
     sectionsB += `
     <div id="syn-final-b-${h}" class="house-section" style="background:#ffffff;border-radius:12px;margin:22px 0;border:1px solid #e0e0e0;overflow:hidden;">
@@ -298,9 +392,13 @@ sortedB.forEach(([houseNum, data]) => {
             ${buildOverlayBadges(overlayPlanets, '#fed7aa', '#c2410c')}
             ${buildOverlayStarBadges(overlayPlanets, _etoileMatchesA, [], h)}
             ${overlayPlanets.filter(p => (p.tier || 3) <= 2).length === 0 ? `<span style="display:inline-block;background:#f5f5f5;color:#777;font-size:15.5px;font-weight:600;padding:4px 13px;border-radius:20px;margin:2px 3px;">${isEN ? 'No major overlay planets' : 'Aucune planète majeure en overlay'}</span>` : ''}
+            ${princBadgeB} ${scoreBadgeB}
         </div>
         <div style="background:#fffaf5;border-left:4px solid #c2410c;padding:11px 20px;">
             <p style="font-size:15.5px;font-style:italic;font-weight:400;color:#7c2d12;line-height:1.6;margin:0;text-align:justify;">${esc(hMeta.desc)}</p>
+        </div>
+        <div style="background:#fef8f5;padding:8px 20px;border-bottom:1px solid #f5e8df;">
+            <span style="font-size:13px;font-weight:600;color:#7c2d12;">${isEN ? `Impact of ${esc(persoA)} on ${esc(persoB)}` : `Impact de ${esc(persoA)} sur ${esc(persoB)}`}</span>
         </div>
         <div style="padding:22px 26px;">${md(data.llm_text)}</div>
     </div>`;
@@ -370,6 +468,10 @@ function buildExecSummary() {
         + '</div>';
     }
 
+    h += '<div style="page-break-after:always;break-after:page;height:0;margin:0;padding:0;overflow:hidden" aria-hidden="true"></div>';
+
+    h += '<div style="page-break-inside:avoid;break-inside:avoid">';
+
     if (topAsp.length > 0 || topH.length > 0) {
         h += '<div style="display:flex;gap:16px;margin:0 0 20px">';
         if (topAsp.length > 0) {
@@ -385,8 +487,6 @@ function buildExecSummary() {
         h += '</div>';
     }
 
-    h += '<div style="page-break-before:always"></div>';
-
     if (fo.length > 0 || de.length > 0) {
         h += '<div style="display:flex;gap:16px;margin:0 0 20px">'
         + '<div style="flex:1;background:#f0fdf4;border:1px solid #86efac;border-radius:10px;padding:14px 16px"><div style="font-weight:700;font-size:0.85em;color:#166534;margin-bottom:6px">✦ ' + (isEN ? 'Key Strengths' : 'Forces Clés') + '</div>' + (fo.slice(0,3).map(f => '<div style="font-size:0.82em;color:#166534;padding:2px 0">• ' + esc(f) + '</div>').join('') || '<div style="font-size:0.82em;color:#94a3b8;font-style:italic">—</div>') + '</div>'
@@ -400,7 +500,10 @@ function buildExecSummary() {
     + ' <span style="color:#94a3b8;font-size:1.1em">↔</span> '
     + '<span style="display:inline-block;background:' + elB.bg + ';color:' + elB.tx + ';border:1px solid ' + elB.bd + ';padding:5px 14px;border-radius:20px;font-weight:600;font-size:0.88em">' + elB.i + ' ' + esc(dB) + '</span> <span style="font-weight:700;color:#c2410c;font-size:0.9em">' + esc(persoB) + '</span>'
     + (eR ? '<div style="margin-top:8px;font-size:0.82em;color:#64748b">' + (isEN ? 'Elemental relationship' : 'Relation élémentaire') + ' : <strong style="color:#1F3864">' + esc(eR) + '</strong></div>' : '') + '</div>';
-    h += '<div style="page-break-after:always"></div>';
+
+    h += '</div>';
+
+    h += '<div style="page-break-after:always;break-after:page;height:0;margin:0;padding:0;overflow:hidden" aria-hidden="true"></div>';
     return h;
 }
 const execSummary = buildExecSummary();
@@ -423,6 +526,7 @@ function buildSynFinalTocHtml() {
     if (execSummary && String(execSummary).trim()) {
         parts.push(liLink("syn-final-exec", isEN ? "Executive summary" : "Résumé exécutif"));
     }
+    parts.push(liLink("syn-final-maisons", isEN ? "Astrological houses" : "Maisons astrologiques"));
     const pALab = isEN ? `Influence on ${persoA}` : `Influence sur ${persoA}`;
     const housesAItems = synFinalTocHousesA.map((h) => {
         const lab = isEN ? `House ${h}` : `Maison ${h}`;
@@ -482,22 +586,46 @@ ${synthese ? `
 </div>` : ''}
 
 ${globalScore > 0 ? '<div id="syn-final-score">' + (() => {
-    const sColor = globalScore >= 75 ? "#166534" : globalScore >= 50 ? "#1F3864" : globalScore >= 30 ? "#92400e" : "#991b1b";
+    // v6.0.0 — Note d'Harmonie unique (0..100), baseline 50 = neutre.
+    // v6.3.0 — Q9 : pour Rivalité, ajout d'un Indice d'Adversité séparé.
+    const sColor = globalScore >= 80 ? "#16a34a" : globalScore >= 65 ? "#166534" : globalScore >= 50 ? "#1F3864" : globalScore >= 35 ? "#92400e" : "#991b1b";
     const qb = globalScoreDetail?.qualitative_band || {};
-    const qualLabel = qb.band || (globalScore >= 65 ? (isEN ? 'Strong compatibility' : 'Forte compatibilité') : globalScore >= 50 ? (isEN ? 'Good compatibility with challenges' : 'Bonne compatibilité avec des défis') : (isEN ? 'Challenging compatibility' : 'Compatibilité exigeante'));
-    const qualDesc = isEN ? (qb.desc_en || qb.desc_fr || '') : (qb.desc_fr || '');
+    const qualLabel = (isEN ? (qb.band_en || qb.band) : qb.band) || (globalScore >= 65 ? (isEN ? 'Solid compatibility' : 'Compatibilité solide') : globalScore >= 50 ? (isEN ? 'Contrasted relationship' : 'Relation contrastée') : (isEN ? 'Limited compatibility' : 'Compatibilité limitée'));
+    const qualDesc = isEN ? (qb.desc_en || qb.desc || qb.desc_fr || '') : (qb.desc || qb.desc_fr || '');
+    const adv = synData.adversity_index;
+    const advBlock = adv ? (
+        '<div style="margin-top:14px;padding:14px;background:linear-gradient(135deg,#fef2f2,#fed7aa);border:2px solid #c2410c;border-radius:10px">'
+        + '<div style="font-family:Playfair Display,serif;font-size:0.95em;color:#7c2d12;margin-bottom:4px">' + (isEN ? 'Adversity Index' : 'Indice d\u2019Adversit\u00e9') + '</div>'
+        + '<div style="font-size:1.9em;font-weight:700;color:#c2410c">' + adv.score + '<span style="font-size:0.45em;color:#94a3b8">/100</span></div>'
+        + '<div style="font-size:0.85em;font-weight:500;color:#7c2d12;margin-top:3px;font-style:italic">' + (isEN ? 'Friction quality : ' : 'Qualit\u00e9 de friction : ') + (adv.qualitative || '') + '</div>'
+        + '<div style="margin-top:8px;font-size:0.7em;color:#64748b;line-height:1.45;max-width:440px;margin-left:auto;margin-right:auto">'
+        + (isEN
+            ? 'High score = intense and creative rivalry (genuine emulation). Low score = mismatched adversaries with no real friction.'
+            : 'Score \u00e9lev\u00e9 = rivalit\u00e9 intense et cr\u00e9atrice (vraie \u00e9mulation). Score bas = adversaires mal assortis sans vraie friction.')
+        + '</div>'
+        + '</div>'
+    ) : '';
     return '<div style="text-align:center;margin:30px 0 30px;padding:20px;background:linear-gradient(135deg,#eef2fb,#dbeafe);border:2px solid #2E5FA3;border-radius:12px">'
-        + '<div style="font-family:Playfair Display,serif;font-size:1em;color:#1F3864;margin-bottom:6px">' + (isEN ? 'Compatibility Score' : 'Score de Compatibilité') + '</div>'
+        + '<div style="font-family:Playfair Display,serif;font-size:1em;color:#1F3864;margin-bottom:6px">' + (isEN ? 'Harmony Score' : 'Note d\u2019Harmonie') + '</div>'
         + '<div style="font-size:2.4em;font-weight:700;color:' + sColor + '">' + globalScore + '<span style="font-size:0.4em;color:#64748b">/100</span></div>'
         + '<div style="font-size:0.95em;font-weight:600;color:' + (qb.color || '#475569') + ';margin-top:6px">' + qualLabel + '</div>'
-        + (qualDesc ? '<div style="font-size:0.82em;color:#64748b;margin-top:4px;max-width:420px;margin-left:auto;margin-right:auto">' + qualDesc + '</div>' : '')
-        + (() => { const ds = synData.dual_score || {}; const fl = ds.fluidite || {}; const it = ds.intensite || {}; if (!fl.score && !it.score) return ''; const flC = (fl.score||0) >= 70 ? '#16a34a' : (fl.score||0) >= 50 ? '#2563eb' : (fl.score||0) >= 35 ? '#d97706' : '#dc2626'; const itC = (it.score||0) >= 75 ? '#7c3aed' : (it.score||0) >= 55 ? '#2563eb' : (it.score||0) >= 35 ? '#d97706' : '#6b7280'; const flL = isEN ? (fl.label_en || fl.label) : fl.label; const itL = isEN ? (it.label_en || it.label) : it.label; return '<div style="display:flex;justify-content:center;gap:24px;margin-top:12px"><div style="text-align:center"><div style="font-size:0.72em;font-weight:600;color:#0369a1;margin-bottom:2px">' + (isEN ? 'Fluidity' : 'Fluidité') + '</div><div style="font-size:1.3em;font-weight:700;color:' + flC + '">' + fl.score + '</div><div style="font-size:0.68em;color:' + flC + '">' + flL + '</div></div><div style="width:1px;background:#cbd5e1"></div><div style="text-align:center"><div style="font-size:0.72em;font-weight:600;color:#7e22ce;margin-bottom:2px">' + (isEN ? 'Intensity' : 'Intensité') + '</div><div style="font-size:1.3em;font-weight:700;color:' + itC + '">' + it.score + '</div><div style="font-size:0.68em;color:' + itC + '">' + itL + '</div></div></div>'; })()
+        + (qualDesc ? '<div style="font-size:0.82em;color:#64748b;margin-top:4px;max-width:480px;margin-left:auto;margin-right:auto">' + qualDesc + '</div>' : '')
+        + '<div style="margin-top:10px;font-size:0.7em;color:#94a3b8;font-style:italic;line-height:1.45;max-width:480px;margin-left:auto;margin-right:auto">'
+        + (isEN
+            ? 'The Harmony score (50 = neutral) reflects the overall fluidity of the bond between you. The per-house scores below measure harmony in each life domain.'
+            : 'La Note d\u2019Harmonie (50 = neutre) reflète la fluidité globale du lien entre vous. Les notes par maison ci-dessous mesurent l\u2019harmonie sur chaque domaine de vie.')
+        + '</div>'
+        + advBlock
         + '</div>';
 })() + '</div>' : ''}
 
 <div id="syn-final-exec">${execSummary}</div>
 
-<div id="syn-final-perspective-a">
+<div id="syn-final-maisons" style="page-break-before:always;break-before:page;page-break-after:avoid;break-after:avoid;background:#1F3864;padding:15px 26px;border-radius:8px;margin:0 0 22px;">
+    <h2 style="font-family:'Playfair Display',Georgia,serif;font-size:18px;font-weight:600;color:white;letter-spacing:0.2px;margin:0;">&#8962;&nbsp; ${isEN ? 'Astrological Houses' : 'Maisons Astrologiques'}</h2>
+</div>
+
+<div id="syn-final-perspective-a" style="page-break-before:avoid;break-before:avoid;">
 <div style="background:#2E5FA3;padding:15px 26px;border-radius:8px;margin:44px 0 22px;">
     <h2 style="font-family:'Playfair Display',Georgia,serif;font-size:18px;font-weight:600;color:white;letter-spacing:0.2px;margin:0;">&#9728;&nbsp; ${isEN ? `How ${esc(persoB)} influences ${esc(persoA)}` : `Comment ${esc(persoB)} influence ${esc(persoA)}`}</h2>
 </div>
@@ -511,7 +639,7 @@ ${globalScore > 0 ? '<div id="syn-final-score">' + (() => {
 ${sectionsA}
 </div>
 
-<div id="syn-final-perspective-b">
+<div id="syn-final-perspective-b" style="page-break-before:always;break-before:page;">
 <div style="background:#c2410c;padding:15px 26px;border-radius:8px;margin:44px 0 22px;">
     <h2 style="font-family:'Playfair Display',Georgia,serif;font-size:18px;font-weight:600;color:white;letter-spacing:0.2px;margin:0;">☽&nbsp; ${isEN ? `How ${esc(persoA)} influences ${esc(persoB)}` : `Comment ${esc(persoA)} influence ${esc(persoB)}`}</h2>
 </div>

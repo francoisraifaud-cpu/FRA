@@ -267,7 +267,7 @@ html += `<div id="syn-doc-fiche" style="page-break-after:always;margin-bottom:20
 <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:14px;text-align:center">
     <div style="font-weight:600;font-size:0.85em;color:#1F3864;margin-bottom:6px">${isEN ? 'Global Score' : 'Score Global'}</div>
     <div style="font-size:2.5em;font-weight:700;color:${_sc2}">${globalScore}<span style="font-size:0.4em;color:#94a3b8">/100</span></div>
-    ${_gsd2.qualitative_band ? `<div style="font-size:0.8em;font-weight:600;color:${_gsd2.qualitative_band.color || '#374151'};margin-top:2px">${_gsd2.qualitative_band.band}</div>` : ''}
+    ${_gsd2.qualitative_band ? `<div style="font-size:0.8em;font-weight:600;color:${_gsd2.qualitative_band.color || '#374151'};margin-top:2px">${isEN ? (_gsd2.qualitative_band.band_en || _gsd2.qualitative_band.band) : _gsd2.qualitative_band.band}</div>` : ''}
 </div>
 ${(() => {
     const ds = (input.dual_score) || {};
@@ -378,7 +378,7 @@ if (globalScore > 0) {
   <text x="80" y="75" text-anchor="middle" font-size="36" font-weight="700" fill="${_scoreColor}" font-family="Playfair Display,serif">${globalScore}</text>
   <text x="80" y="98" text-anchor="middle" font-size="14" fill="#64748b">/100</text>
 </svg>
-        ${globalScoreDetail?.qualitative_band ? `<div style="margin-top:6px;font-size:0.9em;font-weight:600;color:${globalScoreDetail.qualitative_band.color || '#374151'}">${globalScoreDetail.qualitative_band.band}</div><div style="font-size:0.78em;color:#64748b;margin-top:3px;max-width:400px;margin-left:auto;margin-right:auto">${isEN ? (globalScoreDetail.qualitative_band.desc_en || globalScoreDetail.qualitative_band.desc_fr) : globalScoreDetail.qualitative_band.desc_fr}</div>` : ''}
+        ${globalScoreDetail?.qualitative_band ? `<div style="margin-top:6px;font-size:0.9em;font-weight:600;color:${globalScoreDetail.qualitative_band.color || '#374151'}">${isEN ? (globalScoreDetail.qualitative_band.band_en || globalScoreDetail.qualitative_band.band) : globalScoreDetail.qualitative_band.band}</div><div style="font-size:0.78em;color:#64748b;margin-top:3px;max-width:400px;margin-left:auto;margin-right:auto">${isEN ? (globalScoreDetail.qualitative_band.desc_en || globalScoreDetail.qualitative_band.desc_fr) : globalScoreDetail.qualitative_band.desc_fr}</div>` : ''}
         ${(() => {
             const ds2 = (input.dual_score) || {};
             const fl2 = ds2.fluidite || {};
