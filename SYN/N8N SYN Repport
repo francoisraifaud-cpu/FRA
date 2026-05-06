@@ -378,7 +378,7 @@ if (globalScore > 0) {
   <text x="80" y="75" text-anchor="middle" font-size="36" font-weight="700" fill="${_scoreColor}" font-family="Playfair Display,serif">${globalScore}</text>
   <text x="80" y="98" text-anchor="middle" font-size="14" fill="#64748b">/100</text>
 </svg>
-        ${globalScoreDetail?.qualitative_band ? `<div style="margin-top:6px;font-size:0.9em;font-weight:600;color:${globalScoreDetail.qualitative_band.color || '#374151'}">${isEN ? (globalScoreDetail.qualitative_band.band_en || globalScoreDetail.qualitative_band.band) : globalScoreDetail.qualitative_band.band}</div><div style="font-size:0.78em;color:#64748b;margin-top:3px;max-width:400px;margin-left:auto;margin-right:auto">${isEN ? (globalScoreDetail.qualitative_band.desc_en || globalScoreDetail.qualitative_band.desc_fr) : globalScoreDetail.qualitative_band.desc_fr}</div>` : ''}
+        ${globalScoreDetail?.qualitative_band ? `<div style="margin-top:6px;font-size:0.9em;font-weight:600;color:${globalScoreDetail.qualitative_band.color || '#374151'}">${isEN ? (globalScoreDetail.qualitative_band.band_en || globalScoreDetail.qualitative_band.band) : globalScoreDetail.qualitative_band.band}</div><div style="font-size:0.78em;color:#64748b;margin-top:3px;max-width:400px;margin-left:auto;margin-right:auto">${isEN ? (globalScoreDetail.qualitative_band.desc_en || globalScoreDetail.qualitative_band.desc || globalScoreDetail.qualitative_band.desc_fr || '') : (globalScoreDetail.qualitative_band.desc || globalScoreDetail.qualitative_band.desc_fr || '')}</div>` : ''}
         ${(() => {
             const ds2 = (input.dual_score) || {};
             const fl2 = ds2.fluidite || {};
