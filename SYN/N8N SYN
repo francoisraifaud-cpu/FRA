@@ -55,10 +55,10 @@
 // │           des maisons → le seul score chiffré côté client est        │
 // │           désormais l'« Harmonie » du cartouche (cohérence visuelle  │
 // │           prompt↔HTML restaurée).                                    │
-// │   Champ exposé : globalScoreResult.narrative_version = "v7.0.0-β.3" │
+// │   Champ exposé : globalScoreResult.narrative_version = "v7.0.0"     │
 // └─────────────────────────────────────────────────────────────────────┘
 // NOEUD CENTRAL SYNASTRIE v6.8.0 (= v6.7.0 + 2 décisions astrologue Q48-Q49)
-// NARRATION v7.0.0-β.3 (= scoring figé v6.8.0 + narration enrichie Q54 + Q56-3 lexique contextuel + Q56-9 fix pertinence/harmonie)
+// NARRATION v7.0.0 GA (= scoring figé v6.8.0 + narration enrichie Q54 + Q56-3 lexique contextuel + Q56-9 fix pertinence/harmonie)
 // v6.8.0 (2026-05-06) : Affinement post-bench v6.7.0 (95 cas, Tier 2 Q45 = 0
 //   match, 6/7 cas Q31 résiduels signent un Mercure-Mercure manqué).
 //   NB : Q47 = renoncement astrologue (Edison/Tesla, Einstein/Bohr, Wagner/
@@ -7442,7 +7442,7 @@ globalScoreResult.version = "v6.8.0";
 //     (très élevée / élevée / modérée / faible / très faible) + le mot de
 //     polarité (mixte / tension / soutien). Le seul score chiffré côté
 //     client est désormais l'« Harmonie » du cartouche.
-globalScoreResult.narrative_version = "v7.0.0-beta.3";
+globalScoreResult.narrative_version = "v7.0.0";
 // Le score "principal" affiché devient harmony_global (v6).
 // On expose aussi `score` (=v5 stretched) pour rétrocompatibilité immédiate.
 globalScoreResult.score_v5 = globalScore;
@@ -7462,7 +7462,7 @@ globalScoreDetail = {
     dominant_signature_global: _globalHI.dominant_signature_global,
     score_v5: globalScoreResult.score_v5,
     version: "v6.8.0",
-    narrative_version: "v7.0.0-beta.3"
+    narrative_version: "v7.0.0"
 };
 
 const _relevantHouses = [...typoConfig.principales, ...typoConfig.secondaires];
