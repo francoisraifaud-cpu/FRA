@@ -55,10 +55,10 @@
 // │           des maisons → le seul score chiffré côté client est        │
 // │           désormais l'« Harmonie » du cartouche (cohérence visuelle  │
 // │           prompt↔HTML restaurée).                                    │
-// │   Champ exposé : globalScoreResult.narrative_version = "v7.0.0"     │
+// │   Champ exposé : globalScoreResult.narrative_version = "v7.0.1"     │
 // └─────────────────────────────────────────────────────────────────────┘
 // NOEUD CENTRAL SYNASTRIE v6.8.0 (= v6.7.0 + 2 décisions astrologue Q48-Q49)
-// NARRATION v7.0.0 GA (= scoring figé v6.8.0 + narration enrichie Q54 + Q56-3 lexique contextuel + Q56-9 fix pertinence/harmonie)
+// NARRATION v7.0.1 (= v7.0.0 GA + Q57 audit 18223 : 4e catégorie de bandes "partner" pour Business/Mentorat/Fratrie/Famille — lexique alliance/duo/binôme/partenariat)
 // v6.8.0 (2026-05-06) : Affinement post-bench v6.7.0 (95 cas, Tier 2 Q45 = 0
 //   match, 6/7 cas Q31 résiduels signent un Mercure-Mercure manqué).
 //   NB : Q47 = renoncement astrologue (Edison/Tesla, Einstein/Bohr, Wagner/
@@ -5873,14 +5873,18 @@ function applyHouseCompensation(houseHI, typoLabel) {
 }
 
 // v6.3.0 — Q13 astrologue : 3 catégories de vocabulaire qualitatif.
-// Engagement (Amour/Business/Parent-Enfant/Mentorat) : registre intime
-// Proximité (Ami/Fratrie/Colocataire) : registre social
+// v7.0.1 — Q57 astrologue (audit exec 18223) : 4e catégorie « partner »
+// pour les relations de construction commune sans implication romantique.
+// Engagement (Amour, Parent-Enfant) : registre intime / viscéral
+// Partner (Business, Mentorat, Fratrie, Famille) : registre constructif (alliance, duo, binôme, partenariat, synergie, mission commune)
+// Proximité (Ami, Colocataire) : registre social
 // Adversité (Rivalité) : registre conflictuel inversé
 function _getTypologyCategory(typologie) {
     if (!typologie) return "engagement";
     if (typologie === "Rivalité") return "adversity";
-    if (typologie === "Ami" || typologie === "Fratrie" || typologie === "Colocataire") return "proximity";
-    return "engagement";  // Amour, Business, Parent / Enfant, Mentorat
+    if (typologie === "Ami" || typologie === "Colocataire") return "proximity";
+    if (typologie === "Business" || typologie === "Mentorat" || typologie === "Fratrie" || typologie === "Famille") return "partner";
+    return "engagement";  // Amour, Parent / Enfant
 }
 const _BAND_VOCABULARY = {
     engagement: {
@@ -5892,6 +5896,20 @@ const _BAND_VOCABULARY = {
         6: { band: "Tension forte, dynamique éprouvante", band_en: "Strong tension, demanding dynamic", desc: "Charge émotionnelle élevée mais frictions dominantes. Instabilité probable sans accompagnement.", desc_en: "High emotional charge but dominant frictions. Likely instability without support.", color: "#ef4444" },
         7: { band: "Compatibilité limitée", band_en: "Limited compatibility", desc: "Peu de ressources astrologiques pour soutenir la relation. Tonalité atone.", desc_en: "Few astrological resources to sustain the relationship. Lukewarm tone.", color: "#dc2626" },
         8: { band: "Compatibilité critique", band_en: "Critical compatibility", desc: "Les frictions structurelles dominent largement les soutiens. Relation à fortes contraintes.", desc_en: "Structural frictions largely dominate the supports. Heavily constrained relationship.", color: "#991b1b" }
+    },
+    // v7.0.1 — Q57 astrologue (audit 18223) : registre constructif pour
+    // Business / Mentorat / Fratrie / Famille. Lexique : alliance, duo,
+    // binôme, partenariat, collaboration, synergie, mission commune,
+    // lien de construction. Aucun mot d'intimité romantique (« couple »).
+    partner: {
+        1: { band: "Alliance exceptionnelle", band_en: "Exceptional alliance", desc: "Synergie rare et magnétique. Vision partagée, ressources complémentaires : les fondations astrologiques portent la mission commune sur la durée.", desc_en: "Rare and magnetic synergy. Shared vision, complementary resources : astrological foundations carry the joint mission over the long term.", color: "#16a34a" },
+        2: { band: "Entente fluide et constructive", band_en: "Fluid, constructive partnership", desc: "Collaboration douce et harmonieuse, mais énergétiquement modérée. Risque d'inertie ou d'essoufflement créatif avec le temps.", desc_en: "Smooth and harmonious collaboration, but energetically moderate. Risk of inertia or creative exhaustion over time.", color: "#22c55e" },
+        3: { band: "Partenariat solide", band_en: "Solid partnership", desc: "Bonne complémentarité d'ensemble, quelques zones de friction qui peuvent enrichir la mission commune.", desc_en: "Good overall complementarity, some friction zones that can enrich the joint mission.", color: "#65a30d" },
+        4: { band: "Synergie intense et transformative", band_en: "Intense and transformative synergy", desc: "Synergie magnétique mais exigeante. Les énergies fortes peuvent sublimer le projet ou l'éroder selon la maturité du partenariat.", desc_en: "Magnetic but demanding synergy. Strong energies can either sublimate the project or erode it depending on the partnership's maturity.", color: "#f59e0b" },
+        5: { band: "Alliance contrastée", band_en: "Contrasted alliance", desc: "Mélange de fluidité et de friction dans le binôme. Demande des efforts conscients pour stabiliser la dynamique de travail.", desc_en: "Mix of fluidity and friction in the duo. Requires conscious effort to stabilize the working dynamic.", color: "#eab308" },
+        6: { band: "Tension forte, alliance éprouvante", band_en: "Strong tension, demanding alliance", desc: "Énergie de construction élevée mais frictions dominantes. Instabilité du partenariat probable sans cadre clair.", desc_en: "High constructive energy but dominant frictions. Likely partnership instability without a clear framework.", color: "#ef4444" },
+        7: { band: "Partenariat limité", band_en: "Limited partnership", desc: "Peu de ressources astrologiques pour soutenir l'alliance. Lien de construction atone.", desc_en: "Few astrological resources to sustain the alliance. Lukewarm constructive bond.", color: "#dc2626" },
+        8: { band: "Partenariat critique", band_en: "Critical partnership", desc: "Les frictions structurelles dominent largement les ressources. Alliance à fortes contraintes, blocages probables.", desc_en: "Structural frictions largely dominate the resources. Heavily constrained alliance, likely deadlocks.", color: "#991b1b" }
     },
     proximity: {
         1: { band: "Synergie remarquable", band_en: "Remarkable synergy", desc: "Complicité fluide et stimulante. Le lien social est facile, vivant, durable.", desc_en: "Fluid and stimulating complicity. The social bond is easy, lively, durable.", color: "#16a34a" },
@@ -5931,14 +5949,15 @@ function computeQualitativeBandV6(H, I, signature, typoConf, extras = {}) {
     const typoLabel = (typoConf?.label_fr || "").toLowerCase();
     const isAmour = typoLabel.includes("amour");
     const isParent = typoLabel.includes("parent");
-    const isBiz = typoLabel.includes("biz") || typoLabel.includes("pro") || typoLabel.includes("travail");
     const category = _getTypologyCategory(typoConf?.label_fr_norm || (typoConf?.principales ? null : null) || "");
     // Note : on récupère la typologie via typoConf._typologie si présent, sinon
-    // on déduit du label_fr.
+    // on déduit du label_fr. v7.0.1 — Q57 : nouvelle catégorie "partner"
+    // (Business, Mentorat, Fratrie, Famille).
     let cat = "engagement";
     if (typoConf?._typologie) cat = _getTypologyCategory(typoConf._typologie);
     else if (typoLabel.includes("rivalité")) cat = "adversity";
-    else if (typoLabel.includes("amitié") || typoLabel.includes("frater") || typoLabel.includes("cohabit")) cat = "proximity";
+    else if (typoLabel.includes("biz") || typoLabel.includes("pro") || typoLabel.includes("travail") || typoLabel.includes("mentor") || typoLabel.includes("frater") || typoLabel.includes("famille")) cat = "partner";
+    else if (typoLabel.includes("amitié") || typoLabel.includes("ami") || typoLabel.includes("cohabit")) cat = "proximity";
 
     let level;
     // Bandes communes engagement / proximity (H haut = bon)
@@ -5976,13 +5995,12 @@ function computeQualitativeBandV6(H, I, signature, typoConf, extras = {}) {
     const v = _BAND_VOCABULARY[cat][level] || _BAND_VOCABULARY.engagement[level];
     let band = v.band, band_en = v.band_en, desc = v.desc, desc_en = v.desc_en, color = v.color;
 
-    // Adaptation par typologie (parent / biz)
+    // Adaptation par typologie (parent uniquement — la catégorie "partner"
+    // gère désormais nativement le lexique business/mentorat/fratrie/famille,
+    // donc plus besoin de bidouille post-rendu pour Business). v7.0.1 — Q57.
     if (isParent && (signature === "transformative" || signature === "tense")) {
         desc = desc.replace("relation", "lien parent-enfant");
         desc_en = desc_en.replace("relationship", "parent-child bond");
-    } else if (isBiz) {
-        desc = desc.replace("Compatibilité", "Compatibilité professionnelle");
-        desc_en = desc_en.replace("compatibility", "professional compatibility");
     }
 
     return { band, band_en, desc, desc_en, color, signature };
@@ -7442,7 +7460,7 @@ globalScoreResult.version = "v6.8.0";
 //     (très élevée / élevée / modérée / faible / très faible) + le mot de
 //     polarité (mixte / tension / soutien). Le seul score chiffré côté
 //     client est désormais l'« Harmonie » du cartouche.
-globalScoreResult.narrative_version = "v7.0.0";
+globalScoreResult.narrative_version = "v7.0.1";
 // Le score "principal" affiché devient harmony_global (v6).
 // On expose aussi `score` (=v5 stretched) pour rétrocompatibilité immédiate.
 globalScoreResult.score_v5 = globalScore;
@@ -7462,7 +7480,7 @@ globalScoreDetail = {
     dominant_signature_global: _globalHI.dominant_signature_global,
     score_v5: globalScoreResult.score_v5,
     version: "v6.8.0",
-    narrative_version: "v7.0.0"
+    narrative_version: "v7.0.1"
 };
 
 const _relevantHouses = [...typoConfig.principales, ...typoConfig.secondaires];
