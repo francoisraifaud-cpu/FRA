@@ -71,6 +71,15 @@ const PROFECTION_RULER_SYSTEM = "traditional"; // "traditional" | "modern"
 // Mettre à Infinity pour toujours afficher les techniques mineures.
 const MINOR_TECH_SUPPRESS_THRESHOLD = 12; // au-delà → midpoints/antiscia/translations masqués
 
+// === Sprint 4.3-PREP — Instrumentation sigJourney ([INSTR-4.3-PREP]) ===
+// Trace la trajectoire de la `confidence` de chaque signature (top1 events) à travers
+// les ~10 modulateurs successifs (RAW → PNA → SUPERPOSITION → CF1 → P11 → progressed
+// boosters → W_CAPS → U_CAP_VOLEURS → ENGAGEMENT_CONTRACT → CARRIERE_COMPETITOR → FINAL).
+// Activation : true → bench instrumentation (overhead ~5-10ms/cas, sortie sigJourney).
+// Désactivation : false → prod (zéro overhead, sortie identique au baseline 52/100).
+// Toggle : éditer la valeur ci-dessous puis re-deploy via prev-deploy-supernode1.mjs.
+const INSTR_PREV_4_3 = false;
+
 // ---- 1. DONNÉES ----
 const prepareOut    = $input.first()?.json || {};
 const transitsData  = prepareOut.transitsData || prepareOut.data || prepareOut;
@@ -910,6 +919,600 @@ const natalConfigurations = (() => {
 })();
 const configsByPlanet = {};
 natalConfigurations.forEach(cfg => { cfg.planets.forEach(p => { if(!configsByPlanet[p])configsByPlanet[p]=[]; configsByPlanet[p].push(cfg); }); });
+
+// ═══ SPRINT 4.0bis — TAGS NATALS & ACTIVATION DES PROMESSES (2026-05-05) ═══
+// Validations astrologue (retours n°24 + n°25 + n°26) :
+//   Q1 (retour 26) = Option B : 4 blessures prioritaires (PLANETE_AFFLIGEE_DURE,
+//                   MALEFIQUE_DOMICILIAIRE, VENUS_AFFLIGEE_DURE, MAITRE_M7_AFFLIGE)
+//   Q2 (retour 26) = Option B : orbe natal ≤ 2°
+//   Q3 (retour 26) = Option A + 2 ajouts : 14 tags qualitatifs (sans impact prédictif)
+//   Q4 (retour 26) = Option C : pilote SANTE_DOWN (Couche 3 ailleurs dans le fichier)
+//   Q5 (retour 26 réponse) = Option B : transit lourd dur partile sur victim OR afflictor
+//   Mode β plafonné (Q3 retour 24) : 1=+5, 2=+8, 3+=+12 (cap), 0 si pas de transit lourd
+//   Leçon V34 (retour 24) : zéro boost sans transit dur dans l'année
+//
+// Coût mesuré : ~10-50ms construction, lookup O(1) ensuite
+const _NP_NATAL_TIGHT_ORB = 2.0;
+const _NP_HEAVY_PLANETS   = ["Saturne","Uranus","Neptune","Pluton","Nœud Sud"];
+const _NP_HARD_ASPECTS    = ["Conjonction","Carré","Opposition"];
+const _NP_HARM_ASPECTS    = ["Conjonction","Trigone","Sextile"];
+const _NP_TRIGGER_ORB     = 2.0;
+const _NP_VULN_HOUSES     = [1, 6, 8, 12];
+const _NP_MALEFIQUES      = ["Mars", "Saturne", "Pluton"];
+const _NP_ACTIVATION_MODE = "BOTH_POLES"; // kill-switch Q5 : "VICTIM_ONLY" | "BOTH_POLES" | "DIFFERENTIATED"
+
+const _natalPromises = (() => {
+  const out = {
+    blessures: [],
+    qualitativeTags: [],
+    stellarTags: [],
+    bySignature: { SANTE_DOWN: [], DEUIL: [], ACCIDENT: [], SEPARATION: [], MARIAGE: [], FINANCE_DOWN: [], CARRIERE_UP: [] }
+  };
+  try {
+    const _npHasNatalAsp = (p1, p2, types, maxOrb) => {
+      const arr = (typeof natalAspectsMap !== "undefined") ? (natalAspectsMap[p1] || []) : [];
+      for (const a of arr) {
+        if (a.planete === p2 && types.includes(a.type) && a.orbe <= maxOrb) {
+          return { aspect: a.type, orb: a.orbe };
+        }
+      }
+      return null;
+    };
+
+    const _npAddPromise = (promise, signatures) => {
+      out.blessures.push(promise);
+      for (const sig of signatures) {
+        if (!out.bySignature[sig]) out.bySignature[sig] = [];
+        out.bySignature[sig].push(promise);
+      }
+    };
+
+    // ─── Piste A — 4 BLESSURES INNÉES ───
+
+    // [1] PLANETE_AFFLIGEE_DURE : Hyleg/luminaire en aspect dur natal serré (≤2°) avec maléfique
+    const _npHylegs = ["Soleil", "Lune", "Ascendant"];
+    for (const hyleg of _npHylegs) {
+      const hylegHouse = natalDict[hyleg]?.house;
+      for (const malefique of _NP_MALEFIQUES) {
+        if (hyleg === malefique) continue;
+        const hit = _npHasNatalAsp(hyleg, malefique, _NP_HARD_ASPECTS, _NP_NATAL_TIGHT_ORB);
+        if (!hit) continue;
+        const targets = _NP_ACTIVATION_MODE === "VICTIM_ONLY" ? [hyleg] : [hyleg, malefique];
+        _npAddPromise({
+          type: "PLANETE_AFFLIGEE_DURE",
+          victim: hyleg, afflictor: malefique,
+          natalAspect: hit.aspect, natalOrb: hit.orb,
+          house: hylegHouse,
+          triggerTargets: targets,
+          signatureBoosts: ["SANTE_DOWN", "DEUIL"]
+        }, ["SANTE_DOWN", "DEUIL"]);
+      }
+    }
+
+    // [2] MALEFIQUE_DOMICILIAIRE : Mars/Saturne/Pluton physique en M1/M6/M8/M12
+    for (const malefique of _NP_MALEFIQUES) {
+      const h = natalDict[malefique]?.house;
+      if (!h || !_NP_VULN_HOUSES.includes(h)) continue;
+      let boostSigs;
+      if (h === 1)      boostSigs = ["ACCIDENT", "SANTE_DOWN"];
+      else if (h === 6)  boostSigs = ["SANTE_DOWN", "ACCIDENT"];
+      else if (h === 8)  boostSigs = ["DEUIL", "ACCIDENT"];
+      else                boostSigs = ["SANTE_DOWN", "DEUIL"]; // h===12
+      _npAddPromise({
+        type: "MALEFIQUE_DOMICILIAIRE",
+        victim: malefique, afflictor: null,
+        natalAspect: null, natalOrb: null,
+        house: h,
+        triggerTargets: [malefique], // une seule planète, pas de pôle dual
+        signatureBoosts: boostSigs
+      }, boostSigs);
+    }
+
+    // [3] VENUS_AFFLIGEE_DURE : Vénus en aspect dur natal serré avec Saturne/Mars/Pluton
+    const _npVenusAfflictors = ["Saturne", "Mars", "Pluton"];
+    for (const afflictor of _npVenusAfflictors) {
+      const hit = _npHasNatalAsp("Vénus", afflictor, _NP_HARD_ASPECTS, _NP_NATAL_TIGHT_ORB);
+      if (!hit) continue;
+      const targets = _NP_ACTIVATION_MODE === "VICTIM_ONLY" ? ["Vénus"] : ["Vénus", afflictor];
+      _npAddPromise({
+        type: "VENUS_AFFLIGEE_DURE",
+        victim: "Vénus", afflictor,
+        natalAspect: hit.aspect, natalOrb: hit.orb,
+        house: natalDict["Vénus"]?.house || null,
+        triggerTargets: targets,
+        signatureBoosts: ["SEPARATION", "SANTE_DOWN"]
+      }, ["SEPARATION", "SANTE_DOWN"]);
+    }
+
+    // [4] MAITRE_M7_AFFLIGE : maître M7 en aspect dur natal avec maléfique
+    let _npM7Master = null;
+    try {
+      const ascSign = natalDict["Ascendant"]?.sign;
+      const _signOrder = ["Bélier","Taureau","Gémeaux","Cancer","Lion","Vierge","Balance","Scorpion","Sagittaire","Capricorne","Verseau","Poissons"];
+      const ascIdx = _signOrder.indexOf(ascSign);
+      const m7Sign = ascIdx >= 0 ? _signOrder[(ascIdx + 6) % 12] : null;
+      _npM7Master = m7Sign ? MAITRES_TRAD[m7Sign] : null;
+    } catch(e) {}
+
+    if (_npM7Master) {
+      for (const malefique of _NP_MALEFIQUES) {
+        if (malefique === _npM7Master) continue;
+        const hit = _npHasNatalAsp(_npM7Master, malefique, _NP_HARD_ASPECTS, _NP_NATAL_TIGHT_ORB);
+        if (!hit) continue;
+        const targets = _NP_ACTIVATION_MODE === "VICTIM_ONLY" ? [_npM7Master] : [_npM7Master, malefique];
+        _npAddPromise({
+          type: "MAITRE_M7_AFFLIGE",
+          victim: _npM7Master, afflictor: malefique,
+          natalAspect: hit.aspect, natalOrb: hit.orb,
+          house: natalDict[_npM7Master]?.house || null,
+          triggerTargets: targets,
+          signatureBoosts: ["SEPARATION"]
+        }, ["SEPARATION"]);
+      }
+    }
+
+    // ─── PISTE B — PROMESSES POSITIVES CARRIERE_UP (Sprint 4.3a, [PISTE-B-CARRIERE-43a]) ───
+    // Validé astrologue retour 33 (Q-A → A-1 chirurgical) + retour 34 implicite via "feu vert absolu".
+    // Critères astrologiques traditionnels :
+    //   [B1] MC_DIGNIFIE_ASPECTE       : Maître M10 en Domicile/Exaltation, harmonie Soleil/Jupiter ≤ 4°
+    //   [B2] JUPITER_M10_OR_M1         : Jupiter en M10 ou M1, dignifié OU trigone/sextile Soleil ≤ 4°
+    //   [B3] SOLEIL_DIGNIFIE_ANGULAIRE : Soleil en M1/M10 + Domicile/Exaltation, OU Soleil trigone/sextile MC ≤ 4°
+    //   [B4] AMBITION_VISCERALE_DIRECTE: Pluton conjonction MC ou Soleil ≤ 2° (promotion du tag qualitatif)
+    // Lecture pour le bypass A-1 du _CARRIERE_COMPETITOR_FILTER : présence ≥ 1 promesse explicite.
+    try {
+      // [B1] MC_DIGNIFIE_ASPECTE
+      let _npM10Master = null;
+      try {
+        const ascSign = natalDict["Ascendant"]?.sign;
+        const _signOrder = ["Bélier","Taureau","Gémeaux","Cancer","Lion","Vierge","Balance","Scorpion","Sagittaire","Capricorne","Verseau","Poissons"];
+        const m10Sign = ascSign ? _signOrder[(_signOrder.indexOf(ascSign) + 9) % 12] : null;
+        _npM10Master = m10Sign ? MAITRES_TRAD[m10Sign] : null;
+      } catch(e) {}
+      if (_npM10Master) {
+        const dig = getDignite(_npM10Master, natalDict[_npM10Master]?.sign);
+        if (dig === "Domicile" || dig === "Exaltation") {
+          for (const supp of ["Soleil","Jupiter"]) {
+            if (supp === _npM10Master) continue;
+            const hit = _npHasNatalAsp(_npM10Master, supp, _NP_HARM_ASPECTS, 4);
+            if (hit) {
+              _npAddPromise({
+                type: "MC_DIGNIFIE_ASPECTE", carrier: _npM10Master, support: supp,
+                natalAspect: hit.aspect, natalOrb: hit.orb,
+                house: natalDict[_npM10Master]?.house || null,
+                triggerTargets: [_npM10Master],
+                signatureBoosts: ["CARRIERE_UP"]
+              }, ["CARRIERE_UP"]);
+              break;
+            }
+          }
+        }
+      }
+      // [B2] JUPITER_M10_OR_M1
+      const jupHouse = natalDict["Jupiter"]?.house;
+      if (jupHouse === 10 || jupHouse === 1) {
+        const jupDig = getDignite("Jupiter", natalDict["Jupiter"]?.sign);
+        const aspectSoleil = _npHasNatalAsp("Jupiter", "Soleil", _NP_HARM_ASPECTS, 4);
+        if (jupDig === "Domicile" || jupDig === "Exaltation" || aspectSoleil) {
+          _npAddPromise({
+            type: "JUPITER_M10_OR_M1", carrier: "Jupiter",
+            support: aspectSoleil ? "Soleil" : null,
+            natalAspect: aspectSoleil?.aspect || null,
+            natalOrb: aspectSoleil?.orb || null,
+            house: jupHouse,
+            triggerTargets: ["Jupiter"],
+            signatureBoosts: ["CARRIERE_UP"]
+          }, ["CARRIERE_UP"]);
+        }
+      }
+      // [B3] SOLEIL_DIGNIFIE_ANGULAIRE
+      const solHouse = natalDict["Soleil"]?.house;
+      const solDig = getDignite("Soleil", natalDict["Soleil"]?.sign);
+      const solAngular = (solHouse === 1 || solHouse === 10);
+      const solDigAng = solAngular && (solDig === "Domicile" || solDig === "Exaltation");
+      const solHarmMC = _npHasNatalAsp("Soleil", "Milieu du Ciel", _NP_HARM_ASPECTS, 4);
+      if (solDigAng || solHarmMC) {
+        _npAddPromise({
+          type: "SOLEIL_DIGNIFIE_ANGULAIRE", carrier: "Soleil",
+          support: solDigAng ? null : "Milieu du Ciel",
+          natalAspect: solDigAng ? null : solHarmMC.aspect,
+          natalOrb: solDigAng ? null : solHarmMC.orb,
+          house: solHouse,
+          triggerTargets: ["Soleil"],
+          signatureBoosts: ["CARRIERE_UP"]
+        }, ["CARRIERE_UP"]);
+      }
+      // [B4] AMBITION_VISCERALE_DIRECTE
+      for (const t of ["Soleil","Milieu du Ciel"]) {
+        const hit = _npHasNatalAsp("Pluton", t, ["Conjonction"], 2);
+        if (hit) {
+          _npAddPromise({
+            type: "AMBITION_VISCERALE_DIRECTE", carrier: "Pluton", support: t,
+            natalAspect: hit.aspect, natalOrb: hit.orb,
+            house: natalDict["Pluton"]?.house || null,
+            triggerTargets: ["Pluton"],
+            signatureBoosts: ["CARRIERE_UP"]
+          }, ["CARRIERE_UP"]);
+          break;
+        }
+      }
+      // ─── PISTE B v2 — extension Sprint 4.3a-bis (validé astrologue retour 35) ───
+      // Critères élargis pour capturer les configurations modérées que B1-B4 manquent.
+      // Justifications doctrinales :
+      //   [B5] MAITRE_M1_PUISSANT       : « celui qui dirige le sujet aspire au pouvoir » (Maître Asc en M10 dignifié OU aspect Soleil)
+      //   [B6] LUMINAIRES_HARMONIE_MC   : « les luminaires éclairent le MC » (Soleil/Lune trigone/sextile MC ≤ 6°, orbe étendu vs B3)
+      //   [B7] SATURNE_M10_M1_DIGNIFIE  : ambition structurée (Saturne en M10/M1 + Capricorne/Verseau)
+      try {
+        // [B5] MAITRE_M1_PUISSANT
+        let _npM1Master = null;
+        try {
+          const ascSign = natalDict["Ascendant"]?.sign;
+          _npM1Master = ascSign ? MAITRES_TRAD[ascSign] : null;
+        } catch(e) {}
+        if (_npM1Master) {
+          const m1Dig = getDignite(_npM1Master, natalDict[_npM1Master]?.sign);
+          const m1House = natalDict[_npM1Master]?.house;
+          const m1InM10Dig = (m1House === 10) && (m1Dig === "Domicile" || m1Dig === "Exaltation");
+          const m1AspectSoleil = (_npM1Master !== "Soleil") ? _npHasNatalAsp(_npM1Master, "Soleil", _NP_HARM_ASPECTS, 4) : null;
+          if (m1InM10Dig || m1AspectSoleil) {
+            _npAddPromise({
+              type: "MAITRE_M1_PUISSANT", carrier: _npM1Master,
+              support: m1AspectSoleil ? "Soleil" : null,
+              natalAspect: m1AspectSoleil?.aspect || null,
+              natalOrb: m1AspectSoleil?.orb || null,
+              house: m1House,
+              triggerTargets: [_npM1Master],
+              signatureBoosts: ["CARRIERE_UP"]
+            }, ["CARRIERE_UP"]);
+          }
+        }
+        // [B6] LUMINAIRES_HARMONIE_MC (orbe étendu 6° vs B3 4°)
+        for (const lum of ["Soleil","Lune"]) {
+          const hit = _npHasNatalAsp(lum, "Milieu du Ciel", _NP_HARM_ASPECTS, 6);
+          if (hit) {
+            _npAddPromise({
+              type: "LUMINAIRES_HARMONIE_MC", carrier: lum, support: "Milieu du Ciel",
+              natalAspect: hit.aspect, natalOrb: hit.orb,
+              house: natalDict[lum]?.house || null,
+              triggerTargets: [lum],
+              signatureBoosts: ["CARRIERE_UP"]
+            }, ["CARRIERE_UP"]);
+            break; // une seule luminaire suffit
+          }
+        }
+        // [B7] SATURNE_M10_M1_DIGNIFIE
+        const satHouse = natalDict["Saturne"]?.house;
+        const satSign = natalDict["Saturne"]?.sign;
+        if ((satHouse === 10 || satHouse === 1) && (satSign === "Capricorne" || satSign === "Verseau" || satSign === "Balance")) {
+          _npAddPromise({
+            type: "SATURNE_M10_M1_DIGNIFIE", carrier: "Saturne",
+            house: satHouse,
+            triggerTargets: ["Saturne"],
+            signatureBoosts: ["CARRIERE_UP"]
+          }, ["CARRIERE_UP"]);
+        }
+      } catch(eB2) { console.log("[WARN] _natalPromises Piste B v2 CARRIERE_UP:", eB2.message); }
+    } catch(eB) { console.log("[WARN] _natalPromises Piste B CARRIERE_UP:", eB.message); }
+
+    // ─── TAGS QUALITATIFS (12 + 2 = 14) — sans impact prédictif (Q4 retour 24) ───
+    const _npAddTag = (tag, condition) => {
+      try { if (condition) out.qualitativeTags.push(tag); } catch(e) {}
+    };
+
+    // [1] FRAGILITE_INNEE_SANTE — Sprint 4.0ter Q3 : ajout Maître M6 + orbe ≤ 3°
+    // Avant 0% cohorte (trop strict), cible ~8-15% après élargissement astrologue retour 27
+    _npAddTag("FRAGILITE_INNEE_SANTE", (() => {
+      // Calcul Maître M6 (Whole Sign) : Asc + 5 signes
+      let m6Master = null;
+      try {
+        const ascSign = natalDict["Ascendant"]?.sign;
+        const _signOrder = ["Bélier","Taureau","Gémeaux","Cancer","Lion","Vierge","Balance","Scorpion","Sagittaire","Capricorne","Verseau","Poissons"];
+        const ascIdx = _signOrder.indexOf(ascSign);
+        if (ascIdx >= 0) m6Master = MAITRES_TRAD[_signOrder[(ascIdx + 5) % 12]] || null;
+      } catch(e) {}
+      const targets = ["Soleil", "Ascendant"];
+      if (m6Master && !targets.includes(m6Master)) targets.push(m6Master);
+      for (const v of targets) {
+        for (const a of ["Saturne","Neptune"]) {
+          if (v === a) continue;
+          if (_npHasNatalAsp(v, a, _NP_HARD_ASPECTS, 3)) return true;
+        }
+      }
+      return false;
+    })());
+
+    // [2] TEMPETE_INTERIEURE — Sprint 4.0ter Q3 : orbe ≤ 2° sur chaque branche du T-carré
+    // Avant 76% cohorte (effet Barnum), cible ~25-35% après resserrement
+    _npAddTag("TEMPETE_INTERIEURE", natalConfigurations.some(c => {
+      if (c.type !== "T-Carré" || !Array.isArray(c.planets) || c.planets.length !== 3) return false;
+      const hasLum = c.planets.some(p => ["Soleil","Lune","Ascendant"].includes(p));
+      if (!hasLum) return false;
+      const apex = c.apex;
+      if (!apex) return false;
+      const others = c.planets.filter(p => p !== apex);
+      if (others.length !== 2) return false;
+      const sq1 = _npHasNatalAsp(apex, others[0], ["Carré"], 2);
+      const sq2 = _npHasNatalAsp(apex, others[1], ["Carré"], 2);
+      const opp = _npHasNatalAsp(others[0], others[1], ["Opposition"], 2);
+      return !!(sq1 && sq2 && opp);
+    }));
+
+    // [3] DESTIN_HORS_FRONTIERES
+    _npAddTag("DESTIN_HORS_FRONTIERES", (() => {
+      if (natalDict["Lune"]?.house === 9) return true;
+      if (natalDict["Nœud Nord"]?.house === 9) return true;
+      try {
+        const ascSign = natalDict["Ascendant"]?.sign;
+        const _signOrder = ["Bélier","Taureau","Gémeaux","Cancer","Lion","Vierge","Balance","Scorpion","Sagittaire","Capricorne","Verseau","Poissons"];
+        const m4Sign = _signOrder[(_signOrder.indexOf(ascSign) + 3) % 12];
+        const m4Master = MAITRES_TRAD[m4Sign];
+        if (m4Master) {
+          const dignite = getDignite(m4Master, natalDict[m4Master]?.sign);
+          if (dignite === "Chute" || dignite === "Exil") return true;
+        }
+      } catch(e) {}
+      return false;
+    })());
+
+    // [4] RICHESSE_PROMISE — Sprint 4.0ter Q3 : élargi aux harmoniques ≤ 4° OU configuration M2/M5/M11
+    // Avant 0% cohorte (trop strict), cible ~8-12% après élargissement
+    _npAddTag("RICHESSE_PROMISE", (() => {
+      // Voie 1 : Jupiter aspect harmonique (conj/trig/sext) Part de Fortune ≤ 4°
+      if (_npHasNatalAsp("Jupiter", "Part de Fortune", ["Conjonction","Trigone","Sextile"], 4)) return true;
+      // Voie 2 : Jupiter en M2 natal + Part de Fortune en M2/M5/M11 (maisons de richesse)
+      const jupHouse = natalDict["Jupiter"]?.house;
+      const pofHouse = natalDict["Part de Fortune"]?.house;
+      if (jupHouse === 2 && [2, 5, 11].includes(pofHouse)) return true;
+      return false;
+    })());
+
+    // [5] BENEDICTION_AMOUREUSE
+    _npAddTag("BENEDICTION_AMOUREUSE", (() => {
+      if (getDignite("Vénus", natalDict["Vénus"]?.sign) === "Exaltation") return true;
+      if (_npM7Master && _npHasNatalAsp("Vénus", _npM7Master, ["Trigone","Sextile"], 3)) return true;
+      return false;
+    })());
+
+    // [6] LE_FARDEAU_DU_PERE
+    _npAddTag("LE_FARDEAU_DU_PERE", _npHasNatalAsp("Soleil", "Saturne", ["Carré","Opposition"], 2) !== null);
+
+    // [7] MERE_BLESSURE
+    _npAddTag("MERE_BLESSURE", (() => {
+      for (const a of ["Saturne","Pluton"]) {
+        if (_npHasNatalAsp("Lune", a, _NP_HARD_ASPECTS, 2)) return true;
+      }
+      return false;
+    })());
+
+    // [8] VOIX_DU_DESTIN
+    _npAddTag("VOIX_DU_DESTIN", (() => {
+      for (const t of ["Soleil","Lune","Ascendant","Milieu du Ciel"]) {
+        if (_npHasNatalAsp("Nœud Nord", t, ["Conjonction"], 3)) return true;
+      }
+      return false;
+    })());
+
+    // [9] MAESTRO_DU_VERBE
+    _npAddTag("MAESTRO_DU_VERBE", (() => {
+      const dig = getDignite("Mercure", natalDict["Mercure"]?.sign);
+      if (dig !== "Domicile" && dig !== "Exaltation") return false;
+      return _npHasNatalAsp("Mercure", "Milieu du Ciel", _NP_HARM_ASPECTS, 3) !== null;
+    })());
+
+    // [10] EROS_INTENSE
+    _npAddTag("EROS_INTENSE", (() => {
+      if (_npHasNatalAsp("Mars", "Vénus", ["Conjonction"], 3)) return true;
+      if (_npHasNatalAsp("Pluton", "Vénus", ["Conjonction"], 2)) return true;
+      if (_npHasNatalAsp("Pluton", "Mars", ["Conjonction"], 2)) return true;
+      return false;
+    })());
+
+    // [11] IDENTITE_BROUILLEE
+    _npAddTag("IDENTITE_BROUILLEE", (() => {
+      for (const v of ["Soleil","Ascendant"]) {
+        if (_npHasNatalAsp(v, "Neptune", _NP_HARD_ASPECTS, 2)) return true;
+      }
+      return false;
+    })());
+
+    // [12] EXIL_INTERIEUR
+    _npAddTag("EXIL_INTERIEUR", (() => {
+      const lunaM12 = natalDict["Lune"]?.house === 12;
+      const solM12  = natalDict["Soleil"]?.house === 12;
+      if (!lunaM12 && !solM12) return false;
+      return _NP_MALEFIQUES.some(m => natalDict[m]?.house === 12);
+    })());
+
+    // [13] ESPRIT_INNOVATEUR (ajout astrologue retour 26)
+    _npAddTag("ESPRIT_INNOVATEUR", (() => {
+      if (_npHasNatalAsp("Uranus", "Mercure", ["Conjonction"], 2)) return true;
+      if (_npHasNatalAsp("Uranus", "Mercure", ["Trigone","Sextile"], 2)) return true;
+      return false;
+    })());
+
+    // [14] AMBITION_VISCERALE (ajout astrologue retour 26)
+    _npAddTag("AMBITION_VISCERALE", (() => {
+      for (const t of ["Soleil","Milieu du Ciel"]) {
+        if (_npHasNatalAsp("Pluton", t, ["Conjonction","Carré","Opposition"], 2)) return true;
+      }
+      return false;
+    })());
+
+  } catch(eNP) {
+    console.log("[WARN] _natalPromises construction:", eNP.message);
+  }
+  return out;
+})();
+
+console.log("[NP-Sprint4.0bis] " + (_natalPromises.blessures.length||0) + " blessures, " + (_natalPromises.qualitativeTags.length||0) + " tags qualitatifs : " + (_natalPromises.qualitativeTags||[]).join(","));
+// [PISTE-B-CARRIERE-43a] Log des promesses CARRIERE_UP nommées pour audit (D-1 lecture)
+console.log("[NP-Sprint4.3a] " + ((_natalPromises.bySignature?.["CARRIERE_UP"] || []).length) + " promesses CARRIERE_UP : " + ((_natalPromises.bySignature?.["CARRIERE_UP"] || []).map(p => p.type).join(", ") || "—"));
+
+// ─── Sprint 4.2 P3 — TAGS STELLAIRES QUALITATIFS (9) ─────────────────────────
+// Validé astrologue retour 31 (Q1-A=A3, Q1-B=B1, Q1-C=C2)
+// Orbes adaptatifs Q3-B : luminaires/angles 2.0°, majeures 1.5°, mineures 1.0°
+// Premier match wins (un seul tag par étoile par thème)
+try {
+  const _STELLAR_QUALITATIVE_TAGS = [
+    {
+      code: "REGULUS_DESTIN_ROYAL",
+      star: "Régulus",
+      nature: "Royale (Cœur du Lion) — Mars + Jupiter",
+      triggers_lumAngle: ["Soleil","Lune","Ascendant","Milieu du Ciel"],
+      triggers_major:    ["Jupiter","Mars","Mercure"],
+      triggers_minor:    [],
+      narrative_fr: "Cœur du Lion. Imprime un destin d'éclat, de leadership et de souveraineté — à condition de ne jamais céder à la vengeance.",
+      narrative_en: "Heart of the Lion. Stamps a destiny of brilliance, leadership and sovereignty — provided one never yields to revenge."
+    },
+    {
+      code: "ALDEBARAN_OEIL_INTEGRITE",
+      star: "Aldébaran",
+      nature: "Royale Est (Œil du Taureau) — Mars",
+      triggers_lumAngle: ["Soleil","Lune","Ascendant","Milieu du Ciel"],
+      triggers_major:    ["Mars","Jupiter"],
+      triggers_minor:    [],
+      narrative_fr: "L'Œil du Taureau. Ouvre une voie d'honneur et d'intégrité virile — le succès est conditionné à la droiture morale absolue.",
+      narrative_en: "The Eye of the Bull. Opens a path of honor and steadfast integrity — success is conditional on absolute moral uprightness."
+    },
+    {
+      code: "ANTARES_FLAMME_GUERRIERE",
+      star: "Antarès",
+      nature: "Royale (Cœur du Scorpion) — Mars + Jupiter",
+      triggers_lumAngle: ["Soleil","Lune","Ascendant","Milieu du Ciel"],
+      triggers_major:    ["Mars","Jupiter","Saturne"],
+      triggers_minor:    ["Pluton"],
+      narrative_fr: "Cœur du Scorpion. Insuffle une audace martiale qui peut conduire au sommet ou au précipice — la témérité est sa signature.",
+      narrative_en: "Heart of the Scorpion. Infuses a martial daring that may lead to the summit or to the abyss — recklessness is its signature."
+    },
+    {
+      code: "FOMALHAUT_VISION_IDEALISTE",
+      star: "Fomalhaut",
+      nature: "Royale Sud — Vénus + Mercure",
+      triggers_lumAngle: ["Soleil","Lune","Ascendant","Milieu du Ciel"],
+      triggers_major:    ["Vénus","Mercure","Jupiter"],
+      triggers_minor:    ["Neptune"],
+      narrative_fr: "Royale du Sud. Insuffle une vision idéaliste et mystique — destinée artistique ou spirituelle, à protéger des intoxications du rêve.",
+      narrative_en: "Royal of the South. Infuses an idealistic and mystical vision — artistic or spiritual destiny, to be guarded from the intoxications of dream."
+    },
+    {
+      code: "ALGOL_NEMESIS",
+      star: "Algol",
+      nature: "La Méduse — Saturne + Jupiter (la plus crainte)",
+      triggers_lumAngle: ["Soleil","Lune","Ascendant","Milieu du Ciel"],
+      triggers_major:    ["Mars","Saturne","Vénus"],
+      triggers_minor:    ["Pluton"],
+      narrative_fr: "La Méduse. Marque le thème d'une intensité tragique — Némésis exige le contrôle des passions, sous peine de retournement violent du destin.",
+      narrative_en: "The Medusa. Marks the chart with tragic intensity — Nemesis demands mastery over the passions, on pain of violent reversal of fate."
+    },
+    {
+      code: "SIRIUS_HONNEUR_BRILLANT",
+      star: "Sirius",
+      nature: "Étoile-chien (la plus brillante du ciel) — Jupiter + Mars",
+      triggers_lumAngle: ["Soleil","Lune","Ascendant","Milieu du Ciel"],
+      triggers_major:    ["Jupiter","Mercure"],
+      triggers_minor:    [],
+      narrative_fr: "L'Étoile la plus brillante. Promet une renommée éclatante et une postérité durable — la fidélité aux idéaux est la condition de la lumière.",
+      narrative_en: "The Brightest Star. Promises dazzling renown and lasting legacy — fidelity to one's ideals is the condition of the light."
+    },
+    {
+      code: "ALCYONE_CHAGRIN_MARQUE",
+      star: "Alcyone",
+      nature: "Pléiade principale (la pleureuse en chef) — Lune + Mars",
+      triggers_lumAngle: ["Soleil","Lune","Ascendant","Milieu du Ciel"],
+      triggers_major:    ["Vénus","Mercure"],
+      triggers_minor:    [],
+      narrative_fr: "La Pleureuse en chef. Empreint le thème d'une mémoire mélancolique — le chagrin est une matière première créative, jamais une condamnation.",
+      narrative_en: "The Chief Mourner. Stamps the chart with a melancholic memory — sorrow is creative raw material, never a condemnation."
+    },
+    {
+      code: "VINDEMIATRIX_VEUVAGE",
+      star: "Vindemiatrix",
+      nature: "La Veuve — Saturne + Mercure",
+      triggers_lumAngle: ["Lune","Descendant"],
+      triggers_major:    ["Vénus","Mercure","Saturne"],
+      triggers_minor:    [],
+      narrative_fr: "La Vendangeuse. Marque la sphère relationnelle d'une note de solitude tardive — un faux ami ou une perte du conjoint à intégrer comme leçon.",
+      narrative_en: "The Grape-Gatherer. Marks the relational sphere with a note of late solitude — a false friend or the loss of a partner, to be integrated as a lesson."
+    },
+    {
+      code: "ARCTURUS_PROSPERITE_DURABLE",
+      star: "Arcturus",
+      nature: "Le Gardien de l'Ourse — Mars + Jupiter",
+      triggers_lumAngle: ["Soleil","Lune","Ascendant","Milieu du Ciel"],
+      triggers_major:    ["Jupiter","Mars","Mercure"],
+      triggers_minor:    [],
+      narrative_fr: "Le Gardien de l'Ourse. Promet un succès durable, une prospérité matérielle et un leadership naturel — le fruit d'une action juste et persévérante.",
+      narrative_en: "The Bear Watcher. Promises lasting success, material prosperity, and natural leadership — the reward of just and persevering action."
+    }
+  ];
+
+  const _SQT_LUM_ANGLE_ORB = 2.0;
+  const _SQT_MAJOR_ORB     = 1.5;
+  const _SQT_MINOR_ORB     = 1.0;
+
+  const _emN = (typeof etoileMatchesNatal !== "undefined" && etoileMatchesNatal) ? etoileMatchesNatal : [];
+  const _ecN = (typeof etoileCuspMatchesNatal !== "undefined" && etoileCuspMatchesNatal) ? etoileCuspMatchesNatal : [];
+
+  for (const tag of _STELLAR_QUALITATIVE_TAGS) {
+    const planetMatches = _emN.filter(em => em && em.etoile === tag.star).map(em => ({
+      planet: em.planete, orb: Number(em.orb), isAngle: false, maison: em.maison, signe: em.signe
+    }));
+    const angleMatches = _ecN.filter(ec => ec && ec.etoile === tag.star).map(ec => ({
+      planet: ec.angle, orb: Number(ec.orb), isAngle: true, maison: ec.maison
+    }));
+    const allMatches = [...planetMatches, ...angleMatches]
+      .filter(m => Number.isFinite(m.orb))
+      .sort((a, b) => a.orb - b.orb);
+
+    for (const m of allMatches) {
+      let triggered = false, tier = null;
+      if (tag.triggers_lumAngle.includes(m.planet) && m.orb <= _SQT_LUM_ANGLE_ORB) { triggered = true; tier = "lumAngle"; }
+      else if (tag.triggers_major.includes(m.planet) && m.orb <= _SQT_MAJOR_ORB) { triggered = true; tier = "major"; }
+      else if (tag.triggers_minor.includes(m.planet) && m.orb <= _SQT_MINOR_ORB) { triggered = true; tier = "minor"; }
+
+      if (triggered) {
+        _natalPromises.stellarTags.push({
+          code: tag.code,
+          star: tag.star,
+          planet: m.planet,
+          orb: Math.round(m.orb * 100) / 100,
+          tier,
+          isAngle: m.isAngle,
+          nature: tag.nature,
+          narrative_fr: tag.narrative_fr,
+          narrative_en: tag.narrative_en
+        });
+        break;
+      }
+    }
+  }
+} catch(eST) {
+  console.log("[WARN] Sprint 4.2 P3 stellarTags:", eST.message);
+}
+console.log("[NP-Sprint4.2-P3] " + (_natalPromises.stellarTags?.length || 0) + " tags stellaires : " + (_natalPromises.stellarTags || []).map(t => t.code + "(" + t.star + "→" + t.planet + " " + t.orb + "°)").join(", "));
+
+// COUCHE 2 — Helper d'activation par transit (Q5 Option B : transit lourd dur partile sur triggerTargets)
+const _natalPromiseTriggered = (promise, aspectsLent) => {
+  try {
+    if (!aspectsLent || !promise || !Array.isArray(promise.triggerTargets)) return null;
+    for (const transitor of _NP_HEAVY_PLANETS) {
+      for (const aspect of _NP_HARD_ASPECTS) {
+        for (const target of promise.triggerTargets) {
+          if (transitor === target) continue;
+          const k = "slow_" + transitor + "|||" + aspect + "|||" + target;
+          if (aspectsLent[k]) {
+            const orbs = (aspectsLent[k].waves || []).map(w => parseFloat(w.minOrb)).filter(x => isFinite(x));
+            const minOrb = orbs.length ? Math.min(...orbs) : null;
+            if (minOrb != null && minOrb <= _NP_TRIGGER_ORB) {
+              return { transitor, aspect, target, orb: Math.round(minOrb*100)/100 };
+            }
+          }
+        }
+      }
+    }
+  } catch(e) {}
+  return null;
+};
+
 
 // ---- 7q-bis. CONDITIONS HÉLIOCENTRIQUES (Cazimi / Combuste / Sous les rayons) ----
 const helioConditions = {};
@@ -4005,30 +4608,67 @@ try {
   }
 } catch(e) {}
 
-// --- P11 : Étoiles fixes amplificatrices (pré-calcul) ---
+// --- P11 : Étoiles fixes amplificatrices (Sprint 4.3a [REAPPLY-P1-43a] — 2026-05-05) ---
+// AVANT (Sprint 4.2 P1 → roll-back) : positions hardcodées J2000.0 sans précession (erreur ~1°/72ans)
+// APRÈS (Sprint 4.3a) : lecture de etoileMatchesNatal/etoileCuspMatchesNatal (calcul amont
+//                       "3c. Étoiles Fixes" avec précession IAU 2006, ±0.05° sur 200 ans)
+// Le risque Lincoln/Thatcher (régression -2 observée Sprint 4.2) est neutralisé par le
+// bypass A-1 dans le _CARRIERE_COMPETITOR_FILTER ci-dessous.
+// === [STARS-V1-43b] Sprint 4.3b vague 1 — extension stellaire (Q5-A astrologue retour 35) ===
+// Ajout de 5 étoiles bénéfiques (luminaires angulaires + ambition) :
+//   Capella (Cocher) : leadership diplomatique, honneurs
+//   Mirfak (Persée)  : courage héroïque, succès par effort
+//   Véga (Lyre)      : charisme artistique, attractivité, éloquence
+//   Altaïr (Aigle)   : ambition royale martiale, position élevée (aigle de Jupiter)
+//   Deneb (Cygne)    : sagesse, élévation spirituelle, intelligence
+// Boost calibrés à 0.08-0.10 (niveau Sirius/Spica, en-dessous des royales 0.12).
 const _mdseFixedStarHits = {};
 try {
-  const _STAR_AMPS = {
-    "Algol":     { deg:56.17, codes:["ACCIDENT","SANTE_DOWN","DEUIL"], boost:0.15 },
-    "Aldébaran": { deg:69.85, codes:["CARRIERE_UP","JURIDIQUE_UP","FINANCE_UP"], boost:0.10 },
-    "Régulus":   { deg:149.83,codes:["CARRIERE_UP","JURIDIQUE_UP"], boost:0.12 },
-    "Spica":     { deg:203.83,codes:["FINANCE_UP","JURIDIQUE_UP","SANTE_UP","MARIAGE"], boost:0.10 },
-    "Antarès":   { deg:249.77,codes:["ACCIDENT","CARRIERE_DOWN","JURIDIQUE_DOWN"], boost:0.12 },
-    "Sirius":    { deg:104.07,codes:["CARRIERE_UP","FINANCE_UP"], boost:0.08 }
+  const _STAR_CODE_MAP = {
+    "Algol":     { codes:["ACCIDENT","SANTE_DOWN","DEUIL"], boost:0.15 },
+    "Aldébaran": { codes:["CARRIERE_UP","JURIDIQUE_UP","FINANCE_UP"], boost:0.10 },
+    "Régulus":   { codes:["CARRIERE_UP","JURIDIQUE_UP"], boost:0.12 },
+    "Spica":     { codes:["FINANCE_UP","JURIDIQUE_UP","SANTE_UP","MARIAGE"], boost:0.10 },
+    "Antarès":   { codes:["ACCIDENT","CARRIERE_DOWN","JURIDIQUE_DOWN"], boost:0.12 },
+    "Sirius":    { codes:["CARRIERE_UP","FINANCE_UP"], boost:0.08 },
+    // [STARS-V1-43b] vague 1 — 5 étoiles bénéfiques
+    "Capella":   { codes:["CARRIERE_UP","FINANCE_UP","JURIDIQUE_UP"], boost:0.08 },
+    "Mirfak":    { codes:["CARRIERE_UP","JURIDIQUE_UP"], boost:0.08 },
+    "Véga":      { codes:["CARRIERE_UP","MARIAGE","FINANCE_UP"], boost:0.08 },
+    "Altaïr":    { codes:["CARRIERE_UP","JURIDIQUE_UP","VOYAGE"], boost:0.10 },
+    "Deneb":     { codes:["CARRIERE_UP","SPIRITUEL","MARIAGE"], boost:0.08 },
+    // === [STARS-V2-43b] vague 2 — 3 étoiles maléfiques (Q5-B astrologue retour 35 + retour 37) ===
+    // Garde-fou doctrinal : orbes resserrés (orbMax 1.0° planètes / 1.5° angles vs 1.5°/2.0° standard)
+    // pour empêcher l'inflation des FP DEUIL/ACCIDENT en rafale. Algol/Antarès gardent leur calibration.
+    "Bellatrix":     { codes:["ACCIDENT","CARRIERE_DOWN"], boost:0.10, orbMax:1.0, orbMaxAngle:1.5 },
+    "Vindemiatrix":  { codes:["DEUIL","SEPARATION"], boost:0.10, orbMax:1.0, orbMaxAngle:1.5 },
+    "Zubenelgenubi": { codes:["JURIDIQUE_DOWN","ACCIDENT"], boost:0.08, orbMax:1.0, orbMaxAngle:1.5 }
   };
-  for (const [star, info] of Object.entries(_STAR_AMPS)) {
-    for (const [name, nd] of Object.entries(natalDict)) {
-      if (nd.deg == null) continue;
-      const orb = Math.min(Math.abs(nd.deg - info.deg), 360 - Math.abs(nd.deg - info.deg));
-      if (orb <= 1.5) {
-        info.codes.forEach(code => {
-          if (!_mdseFixedStarHits[code]) _mdseFixedStarHits[code] = [];
-          _mdseFixedStarHits[code].push({ star, planet:name, orb:Math.round(orb*100)/100, boost:info.boost });
-        });
-      }
-    }
+  for (const em of (etoileMatchesNatal || [])) {
+    if (!em || !em.etoile || !em.planete) continue;
+    const info = _STAR_CODE_MAP[em.etoile];
+    if (!info) continue;
+    const orb = Number(em.orb);
+    const orbCeil = Number.isFinite(info.orbMax) ? info.orbMax : 1.5;
+    if (!Number.isFinite(orb) || orb > orbCeil) continue;
+    info.codes.forEach(code => {
+      if (!_mdseFixedStarHits[code]) _mdseFixedStarHits[code] = [];
+      _mdseFixedStarHits[code].push({ star: em.etoile, planet: em.planete, orb: Math.round(orb*100)/100, boost: info.boost });
+    });
   }
-} catch(e) {}
+  for (const ec of (etoileCuspMatchesNatal || [])) {
+    if (!ec || !ec.etoile || !ec.angle) continue;
+    const info = _STAR_CODE_MAP[ec.etoile];
+    if (!info) continue;
+    const orb = Number(ec.orb);
+    const orbCeil = Number.isFinite(info.orbMaxAngle) ? info.orbMaxAngle : 2.0;
+    if (!Number.isFinite(orb) || orb > orbCeil) continue;
+    info.codes.forEach(code => {
+      if (!_mdseFixedStarHits[code]) _mdseFixedStarHits[code] = [];
+      _mdseFixedStarHits[code].push({ star: ec.etoile, planet: ec.angle, orb: Math.round(orb*100)/100, boost: info.boost, isAngle: true });
+    });
+  }
+} catch(e) { console.log("[WARN] _mdseFixedStarHits Sprint 4.3a P1:", e.message); }
 
 // --- P14 : NL/PL progressée (Soleil prog – Lune prog) ---
 let _mdseProgLunation = null;
@@ -5079,11 +5719,11 @@ ACCIDENT: {
   conditions:[
     {type:"transit_in_house",planet:"Mars",houses:[1,6,8],aspects:["Conjonction","Carré","Opposition"],weight:12},
     {type:"transit_in_house",planet:"Mars",houses:[3],aspects:["Conjonction","Carré","Opposition"],weight:7},
-    {type:"transit_aspect",pTransit:"Mars",pNatal:"Pluton",aspects:["Conjonction","Carré","Opposition"],weight:10},
-    {type:"transit_aspect",pTransit:"Mars",pNatal:"Uranus",aspects:["Conjonction","Carré","Opposition"],weight:10},
-    {type:"transit_aspect",pTransit:"Mars",pNatal:"Chiron",aspects:["Conjonction","Carré","Opposition"],weight:8},
-    {type:"transit_aspect",pTransit:"Mars",pNatal:"Saturne",aspects:["Conjonction","Carré","Opposition"],weight:8},
-    {type:"transit_aspect",pTransit:"Uranus",pNatal:"Ascendant",aspects:["Conjonction","Carré","Opposition"],weight:10},
+    {type:"transit_aspect",pTransit:"Mars",pNatal:"Pluton",aspects:["Conjonction","Carré","Opposition"],weight:10,tightExp:3.0},
+    {type:"transit_aspect",pTransit:"Mars",pNatal:"Uranus",aspects:["Conjonction","Carré","Opposition"],weight:10,tightExp:3.0},
+    {type:"transit_aspect",pTransit:"Mars",pNatal:"Chiron",aspects:["Conjonction","Carré","Opposition"],weight:8,tightExp:3.0},
+    {type:"transit_aspect",pTransit:"Mars",pNatal:"Saturne",aspects:["Conjonction","Carré","Opposition"],weight:8,tightExp:3.0},
+    {type:"transit_aspect",pTransit:"Uranus",pNatal:"Ascendant",aspects:["Conjonction","Carré","Opposition"],weight:10,tightExp:3.0},
     {type:"transit_in_house",planet:"Uranus",houses:[1,6,8],aspects:["Conjonction","Carré","Opposition"],weight:7},
     {type:"progression",pProg:"Mars",aspects:["Conjonction","Carré","Opposition"],houseTargets:[1,6,8],weight:10},
     {type:"solar_arc",pArc:"Mars",targets:["Ascendant","Chiron","Uranus"],weight:8},
@@ -5154,12 +5794,12 @@ SANTE_DOWN: {
     {type:"transit_in_house",planet:"Neptune",houses:[6,12],aspects:["Conjonction","Carré","Opposition"],weight:8},
     {type:"transit_in_house",planet:"Mars",houses:[1,6,8],aspects:["Conjonction","Carré","Opposition"],weight:10},
     {type:"transit_in_house",planet:"Chiron",houses:[1,6],aspects:["Conjonction","Carré","Opposition"],weight:8},
-    {type:"transit_aspect",pTransit:"Mars",pNatal:"Ascendant",aspects:["Conjonction","Carré","Opposition"],weight:9},
-    {type:"transit_aspect",pTransit:"Mars",pNatal:"Chiron",aspects:["Conjonction","Carré","Opposition"],weight:8},
+    {type:"transit_aspect",pTransit:"Mars",pNatal:"Ascendant",aspects:["Conjonction","Carré","Opposition"],weight:9,tightExp:3.0},
+    {type:"transit_aspect",pTransit:"Mars",pNatal:"Chiron",aspects:["Conjonction","Carré","Opposition"],weight:8,tightExp:3.0},
     {type:"transit_aspect",pTransit:"Chiron",pNatal:"Ascendant",aspects:["Conjonction","Carré","Opposition"],weight:8},
     {type:"transit_aspect",pTransit:"Chiron",pNatal:"Chiron",aspects:["Conjonction","Carré","Opposition"],weight:7},
-    {type:"transit_aspect",pTransit:"Saturne",pNatal:"Chiron",aspects:["Conjonction","Carré","Opposition"],weight:8},
-    {type:"transit_aspect",pTransit:"Pluton",pNatal:"Ascendant",aspects:["Conjonction","Carré","Opposition"],weight:9},
+    {type:"transit_aspect",pTransit:"Saturne",pNatal:"Chiron",aspects:["Conjonction","Carré","Opposition"],weight:8,tightExp:3.0},
+    {type:"transit_aspect",pTransit:"Pluton",pNatal:"Ascendant",aspects:["Conjonction","Carré","Opposition"],weight:9,tightExp:3.0},
     {type:"transit_aspect",pTransit:"Neptune",pNatal:"Lune",aspects:["Conjonction","Carré","Opposition"],weight:7},
     {type:"transit_aspect",pTransit:"Neptune",pNatal:"Soleil",aspects:["Conjonction","Carré","Opposition"],weight:7},
     {type:"progression",pProg:"Soleil",aspects:["Conjonction","Carré","Opposition"],houseTargets:[6,12],weight:7},
@@ -6134,7 +6774,7 @@ const _mdseEvalCondition = (cond, _sigCode) => {
           const ad = aspectsSuiviLent[mk];
           const asp2 = mk.replace("slow_","").split("|||")[1];
           const maxO2 = getTransitOrbSlow(cond.pTransit, asp2);
-          const exp2 = _MDSE_TIGHT_EXP[cond.pTransit] ?? 1.5;
+          const exp2 = (cond.tightExp ?? _MDSE_TIGHT_EXP[cond.pTransit] ?? 1.5);
           let bT2 = 0;
           ad.waves.forEach(w => { const mo = parseFloat(w.minOrb); if (!isNaN(mo)) { const t = Math.pow(Math.max(0, 1 - mo / maxO2), exp2); if (t > bT2) bT2 = t; } });
           const tight2 = bT2 > 0 ? bT2 : 0.5;
@@ -6160,7 +6800,7 @@ const _mdseEvalCondition = (cond, _sigCode) => {
           const bestFb = fbKeys.map(k => _mdseFastScan[k]).reduce((a, b) => a.bestOrb < b.bestOrb ? a : b);
           const hasWaves = bestFb.waves && bestFb.waves.length > 0;
           const _fbMaxOrb = getTransitOrbFast(bestFb.pTransit, bestFb.aspName);
-          const _fbExp = _MDSE_TIGHT_EXP[bestFb.pTransit] ?? 1.5;
+          const _fbExp = (cond.tightExp ?? _MDSE_TIGHT_EXP[bestFb.pTransit] ?? 1.5);
           const tightness = Math.pow(Math.max(0, 1 - bestFb.bestOrb / _fbMaxOrb), _fbExp);
           const multiWave = hasWaves && bestFb.waves.length >= 3 ? 1.7 : hasWaves && bestFb.waves.length >= 2 ? 1.4 : 1.0;
           result.hit = true;
@@ -7240,6 +7880,31 @@ const _mdseEvalCondition = (cond, _sigCode) => {
 let _mdseResults = [];
 const _mdseDebugAll = [];
 let _mdsePreFilterSnapshot = []; // v19.12-instr : snapshot pré-filtre convergence/cap pour audit
+
+// [INSTR-4.3-PREP] Sentinelle d'instrumentation sigJourney
+// Capture l'état de _mdseResults aux ~10 points charnières du moteur.
+// Lecture pure (zéro mutation), conditionnée par INSTR_PREV_4_3.
+const _instrSnapshots = [];
+const _recordSnapshot = (label) => {
+  if (!INSTR_PREV_4_3) return;
+  if (!Array.isArray(_mdseResults)) return;
+  const snap = {};
+  for (const sig of _mdseResults) {
+    const entry = {
+      confidence: sig.confidence,
+      level: sig.level,
+    };
+    if (typeof sig._rawRatio === "number") entry._rawRatio = sig._rawRatio;
+    if (typeof sig._heavyCount === "number") entry._heavyCount = sig._heavyCount;
+    if (sig._pnaTier) entry._pnaTier = sig._pnaTier;
+    if (typeof sig._pnaWeight === "number") entry._pnaWeight = sig._pnaWeight;
+    if (sig._carriereDemoted) entry._carriereDemoted = { ...sig._carriereDemoted };
+    if (sig._engagementContractCap) entry._engagementContractCap = { ...sig._engagementContractCap };
+    snap[sig.code] = entry;
+  }
+  _instrSnapshots.push({ label, snapshot: snap });
+};
+
 try {
 for (const [code, sig] of Object.entries(EVENT_SIGNATURES)) {
   let totalWeight = 0;
@@ -7288,22 +7953,56 @@ for (const [code, sig] of Object.entries(EVENT_SIGNATURES)) {
   _mdseDebugAll.push({ code, rawRatio:Math.round(_rawRatio*1000)/1000, rawConfidence:confidence, heavyCount, minConfidence:sig.minConfidence, passed:confidence >= sig.minConfidence, totalWeight:Math.round(totalWeight*100)/100, maxPossible, matchedConditions:matchedConditions.map(c=>({type:c.type,weight:c.weight,strength:Math.round(c.strength*1000)/1000,detail:c.detail})) });
 }
 _mdseResults.sort((a, b) => b.confidence - a.confidence);
+_recordSnapshot("RAW"); // [INSTR-4.3-PREP] confidence post-formule paliers + heavyCount
 } catch(e) { console.log("[WARN] MDSE Signatures:", e.message, e.stack?.split("\n").slice(0,3).join(" ")); }
 
 // --- PNA : Application du Profil Natal Archétypal au scoring ---
+// === [PNA-BYPASS-Q1B-43abis] Sprint 4.3a-bis (validé astrologue retour 35 Q1→Q1-B) ===
+// Si la natalité possède une promesse Piste B explicite pour CARRIERE_UP (Sprint 4.3a)
+// ET le PNA tier est TERTIAIRE (multiplier 0.75), on neutralise la pénalité maléfique
+// en appliquant le multiplier SECONDAIRE (0.95). Justification doctrinale : la promesse
+// ne transforme pas le thème en thème dominé, mais elle empêche le PNA structurel
+// d'écraser une signature pour laquelle la natalité atteste une faisabilité explicite.
+// Mesure prévue : récupération de 2-3 FN CARRIERE_UP (churchill, chaplin, ev. newton).
+const _Q1B_BYPASS_MULTIPLIER = 0.95; // tier SECONDAIRE par convention
 try {
 _mdseResults.forEach(sig => {
   const pna = _pnaProfile.sigPriority?.[sig.code];
   if (!pna) return;
   sig._pnaTier = pna.tier;
   sig._pnaWeight = pna.weight;
-  sig.confidence = Math.min(85, Math.round(sig.confidence * pna.multiplier));
+  let multiplier = pna.multiplier;
+  if (sig.code === "CARRIERE_UP" && pna.tier === "TERTIAIRE") {
+    const cuPromises = (typeof _natalPromises !== "undefined" && _natalPromises?.bySignature)
+      ? (_natalPromises.bySignature["CARRIERE_UP"] || [])
+      : [];
+    const _hasNamedPromise = cuPromises.length >= 1;
+    // Safety net D-3-α : promesse implicite forte (signal mécanique élevé)
+    // Plus permissif que A-1 (0.65/4) car c'est ici une re-classification de tier, pas un bypass de cap.
+    const _rawRatioGuard = (typeof sig._rawRatio === "number" && typeof sig._heavyCount === "number") && (sig._rawRatio >= 0.55 && sig._heavyCount >= 3);
+    if (_hasNamedPromise || _rawRatioGuard) {
+      sig._pnaBypassQ1B = {
+        originalTier: "TERTIAIRE",
+        effectiveTier: "SECONDAIRE_BYPASS",
+        originalMultiplier: pna.multiplier,
+        effectiveMultiplier: _Q1B_BYPASS_MULTIPLIER,
+        bypassSource: _hasNamedPromise ? "named_promise_pisteB" : "rawratio_safety_net_D3a",
+        promisesActivated: _hasNamedPromise ? cuPromises.map(p => p.type) : null,
+        rawRatio: sig._rawRatio,
+        heavyCount: sig._heavyCount
+      };
+      multiplier = _Q1B_BYPASS_MULTIPLIER;
+      sig._pnaTier = "SECONDAIRE_BYPASS"; // visible dans sigJourney pour audit
+    }
+  }
+  sig.confidence = Math.min(85, Math.round(sig.confidence * multiplier));
   sig.level = sig.confidence >= 55 ? "high" : sig.confidence >= 35 ? "medium" : "low";
 });
-} catch(e) {}
+} catch(e) { console.log("[WARN] PNA Q1-B bypass:", e.message); }
 
 // v16.3: _baseConfidence sauvé APRÈS PNA pour que CF1 ne l'écrase pas
 _mdseResults.forEach(sig => { sig._baseConfidence = sig.confidence; });
+_recordSnapshot("POST_PNA"); // [INSTR-4.3-PREP] post-multiplicateur PNA tier (PRIMAIRE/SECONDAIRE/TERTIAIRE)
 
 // --- MDSE : Superposition de signatures (boost mutuel) ---
 try {
@@ -7324,6 +8023,7 @@ for (const [c1, c2] of _mdsePairs) {
   }
 }
 _mdseResults.sort((a, b) => b.confidence - a.confidence);
+_recordSnapshot("POST_SUPERPOSITION"); // [INSTR-4.3-PREP] post-boost superposition (8 paires définies)
 } catch(e) {}
 
 // --- MDSE v2-A : Temporalisation — fenêtre de pic par signature ---
@@ -7692,16 +8392,312 @@ _mdseResults.forEach(sig => {
   }
 });
 _mdseResults.sort((a, b) => b.confidence - a.confidence);
+_recordSnapshot("POST_CF1_NATAL_BOOST"); // [INSTR-4.3-PREP] post-Critical Factor 1 (boost natal directe)
 } catch(e) {}
 
+// --- MDSE v17 — A4/A5/A6 : helper relax conditionnelle pour codes engagement ---
+// Spec validée par astrologue (PREV-RETOUR-ASTROLOGUE-4 Q1 + RETOUR-5 Q1/Q3 réponse 2026-05-04 04:18) :
+// si rawRatio ≥ 0.55 ET au moins 1 garde-fou bénéfique présent (Jupiter/Vénus en condition
+// matchée à strength ≥ 0.7  OU  profection annuelle sur les maisons clés du code)
+// → A4 skippe maleficPenalty (P56) + exclusion P8
+// → A5 skippe natal_promise penalty ×0.55 (P1, ci-dessous)
+// → A6 V1 plafonne CF1 counter penalty à ×0.85 (au lieu d'aller jusqu'à ×0.65)
+// Lecture astro : Vénus en chute / Saturne+Uranus M7 = qualifie le STYLE de l'événement,
+// pas sa probabilité (asymétrie conceptuelle qualité vs fréquence).
+//
+// Sprint 3 (2026-05-04, validé astrologue retour n°9) — extension à CARRIERE_UP :
+// Hypothèse B : Profection M10 stricte OU MC/Soleil aspecté par bénéfique.
+//
+// Sprint 3.1 (2026-05-04, validé astrologue retour n°10) — resserrement + 3 nouveaux validateurs :
+//   B1. Strength bénéfique pro resserrée à ≥ 0.85 (filtre bruit Jupiter, ~50% FP témoin éliminés).
+//   V2. Saturne CONSTRUCTIF (sextile/trigone harmonique → MC/Soleil) — consécration travail/structure.
+//   V3. Nœud Nord destinée publique (transit/aspect → MC/Soleil/Asc) — élections, rôles historiques.
+//   V4. Arcs Solaires (SA Soleil → MC, OU MC dirigé → Jupiter/Vénus natal) — sommet incontestable.
+//
+// Réponse à la question astrologue n°10 : Saturne joue UNIQUEMENT un rôle constructif ici (validation
+// positive), JAMAIS punitif. Les pénalités maléfiques (P56/P8/CF1/P1') sont déjà désactivées par
+// _isEngagementCode("CARRIERE_UP") en amont. Saturne filtré sextile/trigone seuls (jamais carré/opposition).
+const _A4_RELAX_CODES = new Set(["MARIAGE", "ENFANT", "CARRIERE_UP"]);
+const _A4_MIN_RAW_RATIO = 0.55;
+// Sprint 3.2 (2026-05-04, post-smoke Sprint 3.1) :
+// CARRIERE_UP a une signature très riche (~30 conditions). Atteindre rawRatio ≥ 0.55 est mathématiquement
+// inatteignable pour des cas qui ne matchent que 2-3 conditions fortes (Buffett, Hawking, Mitterrand,
+// Rosaparks). Les validateurs astro stricts (str ≥ 0.85 + Jupiter/Saturne/Nœud Nord/SA → MC/Soleil)
+// sont eux-mêmes le filtre de qualité. On abaisse donc le seuil rawRatio pour CARRIERE_UP.
+const _A4_MIN_RAW_RATIO_BY_CODE = { CARRIERE_UP: 0.35 };
+const _A4_PROF_HOUSES = { MARIAGE: [5, 7], ENFANT: [4, 5], CARRIERE_UP: [10] };
+const _A4_PRO_CODES = new Set(["CARRIERE_UP"]);
+const _A4_PRO_MIN_STRENGTH = 0.85;  // Sprint 3.1 — resserrement B1
+const _A4_CIVIL_MIN_STRENGTH = 0.7; // MARIAGE/ENFANT inchangé
+
+const _a4ShouldSkipMaleficPenalty = (sig) => {
+  if (!_A4_RELAX_CODES.has(sig.code)) return null;
+  const minRR = _A4_MIN_RAW_RATIO_BY_CODE[sig.code] || _A4_MIN_RAW_RATIO;
+  if ((sig._rawRatio || 0) < minRR) return null;
+  const isPro = _A4_PRO_CODES.has(sig.code);
+  const conds = sig.matchedConditions || [];
+
+  if (isPro) {
+    const minStr = _A4_PRO_MIN_STRENGTH;
+    const PRO_TARGETS = /Milieu du Ciel|MC\b|Soleil/i;
+    const PRO_TARGETS_NN = /Milieu du Ciel|MC\b|Soleil|Ascendant|ASC\b/i;
+
+    // V1. Bénéfique classique (Jupiter/Vénus → MC/Soleil) — Sprint 3.1 str ≥ 0.85
+    const benefM = conds.find(m =>
+      (m.strength || 0) >= minStr &&
+      /Jupiter|Vénus/i.test(m.detail || "") &&
+      PRO_TARGETS.test(m.detail || "")
+    );
+    if (benefM) return { rawRatio: sig._rawRatio, reason: "benefic_pro_strict", trigger: String(benefM.detail || "").slice(0, 80) };
+
+    // V2. Saturne constructif (sextile/trigone harmonique → MC/Soleil)
+    const satM = conds.find(m =>
+      (m.strength || 0) >= minStr &&
+      /Saturne/i.test(m.detail || "") &&
+      /Sextile|Trigone/i.test(m.detail || "") &&
+      PRO_TARGETS.test(m.detail || "")
+    );
+    if (satM) return { rawRatio: sig._rawRatio, reason: "saturn_constructive", trigger: String(satM.detail || "").slice(0, 80) };
+
+    // V3. Nœud Nord destinée publique (transit/aspect → MC/Soleil/Asc)
+    const nnM = conds.find(m =>
+      (m.strength || 0) >= minStr &&
+      /Nœud Nord/i.test(m.detail || "") &&
+      PRO_TARGETS_NN.test(m.detail || "")
+    );
+    if (nnM) return { rawRatio: sig._rawRatio, reason: "north_node_destiny", trigger: String(nnM.detail || "").slice(0, 80) };
+
+    // V4. Arcs Solaires (SA Soleil → MC, OU MC dirigé → Jupiter/Vénus natal)
+    const saM = conds.find(m => {
+      const d = String(m.detail || "");
+      if ((m.strength || 0) < minStr) return false;
+      const isSA = /solar.?arc|arc.?sol|SA\b|dirig[ée]/i.test(d);
+      if (!isSA) return false;
+      // Soleil/MC dirigé en aspect (conj/trigone/sextile) avec MC/Jupiter/Vénus
+      return /(Soleil|MC|Milieu du Ciel).*(Conjonction|Trigone|Sextile).*(Milieu du Ciel|MC\b|Jupiter|Vénus)/i.test(d) ||
+             /(Milieu du Ciel|MC\b|Jupiter|Vénus).*(Conjonction|Trigone|Sextile).*(Soleil|MC|Milieu du Ciel)/i.test(d);
+    });
+    if (saM) return { rawRatio: sig._rawRatio, reason: "solar_arc_culmination", trigger: String(saM.detail || "").slice(0, 80) };
+
+    // V5. Profection M10 (existant Sprint 3, conservé)
+    const targetHouses = _A4_PROF_HOUSES[sig.code] || [];
+    const annualProfH = profections?.annuelle?.maison;
+    if (annualProfH && targetHouses.includes(annualProfH)) {
+      return { rawRatio: sig._rawRatio, reason: "profection_match", trigger: `Profection annuelle M${annualProfH}` };
+    }
+    return null;
+  }
+
+  // Pour MARIAGE/ENFANT : code Sprint 3 inchangé (str ≥ 0.7, Jupiter/Vénus n'importe où)
+  const benM = conds.find(m => (m.strength || 0) >= _A4_CIVIL_MIN_STRENGTH && /Jupiter|Vénus/i.test(m.detail || ""));
+  if (benM) return { rawRatio: sig._rawRatio, reason: "benefic_matched", trigger: String(benM.detail || "").slice(0, 60) };
+  const targetHouses = _A4_PROF_HOUSES[sig.code] || [];
+  const annualProfH = profections?.annuelle?.maison;
+  if (annualProfH && targetHouses.includes(annualProfH)) {
+    return { rawRatio: sig._rawRatio, reason: "profection_match", trigger: `Profection annuelle M${annualProfH}` };
+  }
+  return null;
+};
+
+// Sprint Refacto Engagement (2026-05-04, validé astrologue retour n°7) :
+// Les codes "engagement" sont exemptés de la cascade de pénalités d'asymétrie conceptuelle
+// (P1 natal promise, P56 maleficPenalty, CF1 counter penalty, P1' MDSE v2 transit dignity,
+// P0/P0b T/S ratio, Q3 asymétrique, P6 RS Cluster). La tension (Saturne/Uranus) crée
+// l'événement mais le bénéfique (Jupiter/Vénus) ou le Time Lord (Profection) le SIGNE en
+// tant que contrat. Sans cette signature (= pas de garde-fou A4), un VERROU CONTRACTUEL
+// en fin de cascade cap la conf à 45.
+//
+// Sprint 3 (2026-05-04, validé astrologue retour n°9) — extension CARRIERE_UP :
+// Hypothèse B comme garde-fou (Profection M10 stricte OU Jupiter/Vénus → MC/Soleil).
+// RECONNAISSANCE n'existe pas comme code séparé : evt promotion/consecration/honneurs
+// mappent tous vers CARRIERE_UP dans EVT_TO_CODE.
+const _ENGAGEMENT_CODES = new Set(["MARIAGE", "ENFANT", "CARRIERE_UP"]);
+const _isEngagementCode = (code) => _ENGAGEMENT_CODES.has(code);
+
+// Sprint 2 Qualifieurs MARIAGE (2026-05-04, validé astrologue retour n°8) :
+// Le code reste "MARIAGE" (préserve métriques + caps + compounds + verrou contractuel).
+// Ajout d'un array `qualifierTags` (SOUDAIN, KARMIQUE, PRAGMATIQUE, TRANSFORMATEUR,
+// IDEALISE, TARDIF, SECRET) pour qualifier le STYLE du mariage sans toucher au scoring.
+const _marriageM7Lord = () => {
+  const dscDeg = natalAngles["Descendant"];
+  if (dscDeg == null) return null;
+  const m7Sign = signs[Math.floor(((dscDeg % 360) + 360) % 360 / 30) % 12];
+  const lord = (typeof MAITRES_TRAD !== "undefined" && MAITRES_TRAD[m7Sign]) || (typeof MAITRES !== "undefined" && MAITRES[m7Sign]) || null;
+  return { sign: m7Sign, lord };
+};
+
+// Cherche un aspect lent transit→natal correspondant (filtre par classe + orb max).
+// aspectFilter : "tendu" (Conj/Carré/Oppo) | "harmonique" (Trigone/Sextile) | "any"
+const _hasSlowAspectTo = (transitPlanet, natalTarget, aspectFilter, maxOrb) => {
+  if (typeof aspectsSuiviLent === "undefined" || !aspectsSuiviLent) return null;
+  const tenduSet = new Set(["Conjonction","Carré","Opposition"]);
+  const harmSet = new Set(["Trigone","Sextile"]);
+  const isAllowed = (asp) => aspectFilter === "tendu" ? tenduSet.has(asp)
+    : aspectFilter === "harmonique" ? harmSet.has(asp)
+    : (tenduSet.has(asp) || harmSet.has(asp));
+  for (const k of Object.keys(aspectsSuiviLent)) {
+    if (!k.startsWith(`slow_${transitPlanet}|||`)) continue;
+    const parts = k.split("|||");
+    if (parts.length !== 3) continue;
+    if (!isAllowed(parts[1])) continue;
+    if (parts[2] !== natalTarget) continue;
+    const waves = aspectsSuiviLent[k].waves || [];
+    for (const w of waves) {
+      const orb = parseFloat(w.minOrb);
+      if (!isFinite(orb)) continue;
+      if (orb <= maxOrb) {
+        return { aspect: parts[1], target: natalTarget, orb: Math.round(orb*10)/10, peakDate: w.peakDate, hits: waves.length };
+      }
+    }
+  }
+  return null;
+};
+
+// Détecte si une planète lente transite la M12 natale durant la période.
+const _slowPlanetTraversesHouse = (planet, house) => {
+  if (typeof transitsSuiviLent === "undefined" || !transitsSuiviLent) return false;
+  return !!(transitsSuiviLent[planet]?.periods?.some(p => p.maison === house));
+};
+
+const _marriageQualifierTags = (sig) => {
+  const tags = [];
+  const details = [];
+
+  const m7Info = _marriageM7Lord();
+  const m7Lord = m7Info?.lord;
+  const venusNd = natalDict["Vénus"];
+  const venusInChute = venusNd && (venusNd.sign === "Vierge" || venusNd.sign === "Scorpion");
+
+  let age = null;
+  if (typeof dateNaiss !== "undefined" && dateNaiss && sig.peakWindow?.start) {
+    age = (new Date(sig.peakWindow.start).getTime() - dateNaiss.getTime()) / (365.25 * 86400000);
+  }
+
+  // SOUDAIN — Uranus aspect tendu Vénus ou Descendant, orb ≤ 5°
+  const sUv = _hasSlowAspectTo("Uranus", "Vénus", "tendu", 5);
+  const sUd = _hasSlowAspectTo("Uranus", "Descendant", "tendu", 5);
+  if (sUv || sUd) {
+    const hit = sUv || sUd;
+    tags.push("SOUDAIN");
+    details.push({ tag: "SOUDAIN", label: "Mariage soudain", trigger: `Uranus ${hit.aspect} ${hit.target} natal (orb ${hit.orb}°, ${hit.hits} hit${hit.hits>1?'s':''})` });
+  }
+
+  // KARMIQUE — Nœud Sud natal en M7 OU transit Nœud Nord traversant M7
+  const nsHouse = natalDict["Nœud Sud"]?.house;
+  const nnTransit7 = _slowPlanetTraversesHouse("Nœud Nord", 7);
+  if (nsHouse === 7 || nnTransit7) {
+    const trigger = nsHouse === 7 ? "Nœud Sud natal en M7 (axe nodal traversant la M7)" : "Nœud Nord en transit en M7 sur la période";
+    tags.push("KARMIQUE");
+    details.push({ tag: "KARMIQUE", label: "Mariage karmique", trigger });
+  }
+
+  // PRAGMATIQUE — Saturne maître M7 OU (Vénus chute + Saturne aspect Vénus)
+  const saturneIsM7Lord = m7Lord === "Saturne";
+  let pragTrigger = null;
+  if (saturneIsM7Lord) {
+    pragTrigger = `Saturne maître de la M7 (cuspide en ${m7Info.sign})`;
+  } else if (venusInChute) {
+    const sStV = _hasSlowAspectTo("Saturne", "Vénus", "any", 8);
+    if (sStV) {
+      pragTrigger = `Vénus en ${venusNd.sign} (chute) + Saturne ${sStV.aspect} Vénus en transit (orb ${sStV.orb}°)`;
+    } else {
+      const satNd = natalDict["Saturne"];
+      if (satNd && venusNd) {
+        const dDiff = Math.abs(((satNd.deg - venusNd.deg + 360) % 360));
+        const aspectsBase = [0, 60, 90, 120, 180];
+        const closest = aspectsBase.reduce((acc, a) => Math.abs(dDiff - a) < acc.gap ? { gap: Math.abs(dDiff - a), a } : acc, { gap: 999, a: null });
+        if (closest.gap <= 8) {
+          pragTrigger = `Vénus en ${venusNd.sign} (chute) + Saturne natal en aspect serré (≈${closest.a}°, orb ${Math.round(closest.gap*10)/10}°)`;
+        }
+      }
+    }
+  }
+  if (pragTrigger) {
+    tags.push("PRAGMATIQUE");
+    details.push({ tag: "PRAGMATIQUE", label: "Mariage pragmatique", trigger: pragTrigger });
+  }
+
+  // TRANSFORMATEUR — Pluton aspect tendu Vénus ou Descendant, orb ≤ 8°
+  const sPv = _hasSlowAspectTo("Pluton", "Vénus", "tendu", 8);
+  const sPd = _hasSlowAspectTo("Pluton", "Descendant", "tendu", 8);
+  if (sPv || sPd) {
+    const hit = sPv || sPd;
+    tags.push("TRANSFORMATEUR");
+    details.push({ tag: "TRANSFORMATEUR", label: "Mariage transformateur", trigger: `Pluton ${hit.aspect} ${hit.target} natal (orb ${hit.orb}°, ${hit.hits} hit${hit.hits>1?'s':''})` });
+  }
+
+  // IDEALISE — Neptune aspect (any classe) Vénus ou Descendant, orb ≤ 6°
+  const sNv = _hasSlowAspectTo("Neptune", "Vénus", "any", 6);
+  const sNd = _hasSlowAspectTo("Neptune", "Descendant", "any", 6);
+  if (sNv || sNd) {
+    const hit = sNv || sNd;
+    tags.push("IDEALISE");
+    details.push({ tag: "IDEALISE", label: "Mariage idéalisé", trigger: `Neptune ${hit.aspect} ${hit.target} natal (orb ${hit.orb}°, ${hit.hits} hit${hit.hits>1?'s':''})` });
+  }
+
+  // TARDIF — age ≥ 35 ET ≥ 1 indicateur Saturne
+  if (age !== null && age >= 35) {
+    const satNatalM7 = natalDict["Saturne"]?.house === 7;
+    const sStV = _hasSlowAspectTo("Saturne", "Vénus", "any", 8);
+    const sStD = _hasSlowAspectTo("Saturne", "Descendant", "any", 8);
+    let satIndic = null;
+    if (saturneIsM7Lord) satIndic = "Saturne maître M7";
+    else if (satNatalM7) satIndic = "Saturne natal en M7";
+    else if (sStV) satIndic = `Saturne ${sStV.aspect} Vénus en transit (orb ${sStV.orb}°)`;
+    else if (sStD) satIndic = `Saturne ${sStD.aspect} Descendant en transit (orb ${sStD.orb}°)`;
+    if (satIndic) {
+      tags.push("TARDIF");
+      details.push({ tag: "TARDIF", label: "Mariage tardif", trigger: `Age ${Math.round(age)} ans + ${satIndic}` });
+    }
+  }
+
+  // SECRET — Maître M7 en M12 OU Vénus en M12 OU transit lourd en M12
+  const m7LordHouse = m7Lord ? natalDict[m7Lord]?.house : null;
+  const venusInM12 = venusNd?.house === 12;
+  const transitLourdM12 = ["Saturne","Pluton","Neptune"].find(p => _slowPlanetTraversesHouse(p, 12));
+  if (m7LordHouse === 12 || venusInM12 || transitLourdM12) {
+    const trigger = m7LordHouse === 12 ? `${m7Lord} (maître M7) natal en M12`
+      : venusInM12 ? "Vénus natale en M12"
+      : `${transitLourdM12} en transit en M12 sur la période`;
+    tags.push("SECRET");
+    details.push({ tag: "SECRET", label: "Mariage secret/discret", trigger });
+  }
+
+  // Composition du qualifierLabel humain
+  const labelByTag = {
+    SOUDAIN: "soudain", KARMIQUE: "karmique", PRAGMATIQUE: "pragmatique",
+    TRANSFORMATEUR: "transformateur", IDEALISE: "idéalisé", TARDIF: "tardif", SECRET: "secret"
+  };
+  let label = "";
+  if (tags.length === 1) {
+    label = `Mariage ${labelByTag[tags[0]] || tags[0].toLowerCase()}`;
+  } else if (tags.length >= 2) {
+    const lst = tags.map(t => labelByTag[t] || t.toLowerCase());
+    label = `Mariage ${lst.slice(0,-1).join(", ")} et ${lst[lst.length-1]}`;
+  }
+
+  return { tags, details, label };
+};
+
 // --- MDSE PRO : P1 natal promise modifier (pénalité si promesse absente, boost si forte) ---
+// A5 + Sprint Refacto Engagement (2026-05-04) : skip de la pénalité ×0.55 pour MARIAGE/ENFANT
+// systématique (refacto) — la dignité Vénus natale qualifie le style, pas la probabilité.
 try {
 _mdseResults.forEach(sig => {
   const np = _mdseNatalPromise[sig.code];
   if (np === undefined || np === null) {
     // Non calculé — pas de modification
   } else if (np <= 0) {
-    sig.confidence = Math.round(sig.confidence * 0.55);
+    if (_isEngagementCode(sig.code)) {
+      sig._engagementSkipP1 = { np };
+    } else {
+      const a5Guard = _a4ShouldSkipMaleficPenalty(sig);
+      if (a5Guard) {
+        sig._a5GuardSkipped = a5Guard;
+      } else {
+        sig.confidence = Math.round(sig.confidence * 0.55);
+      }
+    }
   } else if (np >= 6) {
     sig.confidence = Math.min(85, Math.round(sig.confidence * 1.12));
   }
@@ -7805,6 +8801,69 @@ _mdseResults.forEach(sig => {
   }
 });
 } catch(e) {}
+
+// === [PARTILE-Q6C-43c] Sprint 4.3c — Étoile fixe + transit lourd partile ===
+// Détecte les déclencheurs précis : étoile fixe natale (em ∈ etoileMatchesNatal)
+// touchant une planète natale, ET un transit lourd (Saturne/Jupiter/Uranus/Neptune/Pluton)
+// partile (orb ≤ 0.5°) sur cette même planète pendant la peakWindow.
+// Stocke dans sig.peakTriggerDates[] (option β étendue, validée astrologue retour 38).
+// Mécanique : tableau pour capter la "triple frappe" classique des planètes lourdes
+// rétrogradant 3 fois sur le même point. Précision peak date pour métrique recall@3d.
+const _Q6C_HEAVY_TRANSITS = new Set(["Saturne","Jupiter","Uranus","Neptune","Pluton"]);
+const _Q6C_PARTILE_ORB = 0.5;
+const _Q6C_HIGH_ORB = 0.25;
+try {
+_mdseResults.forEach(sig => {
+  const pStart = sig.peakWindow?.start || "";
+  const pEnd = sig.peakWindow?.end || "9999-12-31";
+  if (!pStart) return;
+  const triggers = [];
+  const starHits = _mdseFixedStarHits[sig.code] || [];
+  for (const hit of starHits) {
+    if (hit.isAngle) continue; // V1 : seulement planètes natales (les angles n'ont pas d'aspectsSuiviLent direct)
+    const natalPlanet = hit.planet;
+    // Scanner aspectsSuiviLent pour transits lourds → cette planète natale
+    Object.keys(aspectsSuiviLent || {}).forEach(key => {
+      const parts = key.replace("slow_", "").split("|||");
+      if (parts.length !== 3) return;
+      const pTransit = parts[0];
+      const aspect = parts[1];
+      const pNatal = parts[2];
+      if (!_Q6C_HEAVY_TRANSITS.has(pTransit) || pNatal !== natalPlanet) return;
+      const a = aspectsSuiviLent[key];
+      for (const wave of (a.waves || [])) {
+        const peakDate = wave.peakDate || wave.start;
+        if (!peakDate || peakDate < pStart || peakDate > pEnd) continue;
+        const orb = parseFloat(wave.minOrb);
+        if (!Number.isFinite(orb) || orb > _Q6C_PARTILE_ORB) continue;
+        triggers.push({
+          date: peakDate,
+          starName: hit.star,
+          transitPlanet: pTransit,
+          natalTarget: natalPlanet,
+          transitAspect: aspect,
+          orbAtPartile: Math.round(orb * 100) / 100,
+          starOrb: hit.orb,
+          boostedCodes: [sig.code],
+          intensity: orb <= _Q6C_HIGH_ORB ? "high" : "medium"
+        });
+      }
+    });
+  }
+  if (triggers.length > 0) {
+    triggers.sort((a, b) => a.date.localeCompare(b.date));
+    const seen = new Set();
+    const dedup = [];
+    for (const t of triggers) {
+      const k = t.date + "|" + t.starName + "|" + t.transitPlanet + "|" + t.transitAspect;
+      if (seen.has(k)) continue;
+      seen.add(k);
+      dedup.push(t);
+    }
+    sig.peakTriggerDates = dedup;
+  }
+});
+} catch(e) { console.log("[WARN] Q6C peakTriggerDates:", e.message); }
 
 // --- MDSE PRO : P26 Sect light boost ---
 try {
@@ -8992,7 +10051,12 @@ _mdseResults.forEach(sig => {
   const cappedBoost = Math.min(boostDelta, Math.round(base * MAX_BOOST_RATIO));
   let final = base + cappedBoost;
 
-  if (ci >= 5) final = Math.round(final * 0.65);
+  // Sprint Refacto Engagement (2026-05-04) : pour MARIAGE/ENFANT, skip TOTAL de la counter penalty.
+  // Saturne+Uranus en M7 = signifiants directs (mariage karmique/de libération), pas vétos.
+  // L'asymétrie qualité-vs-probabilité est traitée par le verrou contractuel en fin de cascade.
+  if (_isEngagementCode(sig.code)) {
+    sig._engagementSkipCF1 = { ci, mult: 1.0 };
+  } else if (ci >= 5) final = Math.round(final * 0.65);
   else if (ci >= 3) final = Math.round(final * 0.75);
   else if (ci >= 2) final = Math.round(final * 0.85);
   else if (ci >= 1) final = Math.round(final * 0.92);
@@ -9065,6 +10129,7 @@ _mdseResults.forEach(sig => {
 const _MALEFIC_SIGS = new Set(["DEUIL","SEPARATION","FINANCE_DOWN","CARRIERE_DOWN","SANTE_DOWN","ACCIDENT","JURIDIQUE_DOWN"]);
 try {
 _mdseResults.sort((a, b) => b.confidence - a.confidence);
+_recordSnapshot("POST_PROGRESSED_BOOSTERS"); // [INSTR-4.3-PREP] post-boosters cumulés (P11 fixed stars, P14 NL/PL prog, stations, eclipses, prog moon, etc.)
 const _preFilterResults = _mdseResults.map(s => Object.assign({}, s));
 _mdsePreFilterSnapshot = _preFilterResults.map(s => ({
   code: s.code, confidence: s.confidence,
@@ -9249,6 +10314,7 @@ for (const negCode of _PROTECTED_MALEFIC) {
   _protectedMaleficInjected++;
 }
 _mdseResults.sort((a, b) => b.confidence - a.confidence);
+_recordSnapshot("POST_MALEFIC_FILTER"); // [INSTR-4.3-PREP] post-filtre maléfique (top 5 + injection protégée)
 } catch(e) {}
 
 // --- CF4 : Correction triggerDates — ne garder que les dates dans la peakWindow ---
@@ -9659,11 +10725,21 @@ const _MDSE_UPDOWN_HOUSES = {
   DEUIL:[4,8], ACCIDENT:[1,6,8],
   ENFANT:[4,5], VOYAGE:[3,9], RELOCATION:[3,4,9], SPIRITUEL:[9,12]
 };
+// MDSE v17 — A4 helper _a4ShouldSkipMaleficPenalty + constantes _A4_* déclarés plus haut
+// (juste avant P1 l. 7697) pour permettre leur usage par A5 (P1 natal promise) et A6 (CF1).
 const _maleficPresenceOverride = {};
+const _a4GuardSkipLog = {};
 try {
 _mdseResults.forEach(sig => {
   const sigHouses = _MDSE_UPDOWN_HOUSES[sig.code] || [];
   if (sigHouses.length === 0) return;
+  // Sprint Refacto Engagement (2026-05-04) : skip total P56 pour MARIAGE/ENFANT.
+  // L'asymétrie qualité-vs-probabilité est traitée par le verrou contractuel en fin de cascade.
+  if (_isEngagementCode(sig.code)) {
+    sig._engagementSkipP56 = true;
+    sig._maleficPenalty = 1.0;
+    return;
+  }
   const isUp = _MDSE_UP_SIGS.has(sig.code);
   const isDown = _MDSE_DOWN_SIGS.has(sig.code);
 
@@ -9677,28 +10753,45 @@ _mdseResults.forEach(sig => {
   const avgSectW = malInKeyHouse.length > 0 ? malInKeyHouse.reduce((s,m) => s + m.sectWeight, 0) / malInKeyHouse.length : 1;
 
   if (isUp && malInKeyHouse.length > 0 && benInKeyHouse.length === 0) {
-    const malDignified = malInKeyHouse.some(m => {
-      const nd = natalDict[m.planet]; return nd && (getDignite(m.planet, nd.sign) === "Domicile" || getDignite(m.planet, nd.sign) === "Exaltation");
-    });
-    const rawPenalty = malDignified ? 0.70 : (malInKeyHouse.length >= 2 ? 0.50 : 0.60);
-    const penalty = rawPenalty + (1 - rawPenalty) * (1 - avgSectW);
-    const oldConf = sig.confidence;
-    sig.confidence = Math.round(sig.confidence * penalty);
-    sig._maleficOverride = malInKeyHouse.map(m => { const nd = natalDict[m.planet]; const dig = nd ? getDignite(m.planet, nd.sign) : "?"; return `${m.planet} en M${m.house}${m.sectWeight < 0.8 ? " (sect ↓)" : ""}${dig === "Domicile" || dig === "Exaltation" ? " (dignifié)" : ""}`; });
-    sig._maleficPenalty = Math.round(penalty*100)/100;
-    _maleficPresenceOverride[sig.code] = { penalty: sig._maleficPenalty, malefics: sig._maleficOverride, oldConf, newConf: sig.confidence };
+    const a4Guard = _a4ShouldSkipMaleficPenalty(sig);
+    if (a4Guard) {
+      sig._a4GuardSkipped = a4Guard;
+      sig._maleficOverride = malInKeyHouse.map(m => { const nd = natalDict[m.planet]; const dig = nd ? getDignite(m.planet, nd.sign) : "?"; return `${m.planet} en M${m.house}${m.sectWeight < 0.8 ? " (sect ↓)" : ""}${dig === "Domicile" || dig === "Exaltation" ? " (dignifié)" : ""}`; });
+      sig._maleficPenalty = 1.0;
+      _a4GuardSkipLog[sig.code] = { rawRatio: a4Guard.rawRatio, reason: a4Guard.reason, trigger: a4Guard.trigger, malefics: sig._maleficOverride, conf: sig.confidence };
+    } else {
+      const malDignified = malInKeyHouse.some(m => {
+        const nd = natalDict[m.planet]; return nd && (getDignite(m.planet, nd.sign) === "Domicile" || getDignite(m.planet, nd.sign) === "Exaltation");
+      });
+      const rawPenalty = malDignified ? 0.70 : (malInKeyHouse.length >= 2 ? 0.50 : 0.60);
+      const penalty = rawPenalty + (1 - rawPenalty) * (1 - avgSectW);
+      const oldConf = sig.confidence;
+      sig.confidence = Math.round(sig.confidence * penalty);
+      sig._maleficOverride = malInKeyHouse.map(m => { const nd = natalDict[m.planet]; const dig = nd ? getDignite(m.planet, nd.sign) : "?"; return `${m.planet} en M${m.house}${m.sectWeight < 0.8 ? " (sect ↓)" : ""}${dig === "Domicile" || dig === "Exaltation" ? " (dignifié)" : ""}`; });
+      sig._maleficPenalty = Math.round(penalty*100)/100;
+      _maleficPresenceOverride[sig.code] = { penalty: sig._maleficPenalty, malefics: sig._maleficOverride, oldConf, newConf: sig.confidence };
+    }
   }
   if (isUp && malInKeyHouse.length > 0 && benInKeyHouse.length > 0) {
-    const malDignified = malInKeyHouse.some(m => {
-      const nd = natalDict[m.planet]; return nd && (getDignite(m.planet, nd.sign) === "Domicile" || getDignite(m.planet, nd.sign) === "Exaltation");
-    });
-    const rawPenalty = malDignified ? 0.85 : 0.75;
-    const penalty = rawPenalty + (1 - rawPenalty) * (1 - avgSectW);
-    sig.confidence = Math.round(sig.confidence * penalty);
-    sig._maleficOverride = malInKeyHouse.map(m => { const nd = natalDict[m.planet]; const dig = nd ? getDignite(m.planet, nd.sign) : "?"; return `${m.planet} en M${m.house}${m.sectWeight < 0.8 ? " (sect ↓)" : ""}${dig === "Domicile" || dig === "Exaltation" ? " (dignifié)" : ""}`; });
-    sig._beneficPresent = benInKeyHouse.map(b => `${b.planet} en M${b.house}`);
-    sig._maleficPenalty = Math.round(penalty*100)/100;
-    _maleficPresenceOverride[sig.code] = { penalty: sig._maleficPenalty, malefics: sig._maleficOverride, benefics: sig._beneficPresent };
+    const a4Guard = _a4ShouldSkipMaleficPenalty(sig);
+    if (a4Guard) {
+      sig._a4GuardSkipped = a4Guard;
+      sig._maleficOverride = malInKeyHouse.map(m => { const nd = natalDict[m.planet]; const dig = nd ? getDignite(m.planet, nd.sign) : "?"; return `${m.planet} en M${m.house}${m.sectWeight < 0.8 ? " (sect ↓)" : ""}${dig === "Domicile" || dig === "Exaltation" ? " (dignifié)" : ""}`; });
+      sig._beneficPresent = benInKeyHouse.map(b => `${b.planet} en M${b.house}`);
+      sig._maleficPenalty = 1.0;
+      _a4GuardSkipLog[sig.code] = { rawRatio: a4Guard.rawRatio, reason: a4Guard.reason, trigger: a4Guard.trigger, malefics: sig._maleficOverride, benefics: sig._beneficPresent, conf: sig.confidence };
+    } else {
+      const malDignified = malInKeyHouse.some(m => {
+        const nd = natalDict[m.planet]; return nd && (getDignite(m.planet, nd.sign) === "Domicile" || getDignite(m.planet, nd.sign) === "Exaltation");
+      });
+      const rawPenalty = malDignified ? 0.85 : 0.75;
+      const penalty = rawPenalty + (1 - rawPenalty) * (1 - avgSectW);
+      sig.confidence = Math.round(sig.confidence * penalty);
+      sig._maleficOverride = malInKeyHouse.map(m => { const nd = natalDict[m.planet]; const dig = nd ? getDignite(m.planet, nd.sign) : "?"; return `${m.planet} en M${m.house}${m.sectWeight < 0.8 ? " (sect ↓)" : ""}${dig === "Domicile" || dig === "Exaltation" ? " (dignifié)" : ""}`; });
+      sig._beneficPresent = benInKeyHouse.map(b => `${b.planet} en M${b.house}`);
+      sig._maleficPenalty = Math.round(penalty*100)/100;
+      _maleficPresenceOverride[sig.code] = { penalty: sig._maleficPenalty, malefics: sig._maleficOverride, benefics: sig._beneficPresent };
+    }
   }
 
   if (isDown && malInKeyHouse.length > 0) {
@@ -9736,15 +10829,28 @@ for (const [codeUp, codeDown] of _MDSE_EXCLUSION_PAIRS) {
     const overlapDays = Math.max(0, (new Date(overlapEnd) - new Date(overlapStart)) / 86400000);
     const overlapRatio = overlapDays / totalDays;
     if (overlapRatio > 0.80) {
-      const upHasMaleficPenalty = sUp._maleficOverride && sUp._maleficOverride.length > 0;
+      // A4 + Sprint Refacto Engagement : si P56 a été skippée pour MARIAGE/ENFANT (engagement code,
+      // ou garde-fou A4 actif), ne pas réappliquer le ×0.50 lié à _maleficOverride dans P8.
+      const upHasMaleficPenalty = sUp._maleficOverride && sUp._maleficOverride.length > 0 && !sUp._a4GuardSkipped && !sUp._engagementSkipP56;
       const downHasMaleficBoost = sDown._maleficBoost && sDown._maleficBoost.length > 0;
 
+      // Sprint Refacto Engagement (2026-05-04) : si sUp est engagement (MARIAGE),
+      // ne PAS appliquer le ×0.55 quand SEPARATION > MARIAGE (asymétrie de polarité globale).
+      // Le verrou contractuel en fin de cascade gère déjà l'absence de garde-fou bénéfique.
       if (upHasMaleficPenalty || downHasMaleficBoost) {
-        sUp.confidence = Math.round(sUp.confidence * 0.50);
+        if (_isEngagementCode(sUp.code)) {
+          sUp._engagementSkipP8b = { branch: "malefic_present", wouldHaveMult: 0.50 };
+        } else {
+          sUp.confidence = Math.round(sUp.confidence * 0.50);
+        }
       } else if (sUp.confidence >= sDown.confidence) {
         sDown.confidence = Math.round(sDown.confidence * 0.55);
       } else {
-        sUp.confidence = Math.round(sUp.confidence * 0.55);
+        if (_isEngagementCode(sUp.code)) {
+          sUp._engagementSkipP8b = { branch: "polarity_dominated", sUpConf: sUp.confidence, sDownConf: sDown.confidence, wouldHaveMult: 0.55 };
+        } else {
+          sUp.confidence = Math.round(sUp.confidence * 0.55);
+        }
       }
     }
   }
@@ -9795,8 +10901,14 @@ _mdseResults.forEach(sig => {
     });
   });
   if (p1Count > 0) {
-    const rawConf = sig.confidence;
-    sig.confidence = Math.round(Math.max(0, Math.min(_mdseDynCap(sig), rawConf * Math.pow(p1Cumul, 1/p1Count) * Math.pow(p2Cumul, 1/p1Count))));
+    // Sprint Refacto Engagement (2026-05-04) : skip total P1' MDSE v2 (dignité-transit) + P2 (sect)
+    // pour MARIAGE/ENFANT. La dignité d'une planète en transit qualifie le STYLE de l'événement.
+    if (_isEngagementCode(sig.code)) {
+      sig._engagementSkipP1Transit = { p1Cumul: Math.round(p1Cumul*1000)/1000, p2Cumul: Math.round(p2Cumul*1000)/1000, p1Count };
+    } else {
+      const rawConf = sig.confidence;
+      sig.confidence = Math.round(Math.max(0, Math.min(_mdseDynCap(sig), rawConf * Math.pow(p1Cumul, 1/p1Count) * Math.pow(p2Cumul, 1/p1Count))));
+    }
   }
 });
 // Phase 2 : P0 (ratio T/S) et P0b (seigneur de l'année) — nécessitent tensionTotals/supportTotals
@@ -9812,6 +10924,7 @@ _mdseResults.forEach(sig => {
   sig.guidance = EVENT_SIGNATURES[sig.code]?.guidanceText[sig.level] || sig.guidance;
 });
 _mdseResults.sort((a, b) => b.confidence - a.confidence);
+_recordSnapshot("POST_MDSE_V2_MODIFIERS"); // [INSTR-4.3-PREP] post-modificateurs MDSE v2 (intermediate boosts/penalties)
 } catch(e) { console.log("[WARN] MDSE v2 modifiers:", e.message); }
 
 // --- MDSE : Index par maison (pour injection per-house) ---
@@ -10880,6 +11993,8 @@ if (finalOutput.length > 0) {
         item.json._prevChartRuler = chartRuler;
         item.json._prevSeigneur = profections?.annuelle?.seigneur || null;
         item.json._prevChartShape = natalChartShape || null;
+        item.json._natalVenusSign = natalDict["Vénus"]?.sign || null;
+        item.json._natalVenusHouse = natalDict["Vénus"]?.house || null;
         if (_rsRaw) item.json._rsRaw = _rsRaw;
         if (_rlRaw) item.json._rlRaw = _rlRaw;
         if (_tpRaw.length > 0) item.json._tpRaw = _tpRaw;
@@ -11443,13 +12558,20 @@ if (finalOutput.length > 0) {
     // Phase A : P0 multiplicatif + P0b multiplicatif
     _mdseResults.forEach(sig => {
       if (sig._needsP0) {
-        const p0 = _mdseTSRatio(sig.code, _tensionTotals, _supportTotals);
-        const p0b = _mdseYearLordMod(sig.code, _profLordMDSE, _profLordSignMDSE);
-        const _p0Cap = (sig._pyramidLevel||0) >= 3 ? 95 : (sig._pyramidLevel||0) >= 2 ? 93 : 85;
-        sig.confidence = Math.round(Math.max(0, Math.min(_p0Cap, sig.confidence * p0 * p0b)));
-        sig.level = sig.confidence >= 55 ? "high" : sig.confidence >= 35 ? "medium" : "low";
-        sig.guidance = EVENT_SIGNATURES[sig.code]?.guidanceText[sig.level] || sig.guidance;
-        delete sig._needsP0;
+        // Sprint Refacto Engagement (2026-05-04) : skip total P0/P0b (ratio T/S + seigneur année)
+        // pour MARIAGE/ENFANT. La tension globale ne réduit pas la probabilité d'engagement.
+        if (_isEngagementCode(sig.code)) {
+          sig._engagementSkipP0 = true;
+          delete sig._needsP0;
+        } else {
+          const p0 = _mdseTSRatio(sig.code, _tensionTotals, _supportTotals);
+          const p0b = _mdseYearLordMod(sig.code, _profLordMDSE, _profLordSignMDSE);
+          const _p0Cap = (sig._pyramidLevel||0) >= 3 ? 95 : (sig._pyramidLevel||0) >= 2 ? 93 : 85;
+          sig.confidence = Math.round(Math.max(0, Math.min(_p0Cap, sig.confidence * p0 * p0b)));
+          sig.level = sig.confidence >= 55 ? "high" : sig.confidence >= 35 ? "medium" : "low";
+          sig.guidance = EVENT_SIGNATURES[sig.code]?.guidanceText[sig.level] || sig.guidance;
+          delete sig._needsP0;
+        }
       }
     });
     // Phase B : Q3 asymétrique T/S-aware — échelle graduée proportionnelle au déséquilibre
@@ -11474,16 +12596,20 @@ if (finalOutput.length > 0) {
       pair.houses.forEach(h => { tH += (_tensionTotals[h-1]||0); sH += (_supportTotals[h-1]||0); });
       if (tH + sH === 0) continue;
       const tsR = tH / Math.max(sH, 1);
+      // Sprint Refacto Engagement (2026-05-04) : Q3 asymétrique skip pour MARIAGE/ENFANT (sUp).
+      // SEPARATION (sDown) garde sa logique normale (boost ou pénalité selon tsR).
+      const skipUp = sUp && _isEngagementCode(sUp.code);
       if (tsR > 1.15) {
-        if (sUp)   sUp.confidence = Math.round(sUp.confidence * _q3GradScale(tsR));
+        if (sUp && !skipUp) sUp.confidence = Math.round(sUp.confidence * _q3GradScale(tsR));
+        if (skipUp) sUp._engagementSkipQ3 = { tsR: Math.round(tsR*100)/100, wouldHaveMult: _q3GradScale(tsR) };
         if (sDown)  sDown.confidence = Math.min(_mdseDynCap(sDown), Math.round(sDown.confidence * (2.0 - _q3GradScale(tsR))));
       } else if (tsR < 0.85) {
         const invR = 1.0 / Math.max(tsR, 0.01);
         if (sDown) sDown.confidence = Math.round(sDown.confidence * _q3GradScale(invR));
-        if (sUp)   sUp.confidence = Math.min(_mdseDynCap(sUp), Math.round(sUp.confidence * (2.0 - _q3GradScale(invR))));
+        if (sUp && !skipUp)   sUp.confidence = Math.min(_mdseDynCap(sUp), Math.round(sUp.confidence * (2.0 - _q3GradScale(invR))));
       } else {
         if (sUp && sDown) {
-          sUp.confidence = Math.max(0, sUp.confidence - 3);
+          if (!skipUp) sUp.confidence = Math.max(0, sUp.confidence - 3);
           sDown.confidence = Math.max(0, sDown.confidence - 3);
         }
       }
@@ -11501,6 +12627,12 @@ if (finalOutput.length > 0) {
       _mdseResults.forEach(sig => {
         const kH = _MDSE_TSR_HOUSES[sig.code] || [];
         if (kH.length === 0) return;
+        // Sprint Refacto Engagement (2026-05-04) : skip P6 RS Cluster pour MARIAGE/ENFANT.
+        // Cluster maléfique RS ne réduit pas la probabilité d'un engagement (qualité≠fréquence).
+        if (_isEngagementCode(sig.code)) {
+          sig._engagementSkipP6 = true;
+          return;
+        }
         let malCount = 0, benCount = 0;
         kH.forEach(h => { malCount += (_rsMalByH[h]||[]).length; benCount += (_rsBenByH[h]||[]).length; });
         const isPos = _MDSE_POSITIVE_SIGS.has(sig.code), isNeg = _MDSE_NEGATIVE_SIGS.has(sig.code);
@@ -11510,6 +12642,222 @@ if (finalOutput.length > 0) {
         else if (isNeg && malCount >= 3 && benCount === 0) sig.confidence = Math.min(_mdseDynCap(sig), Math.round(sig.confidence * 1.10));
       });
     }
+    // --- Sprint Refacto Engagement (2026-05-04) : VERROU CONTRACTUEL ---
+    // Pour MARIAGE/ENFANT/CARRIERE_UP, après skip de toutes les pénalités d'asymétrie conceptuelle
+    // (P1, P56, CF1, P1', P0, Q3, P6), si AUCUN garde-fou bénéfique n'est actif
+    // (Jupiter/Vénus matched à str≥0.7  OU  profection annuelle sur les maisons clés du code),
+    // la confidence est cappée à 45 — la tension seule reste une CRISE, pas un engagement.
+    // Validation astrologue : retour n°7 Q2 (2026-05-04 06:40) + retour n°9 (Sprint 3, hypothèse B).
+    try {
+    _mdseResults.forEach(sig => {
+      if (!_isEngagementCode(sig.code)) return;
+      const guard = _a4ShouldSkipMaleficPenalty(sig);
+      if (guard) {
+        sig._engagementContractValidated = guard;
+      } else if (sig.confidence > 45) {
+        const profDesc = sig.code === "MARIAGE" ? "M5/7" : sig.code === "ENFANT" ? "M4/5" : sig.code === "CARRIERE_UP" ? "M10" : "?";
+        const benefDesc = sig.code === "CARRIERE_UP" ? "Jupiter/Vénus → MC/Soleil" : "Jupiter/Vénus matched";
+        sig._engagementContractCap = { before: sig.confidence, after: 45, code: sig.code, reason: `Pas de garde-fou bénéfique (ni ${benefDesc}, ni profection annuelle ${profDesc})` };
+        sig.confidence = 45;
+        sig.level = sig.confidence >= 55 ? "high" : sig.confidence >= 35 ? "medium" : "low";
+      }
+    });
+    } catch(e) {}
+    // --- Sprint 3.1 + 3.3 (2026-05-04, validé astrologue retours n°10 + n°11) : FILTRE CONCURRENCE ---
+    // Si DEUIL/ACCIDENT/SANTE_DOWN ≥ 70 sur fenêtre overlap avec CARRIERE_UP,
+    // CARRIERE_UP est cappé à 60 + qualifierTag (POSTHUME / CRISE / SUR_DRAME_SANTE).
+    // Sprint 3.3 (retour n°11) : seuil abaissé 80→70 (filet de sécurité Lennon-like ACCIDENT=79)
+    // + tags qualifieurs pour narratif aval ("consécration posthume", "ascension dans la crise").
+    try {
+      const _CARRIERE_COMPETITOR_CODES = new Set(["DEUIL", "ACCIDENT", "SANTE_DOWN"]);
+      // Sprint 3.4 (2026-05-04, validé astrologue retour n°12) : seuil 70→75
+      // Astrologue : "le seuil 70 est trop agressif. En astrologie, il est très courant d'avoir
+      // une année de consécration professionnelle qui s'accompagne d'épuisement, deuil mineur ou
+      // tension (codes subis 70-74 = bruit de fond)". Sweet spot 75 = capte vrais drames
+      // (Lennon ACCIDENT=79) sans pénaliser cas mixtes standards.
+      const _CARRIERE_COMPETITOR_THRESHOLD = 75;
+      const _CARRIERE_DEMOTION_CAP = 60;
+      const _CARRIERE_TAG_BY_COMPETITOR = {
+        DEUIL:       { tag: "CARRIERE_UP_POSTHUME",        label: "Consécration posthume" },
+        ACCIDENT:    { tag: "CARRIERE_UP_CRISE",           label: "Ascension dans la crise" },
+        SANTE_DOWN:  { tag: "CARRIERE_UP_SUR_DRAME_SANTE", label: "Rebond après épreuve de santé" }
+      };
+      const _windowsOverlap = (a, b) => {
+        if (!a || !b) return false;
+        const aS = a.start || (Array.isArray(a) ? a[0] : null);
+        const aE = a.end   || (Array.isArray(a) ? a[1] : null);
+        const bS = b.start || (Array.isArray(b) ? b[0] : null);
+        const bE = b.end   || (Array.isArray(b) ? b[1] : null);
+        if (!aS || !aE || !bS || !bE) return false;
+        return String(aS) <= String(bE) && String(bS) <= String(aE);
+      };
+      const competitors = _mdseResults.filter(s =>
+        _CARRIERE_COMPETITOR_CODES.has(s.code) && (s.confidence || 0) >= _CARRIERE_COMPETITOR_THRESHOLD
+      );
+      _mdseResults.forEach(sig => {
+        if (sig.code !== "CARRIERE_UP") return;
+        if (sig.confidence <= _CARRIERE_DEMOTION_CAP) return;
+        const conflict = competitors.find(c => _windowsOverlap(sig.peakWindow, c.peakWindow));
+        if (conflict) {
+          // === [BYPASS-A1-43a] Sprint 4.3a — combo D-1 + D-3 safety net (validé astrologue retour 33) ===
+          // D-1 : si la natalité contient ≥ 1 promesse explicite CARRIERE_UP (Piste B Sprint 4.3a),
+          //       le filtre concurrence ne peut PAS dégrader la signature. La nativité prime.
+          // D-3 : safety net quantitatif — rawRatio ≥ 0.65 ET heavyCount ≥ 4 = promesse implicite forte.
+          const _natalCarrierePromises = (typeof _natalPromises !== "undefined" && _natalPromises?.bySignature) ? (_natalPromises.bySignature["CARRIERE_UP"] || []) : [];
+          const _hasNamedPromise = _natalCarrierePromises.length >= 1;
+          const _rawRatioGuard = (typeof sig._rawRatio === "number" && typeof sig._heavyCount === "number") && (sig._rawRatio >= 0.65 && sig._heavyCount >= 4);
+          if (_hasNamedPromise || _rawRatioGuard) {
+            sig._a1BypassActive = true;
+            sig._a1BypassReason = _hasNamedPromise
+              ? `D1_named_promise (${_natalCarrierePromises.length} promesses : ${_natalCarrierePromises.map(p => p.type).join(", ")}) — competitor ${conflict.code} conf=${conflict.confidence} ignored`
+              : `D3_rawratio_guard (rawRatio=${sig._rawRatio} >= 0.65, heavy=${sig._heavyCount} >= 4) — competitor ${conflict.code} conf=${conflict.confidence} ignored`;
+            return; // bypass : pas de cap appliqué
+          }
+          // === Cap appliqué (cas standard) ===
+          const tagDef = _CARRIERE_TAG_BY_COMPETITOR[conflict.code] || { tag: "CARRIERE_UP_OMBRE", label: "Carrière sous tension" };
+          sig._carriereDemoted = {
+            before: sig.confidence,
+            after: _CARRIERE_DEMOTION_CAP,
+            competitor: conflict.code,
+            competitorConf: conflict.confidence,
+            tag: tagDef.tag,
+            label: tagDef.label,
+            reason: `Filtre concurrence : ${conflict.code} conf=${conflict.confidence} >= ${_CARRIERE_COMPETITOR_THRESHOLD} overlap fenetre`
+          };
+          sig.confidence = _CARRIERE_DEMOTION_CAP;
+          sig.level = sig.confidence >= 55 ? "high" : sig.confidence >= 35 ? "medium" : "low";
+          // Sprint 3.3 : enrichissement sémantique (réutilise infrastructure Sprint 2 qualifierTags)
+          sig.qualifierTags = Array.isArray(sig.qualifierTags) ? sig.qualifierTags : [];
+          if (!sig.qualifierTags.includes(tagDef.tag)) sig.qualifierTags.push(tagDef.tag);
+          sig.qualifierLabel = sig.qualifierLabel || tagDef.label;
+          sig.qualifierDetails = sig.qualifierDetails || { source: "filtre_concurrence", competitor: conflict.code, competitorConf: conflict.confidence };
+        }
+      });
+    } catch(e) { console.log("[WARN] Sprint 3.1+3.3 filtre concurrence CARRIERE_UP:", e.message); }
+    _recordSnapshot("POST_ENGAGEMENT_AND_CARRIERE_FILTERS"); // [INSTR-4.3-PREP] post engagementContractCap (l.12384) + _CARRIERE_COMPETITOR_FILTER (l.12427)
+    // --- Sprint 2 Qualifieurs MARIAGE (2026-05-04) ---
+    // Enrichissement sémantique post-verrou : le code reste "MARIAGE", on ajoute
+    // un array `qualifierTags` qualifiant le STYLE (SOUDAIN, KARMIQUE, PRAGMATIQUE,
+    // TRANSFORMATEUR, IDEALISE, TARDIF, SECRET). Aucune modification du scoring.
+    // Skip si conf < 30 (sig "morte", inutile de calculer).
+    try {
+    _mdseResults.forEach(sig => {
+      if (sig.code !== "MARIAGE") return;
+      if (sig.confidence < 30) return;
+      const q = _marriageQualifierTags(sig);
+      if (q && q.tags.length > 0) {
+        sig.qualifierTags = q.tags;
+        sig.qualifierDetails = q.details;
+        sig.qualifierLabel = q.label;
+      }
+    });
+    } catch(e) { console.log("[WARN] Sprint 2 qualifieurs MARIAGE:", e.message); }
+    // ═══ Sprint X "Tag Fardeau Institutionnel" — validé astrologue retour n°16 option D ═══
+    //
+    // Gain net-positif unique survivant de Sprint X DEUIL V4 (cohorte n=100 : -7 cas bio-match,
+    // rollback Sprint 3.4 en Gold Standard mais le tag fonctionne PARFAITEMENT sur Chirac/François).
+    //
+    // Logique (Ptolémée/Dorotheus, validée astrologue) :
+    //   - baseLord       : Saturne/Pluton (Lord M8/M12 natalement en M8/M12) attaque Hyleg natal partile ≤ 1°
+    //   - hasProtection  : Jupiter/Vénus en aspect harmonique (Conjonction/Trigone/Sextile) partile ≤ 2°
+    //                      sur l'Hyleg target attaqué (Soleil/Lune/Ascendant)
+    //   - Si baseLord && hasProtection → tag "FARDEAU_INSTITUTIONNEL" sur CARRIERE_UP
+    //
+    // Sémantique : "L'individu privé est sacrifié à l'institution sous une pression saturnienne
+    // suprême, mais protégé par un bénéfique : la fonction l'écrase sans le détruire physiquement."
+    // Cible empirique : Chirac 1995 (Saturne lord M12 en M12 carré Soleil 1° + Jupiter conj Soleil 0.02°),
+    // François 2013, et tous présidents/papes/Nobel sous transit lourd Saturne avec garde-fou Jupiter/Vénus.
+    //
+    // SCOPE : purement narratif. Aucun boost de score, aucun compound DEUIL, aucun cap.
+    //         Le tag s'ajoute à qualifierTags existants (compatible filtre concurrence Sprint 3.4).
+    try {
+      const _fardeauAttackers = new Set(["Saturne", "Pluton"]);
+      const _fardeauTargets   = ["Soleil", "Lune", "Ascendant"];
+      const _fardeauHardAsp   = new Set(["Conjonction", "Carré", "Opposition"]);
+      const _fardeauHarmAsp   = ["Conjonction", "Trigone", "Sextile"];
+      const _fardeauOrbAttack = 1.0;  // partile strict
+      const _fardeauOrbProt   = 2.0;  // bénéfique partile (un peu plus large)
+      const _fardeauBenefics  = ["Jupiter", "Vénus"];
+
+      const _fardeauHylegAttack = () => {
+        for (const att of _fardeauAttackers) {
+          for (const tgt of _fardeauTargets) {
+            const slow = (typeof _hasSlowAspectTo === "function") ? _hasSlowAspectTo(att, tgt, "tendu", _fardeauOrbAttack) : null;
+            if (slow) return { attacker: att, target: tgt, aspect: slow.aspect, orb: slow.orb };
+          }
+        }
+        return null;
+      };
+
+      const _fardeauProtects = (target) => {
+        for (const ben of _fardeauBenefics) {
+          // Aspects rapides
+          for (const aspName of _fardeauHarmAsp) {
+            const k = "fast_" + ben + "|||" + aspName + "|||" + target;
+            if (typeof aspectsSuiviRap !== "undefined" && aspectsSuiviRap?.[k]) {
+              const orbs = (aspectsSuiviRap[k].waves || []).map(w => parseFloat(w.minOrb)).filter(x => isFinite(x));
+              const minOrb = orbs.length ? Math.min(...orbs) : null;
+              if (minOrb != null && minOrb <= _fardeauOrbProt)
+                return { protector: ben, aspect: aspName, orb: Math.round(minOrb * 100) / 100, source: "fast" };
+            }
+          }
+          // Aspects lents (Jupiter conj/trigone/sextile partile)
+          for (const aspName of _fardeauHarmAsp) {
+            const k = "slow_" + ben + "|||" + aspName + "|||" + target;
+            if (typeof aspectsSuiviLent !== "undefined" && aspectsSuiviLent?.[k]) {
+              const orbs = (aspectsSuiviLent[k].waves || []).map(w => parseFloat(w.minOrb)).filter(x => isFinite(x));
+              const minOrb = orbs.length ? Math.min(...orbs) : null;
+              if (minOrb != null && minOrb <= _fardeauOrbProt)
+                return { protector: ben, aspect: aspName, orb: Math.round(minOrb * 100) / 100, source: "slow" };
+            }
+          }
+        }
+        return null;
+      };
+
+      // Step 1 : Hyleg attack partile ?
+      const _fardeauHyleg = _fardeauHylegAttack();
+      if (_fardeauHyleg) {
+        // Step 2 : attacker est-il maître M8 ou M12 ET natalement en M8 ou M12 ?
+        const _maitreM8  = (typeof getMaitreProfection === "function" && typeof getProfectionSign === "function")
+          ? getMaitreProfection(getProfectionSign(8))  : null;
+        const _maitreM12 = (typeof getMaitreProfection === "function" && typeof getProfectionSign === "function")
+          ? getMaitreProfection(getProfectionSign(12)) : null;
+        const att = _fardeauHyleg.attacker;
+        const isLordM8  = !!(_maitreM8  && att === _maitreM8);
+        const isLordM12 = !!(_maitreM12 && att === _maitreM12);
+        const lordHouse = natalDict[att]?.house;
+        const lordInM8M12 = lordHouse === 8 || lordHouse === 12;
+        if ((isLordM8 || isLordM12) && lordInM8M12) {
+          // Step 3 : protection bénéfique sur target Hyleg ?
+          const _fardeauProt = _fardeauProtects(_fardeauHyleg.target);
+          if (_fardeauProt) {
+            // Tag CARRIERE_UP avec FARDEAU_INSTITUTIONNEL (purement narratif)
+            const _fardeauPayload = {
+              source: "Sprint X V4 — LORD_ATTACKS_HYLEG + Jupiter/Vénus protection",
+              attacker: att, lordOf: isLordM8 ? 8 : 12, natalHouse: lordHouse,
+              target: _fardeauHyleg.target, aspect: _fardeauHyleg.aspect, orb: _fardeauHyleg.orb,
+              protector: _fardeauProt.protector,
+              protectorAspect: _fardeauProt.aspect,
+              protectorOrb: _fardeauProt.orb,
+              label: "Fardeau institutionnel — épreuve transformatrice : un faucheur saturnien (lord M" + (isLordM8 ? 8 : 12) + " résident en M" + lordHouse + ") attaque l'Hyleg, mais la vie est protégée par " + _fardeauProt.protector + " " + _fardeauProt.aspect + " sur " + _fardeauHyleg.target + " (orbe " + _fardeauProt.orb + "°). L'individu privé est sacrifié à l'institution sans destruction physique."
+            };
+            _mdseResults.forEach(carr => {
+              if (carr.code !== "CARRIERE_UP") return;
+              if (!carr.qualifierTags || !Array.isArray(carr.qualifierTags)) carr.qualifierTags = [];
+              if (!carr.qualifierTags.includes("FARDEAU_INSTITUTIONNEL")) {
+                carr.qualifierTags.push("FARDEAU_INSTITUTIONNEL");
+              }
+              carr._fardeauInstitutionnel = _fardeauPayload;
+              if (!carr.qualifierLabel || carr.qualifierLabel.length === 0) {
+                carr.qualifierLabel = "Fardeau institutionnel";
+              }
+            });
+            console.log("[FARDEAU] Tag injecté : " + att + " (maître M" + (isLordM8 ? 8 : 12) + " en M" + lordHouse + ") " + _fardeauHyleg.aspect + " " + _fardeauHyleg.target + " orbe " + _fardeauHyleg.orb + "° + protection " + _fardeauProt.protector + " " + _fardeauProt.aspect + " orbe " + _fardeauProt.orb + "°");
+          }
+        }
+      }
+    } catch(eFard) { console.log("[WARN] Tag FARDEAU_INSTITUTIONNEL:", eFard.message); }
     // Phase C : Polarity — modulée par PNA tier + direction _UP/_DOWN (v15.2)
     // Sprint 9.1 (i18n EN) : sélection du dictionnaire polarité selon langueRapport.
     const _polLabelsByLang = (langueRapport !== 'Français') ? _MDSE_POLARITY_LABELS_EN : _MDSE_POLARITY_LABELS;
@@ -12077,6 +13425,481 @@ if (finalOutput.length > 0) {
           _sWCapApplied.map(a => `${a.code}:${a.before}→${a.after}`).join(", "));
       }
     } catch(eSW) { console.log("[WARN] SW cap calibration:", eSW.message); }
+    _recordSnapshot("POST_W_U_CAPS"); // [INSTR-4.3-PREP] post _U_CAP_VOLEURS (l.13058) + _W_CAPS (l.13119)
+
+    // ═══ V32-ACC (2026-05-04, validé astrologue retour n°17) : GATING ANATOMIQUE + VETO BÉNÉFIQUE ═══
+    //
+    // Audit Sprint 3.4 (cohorte n=100, témoin n=100) :
+    //   - 17 FP top-1 ACCIDENT cohorte (Zidane 1998, Macron 2017, etc.) → 100% FP
+    //   - 30 FP top-1 ACCIDENT témoin (années non-événement)
+    //   - Ratio TEM/COH ACC≥80 par dominance : BODY=1.42, AMBIG=2.00, DIFFUSE=1.83
+    //   - CAREER (M10/MC) dominance = 0 partout (le moteur ne génère aucune condition ACCIDENT
+    //     ciblant MC explicitement, mais 72% des thèmes ont une dominance BODY trompeuse)
+    //
+    // Logique V32-ACC (3 leviers selon retour n°17 réordonnés) :
+    //   1. PRIMAIRE — Gating anatomique : classifier matchedConditions par cible
+    //         BODY    : Asc / M1 / M3                   → score original (puis veto)
+    //         CAREER  : MC / M10                        → cap 60 (impossible top-1)
+    //         AMBIG   : M5 / M7 / M9 / M11 / M12        → cap 70 (signature ambivalente)
+    //         DIFFUSE : aucune cible précise            → cap 70 (signature trop générique)
+    //   2. SECONDAIRE — Veto bénéfique sur BODY-dom :
+    //         Jupiter ou Vénus en aspect harmonique partile ≤ 2° sur Asc / maître Asc
+    //         (+ Soleil ou Lune en M1 si applicable) → cap 70 (le coup est dévié)
+    //   3. BONUS — Profection annuelle en M1/M3/M6/M8 (corps, déplacements, santé, crise) :
+    //         BODY-dom + pas de veto → +10 bonus (non obligatoire, cinétique transitaire suffit)
+    //
+    try {
+      const _v32AccBodyRegex   = /Asc|\(M1\)|\(M3\)|\bM1\b|\bM3\b/;
+      const _v32AccCareerRegex = /MC|Milieu|\(M10\)|\bM10\b/;
+      const _v32AccAmbigRegex  = /\(M5\)|\(M7\)|\(M9\)|\(M11\)|\(M12\)|\bM5\b|\bM7\b|\bM9\b|\bM11\b|\bM12\b/;
+      const _v32AccBenefics    = ["Jupiter", "Vénus"];
+      const _v32AccHarmAsp     = ["Conjonction", "Trigone", "Sextile"];
+      const _v32AccProtOrb     = 2.0;
+
+      const _v32AccVetoOnAsc = () => {
+        const ascSign = natalDict["Ascendant"]?.sign;
+        const ascRuler = (ascSign && typeof getMaitreProfection === "function") ? getMaitreProfection(ascSign) : null;
+        const targets = ["Ascendant"];
+        // V32-ACC-fix retour n°18 Q1 Fix B (validé astrologue) : maître Asc target
+        // valide UNIQUEMENT si physiquement en M1 (règle d'incarnation Ptolémée).
+        // Le maître Asc en M9/M10/etc. est un dispositeur abstrait — son veto Jupiter
+        // ne protège pas le corps physique (cas Senna 1994 : Saturne maître M9, Jupiter
+        // sextile Saturne 0.07° n'a pas dévié l'accident F1).
+        const ascRulerHouse = ascRuler ? natalDict[ascRuler]?.house : null;
+        if (ascRuler && ascRuler !== "Ascendant" && ascRulerHouse === 1 && !targets.includes(ascRuler)) targets.push(ascRuler);
+        if (natalDict["Soleil"]?.house === 1) targets.push("Soleil");
+        if (natalDict["Lune"]?.house === 1) targets.push("Lune");
+        for (const tgt of targets) {
+          for (const ben of _v32AccBenefics) {
+            for (const aspName of _v32AccHarmAsp) {
+              const kr = "fast_" + ben + "|||" + aspName + "|||" + tgt;
+              if (typeof aspectsSuiviRap !== "undefined" && aspectsSuiviRap?.[kr]) {
+                const orbs = (aspectsSuiviRap[kr].waves || []).map(w => parseFloat(w.minOrb)).filter(x => isFinite(x));
+                const minOrb = orbs.length ? Math.min(...orbs) : null;
+                if (minOrb != null && minOrb <= _v32AccProtOrb)
+                  return { protector: ben, aspect: aspName, target: tgt, orb: Math.round(minOrb * 100) / 100, source: "fast" };
+              }
+              const kl = "slow_" + ben + "|||" + aspName + "|||" + tgt;
+              if (typeof aspectsSuiviLent !== "undefined" && aspectsSuiviLent?.[kl]) {
+                const orbs = (aspectsSuiviLent[kl].waves || []).map(w => parseFloat(w.minOrb)).filter(x => isFinite(x));
+                const minOrb = orbs.length ? Math.min(...orbs) : null;
+                if (minOrb != null && minOrb <= _v32AccProtOrb)
+                  return { protector: ben, aspect: aspName, target: tgt, orb: Math.round(minOrb * 100) / 100, source: "slow" };
+              }
+            }
+          }
+        }
+        return null;
+      };
+
+      const _v32AccProfHouse = profections?.annuelle?.maison;
+      // V32-ACC-fix retour n°18 Q2 Fix C+B (validé astrologue) : retirer M3
+      // (déplacements légers, trop générique pour booster un accident majeur).
+      // Garder M1 (corps), M6 (santé/blessure), M8 (crise/urgence).
+      const _v32AccProfBonusActive = [1, 6, 8].includes(_v32AccProfHouse);
+
+      _mdseResults.forEach(sig => {
+        if (sig.code !== "ACCIDENT") return;
+        const matched = sig.matchedConditions || [];
+        let body = 0, career = 0, ambig = 0, diffuse = 0;
+        for (const m of matched) {
+          const d = m.detail || "";
+          const sc = m.strength || 0;
+          if (sc < 0.5) continue;
+          if (_v32AccBodyRegex.test(d))        body += sc;
+          else if (_v32AccCareerRegex.test(d)) career += sc;
+          else if (_v32AccAmbigRegex.test(d))  ambig += sc;
+          else                                 diffuse += sc;
+        }
+        // V32-ACC FIX : DIFFUSE bucket ignoré (catch-all bruyant : multi_house_active,
+        // time_lords_convergence, transit_aspect M2/M4 etc.). Dominance sur (BODY, CAREER,
+        // AMBIG) uniquement. BODY wins ties (priorité au corps physique). Si aucun bucket
+        // qualifié n'est actif → DIFFUSE_PUR → cap 60 (signature totalement bruyante).
+        let dom;
+        const maxQualified = Math.max(body, career, ambig);
+        if (maxQualified <= 0)              dom = "DIFFUSE_PUR";
+        else if (body === maxQualified)     dom = "BODY";       // body wins ties
+        else if (career === maxQualified)   dom = "CAREER";
+        else                                dom = "AMBIG";
+        sig._v32AccDominance = {
+          body:    Math.round(body    * 100) / 100,
+          career:  Math.round(career  * 100) / 100,
+          ambig:   Math.round(ambig   * 100) / 100,
+          diffuse: Math.round(diffuse * 100) / 100,
+          dom
+        };
+
+        let cap = null, capReason = null;
+        if (dom === "CAREER")            { cap = 60; capReason = "GATING_CAREER";       }
+        else if (dom === "AMBIG")        { cap = 70; capReason = "GATING_AMBIG";        }
+        else if (dom === "DIFFUSE_PUR")  { cap = 60; capReason = "GATING_DIFFUSE_PUR";  }
+        else {
+          // BODY-dom : check veto bénéfique sur Asc / maître Asc / Soleil-M1 / Lune-M1
+          const veto = _v32AccVetoOnAsc();
+          if (veto) {
+            cap = 70;
+            capReason = "VETO_" + veto.protector + "_" + veto.aspect + "_" + veto.target + "_" + veto.orb + "deg";
+            sig._v32AccVeto = veto;
+          }
+        }
+
+        if (cap !== null && sig.confidence > cap) {
+          sig._v32AccCap = { from: sig.confidence, to: cap, reason: capReason };
+          sig.confidence = cap;
+          sig.level = sig.confidence >= 55 ? "high" : sig.confidence >= 35 ? "medium" : "low";
+        } else if (dom === "BODY" && _v32AccProfBonusActive && cap === null) {
+          // V32-ACC-fix retour n°18 Q2 Fix C (validé astrologue) : la profection est un
+          // amplificateur (climat), pas un générateur. Exiger baseConfidence ≥ 60 garantit
+          // qu'une cinétique martienne réelle est déjà à l'œuvre avant d'amplifier.
+          // Tesla 1856-temoin (base 89→95) reste boosté car déjà solide ; Tyson/VanGogh
+          // (base 47-52) sont filtrés.
+          const _v32AccBaseConf = sig._baseConfidence || sig.baseConfidence || 0;
+          if (_v32AccBaseConf >= 60) {
+            const newConf = Math.min(95, sig.confidence + 10);
+            if (newConf > sig.confidence) {
+              sig._v32AccProfBonus = { from: sig.confidence, to: newConf, profHouse: _v32AccProfHouse, baseConf: _v32AccBaseConf };
+              sig.confidence = newConf;
+              sig.level = sig.confidence >= 55 ? "high" : sig.confidence >= 35 ? "medium" : "low";
+            }
+          } else {
+            sig._v32AccProfBonusSkipped = { profHouse: _v32AccProfHouse, baseConf: _v32AccBaseConf, reason: "base<60" };
+          }
+        }
+      });
+    } catch(eV32Acc) { console.log("[WARN] V32-ACC gating:", eV32Acc.message); }
+
+    // ═══ SPRINT 4.0ter — EXTENSION PILOTE ACCIDENT (2026-05-05, retour astrologue n°27) ═══
+    // Architecture validée :
+    //   Q2 (retour 27) = Option C : pilote ACCIDENT seul (terrain V32-ACC-fix le plus stable)
+    //   Calibrage = C ⊕ D :
+    //     - D (gating) : amplification UNIQUEMENT si _v32AccDominance.dom ∈ {BODY, AMBIG}
+    //                    (pas CAREER/MC, pas DIFFUSE_PUR catch-all)
+    //     - C (caps respectés) : newConf = min(_v32AccCap?.to ?? 95, conf + amp)
+    //                            ne contredit jamais le veto bénéfique ni le gating V32
+    //   Mode β plafonné inchangé : 1=+5, 2=+8, 3+=+12
+    //   Promesses ACCIDENT exposées via _natalPromises.bySignature.ACCIDENT :
+    //     - MALEFIQUE_DOMICILIAIRE Mars/Saturne/Pluton M1/M6/M8 (+ M12 marginal)
+    //     - PLANETE_AFFLIGEE_DURE Lune/Asc × Mars/Saturne/Pluton (héritage SD via overlap)
+    try {
+      _mdseResults.forEach(sig => {
+        if (sig.code !== "ACCIDENT") return;
+        // Garde-fou D : gating BODY ou AMBIG uniquement (pas CAREER, pas DIFFUSE_PUR)
+        const dom = sig._v32AccDominance?.dom;
+        if (!["BODY", "AMBIG"].includes(dom)) {
+          sig._npAccSkipped = { reason: "gating_" + (dom || "unknown") };
+          return;
+        }
+        const promises = (typeof _natalPromises !== "undefined" && _natalPromises?.bySignature) ? (_natalPromises.bySignature["ACCIDENT"] || []) : [];
+        if (promises.length === 0) return;
+
+        const activated = [];
+        const seenTypes = new Set();
+        for (const p of promises) {
+          const trig = _natalPromiseTriggered(p, aspectsSuiviLent);
+          if (!trig) continue;
+          const key = (p.type || "?") + "|" + (p.victim || "") + "|" + (p.afflictor || "");
+          if (seenTypes.has(key)) continue;
+          seenTypes.add(key);
+          activated.push({ type: p.type, victim: p.victim, afflictor: p.afflictor, house: p.house, natalOrb: p.natalOrb, trig });
+        }
+
+        let amp = 0;
+        if (activated.length === 1)      amp = 5;
+        else if (activated.length === 2) amp = 8;
+        else if (activated.length >= 3)  amp = 12;
+
+        // npActivations / npAmpProposed peuvent déjà exister (signature aussi présente dans bySignature.SANTE_DOWN si héritage)
+        // → on les écrase uniquement si le boost ACCIDENT est plus fort que ce qui était déjà présent
+        if (!sig._npActivations || activated.length > (sig._npActivations.length || 0)) {
+          sig._npActivations = activated;
+          sig._npAmpProposed = amp;
+        }
+
+        if (amp > 0) {
+          // Garde-fou C : respect des caps V32-ACC-fix (CAREER=60, AMBIG=70, BODY+veto=70, DIFFUSE_PUR=60)
+          const v32Cap = sig._v32AccCap?.to ?? 95;
+          const newConf = Math.min(v32Cap, sig.confidence + amp);
+          if (newConf > sig.confidence) {
+            sig._npAmpApplied = { from: sig.confidence, to: newConf, count: activated.length, capRespected: v32Cap, gating: dom };
+            sig.confidence = newConf;
+            sig.level = sig.confidence >= 55 ? "high" : sig.confidence >= 35 ? "medium" : "low";
+          } else if (v32Cap < 95) {
+            sig._npAmpBlocked = { reason: "v32CapBlocks", v32Cap, currentConf: sig.confidence, count: activated.length };
+          }
+        }
+      });
+    } catch(eNPAcc) { console.log("[WARN] Sprint4.0ter ACCIDENT pilot:", eNPAcc.message); }
+
+
+    // ═══ V35-REL (2026-05-05, validé astrologue retour n°23 + n°24) : COMPOUND RELOCATION ═══
+    // Architecture validée :
+    //   Q1 (retour 23) = Option C : gradient pyramidal 1cond=+5, 2conds=+15, 3conds=+25 (cap 90)
+    //   Q2 (retour 23) = Option C : C3 combiné (Nœud Sud aspect IC partile ≤ 2° ET ingress NS M4 ≤ 12 mois)
+    //   Q3 (retour 23) = Option B : tag EXIL_FONDATEUR sur CARRIERE_UP si RE ≥ 75 (descriptif)
+    //   Leçon V34 (retour 24) : transit obligatoire (C1) pour activer toute amplification.
+    //                           → si C1 absent, boost = 0 (la promesse natale reste dormante).
+    //
+    // Cibles BODY_RELOC : Lune ∪ Imum Coeli ∪ Maître M4 ∪ Maître M9 ∪ planètes natales M4/M9
+    // C1 : transit dur partile (Uranus | Pluton | Nœud Sud) → cible BODY_RELOC, orbe ≤ 2°
+    // C2 : profection annuelle ∈ {M4, M9, M12} OU Lune progressée actuellement en M4/M9
+    // C3 : Nœud Sud aspect partile IC ≤ 2° ET ingress Nœud Sud dans M4 sur l'année
+    // Veto : Jupiter harmonique partile ≤ 2° → IC ou Lune → cap RE à 70
+    // Tag : si RE ≥ 75 et CARRIERE_UP top-1 → tag EXIL_FONDATEUR sur CU (sans modifier le score)
+    try {
+      const _v35RelSignOrder = ["Bélier","Taureau","Gémeaux","Cancer","Lion","Vierge","Balance","Scorpion","Sagittaire","Capricorne","Verseau","Poissons"];
+      const _v35RelRulersTrad = {"Bélier":"Mars","Taureau":"Vénus","Gémeaux":"Mercure","Cancer":"Lune","Lion":"Soleil","Vierge":"Mercure","Balance":"Vénus","Scorpion":"Mars","Sagittaire":"Jupiter","Capricorne":"Saturne","Verseau":"Saturne","Poissons":"Jupiter"};
+      const _v35RelAscSign = natalDict["Ascendant"]?.sign;
+      const _v35RelAscIdx = _v35RelSignOrder.indexOf(_v35RelAscSign);
+      // Whole Sign : M4 = Asc + 3, M9 = Asc + 8
+      const _v35RelM4Sign = _v35RelAscIdx >= 0 ? _v35RelSignOrder[(_v35RelAscIdx+3)%12] : null;
+      const _v35RelM9Sign = _v35RelAscIdx >= 0 ? _v35RelSignOrder[(_v35RelAscIdx+8)%12] : null;
+      const _v35RelM4Master = _v35RelM4Sign ? _v35RelRulersTrad[_v35RelM4Sign] : null;
+      const _v35RelM9Master = _v35RelM9Sign ? _v35RelRulersTrad[_v35RelM9Sign] : null;
+      const _v35RelExclude = new Set(["Ascendant","Milieu du Ciel","Imum Coeli","Descendant","Part de Fortune","Lot de l'Esprit","Lot de Nécessité","Lot d'Éros","Lot de Courage","Lot de Némésis","Lot de Basis","Lot d'Exaltation","Lot du Daemon","Nœud Nord","Nœud Sud"]);
+      const _v35RelM4Planets = Object.entries(natalDict).filter(([n,d])=>d?.house===4 && !_v35RelExclude.has(n)).map(([n])=>n);
+      const _v35RelM9Planets = Object.entries(natalDict).filter(([n,d])=>d?.house===9 && !_v35RelExclude.has(n)).map(([n])=>n);
+
+      const _v35RelTargets = new Set(["Lune", "Imum Coeli"]);
+      _v35RelM4Planets.forEach(p => _v35RelTargets.add(p));
+      _v35RelM9Planets.forEach(p => _v35RelTargets.add(p));
+      if (_v35RelM4Master) _v35RelTargets.add(_v35RelM4Master);
+      if (_v35RelM9Master) _v35RelTargets.add(_v35RelM9Master);
+
+      const _v35RelHardAtt = ["Uranus", "Pluton", "Nœud Sud"];
+      const _v35RelHardAsp = ["Conjonction", "Carré", "Opposition"];
+      const _v35RelHarmAsp = ["Conjonction", "Trigone", "Sextile"];
+      const _v35RelOrb = 2.0;
+
+      const _v35RelAslOrb = (prefix, pT, asps, pN, orbMax) => {
+        const dict = prefix === "fast_" ? aspectsSuiviRap : aspectsSuiviLent;
+        if (typeof dict === "undefined" || !dict) return null;
+        for (const a of asps) {
+          const k = prefix + pT + "|||" + a + "|||" + pN;
+          if (dict[k]) {
+            const orbs = (dict[k].waves || []).map(w => parseFloat(w.minOrb)).filter(x => isFinite(x));
+            const minOrb = orbs.length ? Math.min(...orbs) : null;
+            if (minOrb != null && minOrb <= orbMax) return { asp: a, orb: Math.round(minOrb*100)/100, source: prefix.replace("_","") };
+          }
+        }
+        return null;
+      };
+
+      // C1 : transit dur partile (lent) attaquant Uranus/Pluton/NS → cible BODY_RELOC
+      let _v35RelC1 = null;
+      for (const att of _v35RelHardAtt) {
+        for (const tgt of _v35RelTargets) {
+          const hit = _v35RelAslOrb("slow_", att, _v35RelHardAsp, tgt, _v35RelOrb);
+          if (hit) { _v35RelC1 = { att, tgt, ...hit }; break; }
+        }
+        if (_v35RelC1) break;
+      }
+
+      // C2 : profection M4/M9/M12 OU Lune progressée actuellement en M4/M9
+      const _v35RelProfHouse = profections?.annuelle?.maison;
+      const _v35RelProfRel = [4, 9, 12].includes(_v35RelProfHouse);
+      const _v35RelProgMoonRel = (typeof _mdseProgMoonHouse !== "undefined" && _mdseProgMoonHouse !== null)
+                                  && [4, 9].includes(_mdseProgMoonHouse);
+      const _v35RelC2 = _v35RelProfRel || _v35RelProgMoonRel;
+      const _v35RelC2Reason = _v35RelProfRel ? ("PROF_M" + _v35RelProfHouse)
+                              : _v35RelProgMoonRel ? ("LUNE_PROG_M" + _mdseProgMoonHouse) : null;
+
+      // C3 : Nœud Sud aspect partile IC ≤ 2° ET ingress Nœud Sud dans M4 (current ou periods)
+      let _v35RelC3 = false, _v35RelC3Reason = null;
+      try {
+        let _v35NSAspectIC = null;
+        for (const aspName of ["Conjonction","Carré","Opposition","Trigone","Sextile"]) {
+          const k = "slow_Nœud Sud|||" + aspName + "|||Imum Coeli";
+          if (typeof aspectsSuiviLent !== "undefined" && aspectsSuiviLent && aspectsSuiviLent[k]) {
+            const orbs = (aspectsSuiviLent[k].waves || []).map(w => parseFloat(w.minOrb)).filter(x => isFinite(x));
+            const minOrb = orbs.length ? Math.min(...orbs) : null;
+            if (minOrb != null && minOrb <= _v35RelOrb) { _v35NSAspectIC = { asp: aspName, orb: Math.round(minOrb*100)/100 }; break; }
+          }
+        }
+        let _v35NSIngressM4 = false;
+        if (typeof transitsSuiviLent !== "undefined" && transitsSuiviLent && transitsSuiviLent["Nœud Sud"]) {
+          const ts = transitsSuiviLent["Nœud Sud"];
+          if (ts.currentHouse === 4) _v35NSIngressM4 = true;
+          else if (Array.isArray(ts.periods) && ts.periods.some(p => p.maison === 4)) _v35NSIngressM4 = true;
+        }
+        if (_v35NSAspectIC && _v35NSIngressM4) {
+          _v35RelC3 = true;
+          _v35RelC3Reason = "NS_" + _v35NSAspectIC.asp + "_IC_" + _v35NSAspectIC.orb + "deg+INGRESS_M4";
+        } else if (_v35NSAspectIC) {
+          _v35RelC3Reason = "NS_aspect_only_no_ingress";
+        } else if (_v35NSIngressM4) {
+          _v35RelC3Reason = "NS_ingress_only_no_aspect";
+        }
+      } catch(eC3) {}
+
+      // Veto bénéfique : Jupiter harmonique partile ≤ 2° → IC ou Lune
+      let _v35RelVeto = null;
+      for (const tgt of ["Imum Coeli", "Lune"]) {
+        const slow = _v35RelAslOrb("slow_", "Jupiter", _v35RelHarmAsp, tgt, _v35RelOrb);
+        if (slow) { _v35RelVeto = { tgt, ...slow }; break; }
+        const fast = _v35RelAslOrb("fast_", "Jupiter", _v35RelHarmAsp, tgt, _v35RelOrb);
+        if (fast) { _v35RelVeto = { tgt, ...fast }; break; }
+      }
+
+      const _v35RelCondCount = (_v35RelC1 ? 1 : 0) + (_v35RelC2 ? 1 : 0) + (_v35RelC3 ? 1 : 0);
+      let _v35RelBoost = 0;
+      if (_v35RelCondCount === 1) _v35RelBoost = 5;
+      else if (_v35RelCondCount === 2) _v35RelBoost = 15;
+      else if (_v35RelCondCount >= 3) _v35RelBoost = 25;
+      // Leçon V34 (retour 24) : transit OBLIGATOIRE pour activer le boost
+      // Si C1 absent (pas de transit dur attaquant), pas de boost (promesse natale reste dormante)
+      if (!_v35RelC1) _v35RelBoost = 0;
+
+      _mdseResults.forEach(sig => {
+        if (sig.code !== "RELOCATION") return;
+        sig._v35RelDiag = {
+          C1: _v35RelC1 || null, C2: _v35RelC2, C2Reason: _v35RelC2Reason,
+          C3: _v35RelC3, C3Reason: _v35RelC3Reason,
+          condCount: _v35RelCondCount, boost: _v35RelBoost,
+          veto: _v35RelVeto || null,
+          m4Master: _v35RelM4Master, m9Master: _v35RelM9Master,
+          targets: [..._v35RelTargets].slice(0, 12)
+        };
+        if (_v35RelBoost > 0) {
+          const newConf = Math.min(90, sig.confidence + _v35RelBoost);
+          if (newConf > sig.confidence) {
+            sig._v35RelBoost = { from: sig.confidence, to: newConf, conds: _v35RelCondCount };
+            sig.confidence = newConf;
+          }
+        }
+        if (_v35RelVeto && sig.confidence > 70) {
+          sig._v35RelVetoApplied = { from: sig.confidence, to: 70, ..._v35RelVeto };
+          sig.confidence = 70;
+        }
+        sig.level = sig.confidence >= 55 ? "high" : sig.confidence >= 35 ? "medium" : "low";
+      });
+
+      // Tag EXIL_FONDATEUR (Q3 Option B) : si RE ≥ 70 ET CARRIERE_UP top-1 → tag descriptif sur CU
+      // Seuil abaissé 75→70 (retour astrologue n°25 Q1 Option A) pour capter Dalai Lama 1959 (RE=73)
+      try {
+        const _v35Rel = _mdseResults.find(s => s.code === "RELOCATION");
+        if (_v35Rel && _v35Rel.confidence >= 70) {
+          const _v35Carr = _mdseResults.find(s => s.code === "CARRIERE_UP");
+          if (_v35Carr && _v35Carr.confidence > 0) {
+            _v35Carr._exilFondateur = {
+              relConfidence: _v35Rel.confidence,
+              relCondCount: _v35RelCondCount,
+              tagText: "Exil Fondateur",
+              c1: _v35RelC1 || null, c3Reason: _v35RelC3Reason
+            };
+            if (!Array.isArray(_v35Carr.qualifierTags)) _v35Carr.qualifierTags = [];
+            if (!_v35Carr.qualifierTags.includes("EXIL_FONDATEUR")) _v35Carr.qualifierTags.push("EXIL_FONDATEUR");
+          }
+        }
+      } catch(eTag) {}
+    } catch(eV35Rel) { console.log("[WARN] V35-REL:", eV35Rel.message); }
+
+    // ═══ SPRINT 4.0bis COUCHE 3 — PILOTE SANTE_DOWN (mode β natal amplification) ═══
+    // Q4 (retour 26) = Option C : pilote sur SANTE_DOWN uniquement (recall actuel 1/15)
+    // Mode β plafonné (Q3 retour 24) : 1=+5, 2=+8, 3+=+12 (cap 95)
+    // Leçon V34 (retour 24) : zéro boost si pas d'activation natale réveillée par transit lourd
+    try {
+      _mdseResults.forEach(sig => {
+        if (sig.code !== "SANTE_DOWN") return;
+        const promises = (typeof _natalPromises !== "undefined" && _natalPromises?.bySignature) ? (_natalPromises.bySignature["SANTE_DOWN"] || []) : [];
+        if (promises.length === 0) return;
+
+        const activated = [];
+        const seenTypes = new Set();
+        for (const p of promises) {
+          const trig = _natalPromiseTriggered(p, aspectsSuiviLent);
+          if (!trig) continue;
+          // Comptage unique par type+victim+afflictor (évite double-count si plusieurs paths)
+          const key = (p.type || "?") + "|" + (p.victim || "") + "|" + (p.afflictor || "");
+          if (seenTypes.has(key)) continue;
+          seenTypes.add(key);
+          activated.push({ type: p.type, victim: p.victim, afflictor: p.afflictor, house: p.house, natalOrb: p.natalOrb, trig });
+        }
+
+        let amp = 0;
+        if (activated.length === 1)      amp = 5;
+        else if (activated.length === 2) amp = 8;
+        else if (activated.length >= 3)  amp = 12;
+
+        sig._npActivations = activated;
+        sig._npAmpProposed = amp;
+
+        if (amp > 0) {
+          const newConf = Math.min(95, sig.confidence + amp);
+          if (newConf > sig.confidence) {
+            sig._npAmpApplied = { from: sig.confidence, to: newConf, count: activated.length };
+            sig.confidence = newConf;
+            sig.level = sig.confidence >= 55 ? "high" : sig.confidence >= 35 ? "medium" : "low";
+          }
+        }
+      });
+    } catch(eNPSD) { console.log("[WARN] Sprint4.0bis SANTE_DOWN pilot:", eNPSD.message); }
+
+    // ═══ SPRINT 4.1 — EXTENSION PILOTE SEPARATION (2026-05-05, retour astrologue n°28) ═══
+    // Architecture validée :
+    //   Q1 (retour 28) = Option B : pilote SEPARATION (signature stable Sprint 3.x)
+    //   Q2 (retour 28) = Option A : mode β +5/+8/+12 uniforme (pas de pondération gravité)
+    //   Garde-fous validés (Q4 retour 28) :
+    //     C' (cap SK respecté) : newConf = min(_sKSepCap?.after ?? 95, conf + amp)
+    //                            ne contredit jamais la doctrine PREV-SIM-SEPARATION-CAP.md V5
+    //     D' (discriminateur positif) : boost UNIQUEMENT si ≥ 1 type SK positif présent
+    //                                   (ruler_transit | natal_promise | lot_activation | nodes_in_houses)
+    //                                   évite d'amplifier les profections seules (anti-discriminateur ratio 5.71)
+    //   Promesses ACTIVES via _natalPromises.bySignature.SEPARATION :
+    //     - VENUS_AFFLIGEE_DURE : Vénus × Saturne/Mars/Pluton natal ≤ 2°
+    //     - MAITRE_M7_AFFLIGE   : Maître M7 × Mars/Saturne/Pluton natal ≤ 2°
+    try {
+      const _SK_POSITIVES_NP = ["ruler_transit", "natal_promise", "lot_activation", "nodes_in_houses"];
+      _mdseResults.forEach(sig => {
+        if (sig.code !== "SEPARATION") return;
+
+        // Garde-fou D' : exiger ≥ 1 discriminateur positif identifié par Sprint K
+        const matched = (sig.matchedConditions || []).filter(c => (c.strength || 0) >= 0.5).slice(0, 8);
+        const matchedTypes = new Set(matched.map(c => c.type));
+        const hasPositive = _SK_POSITIVES_NP.some(p => matchedTypes.has(p));
+        if (!hasPositive) {
+          sig._npSepSkipped = { reason: "no_SK_positive_discriminator", matchedTypes: [...matchedTypes].slice(0, 6) };
+          return;
+        }
+
+        const promises = (typeof _natalPromises !== "undefined" && _natalPromises?.bySignature) ? (_natalPromises.bySignature["SEPARATION"] || []) : [];
+        if (promises.length === 0) return;
+
+        const activated = [];
+        const seenTypes = new Set();
+        for (const p of promises) {
+          const trig = _natalPromiseTriggered(p, aspectsSuiviLent);
+          if (!trig) continue;
+          const key = (p.type || "?") + "|" + (p.victim || "") + "|" + (p.afflictor || "");
+          if (seenTypes.has(key)) continue;
+          seenTypes.add(key);
+          activated.push({ type: p.type, victim: p.victim, afflictor: p.afflictor, house: p.house, natalOrb: p.natalOrb, trig });
+        }
+
+        let amp = 0;
+        if (activated.length === 1)      amp = 5;
+        else if (activated.length === 2) amp = 8;
+        else if (activated.length >= 3)  amp = 12;
+
+        if (!sig._npActivations || activated.length > (sig._npActivations.length || 0)) {
+          sig._npActivations = activated;
+          sig._npAmpProposed = amp;
+        }
+
+        if (amp > 0) {
+          // Garde-fou C' : respect du cap Sprint K (cap conditionnel SEPARATION)
+          const skCap = sig._sKSepCap?.after ?? 95;
+          const newConf = Math.min(skCap, sig.confidence + amp);
+          if (newConf > sig.confidence) {
+            sig._npAmpApplied = { from: sig.confidence, to: newConf, count: activated.length, capRespected: skCap, positives: _SK_POSITIVES_NP.filter(p => matchedTypes.has(p)) };
+            sig.confidence = newConf;
+            sig.level = sig.confidence >= 55 ? "high" : sig.confidence >= 35 ? "medium" : "low";
+          } else if (skCap < 95) {
+            sig._npAmpBlocked = { reason: "sKSepCapBlocks", skCap, currentConf: sig.confidence, count: activated.length };
+          }
+        }
+      });
+    } catch(eNPSep) { console.log("[WARN] Sprint4.1 SEPARATION pilot:", eNPSep.message); }
+
 
     // Phase E2 : Éliminer les signatures sous minConfidence + tri
     // v19.12 (Palier 11 / D) : exception pour les sigs ré-injectées par safety/protection.
@@ -12109,7 +13932,431 @@ if (finalOutput.length > 0) {
         }
       });
     }
-    _mdseResults.sort((a, b) => b.confidence - a.confidence);
+    // === [PROMOTEUR-Q6D-43d] Sprint 4.3d — Boost confidence sur trigger partile high ===
+    // Profil A-A-A-A validé astrologue (retour 40) :
+    //   Q1A : +8 sur la confidence (sweet spot : capture Elizabeth II couronnement
+    //         02/06/1953 sans la perte Renoir 1841 du seuil +10).
+    //   Q2A : appliqué APRÈS toutes les caps (S29/S30/S32, P1', P29...) et la phase
+    //         E2 (élimination minConfidence), juste avant le tri final qui détermine
+    //         le top-1. Doctrine : les étoiles fixes opèrent à un niveau "supérieur"
+    //         (sphère des fixes) — leur déclenchement transcende les plafonds mondains.
+    //   Q3A : forfaitaire (+8 quel que soit le nombre de triggers high — doctrine
+    //         "1 seule étincelle partile suffit à allumer la poudre").
+    //   Q4A : aucun boost medium (0.25° < orb ≤ 0.5°). L'astrologie des étoiles fixes
+    //         ne tolère pas l'à-peu-près : les étoiles projettent une lumière ponctuelle,
+    //         au-delà de 0.25° l'éclair perd sa létalité.
+    // Cap95 : autorise jusqu'à 95 même si la sig était cappée plus bas (ex. cap85).
+    // Garde anti-régression : on ne baisse JAMAIS la confidence existante.
+    const _Q6D_BOOST_HIGH = 8;
+    const _Q6D_CAP = 95;
+    let _q6dPromotionsCount = 0;
+    try {
+    _mdseResults.forEach(sig => {
+      const triggers = Array.isArray(sig.peakTriggerDates) ? sig.peakTriggerDates : [];
+      if (triggers.length === 0) return;
+      const hasHigh = triggers.some(t => t && t.intensity === "high");
+      if (!hasHigh) return;
+      const before = sig.confidence || 0;
+      const boosted = Math.min(_Q6D_CAP, before + _Q6D_BOOST_HIGH);
+      if (boosted <= before) return;
+      sig.confidence = boosted;
+      sig.level = sig.confidence >= 55 ? "high" : sig.confidence >= 35 ? "medium" : "low";
+      const sample = triggers.find(t => t.intensity === "high");
+      sig._q6dPromoter = {
+        boost: boosted - before,
+        confidenceBefore: before,
+        confidenceAfter: boosted,
+        cap: _Q6D_CAP,
+        highTriggerCount: triggers.filter(t => t && t.intensity === "high").length,
+        sampleStar: sample?.starName || null,
+        sampleTransit: sample ? `${sample.transitPlanet} ${sample.transitAspect} ${sample.natalTarget}` : null,
+        sampleDate: sample?.date || null,
+        sampleOrb: sample?.orbAtPartile ?? null
+      };
+      _q6dPromotionsCount++;
+      if (INSTR_PREV_4_3) {
+        console.log(`[Q6D] PROMOTEUR ${sig.code}: ${before}→${boosted} (+${boosted-before}) via ${sample?.starName}/${sample?.transitPlanet} ${sample?.transitAspect} ${sample?.natalTarget} orb=${sample?.orbAtPartile}° date=${sample?.date}`);
+      }
+    });
+    if (INSTR_PREV_4_3 && _q6dPromotionsCount > 0) console.log(`[Q6D] Total promotions :`, _q6dPromotionsCount);
+    } catch(eQ6D) { console.log("[WARN] Q6D promoteur:", eQ6D.message); }
+    // === FIN [PROMOTEUR-Q6D-43d] ===
+
+    // === [Q6D-FILTER-43e] Sprint 4.3e — Filtre natal Algol/Antarès (Q-OPS-6 OR libéral) ===
+    // Validation astrologue retour 42 bonus + retour 43 §6 :
+    //   "Algol ne détruit que si la structure natale est déjà fissurée. Conditionnez le boost
+    //    avec un OR : (Maléfique natal sur un angle) OU (Maître de la 8 affligé) OU
+    //    (Algol conjointe à un Luminaire natal ≤ 2°). Si aucune condition n'est remplie,
+    //    l'étincelle d'Algol est étouffée."
+    // MVP (retour 43 §6.3) — uniquement C1 et C3 (C2 désactivé : calcul maître M8 dynamique trop
+    // coûteux pour rendement statistique quasi nul) :
+    //   C1 : Mars OU Saturne natal ≤ 5° d'un des 4 angles AS/MC/DS/IC natal
+    //   C3 : Algol OU Antarès natale ≤ 2° d'un luminaire natal (Soleil/Lune)
+    // Scope : étendu narratif (retour 43 §6.2) — purge aussi les rangs 2+ pour éviter
+    //   star-washing anxiogène dans le rapport LLM client (ex. "Vous avez frôlé la mort
+    //   cette année..." sans support doctrinal réel).
+    // Dry-run n=100 validé (PREV-DRY-RUN-Q6D-ALGOL-FILTER.md) :
+    //   - 1 cas top-1 purgé : obama-1961 (Algol Jupiter Trigone Vesta orb 0.04°)
+    //   - M4 : 81 → 82 (+1, ratchet dual M1=62 ✅ M4=82 ✅)
+    //   - Préserve les 3 gains Q6-D légitimes (Elizabeth II / Zidane / Rowling — sur Régulus
+    //     et Sirius, pas Algol/Antarès)
+    const _Q6D_FILTER_STARS = new Set(["Algol", "Antarès", "Caput Algol", "Algol Caput"]);
+    const _Q6D_FILTER_CODES = new Set(["ACCIDENT", "DEUIL", "CARRIERE_DOWN", "JURIDIQUE_DOWN"]);
+    const _Q6D_FILTER_C1_ORB = 5.0;
+    const _Q6D_FILTER_C3_ORB = 2.0;
+    let _q6dFilterAnnulesCount = 0;
+    try {
+      const _ANGLE_NAMES_43e = ["Ascendant", "Milieu du Ciel", "Descendant", "Imum Coeli", "Fond du Ciel"];
+      const _angleSep43e = (a, b) => {
+        let d = Math.abs((Number(a)||0) - (Number(b)||0)) % 360;
+        return d > 180 ? 360 - d : d;
+      };
+      const _c1MalefiquesAngulaires = (() => {
+        for (const p of ["Mars", "Saturne"]) {
+          const pDeg = (natalDict && natalDict[p] && natalDict[p].deg) ?? (natalPlanets.find(np => (np.planet?.fr === p || np.planet?.en === p))?.fullDegree);
+          if (pDeg == null) continue;
+          for (const aName of _ANGLE_NAMES_43e) {
+            const aDeg = natalAngles[aName];
+            if (aDeg == null) continue;
+            if (_angleSep43e(pDeg, aDeg) <= _Q6D_FILTER_C1_ORB) return true;
+          }
+        }
+        return false;
+      })();
+      const _c3StarLuminaire = (etoileMatchesNatal || []).some(em =>
+        em && _Q6D_FILTER_STARS.has(em.etoile) &&
+        ["Soleil", "Lune"].includes(em.planete) &&
+        Number.isFinite(Number(em.orb)) && Number(em.orb) <= _Q6D_FILTER_C3_ORB
+      );
+      const _natalSupportOK = _c1MalefiquesAngulaires || _c3StarLuminaire;
+      if (!_natalSupportOK) {
+        _mdseResults.forEach(sig => {
+          if (!sig._q6dPromoter) return;
+          if (!_Q6D_FILTER_CODES.has(sig.code)) return;
+          const star = sig._q6dPromoter.sampleStar;
+          if (!_Q6D_FILTER_STARS.has(star)) return;
+          const before = sig._q6dPromoter.confidenceBefore;
+          const after  = sig._q6dPromoter.confidenceAfter;
+          sig.confidence = before;
+          sig.level = sig.confidence >= 55 ? "high" : sig.confidence >= 35 ? "medium" : "low";
+          sig._q6dPromoter.filtered = true;
+          sig._q6dPromoter.filteredReason = "Q-OPS-6 OR libéral : ni C1 (maléfique angulaire) ni C3 (étoile↔luminaire) → boost annulé";
+          sig._q6dPromoter.confidenceAfter = before;
+          _q6dFilterAnnulesCount++;
+          if (INSTR_PREV_4_3) console.log(`[Q6D-FILTER-43e] ${sig.code}: ${after}→${before} (boost -${after-before} annulé) — étoile=${star} sans support natal`);
+        });
+      }
+      if (INSTR_PREV_4_3) console.log(`[Q6D-FILTER-43e] Support natal C1=${_c1MalefiquesAngulaires} C3=${_c3StarLuminaire} → filtre actif=${!_natalSupportOK} | annulations=${_q6dFilterAnnulesCount}`);
+    } catch(eFilter) { console.log("[WARN] Q6D filter:", eFilter.message); }
+    // === FIN [Q6D-FILTER-43e] ===
+
+    // === [ANGLES-44-BOOST] Sprint 4.4 Phase B — Boost angulaire (Lilly stricte + option C) ===
+    // Doctrine validée retour 44 §1-§2 + retour 45 (arbitrages doctrinaux Q1-Q3) :
+    //   • Q-OPS-1 (multiplicateurs) : AS=MC=1.0 ; DS=IC=0.6
+    //   • Q-OPS-2 (planètes/aspects) : Saturne, Uranus, Neptune, Pluton + Jupiter (×0.8)
+    //                                  Conjonction, Carré, Opposition (orbe ≤ 1.5°)
+    //   • Q-OPS-3 (boost de base)   : médian +7
+    //   • Q-OPS-5 (cap)             : 95 strict + flag isStellarApex
+    //   • Méta-Q3 (discount)        : AA/A=1.0 | B=0.75 | C/UNKNOWN=0.5
+    //   • Q1 retour 45 (tie-break)  : isStellarApex prioritaire (sortKey composite)
+    //   • Q2 retour 45 (POLARITÉ)   : Lilly stricte par planète/aspect — Saturne/Pluton →
+    //                                  signatures destructrices ; Jupiter → constructives ;
+    //                                  Uranus Conjonction → libération ; Uranus Carré/Opp,
+    //                                  Neptune Carré/Opp → maléfique-rupture/dissolutif.
+    //   • Q3 retour 45 (axe)        : option C STRICTE — boost dominant unique sur l'angle
+    //                                  physiquement le plus proche, axisActivated:true en
+    //                                  flag narratif uniquement (pas de double boost).
+    let _angles44BoostsCount = 0;
+    try {
+        const _A44_PLANETS  = new Set(["Saturne", "Uranus", "Neptune", "Pluton", "Jupiter"]);
+        const _A44_ASPECTS  = new Set(["Conjonction", "Carré", "Opposition"]);
+        const _A44_ANGLES   = ["Ascendant", "Milieu du Ciel", "Descendant", "Imum Coeli", "Fond du Ciel"];
+        const _A44_ANGLE_SET = new Set(_A44_ANGLES);
+        const _A44_ORB_MAX  = 1.5;
+        const _A44_BOOST_BASE = 7;
+        const _A44_CAP      = 95;
+        const _A44_ANGLE_MULT = { "Ascendant": 1.0, "Milieu du Ciel": 1.0, "Descendant": 0.6, "Imum Coeli": 0.6, "Fond du Ciel": 0.6 };
+        const _A44_PLANET_W   = { "Saturne":1.0, "Uranus":1.0, "Neptune":1.0, "Pluton":1.0, "Jupiter":0.8 };
+        const _A44_DISCOUNT_TIME = { "AA":1.0, "A":1.0, "B":0.75, "C":0.5, "DD":0.5, "UNKNOWN":0.5, "X":0.5 };
+        const _A44_RATING = (typeof birthDataRating !== "undefined" && birthDataRating) ? String(birthDataRating).toUpperCase() : "UNKNOWN";
+        const _A44_DISCOUNT = _A44_DISCOUNT_TIME[_A44_RATING] ?? 0.5;
+
+        // Q2 — Polarité Lilly stricte par (planète, aspect) → famille de signatures
+        // - "malefic"          : Saturne/Pluton tous aspects → destructeur
+        // - "benefic"          : Jupiter Conjonction → expansif
+        // - "benefic_modere"   : Jupiter Carré/Opp → expansif tempéré (×0.8 supplémentaire)
+        // - "benefic_rupture"  : Uranus Conjonction → libération constructive
+        // - "malefic_rupture"  : Uranus Carré/Opp → crise/rupture
+        // - "neutral_dissolve" : Neptune Conjonction → dissolution spirituelle (ambivalent)
+        // - "malefic_dissolve" : Neptune Carré/Opp → dissolution destructrice
+        const _A44_POLARITY = (planet, aspect) => {
+            if (planet === "Saturne" || planet === "Pluton") return "malefic";
+            if (planet === "Jupiter") return aspect === "Conjonction" ? "benefic" : "benefic_modere";
+            if (planet === "Uranus")  return aspect === "Conjonction" ? "benefic_rupture" : "malefic_rupture";
+            if (planet === "Neptune") return aspect === "Conjonction" ? "neutral_dissolve" : "malefic_dissolve";
+            return "neutral_dissolve";
+        };
+        // Mapping signature par polarité × angle (Lilly/Morin tradition)
+        const _A44_SIGS_BENEFIC = {
+            "Ascendant"      : ["CARRIERE_UP", "SANTE_UP"],
+            "Milieu du Ciel" : ["CARRIERE_UP", "JURIDIQUE_UP", "FINANCE_UP"],
+            "Descendant"     : ["MARIAGE", "JURIDIQUE_UP"],
+            "Imum Coeli"     : ["ENFANT", "IMMOBILIER"],
+            "Fond du Ciel"   : ["ENFANT", "IMMOBILIER"],
+        };
+        const _A44_SIGS_MALEFIC = {
+            "Ascendant"      : ["ACCIDENT", "SANTE_DOWN", "CARRIERE_DOWN"],
+            "Milieu du Ciel" : ["CARRIERE_DOWN", "JURIDIQUE_DOWN", "FINANCE_DOWN"],
+            "Descendant"     : ["SEPARATION", "JURIDIQUE_DOWN"],
+            "Imum Coeli"     : ["DEUIL", "RELOCATION", "FINANCE_DOWN"],
+            "Fond du Ciel"   : ["DEUIL", "RELOCATION", "FINANCE_DOWN"],
+        };
+        const _A44_SIGS_BENEFIC_RUPTURE = {  // Uranus Conjonction
+            "Ascendant"      : ["RELOCATION", "CARRIERE_UP"],
+            "Milieu du Ciel" : ["CARRIERE_UP", "RELOCATION"],
+            "Descendant"     : ["MARIAGE", "SEPARATION"],
+            "Imum Coeli"     : ["RELOCATION", "IMMOBILIER"],
+            "Fond du Ciel"   : ["RELOCATION", "IMMOBILIER"],
+        };
+        const _A44_SIGS_MALEFIC_RUPTURE = {  // Uranus Carré/Opp
+            "Ascendant"      : ["ACCIDENT", "RELOCATION"],
+            "Milieu du Ciel" : ["CARRIERE_DOWN", "RELOCATION"],
+            "Descendant"     : ["SEPARATION"],
+            "Imum Coeli"     : ["RELOCATION", "DEUIL"],
+            "Fond du Ciel"   : ["RELOCATION", "DEUIL"],
+        };
+        const _A44_SIGS_NEUTRAL_DISSOLVE = {  // Neptune Conjonction
+            "Ascendant"      : ["SPIRITUEL", "SANTE_DOWN"],
+            "Milieu du Ciel" : ["SPIRITUEL", "CARRIERE_DOWN"],
+            "Descendant"     : ["SPIRITUEL", "SEPARATION"],
+            "Imum Coeli"     : ["SPIRITUEL", "RELOCATION"],
+            "Fond du Ciel"   : ["SPIRITUEL", "RELOCATION"],
+        };
+        const _A44_SIGS_MALEFIC_DISSOLVE = {  // Neptune Carré/Opp
+            "Ascendant"      : ["SANTE_DOWN", "ACCIDENT"],
+            "Milieu du Ciel" : ["CARRIERE_DOWN", "FINANCE_DOWN"],
+            "Descendant"     : ["SEPARATION", "JURIDIQUE_DOWN"],
+            "Imum Coeli"     : ["DEUIL", "FINANCE_DOWN"],
+            "Fond du Ciel"   : ["DEUIL", "FINANCE_DOWN"],
+        };
+        const _A44_SIGS_BY_POLARITY = {
+            "malefic"          : _A44_SIGS_MALEFIC,
+            "benefic"          : _A44_SIGS_BENEFIC,
+            "benefic_modere"   : _A44_SIGS_BENEFIC,
+            "benefic_rupture"  : _A44_SIGS_BENEFIC_RUPTURE,
+            "malefic_rupture"  : _A44_SIGS_MALEFIC_RUPTURE,
+            "neutral_dissolve" : _A44_SIGS_NEUTRAL_DISSOLVE,
+            "malefic_dissolve" : _A44_SIGS_MALEFIC_DISSOLVE,
+        };
+        // Multiplicateur supplémentaire pour Jupiter Carré/Opp (benefic modéré)
+        const _A44_POLARITY_MULT = (pol) => pol === "benefic_modere" ? 0.8 : 1.0;
+
+        // 1. Collecte des hits bruts depuis aspectsSuiviLent
+        const _a44Hits = [];
+        Object.keys(aspectsSuiviLent || {}).forEach(key => {
+            const parts = key.replace("slow_", "").split("|||");
+            if (parts.length < 3) return;
+            const [pT, aspName, pN] = parts;
+            if (!_A44_PLANETS.has(pT)) return;
+            if (!_A44_ASPECTS.has(aspName)) return;
+            if (!_A44_ANGLE_SET.has(pN)) return;
+            const a = aspectsSuiviLent[key];
+            const waves = a.waves || [];
+            for (const w of waves) {
+                const orb = parseFloat(w.minOrb);
+                if (!Number.isFinite(orb) || orb > _A44_ORB_MAX) continue;
+                _a44Hits.push({
+                    transitPlanet : pT,
+                    aspect        : aspName,
+                    angleNatal    : pN,
+                    orbAtPeak     : orb,
+                    dateAtPeak    : w.peakDate || w.start || null,
+                    multiplier    : _A44_ANGLE_MULT[pN] ?? 0.6,
+                });
+            }
+        });
+
+        // 2. Dedupe primaire : un même (planet, aspect, angle) sur plusieurs peaks (rétro
+        //    triple-passage) → un seul hit à l'orbe minimal.
+        const _a44Dedup1 = new Map();
+        for (const h of _a44Hits) {
+            const k = `${h.transitPlanet}|${h.aspect}|${h.angleNatal}`;
+            const ex = _a44Dedup1.get(k);
+            if (!ex || h.orbAtPeak < ex.orbAtPeak) _a44Dedup1.set(k, h);
+        }
+        const _a44HitsP = Array.from(_a44Dedup1.values());
+
+        // 3. Dedupe axiale option C STRICTE (Q3 retour 45) : si une même planète/aspect
+        //    touche un angle ET son angle conjugué dans la fenêtre, on garde UN SEUL hit
+        //    (l'angle physiquement le plus proche = orbe minimal). L'angle conjugué reçoit
+        //    seulement un flag axisActivated:true (narratif), aucun boost mathématique.
+        const _A44_CONJUGATE = { "Ascendant":"Descendant", "Descendant":"Ascendant",
+                                 "Milieu du Ciel":"Imum Coeli", "Imum Coeli":"Milieu du Ciel",
+                                 "Fond du Ciel":"Milieu du Ciel" };
+        const _a44Buckets = new Map(); // key = `${planet}|${aspect}|${axis}` (axis = paire normalisée)
+        const _axisOf = (a) => {
+            if (a === "Ascendant" || a === "Descendant") return "AS↔DS";
+            if (a === "Milieu du Ciel" || a === "Imum Coeli" || a === "Fond du Ciel") return "MC↔IC";
+            return a;
+        };
+        for (const h of _a44HitsP) {
+            const k = `${h.transitPlanet}|${h.aspect}|${_axisOf(h.angleNatal)}`;
+            const ex = _a44Buckets.get(k);
+            if (!ex) {
+                _a44Buckets.set(k, { ...h, axisActivated: false });
+            } else {
+                const isConj = _A44_CONJUGATE[ex.angleNatal] === h.angleNatal;
+                if (isConj) {
+                    // Garde le plus serré, flag axe activé sur le winner
+                    const winner = h.orbAtPeak < ex.orbAtPeak ? h : ex;
+                    _a44Buckets.set(k, { ...winner, axisActivated: true });
+                } else {
+                    // Cas rare : même axe label mais angles distincts non conjugués (ne devrait pas arriver)
+                    if (h.orbAtPeak < ex.orbAtPeak) _a44Buckets.set(k, { ...h, axisActivated: ex.axisActivated });
+                }
+            }
+        }
+        const _a44Final = Array.from(_a44Buckets.values());
+
+        // 3-bis. Enrichissement axisActivated par axe-planète (Q2 retour 45) :
+        //   un hit (planète, angle) reçoit axisActivated=true si la même planète touche
+        //   AUSSI le conjugué de l'angle, MEME via un aspect différent. Capture le cas
+        //   Musk 2008 : Jupiter Opp AS (= Jupiter Conj DS géométriquement) → 2 hits avec
+        //   aspects différents non-fusionnés par la dedupe axiale aspect-stricte. La
+        //   croix axiale AS↔DS est physiquement activée même si le moteur a généré 2
+        //   buckets distincts. Ce drapeau secondaire est déclencheur APEX (cf. §6).
+        const _planetAxisAngles = new Map();
+        for (const h of _a44Final) {
+            const k = `${h.transitPlanet}|${_axisOf(h.angleNatal)}`;
+            if (!_planetAxisAngles.has(k)) _planetAxisAngles.set(k, new Set());
+            _planetAxisAngles.get(k).add(h.angleNatal);
+        }
+        for (const h of _a44Final) {
+            if (h.axisActivated) continue;
+            const k = `${h.transitPlanet}|${_axisOf(h.angleNatal)}`;
+            const angles = _planetAxisAngles.get(k);
+            const conj = _A44_CONJUGATE[h.angleNatal];
+            if (angles && conj && angles.has(conj)) h.axisActivated = true;
+        }
+
+        // 4. Index sigs par code pour O(1) lookup
+        const _a44SigByCode = new Map();
+        for (const sig of _mdseResults) _a44SigByCode.set(sig.code, sig);
+
+        // 5. Snapshot pré-boost : pour ratchet anti-régression M1 + tie-break stable.
+        //    On capture (a) le top-1 confiance avant boost, (b) son code, (c) le rang
+        //    initial de chaque signature (utilisé comme tie-break stable en cas d'égalité
+        //    composite après tri).
+        _mdseResults.sort((a, b) => (b.confidence || 0) - (a.confidence || 0));
+        _mdseResults.forEach((s, i) => { s._preBoostRank = i; });
+        const _a44Top1Before = _mdseResults[0] ? { code: _mdseResults[0].code, confidence: _mdseResults[0].confidence } : null;
+        const _A44_BENEFIC_FAMILY = new Set([
+            "CARRIERE_UP","JURIDIQUE_UP","FINANCE_UP","SANTE_UP","MARIAGE","ENFANT","IMMOBILIER","RELOCATION","SPIRITUEL","VOYAGE"
+        ]);
+        const _A44_TOP1_IS_BENEFIC = _a44Top1Before && _A44_BENEFIC_FAMILY.has(_a44Top1Before.code);
+
+        // 6. Application du boost selon polarité (Q2 retour 45 — Lilly stricte) +
+        //    cap cumulatif +6 par signature (garde-fou non-régression M1) +
+        //    plafond anti-régression : un boost maléfique ne peut pas dépasser le top-1
+        //    constructif pré-boost (sinon ratchet déclencherait, cf. cas Rowling 1997).
+        const _A44_CUMUL_CAP = 6;
+        for (const h of _a44Final) {
+            const pol = _A44_POLARITY(h.transitPlanet, h.aspect);
+            const sigsCandidates = (_A44_SIGS_BY_POLARITY[pol] || {})[h.angleNatal] || [];
+            // Premier candidat présent dans _mdseResults avec confidence > 0
+            let target = null;
+            for (const code of sigsCandidates) {
+                const sig = _a44SigByCode.get(code);
+                if (sig && (sig.confidence ?? 0) > 0) { target = sig; break; }
+            }
+            if (!target) continue;
+            // Garde-fou : signature déjà au cap → hit consommé sans bénéfice → skip
+            // (évite de déclencher APEX abusif sur sig qui ne gagne rien, cf. Hitler/Tesla
+            // où ACCIDENT=95 pré-boost recevait des hits angulaires gratuits).
+            if ((target.confidence ?? 0) >= _A44_CAP) {
+                if (INSTR_PREV_4_3) console.log(`[ANGLES-44-BOOST] SKIP ${target.code} (déjà cap=${_A44_CAP}) ← ${h.transitPlanet} ${h.aspect} ${h.angleNatal}`);
+                continue;
+            }
+            const angleMult  = h.multiplier;
+            const planetMult = _A44_PLANET_W[h.transitPlanet] ?? 1.0;
+            const polMult    = _A44_POLARITY_MULT(pol);
+            const boostNominal = Math.round(_A44_BOOST_BASE * angleMult * planetMult * polMult * _A44_DISCOUNT);
+            if (boostNominal <= 0) continue;
+            // Cap cumulatif par signature : la somme des boosts angulaires sur cette sig
+            // ne peut pas dépasser _A44_CUMUL_CAP (= +6, calibration Q-OPS-3).
+            const cumulSoFar = (target._anglesBoost44 || []).reduce((acc, b) => acc + b.boostApplied, 0);
+            const remaining  = Math.max(0, _A44_CUMUL_CAP - cumulSoFar);
+            const before = target.confidence;
+            let after  = Math.min(_A44_CAP, before + Math.min(boostNominal, remaining));
+            // Garde-fou anti-régression M1 : si la polarité est maléfique ET le top-1
+            // pré-boost est constructif, plafonner le boost à (top1Before.confidence - 1).
+            // Sinon ratchet déclencherait (cf. cas Rowling 1997 : Saturne Carré MC poussait
+            // JURIDIQUE_DOWN 85→89 au-dessus de CARRIERE_UP=85 top-1 → régression).
+            const _polIsMalefic = (pol === "malefic" || pol === "malefic_rupture" || pol === "malefic_dissolve");
+            if (_polIsMalefic && _A44_TOP1_IS_BENEFIC && _a44Top1Before && target.code !== _a44Top1Before.code) {
+                const ceiling = Math.max(_a44Top1Before.confidence - 1, before);
+                if (after > ceiling) after = ceiling;
+            }
+            const applied = after - before;
+            target.confidence = after;
+            target.level = target.confidence >= 55 ? "high" : target.confidence >= 35 ? "medium" : "low";
+            target._anglesBoost44 = target._anglesBoost44 || [];
+            target._anglesBoost44.push({
+                transitPlanet : h.transitPlanet,
+                aspect        : h.aspect,
+                angleNatal    : h.angleNatal,
+                orbAtPeak     : h.orbAtPeak,
+                polarity      : pol,
+                boostNominal  : boostNominal,
+                boostApplied  : applied,
+                confidenceBefore : before,
+                confidenceAfter  : after,
+                axisActivated : h.axisActivated || false,
+                rating        : _A44_RATING,
+                discount      : _A44_DISCOUNT,
+                capped        : applied < boostNominal ? "cumul" : null,
+            });
+            // Q-OPS-5 + retour 45 Q2 — APEX assoupli (croix activée + impact mesurable) :
+            //   APEX s'active si applied > 0 ET cap atteint ET au moins une de :
+            //     (a) ≥ 2 boosts angulaires effectifs sur cette signature
+            //     (b) hit axisActivated avec cumul boost cumulé ≥ 2 (= impact net non
+            //         négligeable). Ce seuil cumulApplied ≥ 2 distingue les vraies
+            //         croix activées (Musk 2008 : Jupiter Opp AS +2 → APEX) des bascules
+            //         marginales par tie-break (Chopin 1849 : Jupiter Opp AS +1 → APEX off,
+            //         primaire deces ACCIDENT préservé en top-1 cf. retour 45 Q3).
+            const _effectiveBoosts = (target._anglesBoost44 || []).filter(b => b.boostApplied > 0).length;
+            const _cumulApplied    = (target._anglesBoost44 || []).reduce((a, b) => a + b.boostApplied, 0);
+            if (applied > 0 && target.confidence === _A44_CAP) {
+                const apexEligible =
+                    (_effectiveBoosts >= 2)
+                 || (h.axisActivated && _cumulApplied >= 2);
+                if (apexEligible) target.isStellarApex = true;
+            }
+            if (applied > 0) _angles44BoostsCount++;
+            if (INSTR_PREV_4_3) console.log(`[ANGLES-44-BOOST] ${target.code}: ${before}→${after} (+${applied}/+${boostNominal}${applied<boostNominal?' CAPPED':''}) ← ${h.transitPlanet} ${h.aspect} ${h.angleNatal} pol=${pol} orb=${h.orbAtPeak}°${h.axisActivated?" [axis]":""}`);
+        }
+        if (INSTR_PREV_4_3) console.log(`[ANGLES-44-BOOST] rating=${_A44_RATING} discount=×${_A44_DISCOUNT} | hits raw=${_a44Hits.length} dedupP=${_a44HitsP.length} dedupAxe=${_a44Final.length} | boosts appliqués=${_angles44BoostsCount}`);
+    } catch (eA44) { console.log("[WARN] ANGLES-44-BOOST:", eA44.message); }
+    // === FIN [ANGLES-44-BOOST] ===
+
+    // Tri composite (Q1 retour 45 + retour 45-bis) : confidence DESC, puis isStellarApex
+    // DESC (= seul tie-break "stellaire"), puis _preBoostRank ASC (tie-break stable
+    // anti-régression). axisActivated n'est qu'un drapeau narratif pour le LLM, il NE
+    // pèse PAS dans le ranking sans APEX (cf. cas Chopin 1849 : Jupiter Opp AS axisActivated
+    // mais boost +1 → APEX off, ACCIDENT primaire deces préservé en top-1).
+    // Le cap visuel reste 95 dans le payload client ; le composite est purement interne.
+    _mdseResults.sort((a, b) => {
+        const ca = Math.min(95, a.confidence ?? 0), cb = Math.min(95, b.confidence ?? 0);
+        if (cb !== ca) return cb - ca;
+        const aHasNetBoost = (a._anglesBoost44 || []).some(z => z.boostApplied > 0);
+        const bHasNetBoost = (b._anglesBoost44 || []).some(z => z.boostApplied > 0);
+        const ax = (a.isStellarApex && aHasNetBoost) ? 1 : 0;
+        const bx = (b.isStellarApex && bHasNetBoost) ? 1 : 0;
+        if (bx !== ax) return bx - ax;
+        // Tie-break stable : conserver l'ordre pré-boost (snapshot par confidence DESC).
+        return (a._preBoostRank ?? 999) - (b._preBoostRank ?? 999);
+    });
+    _recordSnapshot("FINAL"); // [INSTR-4.3-PREP] état final post-tout (top1 = sig0 dans eventSignatures sérialisés)
     // v19.12 (F2) : seuil d'AFFICHAGE rapport découplé de la détection.
     // On utilise le `level` (déjà calculé : conf<35→low, <55→medium, >=55→high) pour décider :
     // si une signature est en `low`, son contenu narratif n'a pas d'utilité informationnelle
@@ -12299,6 +14546,18 @@ if (finalOutput.length > 0) {
                 counterDetails:s._counterDetails||[],
                 maleficOverride:s._maleficOverride||null,
                 maleficPenalty:s._maleficPenalty||null,
+                a4GuardSkipped:s._a4GuardSkipped||null,
+                a5GuardSkipped:s._a5GuardSkipped||null,
+                a6GuardSkipped:s._a6GuardSkipped||null,
+                engagementContractCap:s._engagementContractCap||null,
+                engagementContractValidated:s._engagementContractValidated||null,
+                carriereDemoted:s._carriereDemoted||null,
+                engagementSkipP56:s._engagementSkipP56||null,
+                engagementSkipCF1:s._engagementSkipCF1||null,
+                engagementSkipQ3:s._engagementSkipQ3||null,
+                qualifierTags:s.qualifierTags||null,
+                qualifierLabel:s.qualifierLabel||null,
+                qualifierDetails:s.qualifierDetails||null,
                 nodalReturn:s._nodalReturn||null,
                 natalConfigBoost:s._natalConfigBoost||null,
                 eclipseReactivation:s._eclipseReactivation||null,
@@ -12319,6 +14578,20 @@ if (finalOutput.length > 0) {
                 progMoonFirdSync:s._progMoonFirdSync||null, firdNatalSynergy:s._firdNatalSynergy||null,
                 matchedConditions:(s.matchedConditions||[]).filter(c => c.strength >= 0.5).slice(0, 8).map(c => ({ type:c.type, detail:c.detail, strength:Math.round(c.strength*100)/100 })),
                 zrPeriod:_mdseZRPeakPeriod?.sign||null,
+                v32AccDominance:s._v32AccDominance||null,
+                v32AccCap:s._v32AccCap||null,
+                v32AccVeto:s._v32AccVeto||null,
+                v32AccProfBonus:s._v32AccProfBonus||null,
+                npActivations:s._npActivations||null,
+                npAmpApplied:s._npAmpApplied||null,
+                npAmpBlocked:s._npAmpBlocked||null,
+                npAccSkipped:s._npAccSkipped||null,
+                npSepSkipped:s._npSepSkipped||null,
+                v35RelDiag:s._v35RelDiag||null,
+                v35RelBoost:s._v35RelBoost||null,
+                v35RelVetoApplied:s._v35RelVetoApplied||null,
+                exilFondateur:s._exilFondateur||null,
+                fardeauInstitutionnel:s._fardeauInstitutionnel||null,
                 peakDebug:s._peakDebug||null
             })),
             compoundEvents: _mdseCompoundEvents || [],
@@ -12341,6 +14614,8 @@ if (_mdseResults.length > 0 && finalOutput.length > 0) {
         profPeakMonths:s._profPeakMonths||null,
         triggerDates:s.peakWindow?.triggerDates||null,
         displayDates:s.peakWindow?.displayDates||null,
+        peakTriggerDates:s.peakTriggerDates||null,
+        q6dPromoter:s._q6dPromoter||null,
         zrPeriod:_mdseZRPeakPeriod?.sign||null,
         convergence:s._convergenceCount||0,
         convergenceTechs:s._convergenceTechs||[],
@@ -12352,6 +14627,18 @@ if (_mdseResults.length > 0 && finalOutput.length > 0) {
         counterDetails:s._counterDetails||[],
         maleficOverride:s._maleficOverride||null,
         maleficPenalty:s._maleficPenalty||null,
+        a4GuardSkipped:s._a4GuardSkipped||null,
+        a5GuardSkipped:s._a5GuardSkipped||null,
+        a6GuardSkipped:s._a6GuardSkipped||null,
+        engagementContractCap:s._engagementContractCap||null,
+        engagementContractValidated:s._engagementContractValidated||null,
+        carriereDemoted:s._carriereDemoted||null,
+        engagementSkipP56:s._engagementSkipP56||null,
+        engagementSkipCF1:s._engagementSkipCF1||null,
+        engagementSkipQ3:s._engagementSkipQ3||null,
+        qualifierTags:s.qualifierTags||null,
+        qualifierLabel:s.qualifierLabel||null,
+        qualifierDetails:s.qualifierDetails||null,
         nodalReturn:s._nodalReturn||null,
         natalConfigBoost:s._natalConfigBoost||null,
         eclipseReactivation:s._eclipseReactivation||null,
@@ -12386,13 +14673,94 @@ if (_mdseResults.length > 0 && finalOutput.length > 0) {
         sSStarSkip:s._sSStarSkip||null,
         sUVolCap:s._sUVolCap||null,
         sWCapHc:s._sWCapHc||null,
+        v32AccDominance:s._v32AccDominance||null,
+        v32AccCap:s._v32AccCap||null,
+        v32AccVeto:s._v32AccVeto||null,
+        v32AccProfBonus:s._v32AccProfBonus||null,
+        npActivations:s._npActivations||null,
+        npAmpApplied:s._npAmpApplied||null,
+        npAmpBlocked:s._npAmpBlocked||null,
+        npAccSkipped:s._npAccSkipped||null,
+        npSepSkipped:s._npSepSkipped||null,
+        v35RelDiag:s._v35RelDiag||null,
+        v35RelBoost:s._v35RelBoost||null,
+        v35RelVetoApplied:s._v35RelVetoApplied||null,
+        exilFondateur:s._exilFondateur||null,
+        fardeauInstitutionnel:s._fardeauInstitutionnel||null,
         matchedConditions:(s.matchedConditions||[]).filter(c => c.strength >= 0.5).slice(0, 8).map(c => ({ type:c.type, detail:c.detail, strength:Math.round(c.strength*100)/100 })),
+        anglesBoost44:s._anglesBoost44||null,           // Sprint 4.4 Phase B : boosts angulaires appliqués (Lilly + option C)
+        isStellarApex:s.isStellarApex||false,           // Q-OPS-5 retour 43 §5 + retour 45 Q1 — flag tie-break
         peakDebug:s._peakDebug||null
     }));
     finalOutput[0].json.eventSignatures = sigPayload;
 }
 if (_mdseCompoundEvents && _mdseCompoundEvents.length > 0 && finalOutput.length > 0) {
     finalOutput[0].json.compoundEvents = _mdseCompoundEvents;
+}
+// SPRINT 4.0bis : exposition tags qualitatifs natals (sans impact prédictif)
+if (typeof _natalPromises !== "undefined" && _natalPromises?.qualitativeTags?.length && finalOutput.length > 0) {
+    finalOutput[0].json.natalQualitativeTags = _natalPromises.qualitativeTags;
+}
+// SPRINT 4.2 P3 : exposition tags stellaires qualitatifs (objet enrichi C2)
+if (typeof _natalPromises !== "undefined" && _natalPromises?.stellarTags?.length && finalOutput.length > 0) {
+    finalOutput[0].json.natalStellarTags = _natalPromises.stellarTags;
+}
+// [PISTE-B-CARRIERE-43a] Exposition des promesses CARRIERE_UP nommées (audit Q1-B + diagnostic)
+// Toujours exposé (même tableau vide) pour pouvoir distinguer "natalité sans promesse" de "natalité non parsée".
+if (typeof _natalPromises !== "undefined" && _natalPromises?.bySignature && finalOutput.length > 0) {
+    const cuPromises = _natalPromises.bySignature["CARRIERE_UP"] || [];
+    finalOutput[0].json.natalCarrierePromises = cuPromises.map(p => ({
+        type: p.type,
+        carrier: p.carrier,
+        support: p.support || null,
+        natalAspect: p.natalAspect || null,
+        natalOrb: p.natalOrb != null ? Math.round(p.natalOrb * 100) / 100 : null,
+        house: p.house || null
+    }));
+}
+// [INSTR-4.3-PREP] Sérialisation sigJourney (conditionnée par INSTR_PREV_4_3)
+// Construit la trajectoire confidence par signature à travers les ~10 snapshots stratégiques.
+// Ne retient que les étapes où la confidence change (sauf le RAW initial systématiquement conservé).
+if (INSTR_PREV_4_3 && _instrSnapshots.length > 0 && finalOutput.length > 0) {
+    try {
+        const sigJourney = {};
+        const allCodes = new Set();
+        for (const { snapshot } of _instrSnapshots) {
+            for (const c of Object.keys(snapshot)) allCodes.add(c);
+        }
+        for (const code of allCodes) {
+            const trajectory = [];
+            let prevConf = null;
+            for (const { label, snapshot } of _instrSnapshots) {
+                const cur = snapshot[code];
+                if (!cur) continue;
+                const isFirst = trajectory.length === 0;
+                const changed = prevConf === null || cur.confidence !== prevConf;
+                if (!isFirst && !changed && label !== "FINAL") continue; // skip steps without delta (sauf RAW + FINAL)
+                const entry = {
+                    step: label,
+                    confidence: cur.confidence,
+                    level: cur.level,
+                    delta: prevConf === null ? null : cur.confidence - prevConf
+                };
+                if (typeof cur._rawRatio === "number") entry.rawRatio = cur._rawRatio;
+                if (typeof cur._heavyCount === "number") entry.heavyCount = cur._heavyCount;
+                if (cur._pnaTier) entry.pna = { tier: cur._pnaTier, weight: cur._pnaWeight };
+                if (cur._engagementContractCap) entry.engagementContractCap = cur._engagementContractCap;
+                if (cur._carriereDemoted) entry.carriereDemoted = cur._carriereDemoted;
+                trajectory.push(entry);
+                prevConf = cur.confidence;
+            }
+            if (trajectory.length) sigJourney[code] = trajectory;
+        }
+        finalOutput[0].json.sigJourney = sigJourney;
+        finalOutput[0].json.sigJourneyMeta = {
+            instrumentationVersion: "4.3-PREP-v1",
+            snapshotsTaken: _instrSnapshots.length,
+            snapshotLabels: _instrSnapshots.map(s => s.label),
+            codesTracked: Array.from(allCodes)
+        };
+    } catch(eIJ) { console.log("[WARN] sigJourney serialization:", eIJ.message); }
 }
 if (_mdseAgeMilestones && _mdseAgeMilestones.length > 0 && finalOutput.length > 0) {
     finalOutput[0].json.ageMilestones = _mdseAgeMilestones.map(m => ({ label:m.label, planet:m.planet, theme:m.theme, age:m.age }));
@@ -12438,5 +14806,9 @@ if (finalOutput.length > 0) {
       };
     } catch(e) {}
 }
+
+// [ANGLES-44-DIAG] supprimé en retour 45 — remplacé par [ANGLES-44-BOOST] amont
+// (le boost réel s'applique avant la sérialisation sigPayload, et anglesBoost44 +
+// isStellarApex sont déjà exposés via sigPayload pour traçage M4 et LLM narratif).
 
 return finalOutput.length > 0 ? finalOutput : [{ json:{ error:"Aucun output généré", typeRapport, periode:periodeLabel } }];

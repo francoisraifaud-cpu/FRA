@@ -1,9 +1,10 @@
 # DOCUMENTATION WORKFLOW — PRÉVISIONS ASTROLOGIQUES
 
-**Version** : v18.4 (Sprints 8.2 + 8.3 fan-out + Sprint 9.1 i18n EN — déployé 2026-05-03)
+**Version** : v18.5 (Sprint 4.3 Q6-D + Sprint 4.3e Algol hotfix + Sprint 4.4 Phase B Angles + Wave 3 multi-labeling — Gold Standard M4=85/100 atteint 2026-05-06)
 **Plateforme** : n8n Cloud
 **Auteur** : François Raifaud
-**État moteur (post-Y, post-fan-out, post-i18n EN)** : (1) Pont signatures → narratif ultra fiables actif (Sprint Y, validé live 2026-05-02 via exec 11446) ; (2) Moteur natal `Enrichissement Astrologique` aligné sur THEME v8.3 — `computeChartShape` calibré (Bucket strict 1–2 singletons + 2 gaps, Locomotive [60,120]) et orbes Yod resserrés (sextile ±3°, quinconce ±2°) ; (3) Génération bilingue native FR / EN avec dictionnaires `_LABEL_OVERRIDES_EN`, `_MDSE_POLARITY_LABELS_EN`, `_PNA_PREFIXES` (Sprint 9.1).
+**État moteur (post Wave 3 — PREV V1 PRODUCTION READY)** : (1) Pont signatures → narratif ultra fiables actif (Sprint Y) ; (2) Moteur natal `Enrichissement Astrologique` aligné sur THEME v8.3 (chartShape + Yod resserrés) ; (3) Génération bilingue native FR / EN (Sprint 9.1) ; (4) **Q6-D PROMOTEUR** d'événements et **filtre Algol/Antarès** anti-hallucinations (Sprints 4.3 + 4.3e) ; (5) **Boost angulaire** des transits aux 4 angles (AS/MC/DS/IC) selon doctrine Lilly stricte avec 4 garde-fous anti-régression et APEX assoupli (Sprint 4.4 Phase B v2) ; (6) **Wave 3 multi-labeling** sur manifest v1.5 — 26 cas patchés. Cible doctrinale **Gold Standard atteinte** : M4 = 85/100 verrouillée par ratchet dual (M1 ≥ 62, M4 ≥ 85).
+**Métriques officielles cohorte n=100 (2026-05-06)** : M1 = 62/100 (Top-1 Strict Primary, plancher invariant) ; M2 = 92/100 (Top-3 Doctrinal Coverage) ; M4 = 85/100 (Doctrinal Precision Top-1, Gold Standard) ; M5 = 75.3/100 (bioScore pondéré). Détails : `SITE/scripts/PREV-RETOUR-ASTROLOGUE-48-WAVE3-GOLD-STANDARD.md`.
 **Cumul session "fiabilisation Top-1"** : Sprints U + W + X — Top-1 large primaire 54 → 58 (+4), Top-1 strict primaire 14 → 18 (+4), bruit témoin HC≥80 -29 (123 → 94, -24 %), 0 régression sur 12 métriques Top-K. Détails complets : `SITE/scripts/PREV-SUPER-BENCH.md`.
 **Bench post-fan-out** : 10 cas PREV, NDJSON `prev-bench-fanout-check.ndjson`, vérification Locomotive (Reagan détecté) + prévalence Yod ~5 % conforme Sprint 8.3. Synthèse publique : fiche produit `/rapports/prev` du site (section « Validation et fiabilité »).
 
@@ -1949,3 +1950,177 @@ Le `Super noeud1` expose désormais les variables suivantes (propriété `finalO
 | `_LABEL_OVERRIDES_USED_MDSE` | object | Dictionnaire de labels CF5 + guidances utilisé (FR ou EN) |
 
 Ces marqueurs sont lus par `prev-i18n-html-audit.mjs` pour détecter d'éventuelles régressions silencieuses (par exemple un bloc qui réassignerait `sig.label` après l'override final).
+
+---
+
+## 26. CHANGELOG — SPRINT 4.3 → WAVE 3 (v18.5, 2026-05-06) — GOLD STANDARD M4 = 85/100
+
+Phase finale du chantier de fiabilisation doctrinale PREV V1, qui amène le module au seuil **« Gold Standard »** (M4 = 85/100, déclaré retour 41 méta-Q1 par l'astrologue) avant clôture officielle. Quatre sous-chantiers s'enchaînent sur la journée du 6 mai 2026, encadrés par le **ratchet dual M1+M4** (mécanisme de non-régression doctrinal validé retour 42 méta-Q2).
+
+### 26.1 Ratchet dual M1 + M4 (méta-architecture)
+
+**Origine** : retour 42 méta-Q2 — l'astrologue arbitre que **M1 (Top-1 Strict Primary)** doit servir de garde-fou contre les hallucinations brutes du moteur, tandis que **M4 (Doctrinal Precision Top-1)** sert de métrique produit. Aucun chantier prévisionnel ne peut faire régresser ces deux métriques en même temps.
+
+**Implémentation** : `SITE/scripts/_eval-metrics.mjs` lit deux variables d'environnement (`RATCHET_FLOOR_M1`, `RATCHET_FLOOR_M4`) et émet `process.exit(2)` si l'une des deux métriques tombe sous son plancher. Les planchers ont évolué :
+
+| Date | M1 floor | M4 floor | Origine |
+|---|---|---|---|
+| 2026-05-04 | 62 | 81 | Wave 2 fin |
+| 2026-05-06 (matin) | 62 | 82 | Phase A Algol hotfix (retour 45) |
+| **2026-05-06 (soir)** | **62** | **85** | **Wave 3 Gold Standard (retour 47)** |
+
+**Fonctionnement** : tout sprint prévisionnel qui modifie `N8N Prev` doit passer par un bench n=100 + `_eval-metrics.mjs`. Si exit code != 0, le sprint est rollback. Si exit code = 0, le plancher est **gravé** à la nouvelle valeur (jamais redescendu). C'est la garantie d'intégrité scientifique : on ne baisse jamais le thermomètre.
+
+### 26.2 Sprint 4.3 — Q6-D PROMOTEUR (multi-labeling et signatures composées)
+
+**Origine** : audit retour 41 — le moteur capturait correctement les événements simples (mariage, deuil) mais ratait les **« compound events »** où plusieurs signatures coexistent (ex. Diana 1981 = MARIAGE primaire + CARRIERE_UP secondaire systémique = embauche d'État simultanée).
+
+**Innovation** : le moteur expose désormais dans chaque signature un objet `_q6dPromoter` contenant le profil A-A-A-A (4 critères doctrinaux : aspect partile, planète angulaire, dignité, cohérence narratif). Les signatures avec un profil A-A-A-A reçoivent un boost de confidence calibré (+8 cap95) qui les fait remonter en top-1 quand elles devraient l'être.
+
+**Métrique gagnée** : M1 = 52 → 62 (+10) sur la session Wave 1 + 2.
+
+**Anti-retro-fitting** : le manifest v1.4 (puis v1.5) expose `evt_primaire`, `evt_secondaires` (poids 0.5 ou 0.8 systémique), `evt_tertiaires` (poids 0.2). Chaque secondaire ajouté porte `remplace_FP: true|false` et `ajoute_par: 'audit B2 2026-05'` pour traçabilité absolue. Le compteur de cas `remplace_FP` est exposé dans `_eval-metrics.mjs`.
+
+### 26.3 Sprint 4.3e — Q6-D filtre Algol/Antarès (Phase A, hotfix anti-hallucination)
+
+**Origine** : retour 41 bonus — l'astrologue identifie qu'Algol partile peut faire monter ACCIDENT=95 sur des cas sans aucun support biographique (ex. Obama 2008 = promotion présidentielle, top-1 moteur = ACCIDENT=95 par hit Algol Jupiter Trigone Vesta orbe 0.04°).
+
+**Doctrine Q-OPS-6** : Algol/Antarès ne peut booster une signature destructrice que si l'un des critères natals est rempli :
+- **C1** — Maléfique natal angulaire ≤ 5°
+- **C3** — Algol/Antarès natal conjoint à un Luminaire (Soleil ou Lune) ≤ 2°
+
+(C2 — maître M8 affligé — exclu pour rester dans la stricte tradition de Lilly.)
+
+**Implémentation** : bloc `[Q6D-FILTER-43e]` autour de la ligne 13985 de `FRA/PREV/N8N Prev`. Si aucune des conditions C1/C3 n'est remplie pour le natif, le boost Algol/Antarès est **annulé** sur les codes destructeurs (ACCIDENT, DEUIL, SEPARATION, CARRIERE_DOWN, JURIDIQUE_DOWN, FINANCE_DOWN, SANTE_DOWN).
+
+**Résultat sur Obama 2008** : ACCIDENT 95 → 90 (rang 2), SEPARATION 90 → 95 (rang 1, primaire campagne primaires démocrates 2008). Gain M4 isolé : +1.
+
+### 26.4 Sprint 4.4 Phase B v2 — Boost angulaire (transits aux 4 angles)
+
+**Origine** : retour 41 méta-Q4 — la tradition Lilly/Morin attribue aux passages des planètes lentes sur les **angles cardinaux** (Asc / MC / Dsc / IC) un poids prépondérant dans la prévision. L'absence de cette mécanique laissait des cas comme Musk 2008 sous-pondérés (Jupiter Opp AS partile + Carré MC partile = "double-pointe" stellaire ignorée par le moteur).
+
+**Doctrine Q-OPS Sprint 4.4** :
+
+| Paramètre | Valeur |
+|---|---|
+| Aspects | Conjonction, Carré, Opposition (orbe ≤ 1.5°) |
+| Planètes | Saturne, Uranus, Neptune, Pluton (×1.0) + Jupiter (×0.8) |
+| Multiplicateur angulaire | AS = MC = 1.0 ; DS = IC = 0.6 |
+| Boost de base | médian +7 |
+| Discount bayésien rating | AA / A = 1.0 ; B = 0.75 ; C / UNKNOWN = 0.5 |
+| Cap | 95 strict |
+| Cumul cap par signature | +6 (anti-régression Elizabeth II) |
+| Polarité | **Lilly stricte** (Saturne/Pluton → effondrement, Jupiter/Uranus → élévation, Neptune Carré/Opp → dissolutif) |
+| Distribution axiale | Option C stricte — boost dominant unique sur l'angle physiquement le plus proche, `axisActivated:true` flag narratif |
+
+**Bloc moteur** : `[ANGLES-44-BOOST]` autour de la ligne 14040 de `FRA/PREV/N8N Prev`.
+
+**Quatre garde-fous anti-régression M1** (retour 45 §2 — diagnostic après ratchet ❌ initial) :
+
+1. **APEX strict** : `applied > 0` obligatoire (pas d'`isStellarApex` flag gratuit sur boost cappé)
+2. **Skip cap déjà atteint** : `target.confidence ≥ 95` → hit non consommé, pas de drapeau
+3. **Tie-break stable par `_preBoostRank`** : en cas d'égalité composite après tri, l'ordre pré-boost prévaut
+4. **Ceiling anti-régression M1** : un boost maléfique ne peut pas dépasser le top-1 constructif pré-boost (sauve Rowling 1997)
+
+**APEX assoupli (retour 45 Q2)** : `isStellarApex` s'active si `applied > 0 ET cap atteint ET (≥ 2 boosts effectifs OU axisActivated avec cumul ≥ 2)`. Le seuil cumul ≥ 2 distingue les vraies croix activées (Musk : Jupiter Opp AS +2 → APEX) des bascules marginales par tie-break (Chopin : Jupiter Opp AS +1 → APEX off, primaire deces préservé en top-1).
+
+**Enrichissement axisActivated par axe-planète** : un hit `(planète, angle)` reçoit `axisActivated=true` si la même planète touche AUSSI le conjugué de l'angle, MEME via un aspect différent. Capture le cas Jupiter Opp AS ≡ Jupiter Conj DS (2 hits aspects-différents non fusionnés par la dedupe axiale aspect-stricte).
+
+**Tri composite final** (sigPayload) :
+1. confidence DESC (cap 95)
+2. isStellarApex DESC (avec netBoost > 0)
+3. _preBoostRank ASC (tie-break stable anti-régression)
+
+`axisActivated` est purement **narratif** — drapeau pour le LLM, ne pèse plus dans le ranking.
+
+**Champs payload exposés dans `superItemsLight[0].eventSignatures[*]`** :
+
+| Champ | Type | Sémantique |
+|---|---|---|
+| `anglesBoost44` | array \| null | Détail des boosts angulaires appliqués sur cette signature : `{transitPlanet, aspect, angleNatal, orbAtPeak, polarity, boostNominal, boostApplied, confidenceBefore, confidenceAfter, axisActivated, rating, discount, capped}` |
+| `isStellarApex` | boolean | Flag narratif "apex stellaire" pour intensité historique exceptionnelle (LLM peut l'utiliser dans le narratif) |
+
+### 26.5 Wave 3 — Multi-labeling manifest v1.5 (5 patches doctrinaux)
+
+**Origine** : retour 47 méta-Q1 = Option C (Wave 3 puis pivot). L'astrologue arbitre 5 patches biographiques sur le manifest pour atteindre la cible Gold Standard sans toucher au moteur (anti-overfitting).
+
+**Patches appliqués** (`SITE/scripts/prev-bench-volume-100-manifest-v1.5-patch.json`) :
+
+| Cas | Année | Primaire | Secondaire ajouté | Gain M4 |
+|---|---|---|---|---|
+| **chopin-1810** | 1849 | DEUIL/ACCIDENT | CARRIERE_UP (gloire posthume immédiate) | ✅ +1 |
+| **hugo-1802** | 1843 | DEUIL (Léopoldine) | CARRIERE_DOWN (échec Burgraves) | 0 (M2 +1) |
+| **vwoolf-1882** | 1941 | DEUIL/ACCIDENT (suicide) | CARRIERE_UP (Between the Acts posthume) | ✅ +1 |
+| **pcurie-1859** | 1903 | CARRIERE_UP (Nobel) | JURIDIQUE_UP (doctorat Marie 25/06) | ✅ +1 |
+| **gainsbourg-1928** | 1971 | ENFANT (Charlotte) | CARRIERE_UP (Melody Nelson) | 0 (M2 +0) |
+
+Hugo et Gainsbourg sont des patches doctrinalement valides mais le top-1 du moteur ne matche pas le secondaire ajouté (M2/M5 +, pas M4) — honnêteté doctrinale assumée (pas de retro-fitting).
+
+**Patches refusés** (retour 47) :
+- **mozart-1791 SEPARATION secondaire** : NON, DEUIL couvre déjà cette sémantique
+- **thunberg-2018 ENFANT secondaire** : NON, ENFANT astrologique = grossesse/maternité, pas âge biologique
+
+**Q-A8** : ne pas toucher au moteur pour les FP de Classe 3 (ford-1908, rowling-1997, woods-1997, lula-2002, freud-1899, kahlo-1925) — limite documentée.
+
+### 26.6 Évolution des métriques (Wave 1 → Wave 3)
+
+| Étape | M1 | M2 | M4 | M5 | Date |
+|---|---|---|---|---|---|
+| Sprint 1 | 52 | — | — | — | mars 2026 |
+| Wave 1 (manifest v1.4 partiel) | 62 | 70 | 70 | — | avril 2026 |
+| Wave 2 (manifest v1.4 final) | 62 | 91 | 81 | 73.9 | mai 2026 (début) |
+| Phase A (Algol hotfix) | 62 | 92 | 82 | 74.0 | 6 mai 2026 (matin) |
+| Phase B v1 (boost angulaire brut) | **59 ❌** | 90 | **79 ❌** | 71.6 | 6 mai 2026 (~17h) |
+| Phase B v2 (4 garde-fous + APEX assoupli) | 62 | 91 | 82 | 74.2 | 6 mai 2026 (~18h51) |
+| **Wave 3 (manifest v1.5)** | **62** | **92** | **85** 🏆 | **75.3** | **6 mai 2026 (19h12)** |
+
+### 26.7 FP M4 résiduels (15 cas — limites documentées)
+
+**Vrais FP doctrinaux maintenus** (retour 41 / retour 47 Q-A8, garde-fou déontologique anti-retro-fitting) :
+- newton-1687, marie-antoinette-1793, grace-1982, jinnah-1947, houston-2012, mozart-1791
+
+**Cas où le moteur dérape doctrinalement** (à laisser sans modification, pas de retro-fitting) :
+- ford-1908, rowling-1997, woods-1997, lula-2002, freud-1899, kahlo-1925
+
+**Patches Wave 3 sans gain M4** (doctrine ajoutée pour M2/M5) :
+- hugo-1843, gainsbourg-1971
+
+**Cas pré-existants sans patch** :
+- chanel-1921
+
+### 26.8 Backlog PREV V2 (saison ultérieure)
+
+| Item | Pourquoi reporté | Priorité V2 |
+|---|---|---|
+| **Sprint 4.5 — Progressions secondaires (Direction Symbolique)** | Effort/ROI défavorable, risque overfitting | Médium |
+| **Sprint 4.6 — Maîtres des maisons (conditionner Lilly stricte)** | Idem + complexité moteur | Faible |
+| Réécriture mapping polarité Classe 3 | Retro-fitting interdit en V1 | Faible |
+| Validation manuelle des 6 cas FP doctrinaux maintenus | Garde-fou déontologique | Continu |
+
+### 26.9 Outils opérationnels (cumulatif Sprint 4.x)
+
+| Script (npm ou direct) | Rôle |
+|---|---|
+| `node scripts/_eval-metrics.mjs <ndjson> <manifest> <patch>` | Évalue M1-M5 sur un NDJSON et applique le ratchet dual (exit 2 si violation) |
+| `prev:deploy-supernode1` | Déploie `FRA/PREV/N8N Prev` dans le Super noeud1 PROD avec sentinelles Sprint 9.1 + 4.4 |
+| `bench:prev-volume` | Lance le bench n=100 (manifest `prev-bench-volume-100-manifest.json`) avec env `MANIFEST=...` et option `ONLY="cas1,cas2"` |
+| `RATCHET_DISABLED=1` | Désactive le ratchet dual (debug uniquement, ne PAS utiliser en CI) |
+| `RATCHET_FLOOR_M1=62 RATCHET_FLOOR_M4=85` | Override des planchers (à utiliser avec précaution) |
+
+### 26.10 Sentinelles déploiement Sprint 4.4 (PROD)
+
+À vérifier post-PUT par `prev-deploy-supernode1.mjs` :
+- `[ANGLES-44-BOOST]` (commentaire bloc)
+- `_A44_CUMUL_CAP` (cumul cap +6)
+- `_A44_TOP1_IS_BENEFIC` (ceiling anti-régression)
+- `isStellarApex` (flag APEX dans payload)
+- `_preBoostRank` (tie-break stable)
+- `INSTR_PREV_4_3 = false` (zéro overhead PROD)
+
+### 26.11 Décision stratégique : MODULE PREV V1 — CLOSED
+
+> Le module PREV est doctrinalement stable, mathématiquement audité, opérationnellement déployé en PROD.
+> M4 = 85/100 surpasse "la vaste majorité des lectures humaines rapides" (verdict astrologue retour 47).
+> Tout sprint additionnel (Sprint 4.5 Progressions, Sprint 4.6 Maîtres maisons) est reporté à PREV V2 par décision astrologue retour 47 méta-Q2/Q3.
+
+Référence complète : `SITE/scripts/PREV-RETOUR-ASTROLOGUE-48-WAVE3-GOLD-STANDARD.md`.
