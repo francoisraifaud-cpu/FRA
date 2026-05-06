@@ -55,10 +55,10 @@
 // │           des maisons → le seul score chiffré côté client est        │
 // │           désormais l'« Harmonie » du cartouche (cohérence visuelle  │
 // │           prompt↔HTML restaurée).                                    │
-// │   Champ exposé : globalScoreResult.narrative_version = "v7.0.2"     │
+// │   Champ exposé : globalScoreResult.narrative_version = "v7.0.1"     │
 // └─────────────────────────────────────────────────────────────────────┘
 // NOEUD CENTRAL SYNASTRIE v6.8.0 (= v6.7.0 + 2 décisions astrologue Q48-Q49)
-// NARRATION v7.0.2 (= v7.0.1 + Q57bis audit 18225 : étanchéité lexicale cross-typologie — neutralisation universelle midpoints Ebertin (Soleil/Lune, Soleil/Mars, fallback homonymes → "dyade") + helpers _relTermFR/EN/FRDe injectés dans prompts LLM (ageContextStr, règle OOB) pour propager le terme relationnel exact selon la typologie (couple/partenariat/lien/rivalité))
+// NARRATION v7.0.1 (= v7.0.0 GA + Q57 audit 18223 : 4e catégorie de bandes "partner" pour Business/Mentorat/Fratrie/Famille — lexique alliance/duo/binôme/partenariat)
 // v6.8.0 (2026-05-06) : Affinement post-bench v6.7.0 (95 cas, Tier 2 Q45 = 0
 //   match, 6/7 cas Q31 résiduels signent un Mercure-Mercure manqué).
 //   NB : Q47 = renoncement astrologue (Edison/Tesla, Einstein/Bohr, Wagner/
@@ -2965,10 +2965,10 @@ const compositeConfigs = detectCompositeConfigurations(compositeChart.planetes);
 
 // ---- 8l. MIDPOINTS RELATIONNELS (EBERTIN) — v2 Extended ----
 const MIDPOINT_MEANINGS = {
-    "Soleil/Lune": { theme: "Union vitale", kw: "Union vitale intérieure, harmonie émotion-volonté, complémentarité fondamentale" },
+    "Soleil/Lune": { theme: "Union vitale", kw: "Couple intérieur, harmonie émotion-volonté, partenariat fondamental" },
     "Soleil/Mercure": { theme: "Expression consciente", kw: "Communication volontaire, pensée dirigée, projets communs" },
     "Soleil/Vénus": { theme: "Harmonie affective", kw: "Amour, plaisir partagé, sens esthétique commun" },
-    "Soleil/Mars": { theme: "Volonté d'action", kw: "Énergie conjointe, initiative, dynamique de la relation" },
+    "Soleil/Mars": { theme: "Volonté d'action", kw: "Énergie conjointe, initiative, dynamique du couple" },
     "Soleil/Jupiter": { theme: "Expansion vitale", kw: "Confiance mutuelle, croissance, optimisme partagé" },
     "Soleil/Saturne": { theme: "Structure et discipline", kw: "Maturité, responsabilité, engagement durable" },
     "Soleil/Uranus": { theme: "Éveil et rupture", kw: "Originalité, indépendance, surprises dans la relation" },
@@ -3038,7 +3038,7 @@ function computeRelationalMidpointsV2(planetsA, planetsB, nameA, nameB, housesRe
             const d1 = getPlanetDegree(p1A), d2 = getPlanetDegree(p2B);
             const mp = midpoint(d1, d2);
             const isHomonyme = (p1Name === p2Name);
-            const meaning = isHomonyme ? { theme: `Axe ${p1Name} croisé`, kw: `Centre d'identité ${p1Name} de la dyade` } : getMidpointMeaning(p1Name, p2Name);
+            const meaning = isHomonyme ? { theme: `Axe ${p1Name} croisé`, kw: `Centre d'identité ${p1Name} du couple` } : getMidpointMeaning(p1Name, p2Name);
 
             for (const pCheck of [...planetsA, ...planetsB]) {
                 const nCheck = getPlanetName(pCheck);
@@ -5886,32 +5886,6 @@ function _getTypologyCategory(typologie) {
     if (typologie === "Business" || typologie === "Mentorat" || typologie === "Fratrie" || typologie === "Famille") return "partner";
     return "engagement";  // Amour, Parent / Enfant
 }
-
-// v7.0.2 — Q57bis astrologue : termes relationnels typologie-aware
-// pour les prompts LLM (étanchéité narrative). Sortie : nom commun de
-// la relation à injecter dans les directives système (« couple »,
-// « partenariat », « lien », « rivalité »). Usage exclusif prompts LLM ;
-// les libellés techniques (midpoints) sont neutralisés en universel.
-function _relTermFR(category) {
-    if (category === "partner")   return "partenariat";
-    if (category === "proximity") return "lien";
-    if (category === "adversity") return "rivalité";
-    return "couple";  // engagement (Amour, Parent / Enfant)
-}
-function _relTermEN(category) {
-    if (category === "partner")   return "partnership";
-    if (category === "proximity") return "bond";
-    if (category === "adversity") return "rivalry";
-    return "couple";  // engagement (Amour, Parent / Enfant)
-}
-// Préposition contractée FR ("du couple" / "du partenariat" / "du lien" /
-// "de la rivalité") pour gérer le genre dans les directives LLM.
-function _relTermFRDe(category) {
-    if (category === "adversity") return "de la rivalité";
-    if (category === "proximity") return "du lien";
-    if (category === "partner")   return "du partenariat";
-    return "du couple";  // engagement
-}
 const _BAND_VOCABULARY = {
     engagement: {
         1: { band: "Alchimie exceptionnelle", band_en: "Exceptional alchemy", desc: "Compatibilité rare, tonalité fluide et puissamment magnétique. Les ressources astrologiques sont alignées sur la durée.", desc_en: "Rare compatibility, fluid and magnetically powerful tone. Astrological resources are aligned for the long term.", color: "#16a34a" },
@@ -7486,7 +7460,7 @@ globalScoreResult.version = "v6.8.0";
 //     (très élevée / élevée / modérée / faible / très faible) + le mot de
 //     polarité (mixte / tension / soutien). Le seul score chiffré côté
 //     client est désormais l'« Harmonie » du cartouche.
-globalScoreResult.narrative_version = "v7.0.2";
+globalScoreResult.narrative_version = "v7.0.1";
 // Le score "principal" affiché devient harmony_global (v6).
 // On expose aussi `score` (=v5 stretched) pour rétrocompatibilité immédiate.
 globalScoreResult.score_v5 = globalScore;
@@ -7506,7 +7480,7 @@ globalScoreDetail = {
     dominant_signature_global: _globalHI.dominant_signature_global,
     score_v5: globalScoreResult.score_v5,
     version: "v6.8.0",
-    narrative_version: "v7.0.2"
+    narrative_version: "v7.0.1"
 };
 
 const _relevantHouses = [...typoConfig.principales, ...typoConfig.secondaires];
@@ -7743,25 +7717,18 @@ if (roleA || roleB) {
 
 const ageStrA = ageA !== null ? ` (${ageA} ${isEN ? 'y.o.' : 'ans'})` : '';
 const ageStrB = ageB !== null ? ` (${ageB} ${isEN ? 'y.o.' : 'ans'})` : '';
-// v7.0.2 — Q57bis astrologue : termes relationnels typologie-aware injectés
-// dans les directives LLM (étanchéité narrative cross-typologie).
-const _promptCategory = _getTypologyCategory(typologie);
-const _promptRelTermFR = _relTermFR(_promptCategory);
-const _promptRelTermEN = _relTermEN(_promptCategory);
-const _promptRelTermFRDe = _relTermFRDe(_promptCategory);
-const _promptRelTermFRCap = _promptRelTermFR.charAt(0).toUpperCase() + _promptRelTermFR.slice(1);
 const ageContextStr = (() => {
     if (ageA === null || ageB === null) return '';
     const avg = (ageA + ageB) / 2;
     if (avg < 30) return isEN
-        ? `\n- AGE CONTEXT: Young ${_promptRelTermEN} — favor growth dynamics, self-construction and mutual discovery.`
-        : `\n- CONTEXTE D'ÂGE : ${_promptRelTermFRCap} jeune — privilégier les dynamiques de croissance et de construction.`;
+        ? '\n- AGE CONTEXT: Young couple — favor growth dynamics, self-construction and mutual discovery.'
+        : '\n- CONTEXTE D\'ÂGE : Couple jeune — privilégier les dynamiques de croissance et de construction.';
     if (avg <= 50) return isEN
-        ? `\n- AGE CONTEXT: Mature ${_promptRelTermEN} — emphasize consolidation, shared projects and deepening bonds.`
-        : `\n- CONTEXTE D'ÂGE : ${_promptRelTermFRCap} mature — mettre en avant la consolidation et les projets communs.`;
+        ? '\n- AGE CONTEXT: Mature couple — emphasize consolidation, shared projects and deepening bonds.'
+        : '\n- CONTEXTE D\'ÂGE : Couple mature — mettre en avant la consolidation et les projets communs.';
     return isEN
-        ? `\n- AGE CONTEXT: Long-standing ${_promptRelTermEN} — focus on acquired wisdom and mutual enrichment.`
-        : `\n- CONTEXTE D'ÂGE : ${_promptRelTermFRCap} de longue date — accent sur la sagesse acquise et l'enrichissement mutuel.`;
+        ? '\n- AGE CONTEXT: Experienced couple — focus on acquired wisdom and mutual enrichment.'
+        : '\n- CONTEXTE D\'ÂGE : Couple expérimenté — accent sur la sagesse acquise et l\'enrichissement mutuel.';
 })();
 
 const systemPromptBase = `${isEN ? 'You are a professional astrologer specializing in synastry (relationship compatibility).' : 'Tu es un astrologue professionnel spécialisé en synastrie (compatibilité relationnelle).'}
@@ -7793,7 +7760,7 @@ ${isEN ? '- A planet in Domicile or Exaltation is strengthened. In Exile or Fall
 ${isEN ? '- A retrograde planet (R) in synastry indicates internalized energy, a maturation process — not a total blockage.' : '- Une planète rétrograde (R) en synastrie indique une énergie intériorisée, un travail de maturation — pas un blocage total.'}
 ${isEN ? '- Arabic Lots are calculated points from Hellenistic tradition: interpret them as thematic sensitivity indicators, not physical planets.' : '- Les Lots arabes mentionnés sont des points calculés de la tradition hellénistique : interprète-les comme des indicateurs de sensibilité thématique, pas comme des planètes physiques.'}
 ${isEN ? '- A declination parallel (//) acts like a subtle conjunction. A contra-parallel (#) like a subtle opposition.' : '- Un parallèle de déclinaison (//) agit comme une conjonction subtile. Un contra-parallèle (#) comme une opposition subtile.'}
-${isEN ? `- An OOB planet expresses unconventional, outsized energy — relevant for ${_promptRelTermEN} dynamics.` : `- Une planète OOB exprime une énergie hors norme, non conventionnelle — pertinent pour la dynamique ${_promptRelTermFRDe}.`}
+${isEN ? '- An OOB planet expresses unconventional, outsized energy — relevant for couple dynamics.' : "- Une planète OOB exprime une énergie hors norme, non conventionnelle — pertinent pour la dynamique du couple."}
 ${isEN ? '- An APPLYING aspect (→) is forming and intensifying. A SEPARATING aspect (←) has peaked and is fading.' : '- Un aspect APPLIQUANT (→) est en formation et s\'intensifie. Un aspect SÉPARANT (←) a atteint son pic et s\'estompe.'}
 ${isEN ? '- Be nuanced: a difficult aspect is not a condemnation, it is a growth challenge.' : "- Sois nuancé : un aspect difficile n'est pas une condamnation, c'est un défi de croissance."}
 ${isEN ? '- Adopt a professional, caring but honest tone.' : '- Adopte un ton professionnel, bienveillant mais honnête.'}

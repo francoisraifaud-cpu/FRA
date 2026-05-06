@@ -55,10 +55,10 @@
 // │           des maisons → le seul score chiffré côté client est        │
 // │           désormais l'« Harmonie » du cartouche (cohérence visuelle  │
 // │           prompt↔HTML restaurée).                                    │
-// │   Champ exposé : globalScoreResult.narrative_version = "v7.0.2"     │
+// │   Champ exposé : globalScoreResult.narrative_version = "v7.0.0"     │
 // └─────────────────────────────────────────────────────────────────────┘
 // NOEUD CENTRAL SYNASTRIE v6.8.0 (= v6.7.0 + 2 décisions astrologue Q48-Q49)
-// NARRATION v7.0.2 (= v7.0.1 + Q57bis audit 18225 : étanchéité lexicale cross-typologie — neutralisation universelle midpoints Ebertin (Soleil/Lune, Soleil/Mars, fallback homonymes → "dyade") + helpers _relTermFR/EN/FRDe injectés dans prompts LLM (ageContextStr, règle OOB) pour propager le terme relationnel exact selon la typologie (couple/partenariat/lien/rivalité))
+// NARRATION v7.0.0 GA (= scoring figé v6.8.0 + narration enrichie Q54 + Q56-3 lexique contextuel + Q56-9 fix pertinence/harmonie)
 // v6.8.0 (2026-05-06) : Affinement post-bench v6.7.0 (95 cas, Tier 2 Q45 = 0
 //   match, 6/7 cas Q31 résiduels signent un Mercure-Mercure manqué).
 //   NB : Q47 = renoncement astrologue (Edison/Tesla, Einstein/Bohr, Wagner/
@@ -2965,10 +2965,10 @@ const compositeConfigs = detectCompositeConfigurations(compositeChart.planetes);
 
 // ---- 8l. MIDPOINTS RELATIONNELS (EBERTIN) — v2 Extended ----
 const MIDPOINT_MEANINGS = {
-    "Soleil/Lune": { theme: "Union vitale", kw: "Union vitale intérieure, harmonie émotion-volonté, complémentarité fondamentale" },
+    "Soleil/Lune": { theme: "Union vitale", kw: "Couple intérieur, harmonie émotion-volonté, partenariat fondamental" },
     "Soleil/Mercure": { theme: "Expression consciente", kw: "Communication volontaire, pensée dirigée, projets communs" },
     "Soleil/Vénus": { theme: "Harmonie affective", kw: "Amour, plaisir partagé, sens esthétique commun" },
-    "Soleil/Mars": { theme: "Volonté d'action", kw: "Énergie conjointe, initiative, dynamique de la relation" },
+    "Soleil/Mars": { theme: "Volonté d'action", kw: "Énergie conjointe, initiative, dynamique du couple" },
     "Soleil/Jupiter": { theme: "Expansion vitale", kw: "Confiance mutuelle, croissance, optimisme partagé" },
     "Soleil/Saturne": { theme: "Structure et discipline", kw: "Maturité, responsabilité, engagement durable" },
     "Soleil/Uranus": { theme: "Éveil et rupture", kw: "Originalité, indépendance, surprises dans la relation" },
@@ -3038,7 +3038,7 @@ function computeRelationalMidpointsV2(planetsA, planetsB, nameA, nameB, housesRe
             const d1 = getPlanetDegree(p1A), d2 = getPlanetDegree(p2B);
             const mp = midpoint(d1, d2);
             const isHomonyme = (p1Name === p2Name);
-            const meaning = isHomonyme ? { theme: `Axe ${p1Name} croisé`, kw: `Centre d'identité ${p1Name} de la dyade` } : getMidpointMeaning(p1Name, p2Name);
+            const meaning = isHomonyme ? { theme: `Axe ${p1Name} croisé`, kw: `Centre d'identité ${p1Name} du couple` } : getMidpointMeaning(p1Name, p2Name);
 
             for (const pCheck of [...planetsA, ...planetsB]) {
                 const nCheck = getPlanetName(pCheck);
@@ -5873,44 +5873,14 @@ function applyHouseCompensation(houseHI, typoLabel) {
 }
 
 // v6.3.0 — Q13 astrologue : 3 catégories de vocabulaire qualitatif.
-// v7.0.1 — Q57 astrologue (audit exec 18223) : 4e catégorie « partner »
-// pour les relations de construction commune sans implication romantique.
-// Engagement (Amour, Parent-Enfant) : registre intime / viscéral
-// Partner (Business, Mentorat, Fratrie, Famille) : registre constructif (alliance, duo, binôme, partenariat, synergie, mission commune)
-// Proximité (Ami, Colocataire) : registre social
+// Engagement (Amour/Business/Parent-Enfant/Mentorat) : registre intime
+// Proximité (Ami/Fratrie/Colocataire) : registre social
 // Adversité (Rivalité) : registre conflictuel inversé
 function _getTypologyCategory(typologie) {
     if (!typologie) return "engagement";
     if (typologie === "Rivalité") return "adversity";
-    if (typologie === "Ami" || typologie === "Colocataire") return "proximity";
-    if (typologie === "Business" || typologie === "Mentorat" || typologie === "Fratrie" || typologie === "Famille") return "partner";
-    return "engagement";  // Amour, Parent / Enfant
-}
-
-// v7.0.2 — Q57bis astrologue : termes relationnels typologie-aware
-// pour les prompts LLM (étanchéité narrative). Sortie : nom commun de
-// la relation à injecter dans les directives système (« couple »,
-// « partenariat », « lien », « rivalité »). Usage exclusif prompts LLM ;
-// les libellés techniques (midpoints) sont neutralisés en universel.
-function _relTermFR(category) {
-    if (category === "partner")   return "partenariat";
-    if (category === "proximity") return "lien";
-    if (category === "adversity") return "rivalité";
-    return "couple";  // engagement (Amour, Parent / Enfant)
-}
-function _relTermEN(category) {
-    if (category === "partner")   return "partnership";
-    if (category === "proximity") return "bond";
-    if (category === "adversity") return "rivalry";
-    return "couple";  // engagement (Amour, Parent / Enfant)
-}
-// Préposition contractée FR ("du couple" / "du partenariat" / "du lien" /
-// "de la rivalité") pour gérer le genre dans les directives LLM.
-function _relTermFRDe(category) {
-    if (category === "adversity") return "de la rivalité";
-    if (category === "proximity") return "du lien";
-    if (category === "partner")   return "du partenariat";
-    return "du couple";  // engagement
+    if (typologie === "Ami" || typologie === "Fratrie" || typologie === "Colocataire") return "proximity";
+    return "engagement";  // Amour, Business, Parent / Enfant, Mentorat
 }
 const _BAND_VOCABULARY = {
     engagement: {
@@ -5922,20 +5892,6 @@ const _BAND_VOCABULARY = {
         6: { band: "Tension forte, dynamique éprouvante", band_en: "Strong tension, demanding dynamic", desc: "Charge émotionnelle élevée mais frictions dominantes. Instabilité probable sans accompagnement.", desc_en: "High emotional charge but dominant frictions. Likely instability without support.", color: "#ef4444" },
         7: { band: "Compatibilité limitée", band_en: "Limited compatibility", desc: "Peu de ressources astrologiques pour soutenir la relation. Tonalité atone.", desc_en: "Few astrological resources to sustain the relationship. Lukewarm tone.", color: "#dc2626" },
         8: { band: "Compatibilité critique", band_en: "Critical compatibility", desc: "Les frictions structurelles dominent largement les soutiens. Relation à fortes contraintes.", desc_en: "Structural frictions largely dominate the supports. Heavily constrained relationship.", color: "#991b1b" }
-    },
-    // v7.0.1 — Q57 astrologue (audit 18223) : registre constructif pour
-    // Business / Mentorat / Fratrie / Famille. Lexique : alliance, duo,
-    // binôme, partenariat, collaboration, synergie, mission commune,
-    // lien de construction. Aucun mot d'intimité romantique (« couple »).
-    partner: {
-        1: { band: "Alliance exceptionnelle", band_en: "Exceptional alliance", desc: "Synergie rare et magnétique. Vision partagée, ressources complémentaires : les fondations astrologiques portent la mission commune sur la durée.", desc_en: "Rare and magnetic synergy. Shared vision, complementary resources : astrological foundations carry the joint mission over the long term.", color: "#16a34a" },
-        2: { band: "Entente fluide et constructive", band_en: "Fluid, constructive partnership", desc: "Collaboration douce et harmonieuse, mais énergétiquement modérée. Risque d'inertie ou d'essoufflement créatif avec le temps.", desc_en: "Smooth and harmonious collaboration, but energetically moderate. Risk of inertia or creative exhaustion over time.", color: "#22c55e" },
-        3: { band: "Partenariat solide", band_en: "Solid partnership", desc: "Bonne complémentarité d'ensemble, quelques zones de friction qui peuvent enrichir la mission commune.", desc_en: "Good overall complementarity, some friction zones that can enrich the joint mission.", color: "#65a30d" },
-        4: { band: "Synergie intense et transformative", band_en: "Intense and transformative synergy", desc: "Synergie magnétique mais exigeante. Les énergies fortes peuvent sublimer le projet ou l'éroder selon la maturité du partenariat.", desc_en: "Magnetic but demanding synergy. Strong energies can either sublimate the project or erode it depending on the partnership's maturity.", color: "#f59e0b" },
-        5: { band: "Alliance contrastée", band_en: "Contrasted alliance", desc: "Mélange de fluidité et de friction dans le binôme. Demande des efforts conscients pour stabiliser la dynamique de travail.", desc_en: "Mix of fluidity and friction in the duo. Requires conscious effort to stabilize the working dynamic.", color: "#eab308" },
-        6: { band: "Tension forte, alliance éprouvante", band_en: "Strong tension, demanding alliance", desc: "Énergie de construction élevée mais frictions dominantes. Instabilité du partenariat probable sans cadre clair.", desc_en: "High constructive energy but dominant frictions. Likely partnership instability without a clear framework.", color: "#ef4444" },
-        7: { band: "Partenariat limité", band_en: "Limited partnership", desc: "Peu de ressources astrologiques pour soutenir l'alliance. Lien de construction atone.", desc_en: "Few astrological resources to sustain the alliance. Lukewarm constructive bond.", color: "#dc2626" },
-        8: { band: "Partenariat critique", band_en: "Critical partnership", desc: "Les frictions structurelles dominent largement les ressources. Alliance à fortes contraintes, blocages probables.", desc_en: "Structural frictions largely dominate the resources. Heavily constrained alliance, likely deadlocks.", color: "#991b1b" }
     },
     proximity: {
         1: { band: "Synergie remarquable", band_en: "Remarkable synergy", desc: "Complicité fluide et stimulante. Le lien social est facile, vivant, durable.", desc_en: "Fluid and stimulating complicity. The social bond is easy, lively, durable.", color: "#16a34a" },
@@ -5975,15 +5931,14 @@ function computeQualitativeBandV6(H, I, signature, typoConf, extras = {}) {
     const typoLabel = (typoConf?.label_fr || "").toLowerCase();
     const isAmour = typoLabel.includes("amour");
     const isParent = typoLabel.includes("parent");
+    const isBiz = typoLabel.includes("biz") || typoLabel.includes("pro") || typoLabel.includes("travail");
     const category = _getTypologyCategory(typoConf?.label_fr_norm || (typoConf?.principales ? null : null) || "");
     // Note : on récupère la typologie via typoConf._typologie si présent, sinon
-    // on déduit du label_fr. v7.0.1 — Q57 : nouvelle catégorie "partner"
-    // (Business, Mentorat, Fratrie, Famille).
+    // on déduit du label_fr.
     let cat = "engagement";
     if (typoConf?._typologie) cat = _getTypologyCategory(typoConf._typologie);
     else if (typoLabel.includes("rivalité")) cat = "adversity";
-    else if (typoLabel.includes("biz") || typoLabel.includes("pro") || typoLabel.includes("travail") || typoLabel.includes("mentor") || typoLabel.includes("frater") || typoLabel.includes("famille")) cat = "partner";
-    else if (typoLabel.includes("amitié") || typoLabel.includes("ami") || typoLabel.includes("cohabit")) cat = "proximity";
+    else if (typoLabel.includes("amitié") || typoLabel.includes("frater") || typoLabel.includes("cohabit")) cat = "proximity";
 
     let level;
     // Bandes communes engagement / proximity (H haut = bon)
@@ -6021,12 +5976,13 @@ function computeQualitativeBandV6(H, I, signature, typoConf, extras = {}) {
     const v = _BAND_VOCABULARY[cat][level] || _BAND_VOCABULARY.engagement[level];
     let band = v.band, band_en = v.band_en, desc = v.desc, desc_en = v.desc_en, color = v.color;
 
-    // Adaptation par typologie (parent uniquement — la catégorie "partner"
-    // gère désormais nativement le lexique business/mentorat/fratrie/famille,
-    // donc plus besoin de bidouille post-rendu pour Business). v7.0.1 — Q57.
+    // Adaptation par typologie (parent / biz)
     if (isParent && (signature === "transformative" || signature === "tense")) {
         desc = desc.replace("relation", "lien parent-enfant");
         desc_en = desc_en.replace("relationship", "parent-child bond");
+    } else if (isBiz) {
+        desc = desc.replace("Compatibilité", "Compatibilité professionnelle");
+        desc_en = desc_en.replace("compatibility", "professional compatibility");
     }
 
     return { band, band_en, desc, desc_en, color, signature };
@@ -7486,7 +7442,7 @@ globalScoreResult.version = "v6.8.0";
 //     (très élevée / élevée / modérée / faible / très faible) + le mot de
 //     polarité (mixte / tension / soutien). Le seul score chiffré côté
 //     client est désormais l'« Harmonie » du cartouche.
-globalScoreResult.narrative_version = "v7.0.2";
+globalScoreResult.narrative_version = "v7.0.0";
 // Le score "principal" affiché devient harmony_global (v6).
 // On expose aussi `score` (=v5 stretched) pour rétrocompatibilité immédiate.
 globalScoreResult.score_v5 = globalScore;
@@ -7506,7 +7462,7 @@ globalScoreDetail = {
     dominant_signature_global: _globalHI.dominant_signature_global,
     score_v5: globalScoreResult.score_v5,
     version: "v6.8.0",
-    narrative_version: "v7.0.2"
+    narrative_version: "v7.0.0"
 };
 
 const _relevantHouses = [...typoConfig.principales, ...typoConfig.secondaires];
@@ -7743,25 +7699,18 @@ if (roleA || roleB) {
 
 const ageStrA = ageA !== null ? ` (${ageA} ${isEN ? 'y.o.' : 'ans'})` : '';
 const ageStrB = ageB !== null ? ` (${ageB} ${isEN ? 'y.o.' : 'ans'})` : '';
-// v7.0.2 — Q57bis astrologue : termes relationnels typologie-aware injectés
-// dans les directives LLM (étanchéité narrative cross-typologie).
-const _promptCategory = _getTypologyCategory(typologie);
-const _promptRelTermFR = _relTermFR(_promptCategory);
-const _promptRelTermEN = _relTermEN(_promptCategory);
-const _promptRelTermFRDe = _relTermFRDe(_promptCategory);
-const _promptRelTermFRCap = _promptRelTermFR.charAt(0).toUpperCase() + _promptRelTermFR.slice(1);
 const ageContextStr = (() => {
     if (ageA === null || ageB === null) return '';
     const avg = (ageA + ageB) / 2;
     if (avg < 30) return isEN
-        ? `\n- AGE CONTEXT: Young ${_promptRelTermEN} — favor growth dynamics, self-construction and mutual discovery.`
-        : `\n- CONTEXTE D'ÂGE : ${_promptRelTermFRCap} jeune — privilégier les dynamiques de croissance et de construction.`;
+        ? '\n- AGE CONTEXT: Young couple — favor growth dynamics, self-construction and mutual discovery.'
+        : '\n- CONTEXTE D\'ÂGE : Couple jeune — privilégier les dynamiques de croissance et de construction.';
     if (avg <= 50) return isEN
-        ? `\n- AGE CONTEXT: Mature ${_promptRelTermEN} — emphasize consolidation, shared projects and deepening bonds.`
-        : `\n- CONTEXTE D'ÂGE : ${_promptRelTermFRCap} mature — mettre en avant la consolidation et les projets communs.`;
+        ? '\n- AGE CONTEXT: Mature couple — emphasize consolidation, shared projects and deepening bonds.'
+        : '\n- CONTEXTE D\'ÂGE : Couple mature — mettre en avant la consolidation et les projets communs.';
     return isEN
-        ? `\n- AGE CONTEXT: Long-standing ${_promptRelTermEN} — focus on acquired wisdom and mutual enrichment.`
-        : `\n- CONTEXTE D'ÂGE : ${_promptRelTermFRCap} de longue date — accent sur la sagesse acquise et l'enrichissement mutuel.`;
+        ? '\n- AGE CONTEXT: Experienced couple — focus on acquired wisdom and mutual enrichment.'
+        : '\n- CONTEXTE D\'ÂGE : Couple expérimenté — accent sur la sagesse acquise et l\'enrichissement mutuel.';
 })();
 
 const systemPromptBase = `${isEN ? 'You are a professional astrologer specializing in synastry (relationship compatibility).' : 'Tu es un astrologue professionnel spécialisé en synastrie (compatibilité relationnelle).'}
@@ -7793,7 +7742,7 @@ ${isEN ? '- A planet in Domicile or Exaltation is strengthened. In Exile or Fall
 ${isEN ? '- A retrograde planet (R) in synastry indicates internalized energy, a maturation process — not a total blockage.' : '- Une planète rétrograde (R) en synastrie indique une énergie intériorisée, un travail de maturation — pas un blocage total.'}
 ${isEN ? '- Arabic Lots are calculated points from Hellenistic tradition: interpret them as thematic sensitivity indicators, not physical planets.' : '- Les Lots arabes mentionnés sont des points calculés de la tradition hellénistique : interprète-les comme des indicateurs de sensibilité thématique, pas comme des planètes physiques.'}
 ${isEN ? '- A declination parallel (//) acts like a subtle conjunction. A contra-parallel (#) like a subtle opposition.' : '- Un parallèle de déclinaison (//) agit comme une conjonction subtile. Un contra-parallèle (#) comme une opposition subtile.'}
-${isEN ? `- An OOB planet expresses unconventional, outsized energy — relevant for ${_promptRelTermEN} dynamics.` : `- Une planète OOB exprime une énergie hors norme, non conventionnelle — pertinent pour la dynamique ${_promptRelTermFRDe}.`}
+${isEN ? '- An OOB planet expresses unconventional, outsized energy — relevant for couple dynamics.' : "- Une planète OOB exprime une énergie hors norme, non conventionnelle — pertinent pour la dynamique du couple."}
 ${isEN ? '- An APPLYING aspect (→) is forming and intensifying. A SEPARATING aspect (←) has peaked and is fading.' : '- Un aspect APPLIQUANT (→) est en formation et s\'intensifie. Un aspect SÉPARANT (←) a atteint son pic et s\'estompe.'}
 ${isEN ? '- Be nuanced: a difficult aspect is not a condemnation, it is a growth challenge.' : "- Sois nuancé : un aspect difficile n'est pas une condamnation, c'est un défi de croissance."}
 ${isEN ? '- Adopt a professional, caring but honest tone.' : '- Adopte un ton professionnel, bienveillant mais honnête.'}
