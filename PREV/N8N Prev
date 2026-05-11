@@ -1555,6 +1555,73 @@ const _natalPromises = (() => {
       console.log("[WARN] _natalPromises Piste E SCANDALE:", _eScandalePromise.message);
     }
 
+    // ─── Piste F — HÉRITAGE par étoile bénéfique majeure en M8 (S6.21) ──────
+    // Doctrine retour 81 : « Une étoile bénéfique majeure (Spica, Régulus,
+    // Jupiter, Sirius, Mirach, Véga, Zubeneschamali) en Maison 8 natale doit
+    // être considérée comme une promesse natale HÉRITAGE valable. Elle satisfait
+    // la condition Q137-A par construction (pas un override Couche A) et
+    // bypasse le hard cap @ 60 sur HÉRITAGE. »
+    //
+    // Mécanisme :
+    //   • Jupiter natalement en M8 → promesse HÉRITAGE (planète bénéfique)
+    //   • Étoile bénéfique conjointe (orb ≤ 1.5° lum/angle / 1.0° autre) à une
+    //     planète natale en M8 → promesse HÉRITAGE
+    //   • Étoile bénéfique conjointe au régent natal de M8 → promesse HÉRITAGE
+    try {
+      const _NP_HERITAGE_STARS = new Set([
+        "Spica","Régulus","Sirius","Mirach","Véga","Zubeneschamali"
+      ]);
+      const _npHeritageHits = [];
+
+      // F1 — Jupiter natalement en M8 (planète bénéfique majeure)
+      const _jupiterHouse = natalDict["Jupiter"]?.house;
+      if (_jupiterHouse === 8) {
+        _npHeritageHits.push("F1_Jupiter_natal_M8");
+        _npAddPromise({
+          type: "STELLAR_HERITAGE_M8",
+          victim: "Patrimoine partagé",
+          afflictor: "Jupiter",
+          natalAspect: null,
+          natalOrb: null,
+          house: 8,
+          triggerTargets: ["Jupiter","Soleil","Vénus"],
+          signatureBoosts: ["HÉRITAGE"],
+          source: "Piste F (Jupiter natal en M8)",
+          bypassCap: true                                   // S6.21 : bypass Q137-A par construction
+        }, ["HÉRITAGE"]);
+      }
+
+      // F2 — Étoile bénéfique conjointe planète natale en M8
+      for (const em of (etoileMatchesNatal || [])) {
+        if (!em || !_NP_HERITAGE_STARS.has(em.etoile)) continue;
+        const planeteHouse = natalDict[em.planete]?.house;
+        if (planeteHouse !== 8) continue;
+        const orbMax = ["Soleil","Lune"].includes(em.planete) ? 1.5 : 1.0;
+        if (em.orb > orbMax) continue;
+        _npHeritageHits.push(`F2_${em.etoile}_${em.planete}_M8_orb${em.orb}`);
+        _npAddPromise({
+          type: "STELLAR_HERITAGE_M8",
+          victim: "Patrimoine partagé",
+          afflictor: em.etoile,
+          natalAspect: "Conjonction",
+          natalOrb: em.orb,
+          house: 8,
+          triggerTargets: [em.planete, "Jupiter", "Vénus"],
+          signatureBoosts: ["HÉRITAGE"],
+          source: `Piste F (${em.etoile} ☌ ${em.planete} en M8 orb ${em.orb}°)`,
+          bypassCap: true                                   // S6.21 : bypass Q137-A par construction
+        }, ["HÉRITAGE"]);
+      }
+
+      out.heritagePisteFDiag = {
+        active: _npHeritageHits.length > 0,
+        hits: _npHeritageHits,
+        bypassCap: _npHeritageHits.length > 0
+      };
+    } catch (_eHeritagePisteF) {
+      console.log("[WARN] _natalPromises Piste F HÉRITAGE:", _eHeritagePisteF.message);
+    }
+
   } catch(eNP) {
     console.log("[WARN] _natalPromises construction:", eNP.message);
   }
@@ -17280,6 +17347,16 @@ if (_mdseResults.length > 0 && finalOutput.length > 0) {
 
     // ═══════════════════════════════════════════════════════════════════════════
     // PNSS V5 ROYAL — Sprint 6.4 (retour astrologue 65 Q107-C2)
+    // ─── SUBSTITUÉ AU SPRINT 6.21 (retour 81 A4) ─────────────────────────────
+    // L'astrologue a tranché la question A4 (interaction PNSS-V5 ↔ Étoiles Fixes
+    // V2) en faveur d'une **substitution** : la Couche B Étoiles Fixes V2 prend
+    // la responsabilité du couronnement royal (boostsUp Régulus/Aldébaran/
+    // Sirius/Spica) avec une matrice plus riche (16 étoiles, gating maison,
+    // protectsDown réversible Loi 11). Le bloc PNSS-V5 ci-dessous reste exécuté
+    // pour traçabilité (diag _pnssV5RoyalDiag conservé), mais l'application
+    // effective du boost est neutralisée par le flag `_PNSS_V5_ROYAL_ACTIVE`.
+    // ─────────────────────────────────────────────────────────────────────────
+    // Doctrine historique conservée :
     // Signature primaire des 4 étoiles royales (Régulus, Aldébaran, Sirius, Spica)
     // Couronnement astral : si l'étoile royale est conjointe (≤0.5°) à un point
     // cardinal/luminaire natal (ASC, MC, Soleil, Lune), ET qu'un transit lourd
@@ -17288,6 +17365,7 @@ if (_mdseResults.length > 0 && finalOutput.length > 0) {
     //   • Régulus / Aldébaran / Sirius → CARRIERE_UP
     //   • Spica → FINANCE_UP (Vénus exaltée, fortune et beauté du destin)
     // ═══════════════════════════════════════════════════════════════════════════
+    const _PNSS_V5_ROYAL_ACTIVE = false;     // S6.21 A4 : substitution Couche B
     try {
       const _V5_ROYAL_TARGETS = {
         "Régulus":   "CARRIERE_UP",
@@ -17342,7 +17420,9 @@ if (_mdseResults.length > 0 && finalOutput.length > 0) {
         const before = target.confidence;
         const targetConf = Math.max(before, 80);
         const newConf = Math.min(85, targetConf);
-        if (newConf > before) {
+        // S6.21 A4 : application neutralisée (substitution Couche B FSV2).
+        // Le calcul reste exécuté pour traçabilité historique (_pnssV5RoyalDiag).
+        if (newConf > before && _PNSS_V5_ROYAL_ACTIVE) {
           target.confidence = newConf;
           target._pnssV5RoyalBoost = {
             star: royal.star,
@@ -17362,19 +17442,35 @@ if (_mdseResults.length > 0 && finalOutput.length > 0) {
             before,
             after: newConf
           });
+        } else if (newConf > before) {
+          // S6.21 : on enregistre le boost qui *aurait été appliqué* en V5,
+          // pour comparaison rétrospective Couche B vs PNSS-V5 (audit migration).
+          _v5Boosts.push({
+            code: royal.code,
+            star: royal.star,
+            natalPoint: royal.natalPoint,
+            transitor: bestTransitor,
+            minOrb: bestWave.minOrb,
+            before,
+            after: newConf,
+            _suppressedByS621: true
+          });
         }
       }
 
-      if (_v5Boosts.length > 0) {
+      if (_v5Boosts.length > 0 && _PNSS_V5_ROYAL_ACTIVE) {
         // Re-tri post-boost
         sigPayload.sort((a, b) => (b.confidence || 0) - (a.confidence || 0));
         console.log(`[PNSS-V5 Royal Q107-C2] ${_v5Boosts.length} sigs couronnées : ${_v5Boosts.map(b => `${b.code}@${b.before}→${b.after} (${b.star}/${b.natalPoint}/${b.transitor})`).join(" | ")}`);
+      } else if (_v5Boosts.length > 0) {
+        console.log(`[PNSS-V5 Royal Q107-C2 SUBSTITUÉ S6.21] ${_v5Boosts.length} couronnements détectés mais SUPPRIMÉS (substitution Couche B FSV2). Audit : ${_v5Boosts.map(b => `${b.code}@${b.before}→${b.after} (${b.star}/${b.natalPoint})`).join(" | ")}`);
       } else if (_v5RoyalNatal.length > 0) {
         console.log(`[PNSS-V5 Royal Q107-C2] ${_v5RoyalNatal.length} conjonctions royales natales détectées mais aucun transit lourd actif (${_v5RoyalNatal.map(r => r.star+"/"+r.natalPoint).join(" | ")})`);
       }
 
       finalOutput[0].json._pnssV5RoyalDiag = {
-        version: "S6.4-Q107C2-royal",
+        version: "S6.4-Q107C2-royal-SUBSTITUTED-S6.21-A4",
+        active: _PNSS_V5_ROYAL_ACTIVE,
         targets: _V5_ROYAL_TARGETS,
         natalRoyalCount: _v5RoyalNatal.length,
         natalRoyalDetails: _v5RoyalNatal,
@@ -18195,6 +18291,483 @@ if (_mdseResults.length > 0 && finalOutput.length > 0) {
     }
     // ═══════════════════════════════════════════════════════════════════════════
 
+    // ═══════════════════════════════════════════════════════════════════════════
+    // SPRINT 6.21 — ÉTOILES FIXES V2 (Couches B + C + Clause Némésis)
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Cadrage : SITE/scripts/PREV-CADRAGE-RD-ETOILES-FIXES-V2-S621.md (figé)
+    // Doctrine astrologue retours 81 + 81-suite + 81-bis (B1-B6 + R29).
+    //
+    // Architecture 4 couches :
+    //   • Couche A — Hard caps natals (HÉRITAGE@60, MARIAGE@60, SCANDALE prive@50…)
+    //                Math-souveraine, INVIOLABLE — non touchée ici.
+    //   • Couche B — Activations étoiles fixes (boostsUp/boostsDown) déclenchées
+    //                par transit lourd Jupiter/Saturne/Uranus/Neptune/Pluton sur
+    //                porteur natal (orb ≤ 1°). Math-souveraine, contrainte par A.
+    //   • Couche C — protectsDown : plancher minConf+5 (sig restant lisible Top-5,
+    //                réversible par LLM Loi 11 si profil_type=public).
+    //   • Clause Némésis — Pluton/Saturne aspect dur orb ≤ 1° au porteur Royal :
+    //                CARRIERE_UP/FINANCE_UP cap @ 60, SCANDALE/CARRIERE_DOWN/
+    //                ACCIDENT cap @ 80 forcé (boostsDown nemesis). NON réversible
+    //                par LLM (Loi 11-bis : sanction karmique math-souveraine).
+    //
+    // Activation : conjonction stricte étoile ↔ porteur natal.
+    //   • Tier 1 (Régulus, Aldébaran, Antarès, Fomalhaut, Spica) : orb ≤ 1.5°
+    //     sur Soleil/Lune/ASC/MC, ≤ 1.0° sur autres planètes.
+    //   • Tier 2 (autres) : orb ≤ 1.0°.
+    //   • Lentes (Uranus/Neptune/Pluton) : pas porteuses sauf si conjointes angle.
+    //   • A6 conditionnel : Algol/Alcyone forcent boostsDown UNIQUEMENT sur
+    //     Soleil/Lune/Ascendant. Sur autres planètes, gating maison strict.
+    // ═══════════════════════════════════════════════════════════════════════════
+    try {
+      const _FSV2_VERSION = "S6.21-FIXEDSTARV2-rc1";
+
+      // === Constantes doctrinales (figées par le cadrage S6.21) ===
+      const _FSV2_TIER1_LUM_ANGLE_ORB = 1.5;   // orb max Tier 1 sur Sol/Lun/ASC/MC
+      const _FSV2_TIER2_LUM_ANGLE_ORB = 1.0;   // orb max Tier 2 sur Sol/Lun/ASC/MC
+      const _FSV2_DEFAULT_PLANET_ORB = 1.0;    // orb max sur planètes hors lum/angle
+      const _FSV2_TRANSIT_TRIGGER_ORB = 1.0;   // orb max transit lourd déclencheur
+      const _FSV2_NEMESIS_ORB = 1.0;           // orb max clause Némésis
+      const _FSV2_BOOST_DEFAULT = 12;
+      const _FSV2_BOOST_ROYAL = 15;
+      const _FSV2_BOOST_CAP_UP = 80;           // cap des boostsUp
+      const _FSV2_BOOST_CAP_DOWN = 80;         // cap des boostsDown classiques
+      const _FSV2_NEMESIS_CAP_UP = 60;         // cap UP forcé sur royal sous Némésis
+      const _FSV2_NEMESIS_CAP_DOWN = 80;       // cap DOWN forcé sous Némésis (B2)
+      const _FSV2_NEMESIS_FLOOR_DOWN = 70;     // plancher boost DOWN sous Némésis
+      const _FSV2_PROTECT_FLOOR_OFFSET = 5;    // protectsDown plancher = minConf+5
+      const _FSV2_MIN_CONFIDENCE = 30;         // minConf bench (cap dur S6.x)
+
+      const _FSV2_LUM_SET = new Set(["Soleil", "Lune"]);
+      const _FSV2_HEAVY_SET = new Set(["Jupiter", "Saturne", "Uranus", "Neptune", "Pluton"]);
+      const _FSV2_NEMESIS_SET = new Set(["Saturne", "Pluton"]);
+      const _FSV2_HARD_ASPECTS = ["Conjonction", "Carré", "Opposition"];
+      const _FSV2_ALL_ASPECTS = ["Conjonction", "Carré", "Opposition", "Trigone", "Sextile"];
+      const _FSV2_SLOW_PLANETS_SET = new Set(["Uranus", "Neptune", "Pluton"]);
+
+      // Alias label étoile-cusp ↔ natalDict (aspectsSuiviLent utilise les noms longs)
+      const _fsv2AngleToNatalLabel = (angleCode) => {
+        if (angleCode === "ASC") return "Ascendant";
+        if (angleCode === "MC")  return "Milieu du Ciel";
+        if (angleCode === "DSC") return "Descendant";
+        if (angleCode === "IC")  return "Fond du Ciel";
+        return angleCode;
+      };
+      const _fsv2HouseFromAngle = (angleCode) => {
+        if (angleCode === "ASC") return 1;
+        if (angleCode === "MC")  return 10;
+        if (angleCode === "DSC") return 7;
+        if (angleCode === "IC")  return 4;
+        return null;
+      };
+
+      // === MATRICE FIXED_STAR_SIG_V2 (16 étoiles, mapping figé retour 81-suite B1) ===
+      const _FIXED_STAR_SIG_V2 = {
+        // ─── Tier 1 — 4 Royales + Spica ───────────────────────────────────────
+        "Régulus": {
+          tier: 1, royal: true, nature: "jupiter-mars",
+          targets: ["Soleil","Lune","Mars","Jupiter","Mercure"],
+          targetAngles: ["ASC","MC"],
+          targetHouses: [1,10],
+          boostsUp: ["CARRIERE_UP","FINANCE_UP"],
+          boostsDown: [],
+          protectsDown: ["CARRIERE_DOWN"]
+        },
+        "Aldébaran": {
+          tier: 1, royal: true, nature: "mars",
+          targets: ["Soleil","Mars","Jupiter","Mercure","Saturne"],
+          targetAngles: ["ASC","MC"],
+          targetHouses: [1,10],
+          boostsUp: ["CARRIERE_UP","JURIDIQUE_UP"],
+          boostsDown: [],
+          protectsDown: ["SCANDALE"]
+        },
+        "Antarès": {
+          tier: 1, royal: true, nature: "mars-jupiter",
+          targets: ["Soleil","Lune","Mars","Vénus","Jupiter"],
+          targetAngles: ["ASC","MC"],
+          targetHouses: [8,10,12],
+          boostsUp: ["CARRIERE_UP","FINANCE_UP"],
+          boostsDown: [],
+          nemesisBoostsDown: ["ACCIDENT","CARRIERE_DOWN","SCANDALE"],
+          protectsDown: []
+        },
+        "Fomalhaut": {
+          tier: 1, royal: true, nature: "venus-mercure",
+          targets: ["Vénus","Mercure","Jupiter","Lune"],
+          targetAngles: ["ASC","MC"],
+          targetHouses: [5,9],
+          boostsUp: ["SPIRITUEL","CARRIERE_UP"],
+          boostsDown: [],
+          protectsDown: ["JURIDIQUE_DOWN"]
+        },
+        "Spica": {
+          tier: 1, royal: false, nature: "venus-mars-bénéfique-majeure",
+          targets: ["Vénus","Jupiter","Soleil","Lune","Mars"],
+          targetAngles: ["ASC","MC","DSC"],
+          targetHouses: [2,7,8,10],
+          boostsUp: ["MARIAGE","FINANCE_UP","HÉRITAGE"],
+          boostsDown: [],
+          protectsDown: ["SCANDALE","ACCIDENT"]
+        },
+        // ─── Tier 2 — 11 étoiles ──────────────────────────────────────────────
+        "Sirius": {
+          tier: 2, royal: false, nature: "jupiter-mars",
+          targets: ["Soleil","Jupiter","Mars","Saturne"],
+          targetAngles: ["ASC","MC"],
+          targetHouses: [9,10],
+          boostsUp: ["CARRIERE_UP","FINANCE_UP"],
+          boostsDown: [],
+          protectsDown: ["CARRIERE_DOWN"]
+        },
+        "Algol": {
+          tier: 2, royal: false, nature: "saturne-jupiter-malefique-pure",
+          targets: ["Soleil","Lune","Vénus","Mars"],
+          targetAngles: ["ASC","MC","IC"],
+          targetHouses: [8,12],
+          forcingTargets: ["Soleil","Lune","Ascendant","Milieu du Ciel"], // A6 conditionnel
+          boostsUp: [],
+          boostsDown: ["SCANDALE","DEUIL","SANTE_DOWN","ACCIDENT"],
+          protectsDown: []
+        },
+        "Alcyone": {
+          tier: 2, royal: false, nature: "lune-mars-malefique",
+          targets: ["Lune","Vénus","Mars","Saturne"],
+          targetAngles: ["ASC","IC"],
+          targetHouses: [6,8,12],
+          forcingTargets: ["Soleil","Lune","Ascendant"],                 // A6 conditionnel
+          boostsUp: [],
+          boostsDown: ["DEUIL","SANTE_DOWN","SEPARATION"],
+          protectsDown: []
+        },
+        "Vindemiatrix": {
+          tier: 2, royal: false, nature: "saturne-mercure",
+          targets: ["Vénus","Mercure","Saturne","Lune"],
+          targetAngles: ["DSC"],
+          targetHouses: [7],
+          boostsUp: [],
+          boostsDown: ["SEPARATION","JURIDIQUE_DOWN"],
+          protectsDown: ["MARIAGE"]                                       // inhibe MARIAGE
+        },
+        "Arcturus": {
+          tier: 2, royal: false, nature: "mars-jupiter-bénéfique",
+          targets: ["Mars","Jupiter","Soleil","Mercure"],
+          targetAngles: ["ASC","MC"],
+          targetHouses: [2,10],
+          boostsUp: ["CARRIERE_UP","FINANCE_UP"],
+          boostsDown: [],
+          protectsDown: ["FINANCE_DOWN"]
+        },
+        "Mirach": {
+          tier: 2, royal: false, nature: "venus-bénéfique",
+          targets: ["Vénus","Lune","Jupiter"],
+          targetAngles: ["DSC"],
+          targetHouses: [5,7,8],                                          // M8 = Piste F
+          boostsUp: ["MARIAGE","ENFANT","HÉRITAGE"],
+          boostsDown: [],
+          protectsDown: ["SEPARATION"]                                    // amortisseur
+        },
+        "Capella": {
+          tier: 2, royal: false, nature: "mercure-mars",
+          targets: ["Mercure","Mars","Soleil","Saturne"],
+          targetAngles: ["MC"],
+          targetHouses: [3,9,10],
+          boostsUp: ["CARRIERE_UP","JURIDIQUE_UP","VOYAGE"],
+          boostsDown: [],
+          protectsDown: []
+        },
+        "Zubeneschamali": {
+          tier: 2, royal: false, nature: "jupiter-mercure-bénéfique",
+          targets: ["Soleil","Jupiter","Mercure"],
+          targetAngles: ["ASC","MC"],
+          targetHouses: [2,9,11],                                         // M8 ajouté via Piste F
+          boostsUp: ["JURIDIQUE_UP","FINANCE_UP","CARRIERE_UP","HÉRITAGE"],
+          boostsDown: [],
+          protectsDown: ["JURIDIQUE_DOWN","FINANCE_DOWN"]
+        },
+        "Zubenelgenubi": {
+          tier: 2, royal: false, nature: "saturne-mars-malefique-karmique",
+          targets: ["Lune","Mars","Saturne"],
+          targetAngles: ["ASC","DSC"],
+          targetHouses: [2,7,8],                                          // B4 : gating strict, pas de forcing
+          boostsUp: [],
+          boostsDown: ["FINANCE_DOWN","JURIDIQUE_DOWN","SEPARATION"],
+          protectsDown: []
+        },
+        "Véga": {
+          tier: 2, royal: false, nature: "venus-mercure-bénéfique",
+          targets: ["Vénus","Mercure","Jupiter"],
+          targetAngles: ["ASC","MC"],
+          targetHouses: [5,8,10],                                         // M8 = Piste F
+          boostsUp: ["CARRIERE_UP","FINANCE_UP","MARIAGE","HÉRITAGE"],
+          boostsDown: [],
+          protectsDown: ["SCANDALE","SEPARATION"]
+        },
+        "Bellatrix": {
+          tier: 2, royal: false, nature: "mars-mercure-ambivalente",
+          targets: ["Soleil","Mars","Mercure","Saturne"],
+          targetAngles: ["ASC","MC"],
+          targetHouses: [6,10],
+          boostsUp: ["CARRIERE_UP","JURIDIQUE_UP"],
+          boostsDown: ["ACCIDENT"],                                       // B3 : coexistence libre
+          protectsDown: []
+        }
+      };
+
+      // === 1) Collecte des porteurs natals légitimes ===
+      const _fsv2NatalCarriers = []; // {star, def, natalLabel, natalKind, orb, maison, isLuminaire, isAngle}
+
+      // 1.a Planètes natales conjointes
+      for (const em of (etoileMatchesNatal || [])) {
+        if (!em || !em.etoile) continue;
+        const def = _FIXED_STAR_SIG_V2[em.etoile];
+        if (!def) continue;
+        const planeteName = em.planete;
+        if (!def.targets.includes(planeteName)) continue;
+        // Lentes : exclusion sauf si l'étoile est aussi conjointe à un angle (traité 1.b)
+        if (_FSV2_SLOW_PLANETS_SET.has(planeteName)) continue;
+
+        const isLumOrAngle = _FSV2_LUM_SET.has(planeteName);
+        const orbMax = isLumOrAngle
+          ? (def.tier === 1 ? _FSV2_TIER1_LUM_ANGLE_ORB : _FSV2_TIER2_LUM_ANGLE_ORB)
+          : _FSV2_DEFAULT_PLANET_ORB;
+        if (em.orb > orbMax) continue;
+
+        _fsv2NatalCarriers.push({
+          star: em.etoile, def,
+          natalLabel: planeteName,
+          natalKind: "planet",
+          orb: em.orb,
+          maison: em.maison || null,
+          isLuminaire: _FSV2_LUM_SET.has(planeteName),
+          isAngle: false
+        });
+      }
+
+      // 1.b Angles natals conjoints
+      for (const ec of (etoileCuspMatchesNatal || [])) {
+        if (!ec || !ec.etoile) continue;
+        const def = _FIXED_STAR_SIG_V2[ec.etoile];
+        if (!def) continue;
+        const angleCode = ec.angle;
+        if (!def.targetAngles || !def.targetAngles.includes(angleCode)) continue;
+        const orbMax = def.tier === 1 ? _FSV2_TIER1_LUM_ANGLE_ORB : _FSV2_TIER2_LUM_ANGLE_ORB;
+        if (ec.orb > orbMax) continue;
+        _fsv2NatalCarriers.push({
+          star: ec.etoile, def,
+          natalLabel: _fsv2AngleToNatalLabel(angleCode),
+          natalKind: "angle",
+          orb: ec.orb,
+          maison: _fsv2HouseFromAngle(angleCode),
+          isLuminaire: false,
+          isAngle: true
+        });
+      }
+
+      // === 2) Activation par transit déclencheur lourd + Clause Némésis ===
+      const _fsv2Activations = [];
+
+      for (const carrier of _fsv2NatalCarriers) {
+        const def = carrier.def;
+        const natalLabel = carrier.natalLabel;
+
+        // 2.a Meilleur transit lourd sur le porteur (orb ≤ 1°, tous aspects)
+        let bestTransit = null;
+        for (const transitor of _FSV2_HEAVY_SET) {
+          for (const aspName of _FSV2_ALL_ASPECTS) {
+            const key = `slow_${transitor}|||${aspName}|||${natalLabel}`;
+            const a = aspectsSuiviLent[key];
+            if (!a?.waves?.length) continue;
+            for (const w of a.waves) {
+              const orb = parseFloat(w.minOrb);
+              if (!Number.isFinite(orb) || orb > _FSV2_TRANSIT_TRIGGER_ORB) continue;
+              if (!bestTransit || orb < bestTransit.orb) {
+                bestTransit = { transitor, aspName, orb, peakDate: w.peakDate || w.start };
+              }
+            }
+          }
+        }
+        const triggerActive = bestTransit !== null;
+
+        // 2.b Clause Némésis (royal + Pluton/Saturne dur orb ≤ 1°)
+        let nemesis = null;
+        if (def.royal) {
+          for (const transitor of _FSV2_NEMESIS_SET) {
+            for (const aspName of _FSV2_HARD_ASPECTS) {
+              const key = `slow_${transitor}|||${aspName}|||${natalLabel}`;
+              const a = aspectsSuiviLent[key];
+              if (!a?.waves?.length) continue;
+              for (const w of a.waves) {
+                const orb = parseFloat(w.minOrb);
+                if (!Number.isFinite(orb) || orb > _FSV2_NEMESIS_ORB) continue;
+                if (!nemesis || orb < nemesis.orb) {
+                  nemesis = { transitor, aspName, orb, peakDate: w.peakDate || w.start };
+                }
+              }
+            }
+          }
+        }
+
+        // 2.c Application Némésis (souveraine, Loi 11-bis : non réversible LLM)
+        if (nemesis) {
+          // Cap UP des boostsUp (chute des rois : CARRIERE_UP/FINANCE_UP @ 60)
+          for (const upCode of (def.boostsUp || [])) {
+            const target = sigPayload.find(s => s.code === upCode);
+            if (!target) continue;
+            const before = target.confidence;
+            if (before > _FSV2_NEMESIS_CAP_UP) {
+              target.confidence = _FSV2_NEMESIS_CAP_UP;
+              target._fsv2NemesisCap = {
+                star: carrier.star, natalLabel, before, after: _FSV2_NEMESIS_CAP_UP,
+                transitor: nemesis.transitor, aspName: nemesis.aspName, orb: nemesis.orb,
+                reversibleByVip: false
+              };
+              _fsv2Activations.push({
+                star: carrier.star, mode: "nemesisCapUp", code: upCode,
+                before, after: _FSV2_NEMESIS_CAP_UP,
+                transitor: nemesis.transitor, aspName: nemesis.aspName, orb: nemesis.orb
+              });
+            }
+          }
+          // Forçage DOWN (cap @ 80, plancher 70)
+          const nemDownCodes = (def.nemesisBoostsDown && def.nemesisBoostsDown.length)
+            ? def.nemesisBoostsDown
+            : ["SCANDALE","CARRIERE_DOWN","ACCIDENT"];
+          for (const downCode of nemDownCodes) {
+            const target = sigPayload.find(s => s.code === downCode);
+            if (!target) continue;
+            const before = target.confidence;
+            const after = Math.min(_FSV2_NEMESIS_CAP_DOWN,
+                                   Math.max(before + _FSV2_BOOST_ROYAL, _FSV2_NEMESIS_FLOOR_DOWN));
+            if (after > before) {
+              target.confidence = after;
+              target._fsv2NemesisBoost = {
+                star: carrier.star, natalLabel, before, after,
+                transitor: nemesis.transitor, aspName: nemesis.aspName, orb: nemesis.orb,
+                reversibleByVip: false                                        // Loi 11-bis
+              };
+              _fsv2Activations.push({
+                star: carrier.star, mode: "nemesisDown", code: downCode,
+                before, after,
+                transitor: nemesis.transitor, aspName: nemesis.aspName, orb: nemesis.orb
+              });
+            }
+          }
+          continue; // étoile déjà traitée par Némésis
+        }
+
+        // 2.d Application classique boostsUp / boostsDown (transit déclencheur lourd)
+        if (triggerActive) {
+          // Gating maison : si targetHouses non vide, le porteur doit y résider
+          const houseGatePass = !def.targetHouses || !def.targetHouses.length
+            || (carrier.maison != null && def.targetHouses.includes(Number(carrier.maison)));
+
+          // boostsUp
+          if (houseGatePass) {
+            const boostStep = def.royal ? _FSV2_BOOST_ROYAL : _FSV2_BOOST_DEFAULT;
+            for (const upCode of (def.boostsUp || [])) {
+              const target = sigPayload.find(s => s.code === upCode);
+              if (!target) continue;
+              const before = target.confidence;
+              const after = Math.min(_FSV2_BOOST_CAP_UP, before + boostStep);
+              if (after > before) {
+                target.confidence = after;
+                target._fsv2BoostUp = {
+                  star: carrier.star, natalLabel, maison: carrier.maison,
+                  before, after,
+                  transitor: bestTransit.transitor, aspName: bestTransit.aspName, orb: bestTransit.orb
+                };
+                _fsv2Activations.push({
+                  star: carrier.star, mode: "boostUp", code: upCode,
+                  before, after,
+                  transitor: bestTransit.transitor, aspName: bestTransit.aspName, orb: bestTransit.orb
+                });
+              }
+            }
+          }
+
+          // boostsDown : A6 conditionnel pour Algol/Alcyone (forcingTargets)
+          for (const downCode of (def.boostsDown || [])) {
+            // A6 : Algol/Alcyone forcent uniquement sur Soleil/Lune/Ascendant
+            if (def.forcingTargets && def.forcingTargets.length) {
+              if (!def.forcingTargets.includes(carrier.natalLabel)) {
+                // Hors forcingTargets : appliquer gating maison strict (B4 doctrine)
+                if (!houseGatePass) continue;
+              }
+            } else {
+              // Pas de forcingTargets : gating maison strict
+              if (!houseGatePass) continue;
+            }
+            const target = sigPayload.find(s => s.code === downCode);
+            if (!target) continue;
+            const before = target.confidence;
+            const after = Math.min(_FSV2_BOOST_CAP_DOWN, before + _FSV2_BOOST_DEFAULT);
+            if (after > before) {
+              target.confidence = after;
+              target._fsv2BoostDown = {
+                star: carrier.star, natalLabel, maison: carrier.maison,
+                before, after,
+                transitor: bestTransit.transitor, aspName: bestTransit.aspName, orb: bestTransit.orb,
+                reversibleByVip: false                                        // Loi 11-bis
+              };
+              _fsv2Activations.push({
+                star: carrier.star, mode: "boostDown", code: downCode,
+                before, after,
+                transitor: bestTransit.transitor, aspName: bestTransit.aspName, orb: bestTransit.orb
+              });
+            }
+          }
+        }
+      }
+
+      // === 3) Couche C — protectsDown (plancher minConf+5, réversible Loi 11) ===
+      // protectsDown s'applique dès lors que l'étoile est natalement présente
+      // (protection structurelle, pas dépendante d'un trigger transit).
+      const _fsv2ProtectFloor = _FSV2_MIN_CONFIDENCE + _FSV2_PROTECT_FLOOR_OFFSET; // 35
+      for (const carrier of _fsv2NatalCarriers) {
+        if (!carrier.def.protectsDown || !carrier.def.protectsDown.length) continue;
+        for (const protCode of carrier.def.protectsDown) {
+          const target = sigPayload.find(s => s.code === protCode);
+          if (!target) continue;
+          if (target.confidence > _fsv2ProtectFloor) {
+            const before = target.confidence;
+            target.confidence = _fsv2ProtectFloor;
+            target._fsv2ProtectDown = {
+              star: carrier.star, natalLabel: carrier.natalLabel,
+              before, after: _fsv2ProtectFloor,
+              reversibleByVip: true                                            // Loi 11
+            };
+            _fsv2Activations.push({
+              star: carrier.star, mode: "protectDown", code: protCode,
+              before, after: _fsv2ProtectFloor, reversibleByVip: true
+            });
+          }
+        }
+      }
+
+      // === 4) Diagnostic complet ===
+      finalOutput[0].json._etoilesFixesV2Diag = {
+        version: _FSV2_VERSION,
+        natalCarriers: _fsv2NatalCarriers.map(c => ({
+          star: c.star, natalLabel: c.natalLabel, kind: c.natalKind,
+          orb: c.orb, maison: c.maison, tier: c.def.tier, royal: !!c.def.royal
+        })),
+        activations: _fsv2Activations,
+        nemesisCount: _fsv2Activations.filter(a => a.mode === "nemesisCapUp" || a.mode === "nemesisDown").length,
+        boostUpCount: _fsv2Activations.filter(a => a.mode === "boostUp").length,
+        boostDownCount: _fsv2Activations.filter(a => a.mode === "boostDown").length,
+        protectDownCount: _fsv2Activations.filter(a => a.mode === "protectDown").length
+      };
+
+      if (_fsv2Activations.length > 0) {
+        // Re-tri post-Couche B
+        sigPayload.sort((a, b) => (b.confidence || 0) - (a.confidence || 0));
+        console.log(`[S6.21 FSV2] ${_fsv2NatalCarriers.length} porteurs natals, ${_fsv2Activations.length} activations (nemesis=${finalOutput[0].json._etoilesFixesV2Diag.nemesisCount}, up=${finalOutput[0].json._etoilesFixesV2Diag.boostUpCount}, down=${finalOutput[0].json._etoilesFixesV2Diag.boostDownCount}, prot=${finalOutput[0].json._etoilesFixesV2Diag.protectDownCount})`);
+      }
+    } catch (eFsv2) {
+      console.log("[WARN] S6.21 Fixed Stars V2:", eFsv2.message, eFsv2.stack?.split("\n")[1]?.trim());
+    }
+    // ═══════════════════════════════════════════════════════════════════════════
+
     finalOutput[0].json.eventSignatures = sigPayload;
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -18417,6 +18990,67 @@ if (_mdseResults.length > 0 && finalOutput.length > 0) {
             `  Loi 10 applicable : si SCANDALE est en Top-1, adapte la primary_reason à la typologie ci-dessus sans nommer le sujet.\n`;
         }
       } catch(_eScandaleBlock) { console.log("[WARN] S6.20 _s60ScandaleBlock:", _eScandaleBlock.message); }
+
+      // ═══════════════════════════════════════════════════════════════════════
+      // SPRINT 6.21 — Bloc Étoiles Fixes V2 (notes au LLM Reranker / Synthèse)
+      // ═══════════════════════════════════════════════════════════════════════
+      // Décrit les activations Couche B + C du run pour que le LLM puisse :
+      //   - Consommer la guidance narrative étoile / nature / vecteur ;
+      //   - Appliquer la Loi 11 (réversibilité protectsDown si profil_type=public
+      //     et biographie atteste l'événement « protégé ») ;
+      //   - Respecter la Loi 11-bis (interdiction de renverser un boostsDown
+      //     décrété par clause Némésis ou maléfique sur luminaire).
+      // ═══════════════════════════════════════════════════════════════════════
+      let _s60FixedStarV2Block = "";
+      try {
+        const _fsv2Diag = finalOutput[0].json._etoilesFixesV2Diag || null;
+        if (_fsv2Diag && (_fsv2Diag.activations || []).length > 0) {
+          const acts = _fsv2Diag.activations || [];
+          const carriers = _fsv2Diag.natalCarriers || [];
+          const lines = [];
+          // Carriers natals (porteurs détectés)
+          if (carriers.length > 0) {
+            const carrierLines = carriers.slice(0, 6).map(c => {
+              const royalTag = c.royal ? " ★Royale" : "";
+              const tierTag = `T${c.tier}`;
+              const houseTag = c.maison ? ` M${c.maison}` : "";
+              return `    • ${c.star}${royalTag} (${tierTag}) ☌ ${c.natalLabel}${houseTag} orb ${c.orb}°`;
+            });
+            lines.push(`  Porteurs natals (${carriers.length}) :\n${carrierLines.join("\n")}`);
+          }
+          // Activations transit-déclenchées
+          const nemesisActs = acts.filter(a => a.mode === "nemesisCapUp" || a.mode === "nemesisDown");
+          const upActs = acts.filter(a => a.mode === "boostUp");
+          const downActs = acts.filter(a => a.mode === "boostDown");
+          const protActs = acts.filter(a => a.mode === "protectDown");
+
+          if (nemesisActs.length > 0) {
+            const nemLines = nemesisActs.slice(0, 4).map(a => {
+              const arrow = a.mode === "nemesisCapUp" ? `cap ${a.before}→${a.after} (chute royale)` : `boost ${a.before}→${a.after}`;
+              return `    🜏 ${a.code} ${arrow} — ${a.star} déclenchée par ${a.transitor} ${a.aspName} orb ${a.orb}°`;
+            });
+            lines.push(`  ⚠ Clause NÉMÉSIS active (${nemesisActs.length}) — sanction karmique math-souveraine, NON réversible (Loi 11-bis) :\n${nemLines.join("\n")}`);
+          }
+          if (upActs.length > 0) {
+            const upLines = upActs.slice(0, 4).map(a => `    ↑ ${a.code} ${a.before}→${a.after} — ${a.star} via ${a.transitor} ${a.aspName} orb ${a.orb}°`);
+            lines.push(`  Boost UP étoiles (${upActs.length}) :\n${upLines.join("\n")}`);
+          }
+          if (downActs.length > 0) {
+            const downLines = downActs.slice(0, 4).map(a => `    ↓ ${a.code} ${a.before}→${a.after} — ${a.star} via ${a.transitor} ${a.aspName} orb ${a.orb}° (Loi 11-bis : NON réversible)`);
+            lines.push(`  Boost DOWN étoiles (${downActs.length}) :\n${downLines.join("\n")}`);
+          }
+          if (protActs.length > 0) {
+            const protLines = protActs.slice(0, 4).map(a => `    ⛨ ${a.code} ${a.before}→${a.after} (plancher minConf+5) — protégée par ${a.star} (Loi 11 RÉVERSIBLE en profil_type=public si biographie atteste l'événement)`);
+            lines.push(`  Protection DOWN étoiles (${protActs.length}) — réversibles Loi 11 :\n${protLines.join("\n")}`);
+          }
+
+          if (lines.length > 0) {
+            _s60FixedStarV2Block =
+              `\n══ NOTES ÉTOILES FIXES V2 — Couche B (boost) + Couche C (protect) — S6.21 ══\n` +
+              lines.join("\n") + `\n`;
+          }
+        }
+      } catch(_eFsv2Block) { console.log("[WARN] S6.21 _s60FixedStarV2Block:", _eFsv2Block.message); }
 
       // Construire description doctrinale courte par sig (max 5 conditions strength≥0.7)
       function _s60SigDescr(sig, idx) {
@@ -18683,6 +19317,38 @@ if (_mdseResults.length > 0 && finalOutput.length > 0) {
         `      → En profil_type=public sans certitude biographique de scandale, tu\n` +
         `        respectes le cap : SCANDALE@50 reste un signal de fond, jamais Top-1.\n` +
         `      → En profil_type=prive, le cap est DÉFINITIF (Loi 10-bis prime).\n\n` +
+        `Loi 11 — Réversibilité des PROTECTIONS étoiles fixes V2 (S6.21 retour 81-suite) :\n` +
+        `  Les NOTES ÉTOILES FIXES V2 peuvent contenir des « Protection DOWN »\n` +
+        `  (icône ⛨) où une étoile bénéfique a abaissé un code "_DOWN" / "SCANDALE" /\n` +
+        `  "ACCIDENT" / "SEPARATION" / etc. à son plancher minConfidence+5 (≈ 35).\n` +
+        `  Doctrine astrologique : une étoile bénéfique structurelle (Spica,\n` +
+        `  Régulus, Mirach, Véga, Zubeneschamali, Sirius, Aldébaran, Fomalhaut,\n` +
+        `  Arcturus, Vindemiatrix-protégeant-MARIAGE-non-applicable-ici) protège\n` +
+        `  son porteur natal d'événements négatifs spécifiques.\n` +
+        `      → En profil_type=public, tu PEUX renverser cette protection (Loi 11)\n` +
+        `        SI ET SEULEMENT SI ta connaissance biographique CERTAINE atteste\n` +
+        `        que l'événement protégé a néanmoins eu lieu pour le sujet à\n` +
+        `        l'année visée (sujet identifiable, fait notoire, presse). Ta\n` +
+        `        primary_reason DOIT alors expliciter :\n` +
+        `          a) « Loi 11 — Protection [étoile] levée » ;\n` +
+        `          b) le fait biographique précis (ex: « décès en YYYY malgré ⛨\n` +
+        `             Spica protégeant ACCIDENT »).\n` +
+        `      → En profil_type=public sans certitude biographique de l'événement,\n` +
+        `        tu RESPECTES la protection : le code protégé reste en bas du Top-5.\n` +
+        `      → En profil_type=prive, la protection est DÉFINITIVE (sécurité produit).\n\n` +
+        `Loi 11-bis — IRRÉVERSIBILITÉ des sanctions karmiques étoiles fixes (B5) :\n` +
+        `  Les NOTES ÉTOILES FIXES V2 peuvent contenir une CLAUSE NÉMÉSIS (icône 🜏)\n` +
+        `  ou des Boost DOWN par maléfique sur luminaire (Algol/Alcyone/Antarès\n` +
+        `  Némésis sur Soleil/Lune/Asc/Vénus). Ces signatures sont des sanctions\n` +
+        `  karmiques math-souveraines :\n` +
+        `      → Tu N'AS PAS L'AUTORITÉ de renverser un boostsDown ni de neutraliser\n` +
+        `        le cap UP@60 d'une clause Némésis. Aucun « Loi 4-VIP » ni « Loi 11 »\n` +
+        `        ne peut s'appliquer ici. Sois explicite : si le math force SCANDALE\n` +
+        `        / CARRIERE_DOWN / ACCIDENT en Top-1/2 par Némésis, tu sélectionnes\n` +
+        `        cet index et tu cites l'étoile (« Loi 11-bis — Némésis Antarès\n` +
+        `        contraint la chute »).\n` +
+        `      → La seule liberté : choisir entre 2 codes Némésis simultanés (si la\n` +
+        `        clause active SCANDALE@80 ET CARRIERE_DOWN@80) selon la biographie.\n\n` +
         `══ RÈGLES DE CONFIDENCE_IN_CHOICE (Q50-A — calibration humilité) ══\n` +
         `- "high"   : tu es certain à >85% (écart confidence Top-1 vs Top-2 ≥ 8)\n` +
         `- "medium" : confiance modérée (écart 3-7) — utilisée AUSSI quand les techniques\n` +
@@ -18718,6 +19384,7 @@ if (_mdseResults.length > 0 && finalOutput.length > 0) {
         _s60ProtectionBlock +
         _s60LilithBlock +
         _s60ScandaleBlock +
+        _s60FixedStarV2Block +
         `\nTop-5 du moteur (triés par confidence décroissante) :\n\n` +
         _s60Top3.map((s, i) => _s60SigDescr(s, i)).join("\n\n") +
         `\n\n` +
