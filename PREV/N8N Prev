@@ -18093,8 +18093,66 @@ if (_mdseResults.length > 0 && finalOutput.length > 0) {
         }
       }
 
+      // 7-bis. Q185 — cap mou @ 50 si promesse natale Piste E NON qualifiée (S6.20.1 retour 82)
+      // ─────────────────────────────────────────────────────────────────────
+      // AUDIT BIOGRAPHIQUE retour 82-suite (utilisateur 11 mai 23h38) :
+      //   - Chirac 1995  : SCANDALE@76 Top-1 = DOCTRINALEMENT VALIDE
+      //                    (élection + scandale financement campagne, Conseil
+      //                    Constitutionnel Roland Dumas validation limite,
+      //                    affaires HLM Paris en germe). Promesse=12/12 → ne pas capper.
+      //   - Darwin 1859  : SCANDALE@82 Top-1 = DOCTRINALEMENT VALIDE
+      //                    (publication Origin + scandale scientifique/religieux
+      //                    mondial, Wilberforce, presse victorienne).
+      //                    Promesse=20/12 → ne pas capper.
+      //   - Federer 2003 : SCANDALE@73 = SEUL VRAI faux positif (premier Wimbledon,
+      //                    aucun scandale). Promesse=0/12 → cap mou s'applique ✅.
+      //   - Polanski 1977: SCANDALE@72 Top-1 = DOCTRINALEMENT VALIDE (viol Geimer).
+      //                    Promesse=16/12 + boost Q181 tiré → ne pas capper.
+      //
+      // Doctrine consolidée :
+      //   La promesse natale Piste E (cumul ≥ 12 = Public Personnae + Lilith
+      //   native active) signe astrologiquement la vulnérabilité du sujet
+      //   au regard public. Si elle est qualifiée, SCANDALE peut s'imposer
+      //   par les conditions natives (Pluton M10, Lilith ☌ Lune, eclipses)
+      //   en cohérence avec la biographie réelle (qui contient quasi toujours
+      //   une part d'ombre publique chez ces profils).
+      //   Le cap mou Q185 ne s'applique QUE si cette signature natale est
+      //   absente (cumul < 12) — alors SCANDALE issu des seules conditions
+      //   transit-only est plafonné à 50 (réversible par LLM Loi 4-VIP).
+      //
+      // Symétrique avec Q180 (cap profil_type=prive) : même valeur 50, deux
+      // mécanismes orthogonaux (un cap pour absence de promesse natale,
+      // un cap pour profil privé).
+      // ─────────────────────────────────────────────────────────────────────
+      const _Q185_SOFT_CAP = 50;
+      let _q179SoftCapped = false;
+      let _q179SoftCapBefore = null;
+      if (!_q179PromiseQualified) {
+        const target = sigPayload.find(s => s.code === _Q181_TARGET_CODE);
+        if (target && target.confidence > _Q185_SOFT_CAP) {
+          _q179SoftCapBefore = target.confidence;
+          target.confidence = _Q185_SOFT_CAP;
+          target.level = target.confidence >= 55 ? "high" : target.confidence >= 35 ? "medium" : "low";
+          target.guidance = EVENT_SIGNATURES[target.code]?.guidanceText?.[target.level] || target.guidance;
+          target._q185SoftCap = {
+            before: _q179SoftCapBefore,
+            after: _Q185_SOFT_CAP,
+            promiseScore: _q179PromiseScore,
+            promiseQualified: _q179PromiseQualified,
+            promiseHits: _q179PromiseHits.slice(),
+            profilType: _q179ProfilType,
+            reversibleByLLM: !_q179IsPrivate,
+            reason: "Q185 — promesse natale Piste E non qualifiée (cumul < 12). " +
+                    "Cap mou pour permettre lecture LLM Loi 4-VIP en profil_type=public " +
+                    "(Loi 10-ter : ne renverser que si biographie certifie un scandale public)."
+          };
+          _q179SoftCapped = true;
+          _q179Applied.push(`${_Q181_TARGET_CODE} cap mou ${_q179SoftCapBefore}→${_Q185_SOFT_CAP} (Q185, promesse non qualifiée score=${_q179PromiseScore}/12)`);
+        }
+      }
+
       // 8. Re-trier sigPayload pour que le top-30 reflète boost et cap
-      if (_q179Boosted || _q179ProfileCapped || _q179Created) {
+      if (_q179Boosted || _q179ProfileCapped || _q179SoftCapped || _q179Created) {
         sigPayload.sort((a, b) => (b.confidence || 0) - (a.confidence || 0));
       }
 
@@ -18105,7 +18163,7 @@ if (_mdseResults.length > 0 && finalOutput.length > 0) {
       }
 
       finalOutput[0].json._q179ScandaleDiag = {
-        version: "S6.20-Q179C-Q180-Q181C-Q182",
+        version: "S6.20.1-Q179C-Q180-Q181C-Q182-Q185",
         target: _Q181_TARGET_CODE,
         natalCandidates: _Q181_TARGETS.slice(),
         aspects: _Q181_ASPECTS.slice(),
@@ -18122,6 +18180,9 @@ if (_mdseResults.length > 0 && finalOutput.length > 0) {
         profilType: _q179ProfilType,
         profilCapped: _q179ProfileCapped,
         profilCapValue: _Q180_PRIVE_CAP,
+        softCapped: _q179SoftCapped,
+        softCapValue: _Q185_SOFT_CAP,
+        softCapBefore: _q179SoftCapBefore,
         boostBefore: _q179BoostBefore,
         boostAfter: _q179BoostAfter,
         cappedBefore: _q179CappedBefore,
@@ -18325,20 +18386,34 @@ if (_mdseResults.length > 0 && finalOutput.length > 0) {
       let _s60ScandaleBlock = "";
       try {
         const _scandaleDiag = finalOutput[0].json._q179ScandaleDiag || null;
-        const _hasScandaleInTop = _s60Top3.some(s => s.code === "SCANDALE");
-        if (_scandaleDiag && _scandaleDiag.triggered && _hasScandaleInTop) {
+        const _s60Top5Local = _s60Sorted.slice(0, 5);
+        const _hasScandaleInTop5 = _s60Top5Local.some(s => s.code === "SCANDALE");
+        const _hasScandaleInTop3 = _s60Top3.some(s => s.code === "SCANDALE");
+        // S6.20.1 retour 82 — Q185 : on émet le bloc même si softCapped (afin que
+        // le LLM voit la note et puisse appliquer la Loi 4-VIP / Loi 10-ter).
+        const _emitScandaleBlock = _scandaleDiag &&
+          (_scandaleDiag.triggered || _scandaleDiag.softCapped) &&
+          (_hasScandaleInTop5 || _hasScandaleInTop3);
+        if (_emitScandaleBlock) {
           const typo = _scandaleDiag.lilithTransitTypology || "atypique";
           const houses = Array.isArray(_scandaleDiag.lilithTransitHouses) ? _scandaleDiag.lilithTransitHouses : [];
           const houseStr = houses.length ? "M" + houses.join("/M") : "—";
           const cappedNote = _scandaleDiag.profilCapped
             ? ` SCANDALE a été plafonné @ ${_scandaleDiag.profilCapValue} par le garde-fou produit Q180 (profil_type=prive). Si SCANDALE figure tout de même dans le Top-5, ne le remonte JAMAIS en Top-1.`
             : "";
+          // Q185 — note cap mou (profil public, promesse non qualifiée)
+          const softCapNote = _scandaleDiag.softCapped
+            ? `\n  ⚠ Cap mou Q185 : SCANDALE a été ramené de ${_scandaleDiag.softCapBefore} à ${_scandaleDiag.softCapValue} parce que la promesse natale Public_Ombre (Piste E) n'est pas qualifiée (cumul=${_scandaleDiag.promiseScore}/12). Cap **réversible** par Loi 4-VIP en profil_type=public si la biographie atteste d'un scandale public certifié pour cette année. En profil_type=prive, ce cap est définitif (Loi 10-bis).`
+            : "";
+          const trigDesc = _scandaleDiag.trigger
+            ? `Déclencheur math : Lilith ${_scandaleDiag.trigger.glyph || "?"} ${_scandaleDiag.trigger.natal || "?"} natal (orbe ${_scandaleDiag.trigger.orb ?? "?"}°).`
+            : `Déclencheur math : non qualifié (SCANDALE issu des conditions natives EVENT_SIGNATURES — Pluton/Lilith en maisons d'ombre).`;
           _s60ScandaleBlock =
             `\n══ NOTES SCANDALE — modulateur typologique Maison Lilith (Q182 S6.20 retour 81) ══\n` +
             `  🜂 Lilith transite ${houseStr} → typologie « ${typo} ».\n` +
             `     Vecteur du scandale : ${_S60_SCANDALE_TYPOLOGIES[typo] || _S60_SCANDALE_TYPOLOGIES.atypique}.\n` +
-            `  Déclencheur math : Lilith ${_scandaleDiag.trigger?.glyph || "?"} ${_scandaleDiag.trigger?.natal || "?"} natal (orbe ${_scandaleDiag.trigger?.orb ?? "?"}°).\n` +
-            `  Promesse natale Public_Ombre : score ${_scandaleDiag.promiseScore}/12 — hits [${(_scandaleDiag.promiseHits || []).join(", ") || "—"}].${cappedNote}\n` +
+            `  ${trigDesc}\n` +
+            `  Promesse natale Public_Ombre : score ${_scandaleDiag.promiseScore}/12 — hits [${(_scandaleDiag.promiseHits || []).join(", ") || "—"}].${cappedNote}${softCapNote}\n` +
             `  Loi 10 applicable : si SCANDALE est en Top-1, adapte la primary_reason à la typologie ci-dessus sans nommer le sujet.\n`;
         }
       } catch(_eScandaleBlock) { console.log("[WARN] S6.20 _s60ScandaleBlock:", _eScandaleBlock.message); }
@@ -18589,7 +18664,25 @@ if (_mdseResults.length > 0 && finalOutput.length > 0) {
         `    SCANDALE NE PEUT PAS devenir Top-1, MÊME si tu trouves la signature\n` +
         `    biographiquement cohérente. Le profil privé interdit doctrinalement\n` +
         `    qu'un scandale public soit annoncé à un anonyme ; au mieux,\n` +
-        `    SCANDALE@50 reste un signal de fond intégré dans la guidance.\n\n` +
+        `    SCANDALE@50 reste un signal de fond intégré dans la guidance.\n` +
+        `  ★ Loi 10-ter (Q185 cap mou — S6.20.1 retour 82) :\n` +
+        `    Si la note SCANDALE indique « Cap mou Q185 : SCANDALE ramené de XX à 50 »,\n` +
+        `    le moteur a détecté Lilith ☌/□/☍ Lune ou Vénus à orbe ≤ 1° MAIS la\n` +
+        `    promesse natale Public_Ombre (Piste E) est insuffisante (cumul < 12).\n` +
+        `    Doctrine astrologique (retour 82) : Lilith sur la Lune peut signifier\n` +
+        `    autant la « foule hypnotisée » (triomphe foudroyant et clivant — Chirac\n` +
+        `    élu, Federer victorieux, Darwin publié) que la « foule qui lynche ».\n` +
+        `    Le cap mou @ 50 reflète cette ambiguïté.\n` +
+        `      → En profil_type=public, tu PEUX désobéir au cap (Loi 4-VIP) et\n` +
+        `        remonter SCANDALE en Top-1/Top-2 SI ET SEULEMENT SI ta connaissance\n` +
+        `        biographique certaine atteste d'un scandale public AVÉRÉ pour le\n` +
+        `        sujet à l'année visée (sujet identifiable, fait notoire, presse\n` +
+        `        internationale). Ta primary_reason DOIT alors expliciter :\n` +
+        `          a) « Loi 10-ter — cap mou Q185 levé » ;\n` +
+        `          b) le fait biographique précis (« scandale des paris sportifs YYYY »).\n` +
+        `      → En profil_type=public sans certitude biographique de scandale, tu\n` +
+        `        respectes le cap : SCANDALE@50 reste un signal de fond, jamais Top-1.\n` +
+        `      → En profil_type=prive, le cap est DÉFINITIF (Loi 10-bis prime).\n\n` +
         `══ RÈGLES DE CONFIDENCE_IN_CHOICE (Q50-A — calibration humilité) ══\n` +
         `- "high"   : tu es certain à >85% (écart confidence Top-1 vs Top-2 ≥ 8)\n` +
         `- "medium" : confiance modérée (écart 3-7) — utilisée AUSSI quand les techniques\n` +
