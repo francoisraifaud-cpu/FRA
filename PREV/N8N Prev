@@ -1622,6 +1622,112 @@ const _natalPromises = (() => {
       console.log("[WARN] _natalPromises Piste F HÉRITAGE:", _eHeritagePisteF.message);
     }
 
+    // ─── Piste G — STELLAR_NOMADIC : promesse natale RELOCATION (S6.22) ─────
+    // Doctrine retour 83-bis (mini-cadrage S6.22 D20-D24, validation astrologue) :
+    //   « L'âme nomade ne se lit pas qu'aux angles. Pluton/Uranus/Neptune en
+    //     M4 natale, Lune en M9, Maître M4 en M9 (et inversement), Lune
+    //     barycentre Maison 12, axe nodal sur 4/10 ou 3/9 : tout cela signe
+    //     un destin de déracinement programmé. Quand un transit lourd vient
+    //     activer cette promesse, le déménagement n'est plus un choix mais
+    //     une recapitulation karmique. »
+    //
+    // Cumul ≥ 8 = promesse `STELLAR_NOMADIC` qualifiée. Le bloc Q186-RELOCATION
+    // post-process l'utilise pour permettre le cap @ 80 (avec ≥ 1 N2) et
+    // autorise le bypass du cap profil_type=prive @ 65 (Q187) si le sujet est
+    // doctrinalement un "nomade natif" (très rare, Q187 reste actif sinon).
+    try {
+      const _npNomadicHits = [];
+      let _npNomadicScore = 0;
+
+      // G1 — Pluton/Uranus/Neptune natalement en M4 (poids 4 chacun)
+      for (const slow of ["Pluton","Uranus","Neptune"]) {
+        const h = natalDict[slow]?.house;
+        if (h === 4) {
+          _npNomadicHits.push(`G1_${slow}_M4`);
+          _npNomadicScore += 4;
+        }
+      }
+
+      // G2 — Lune natalement en M9 ou M12 (poids 3, axe d'exil)
+      const _luneHouse = natalDict["Lune"]?.house;
+      if (_luneHouse === 9) { _npNomadicHits.push("G2_Lune_M9"); _npNomadicScore += 3; }
+      else if (_luneHouse === 12) { _npNomadicHits.push("G2_Lune_M12"); _npNomadicScore += 3; }
+
+      // G3 — Maître M4 en M9 OU Maître M9 en M4 (poids 4, échange foyer/exil)
+      try {
+        const _ANGLE_HOUSES_NUMS = [4, 9];
+        const _h4 = natalHouses.find(hh => hh.maison === 4);
+        const _h9 = natalHouses.find(hh => hh.maison === 9);
+        const _r4Sign = _h4?.segments?.[0]?.signe;
+        const _r9Sign = _h9?.segments?.[0]?.signe;
+        const _r4 = _r4Sign ? MAITRES_TRAD[_r4Sign] : null;
+        const _r9 = _r9Sign ? MAITRES_TRAD[_r9Sign] : null;
+        if (_r4 && natalDict[_r4]?.house === 9) {
+          _npNomadicHits.push(`G3_ruler4_${_r4}_in_M9`);
+          _npNomadicScore += 4;
+        }
+        if (_r9 && natalDict[_r9]?.house === 4) {
+          _npNomadicHits.push(`G3_ruler9_${_r9}_in_M4`);
+          _npNomadicScore += 4;
+        }
+      } catch (_eRulerNomad) { /* tolérant */ }
+
+      // G4 — Nœud Nord ou Sud en M3/M4/M9 (poids 2 chacun, axe nodal nomade)
+      const _nNord = natalDict["Nœud Nord"]?.house;
+      const _nSud  = natalDict["Nœud Sud"]?.house;
+      if ([3,4,9].includes(_nNord)) { _npNomadicHits.push(`G4_NNord_M${_nNord}`); _npNomadicScore += 2; }
+      if ([3,4,9].includes(_nSud))  { _npNomadicHits.push(`G4_NSud_M${_nSud}`); _npNomadicScore += 2; }
+
+      // G5 — Étoile fixe Polaris (signe doctrinal de l'errance) ☌ ASC/MC/IC/DSC orb ≤ 1.5°
+      try {
+        for (const em of (etoileMatchesNatal || [])) {
+          if (em?.etoile === "Polaris" && ["Ascendant","Milieu du Ciel","Imum Coeli","Descendant"].includes(em.planete) && em.orb <= 1.5) {
+            _npNomadicHits.push(`G5_Polaris_${em.planete}_orb${em.orb}`);
+            _npNomadicScore += 5;
+            break;
+          }
+        }
+      } catch (_ePolaris) { /* tolérant */ }
+
+      // G6 — Pluton OU Uranus angulaire (M1/M4/M7/M10) avec dignité Domicile/Exaltation (poids 3)
+      for (const slow of ["Pluton","Uranus"]) {
+        const _hSlow = natalDict[slow]?.house;
+        const _sSlow = natalDict[slow]?.sign;
+        if (_hSlow && [1,4,7,10].includes(_hSlow)) {
+          const _dig = _mdseDignite(slow, _sSlow);
+          if (_dig === "Domicile" || _dig === "Exaltation") {
+            _npNomadicHits.push(`G6_${slow}_angular_${_hSlow}_${_dig}`);
+            _npNomadicScore += 3;
+          }
+        }
+      }
+
+      const _G_THRESHOLD = 8;
+      if (_npNomadicScore >= _G_THRESHOLD) {
+        _npAddPromise({
+          type: "STELLAR_NOMADIC",
+          victim: "Cadre de vie / Foyer",
+          afflictor: "axe foyer-exil",
+          natalAspect: null,
+          natalOrb: null,
+          house: 4,
+          triggerTargets: ["Imum Coeli","Pluton","Uranus","Lune"],
+          signatureBoosts: ["RELOCATION"],
+          source: `Piste G (cumul nomadic=${_npNomadicScore} ≥ ${_G_THRESHOLD}, hits=${_npNomadicHits.length})`,
+          bypassCap: false                                   // Q187 reste actif sauf si profil_type=public
+        }, ["RELOCATION"]);
+      }
+
+      out.relocationPisteGDiag = {
+        active: _npNomadicScore >= _G_THRESHOLD,
+        score: _npNomadicScore,
+        threshold: _G_THRESHOLD,
+        hits: _npNomadicHits
+      };
+    } catch (_eNomadicPisteG) {
+      console.log("[WARN] _natalPromises Piste G STELLAR_NOMADIC:", _eNomadicPisteG.message);
+    }
+
   } catch(eNP) {
     console.log("[WARN] _natalPromises construction:", eNP.message);
   }
@@ -6981,45 +7087,37 @@ HÉRITAGE: {
 },
 
 RELOCATION: {
-  // SPRINT 6.0 (2026-05-09, retour 58 Q43-A) : minConfidence 22 → 5 + boost weights.
-  // Doctrine astrologue (retour 58) : « Le LLM ne peut pas évaluer ce qu'il ne voit
-  // pas. Abaissez la barrière d'entrée. Laissez le moteur "hurler au loup" sur la
-  // relocation dès qu'un transit frôle le Fond du Ciel. Le LLM, disposant de la
-  // boussole contextuelle, saura très bien filtrer les faux positifs. C'est le
-  // principe même du reranking : on élargit l'entonnoir (recall) et l'IA affine. »
-  // → Bench S5.6 : 0/8 cas RELOCATION dans eventSignatures. minConf=5 garantit que
-  // toute trace doctrinale (1 transit Uranus/Pluton IC) génère la signature.
-  label:"Déménagement / Migration", labelEN:"Relocation / Moving", icon:"🏠", minConfidence:5,
+  // SPRINT 6.22 (2026-05-12, mini-cadrage retour 83-bis astrologue D20-D24) :
+  //   • Anti-collision M3/M9 → réservés VOYAGE (sauf nodes_in_houses [4,9] et
+  //     multi_house_active [4,9] conservés pour le canal voyage_to_relocation
+  //     consommé en post-process Q186).
+  //   • minConfidence 5 → 22 (aligné sur VOYAGE, fini le "hurler au loup")
+  //     → la signature naturelle reste discrète, le post-process Q186
+  //       (double signature N1+N2) construit le confidence final 48/80/85/90.
+  //   • Conservation des conditions Niveau 1 historiques (Uranus/Pluton IC).
+  //   • Le bloc Q186 (post-process) ajoute le canal Maître M4 / planète en M4 /
+  //     Lune en M4 angulaire / canal voyage_to_relocation / par_alliance,
+  //     puis applique les caps cumulatifs (48 N1 → 80 +N2 → 85 +2N2 → 90 +3N2).
+  label:"Déménagement / Migration", labelEN:"Relocation / Moving", icon:"🏠", minConfidence:22,
   guidanceText: {
     high:"Un puissant besoin de changement de cadre de vie se manifeste — période propice aux déménagements ou aux transformations profondes du foyer.",
     medium:"Le foyer et les racines sont en mouvement — possibilité de changement d'environnement ou de réaménagement.",
     low:"Un désir subtil de renouvellement dans l'espace de vie."
   },
-  // SPRINT 6.0 (2026-05-09, retour 58 Q43-A) — boost weights conditions clés :
-  //   • Uranus IC : 12 → 18 (signature reine RELOCATION)
-  //   • Pluton M4 : 12 → 18 (déracinement profond)
-  //   • Pluton IC : 12 → 18 (transit angulaire majeur)
-  //   • Uranus M3/M4/M9 : 12 → 18 (transit en maisons mobiles/foyer)
-  // Doctrine astrologue : maximiser le recall pour que le LLM Reranker
-  // dispose de la signature RELOCATION dans le top-N quand elle est doctrinalement
-  // active (même par 1 seul transit ponctuel).
-  // SPRINT 5.1 (2026-05-08) — RELOCATION refonte Q10 :
-  //   • Uranus en IV / Imum Coeli : 10 → 12 (déménagement soudain, doctrine clé)
-  //   • Pluton M4 : 8 → 12 (déracinement profond)
-  //   • progression Lune en IV/IX : 7 → 10 (changement de chapitre)
-  //   • solar_arc Uranus IC : 8 → 10
-  //   • AJOUTÉ : zodiacal_releasing Loose 1/7 weight 10 (technique hellénistique)
-  //   • AJOUTÉ : rs_relocated weight 8 (Solar Return déplacé)
-  //   • AJOUTÉ : prog_moon_sign_change_in_angular weight 10
-  //   • AJOUTÉ : almuten_figuris transité en M4 weight 8
   conditions:[
-    {type:"transit_in_house",planet:"Uranus",houses:[3,4,9],aspects:["Conjonction","Carré","Opposition"],weight:18},
-    {type:"transit_in_house",planet:"Jupiter",houses:[4,9],aspects:["Conjonction","Trigone","Sextile"],weight:7},
-    {type:"transit_aspect",pTransit:"Uranus",pNatal:"Imum Coeli",aspects:["Conjonction","Carré","Opposition"],weight:18},
-    {type:"transit_aspect",pTransit:"Jupiter",pNatal:"Imum Coeli",aspects:["Conjonction","Trigone","Sextile"],weight:7},
+    // Niveau 1 doctrinal — transits lents sur IC/M4 angulaire (conservés)
+    {type:"transit_in_house",planet:"Uranus",houses:[4],aspects:["Conjonction","Carré","Opposition"],weight:18},
     {type:"transit_in_house",planet:"Pluton",houses:[4],aspects:["Conjonction","Carré","Opposition"],weight:18},
+    {type:"transit_in_house",planet:"Saturne",houses:[4],aspects:["Conjonction","Carré","Opposition"],weight:14},
+    {type:"transit_in_house",planet:"Neptune",houses:[4],aspects:["Conjonction","Carré","Opposition"],weight:12},
+    {type:"transit_in_house",planet:"Jupiter",houses:[4],aspects:["Conjonction","Trigone","Sextile"],weight:5},
+    {type:"transit_aspect",pTransit:"Uranus",pNatal:"Imum Coeli",aspects:["Conjonction","Carré","Opposition"],weight:18},
     {type:"transit_aspect",pTransit:"Pluton",pNatal:"Imum Coeli",aspects:["Conjonction","Carré","Opposition"],weight:18},
-    {type:"progression",pProg:"Lune",aspects:["Conjonction","Carré","Opposition"],houseTargets:[4,9],weight:10},
+    {type:"transit_aspect",pTransit:"Saturne",pNatal:"Imum Coeli",aspects:["Conjonction","Carré","Opposition"],weight:14},
+    {type:"transit_aspect",pTransit:"Neptune",pNatal:"Imum Coeli",aspects:["Conjonction","Carré","Opposition"],weight:12},
+    {type:"transit_aspect",pTransit:"Jupiter",pNatal:"Imum Coeli",aspects:["Conjonction","Trigone","Sextile"],weight:5},
+    // Niveau 2 ratification — conservés sur axe M4 strict
+    {type:"progression",pProg:"Lune",aspects:["Conjonction","Carré","Opposition"],houseTargets:[4],weight:10},
     {type:"prog_moon_sign_change_in_angular",weight:10},
     {type:"solar_arc",pArc:"Uranus",targets:["Imum Coeli"],weight:10},
     {type:"solar_arc",pArc:"Saturne",targets:["Imum Coeli","Ascendant"],weight:6},
@@ -7027,35 +7125,35 @@ RELOCATION: {
     {type:"eclipse_in_house",houses:[4],weight:7},
     {type:"rs_relocated",weight:8},
     {type:"transit_aspect",pTransit:"Saturne",pNatal:"almuten_figuris",houseTargets:[4],weight:8},
-    {type:"multi_house_active",houses:[3,4],minScore:8,weight:6},
+    // Conservés pour le canal voyage_to_relocation (multi-house [4,9] + nodes [4,9])
     {type:"multi_house_active",houses:[4,9],minScore:8,weight:5},
     {type:"nodes_in_houses",houses:[4,9],weight:4},
-    {type:"profection_house",houses:[3,4,9],weight:4},
+    {type:"profection_house",houses:[4],weight:4},
     {type:"firdaria_planet",planets:["Uranus","Jupiter"],weight:3},
     {type:"station_on_natal",planets:["Uranus","Jupiter","Saturne","Pluton"],weight:9},
     {type:"transit_to_progressed",pTransit:"Uranus",pProg:"MC",aspects:["Conjonction","Carré","Opposition"],weight:10},
-    {type:"rs_planet_in_house",planets:["Uranus","Jupiter"],houses:[3,4,9],weight:5},
+    {type:"rs_planet_in_house",planets:["Uranus","Jupiter"],houses:[4],weight:5},
     {type:"natal_promise",sigCode:"RELOCATION",minScore:2,maxScore:15,weight:7},
     {type:"time_lords_convergence",planets:["Uranus","Jupiter"],minScore:3,maxScore:8,weight:5},
-    {type:"lunation_trigger",houses:[3,4,9],planets:["Uranus","Imum Coeli"],weight:4},
+    {type:"lunation_trigger",houses:[4],planets:["Uranus","Imum Coeli"],weight:4},
     {type:"ruler_transit",sigCode:"RELOCATION",minTransits:1,maxTransits:4,weight:6},
     {type:"lot_activation",sigCode:"RELOCATION",minHits:1,weight:4},
-    {type:"prog_moon_ingress",houses:[3,4,9],weight:6},
+    {type:"prog_moon_ingress",houses:[4],weight:8},
     {type:"planetary_return",planets:["Uranus","Jupiter"],weight:5},
-    {type:"monthly_profection",houses:[3,4,9],weight:4},
+    {type:"monthly_profection",houses:[4],weight:4},
     {type:"bound_lord_active",planets:["Jupiter","Uranus"],weight:3},
-    {type:"rl_planet_in_house",planets:["Jupiter","Uranus"],houses:[3,4,9],weight:4},
-    {type:"rs_angle_cross",planets:["Uranus","Jupiter","Imum Coeli"],houses:[3,4,9],weight:5},
+    {type:"rl_planet_in_house",planets:["Jupiter","Uranus"],houses:[4],weight:4},
+    {type:"rs_angle_cross",planets:["Uranus","Jupiter","Imum Coeli"],houses:[4],weight:5},
     {type:"oob_transit",planets:["Uranus"],weight:4},
-    {type:"dispositor_transited",houses:[4,9],minHits:1,maxHits:3,weight:5},
+    {type:"dispositor_transited",houses:[4],minHits:1,maxHits:3,weight:5},
     {type:"trigger_transit",planets:["Uranus","Jupiter","Imum Coeli"],minTriggers:3,maxTriggers:20,weight:5},
     {type:"prof_activated",planets:["Uranus","Jupiter"],weight:5},
-    {type:"mondial_cycle",houses:[3,4,9],minCount:1,maxCount:5,weight:4},
+    {type:"mondial_cycle",houses:[4],minCount:1,maxCount:5,weight:4},
     {type:"zodiacal_releasing",weight:4},
-    {type:"triplicity_ruler",houses:[4,9],minHits:1,maxHits:3,weight:4},
+    {type:"triplicity_ruler",houses:[4],minHits:1,maxHits:3,weight:4},
     {type:"rs_ruler_hit",weight:4},
-    {type:"primary_direction",planets:["Uranus","Jupiter","Imum Coeli"],houses:[3,4,9],weight:18},
-    {type:"embolismic_lunation",houses:[3,4,9],weight:4},
+    {type:"primary_direction",planets:["Uranus","Jupiter","Imum Coeli"],houses:[4],weight:18},
+    {type:"embolismic_lunation",houses:[4],weight:4},
     {type:"almuten_hit",weight:3}
   ]
 },
@@ -18333,6 +18431,398 @@ if (_mdseResults.length > 0 && finalOutput.length > 0) {
     // ═══════════════════════════════════════════════════════════════════════════
 
     // ═══════════════════════════════════════════════════════════════════════════
+    // SPRINT 6.22 (2026-05-12, mini-cadrage retour 83-bis D20-D24 validé) —
+    // Code RELOCATION : double signature N1 + N2, caps cumulatifs, typologie,
+    // canal voyage_to_relocation, mécanisme par_alliance, cap profil_type=prive.
+    // ═══════════════════════════════════════════════════════════════════════════
+    //
+    // Doctrine astrologue (Phase 1 audit 5 cas Schwarzy/Dietrich/Horowitz/
+    // Mercury/Markle) :
+    //   « Le déracinement ne se lit pas uniquement sur les angles physiques.
+    //     Le Maître de la Maison 4 porte le foyer avec lui, où qu'il soit
+    //     dans le thème. Une planète lente écrase ce maître, et toute la
+    //     structure de l'ancrage tremble. La V1 (transits IC stricts) était
+    //     trop étroite. La V3.1 élargit le Niveau 1 aux Maître M4, planètes
+    //     en M4, Lune (si M4/angulaire), au canal voyage_to_relocation_conversion
+    //     pour les axes 3/9 saturés, et au mécanisme par_alliance (DSC + MARIAGE
+    //     simultané). »
+    //
+    // Doctrine cumulatif :
+    //   D23 : caps cumulatifs 48/80/85/90 selon "permanence symbolique"
+    //         (N1 seul = 48 lisible Top-10 / +1 N2 = 80 / +2 N2 = 85 / +3 N2 = 90).
+    //   D24 : coexistence libre RELOCATION × SCANDALE (Dietrich 1939 = exil par
+    //         scandale politique Algol — le LLM fera la synthèse narrative).
+    //
+    // Position : APRÈS Q179 SCANDALE et AVANT Couche B Étoiles Fixes V2.
+    try {
+      const _Q186_TARGET_CODE = "RELOCATION";
+      const _Q186_ORB_MAX = 1.5;
+      const _Q186_ORB_LUMIN = 1.0;
+      const _Q186_HARD_ASPECTS = ["Conjonction","Carré","Opposition"];
+      const _Q186_SOFT_ASPECTS = ["Conjonction","Trigone","Sextile"];
+      const _Q186_SLOW = ["Saturne","Uranus","Neptune","Pluton"];
+      const _Q186_BENEFIC_TRANSIT = "Jupiter";
+      const _Q186_CAP_BASE_N1_ONLY = 48;     // N1 actif sans N2 (lisible Top-10)
+      const _Q186_CAP_N1_PLUS_1N2 = 80;
+      const _Q186_CAP_N1_PLUS_2N2 = 85;
+      const _Q186_CAP_N1_PLUS_3N2 = 90;
+      const _Q186_FLOOR_BASE_N1 = 35;        // plancher si N1 actif (création éventuelle)
+      const _Q186_PRIVE_CAP_Q187 = 65;       // cap profil_type=prive (Q187)
+      const _Q186_VOYAGE_CONVERSION_MIN_N2 = 4;
+      const _Q186_VOYAGE_CONVERSION_MIN_VOYAGE = 50;
+      const _Q186_PAR_ALLIANCE_MARIAGE_MIN = 50;
+
+      const _q186Applied = [];
+      const _q186Skipped = [];
+      const _q186N1Hits = [];
+      const _q186N2Hits = [];
+
+      const _q186IsHard = (asp) => _Q186_HARD_ASPECTS.includes(asp);
+      const _q186AspectsSuiviLent = (typeof aspectsSuiviLent !== "undefined" && aspectsSuiviLent) ? aspectsSuiviLent : {};
+
+      const _q186BestAspect = (transitPlanet, natalTarget, aspects) => {
+        let best = null;
+        for (const aspName of aspects) {
+          const k = `slow_${transitPlanet}|||${aspName}|||${natalTarget}`;
+          const e = _q186AspectsSuiviLent[k];
+          if (!e?.waves?.length) continue;
+          const orbs = e.waves.map(w => parseFloat(w.minOrb)).filter(x => isFinite(x));
+          const m = orbs.length ? Math.min(...orbs) : null;
+          if (m == null) continue;
+          if (!best || m < best.orb) best = { aspect: aspName, orb: m, transit: transitPlanet, natal: natalTarget };
+        }
+        return best;
+      };
+
+      // 1. Détecter Niveau 1 — transits lents sur IC, Maître M4, planètes en M4, Lune (M4/angulaire)
+      // 1.a — IC (transit lent dur orb ≤ 1.5°)
+      for (const slow of _Q186_SLOW) {
+        const hit = _q186BestAspect(slow, "Imum Coeli", _Q186_HARD_ASPECTS);
+        if (hit && hit.orb <= _Q186_ORB_MAX) {
+          _q186N1Hits.push({ kind: "N1_IC", planet: slow, target: "Imum Coeli", aspect: hit.aspect, orb: hit.orb, type: "subie" });
+        }
+      }
+
+      // 1.b — Maître M4 natal (D20)
+      let _q186Master4 = null;
+      try {
+        const _h4 = (typeof natalHouses !== "undefined") ? natalHouses.find(hh => hh.maison === 4) : null;
+        const _r4Sign = _h4?.segments?.[0]?.signe;
+        _q186Master4 = (_r4Sign && typeof MAITRES_TRAD !== "undefined") ? MAITRES_TRAD[_r4Sign] : null;
+      } catch (_eM4) { _q186Master4 = null; }
+      if (_q186Master4) {
+        for (const slow of _Q186_SLOW) {
+          const hit = _q186BestAspect(slow, _q186Master4, _Q186_HARD_ASPECTS);
+          const orbCap = (_q186Master4 === "Soleil" || _q186Master4 === "Lune") ? _Q186_ORB_MAX : _Q186_ORB_MAX;
+          if (hit && hit.orb <= orbCap) {
+            _q186N1Hits.push({ kind: "N1_RULER_M4", planet: slow, target: _q186Master4, aspect: hit.aspect, orb: hit.orb, type: "subie" });
+          }
+        }
+      }
+
+      // 1.c — Planètes natales en M4 (hors Maître M4 déjà capté en 1.b si en M4)
+      const _q186PlanetsInM4 = [];
+      try {
+        if (typeof natalDict !== "undefined") {
+          for (const [pName, pData] of Object.entries(natalDict)) {
+            if (pData?.house === 4 && !["Imum Coeli","Milieu du Ciel","Ascendant","Descendant","Nœud Nord","Nœud Sud","Lilith"].includes(pName)) {
+              _q186PlanetsInM4.push(pName);
+            }
+          }
+        }
+      } catch (_ePinM4) { /* tolérant */ }
+      for (const planM4 of _q186PlanetsInM4) {
+        if (planM4 === _q186Master4) continue;
+        for (const slow of _Q186_SLOW) {
+          const hit = _q186BestAspect(slow, planM4, _Q186_HARD_ASPECTS);
+          if (hit && hit.orb <= _Q186_ORB_MAX) {
+            _q186N1Hits.push({ kind: "N1_PLANET_M4", planet: slow, target: planM4, aspect: hit.aspect, orb: hit.orb, type: "subie" });
+          }
+        }
+      }
+
+      // 1.d — Lune natale (si M4 ou angulaire), transit Saturne/Pluton dur orb ≤ 1.0°
+      let _q186LuneEligible = false;
+      try {
+        const _hLune = natalDict?.["Lune"]?.house;
+        _q186LuneEligible = _hLune === 4 || [1,4,7,10].includes(_hLune);
+      } catch (_eLune) { _q186LuneEligible = false; }
+      if (_q186LuneEligible) {
+        for (const slow of ["Saturne","Pluton"]) {
+          const hit = _q186BestAspect(slow, "Lune", _Q186_HARD_ASPECTS);
+          if (hit && hit.orb <= _Q186_ORB_LUMIN) {
+            _q186N1Hits.push({ kind: "N1_LUNE_ANGULAR", planet: slow, target: "Lune", aspect: hit.aspect, orb: hit.orb, type: "subie" });
+          }
+        }
+      }
+
+      // 1.e — Canal par_alliance (D22) : Saturne/Pluton ☌ DSC + MARIAGE actif ≥ 50
+      try {
+        const _mariageList = sigPayload.find(s => s.code === "MARIAGE");
+        const _mariageConf = _mariageList?.confidence || 0;
+        if (_mariageConf >= _Q186_PAR_ALLIANCE_MARIAGE_MIN) {
+          for (const slow of ["Saturne","Pluton","Uranus"]) {
+            const hit = _q186BestAspect(slow, "Descendant", ["Conjonction"]);
+            if (hit && hit.orb <= _Q186_ORB_MAX) {
+              _q186N1Hits.push({ kind: "N1_PAR_ALLIANCE", planet: slow, target: "Descendant", aspect: hit.aspect, orb: hit.orb, type: "par_alliance", mariageConf: _mariageConf });
+            }
+          }
+        }
+      } catch (_ePAlli) { /* tolérant */ }
+
+      // 1.f — Canal voyage_to_relocation_conversion (D21) — calculé après détection N2
+      // (ouvre un N1 virtuel si VOYAGE ≥ 50 + ≥ 4 N2 sur axe 3/4/9 + 1 lente sur l'axe)
+
+      // 2. Détecter Niveau 2 (ratification multi-techniques)
+      const _q186Target = sigPayload.find(s => s.code === _Q186_TARGET_CODE);
+      const _q186MatchedConds = _q186Target?.matchedConditions || [];
+
+      const _q186HasMatchedType = (filter) => _q186MatchedConds.some(c => filter(c));
+
+      // N2.a — progression Lune carré/opp/conj M4
+      if (_q186HasMatchedType(c => c.type === "progression" && c.pProg === "Lune"))
+        _q186N2Hits.push({ kind: "N2_PROG_LUNE_M4" });
+      // N2.b — eclipse en M4
+      if (_q186HasMatchedType(c => c.type === "eclipse_in_house"))
+        _q186N2Hits.push({ kind: "N2_ECLIPSE_M4" });
+      // N2.c — solar arc Uranus/Pluton/Saturne IC
+      if (_q186HasMatchedType(c => c.type === "solar_arc"))
+        _q186N2Hits.push({ kind: "N2_SOLAR_ARC_IC" });
+      // N2.d — RS relocated
+      if (_q186HasMatchedType(c => c.type === "rs_relocated"))
+        _q186N2Hits.push({ kind: "N2_RS_RELOCATED" });
+      // N2.e — multi house active [4,9]
+      if (_q186HasMatchedType(c => c.type === "multi_house_active"))
+        _q186N2Hits.push({ kind: "N2_MULTI_HOUSE_4_9" });
+      // N2.f — nodes in houses [4,9]
+      if (_q186HasMatchedType(c => c.type === "nodes_in_houses"))
+        _q186N2Hits.push({ kind: "N2_NODES_4_9" });
+      // N2.g — profection_house [4]
+      if (_q186HasMatchedType(c => c.type === "profection_house"))
+        _q186N2Hits.push({ kind: "N2_PROFECTION_4" });
+      // N2.h — prog_moon_ingress [4]
+      if (_q186HasMatchedType(c => c.type === "prog_moon_ingress"))
+        _q186N2Hits.push({ kind: "N2_PROG_MOON_INGRESS_4" });
+      // N2.i — transit_to_progressed Uranus → MCp
+      if (_q186HasMatchedType(c => c.type === "transit_to_progressed"))
+        _q186N2Hits.push({ kind: "N2_T_TO_P_URANUS_MC" });
+      // N2.j — prog_moon_sign_change_in_angular
+      if (_q186HasMatchedType(c => c.type === "prog_moon_sign_change_in_angular"))
+        _q186N2Hits.push({ kind: "N2_PROG_MOON_SIGN_CHANGE" });
+
+      // 1.f — voyage_to_relocation_conversion (calculé maintenant qu'on a N2)
+      try {
+        const _voyageSig = sigPayload.find(s => s.code === "VOYAGE");
+        const _voyageConf = _voyageSig?.confidence || 0;
+        const _voyageMatched = _voyageSig?.matchedConditions || [];
+        const _voyageMatchedCount = _voyageMatched.length;
+        const _voyageN2TypesInVoyage = ["progression","eclipse_in_house","solar_arc","multi_house_active","nodes_in_houses","prog_moon_ingress"]
+          .filter(t => _voyageMatched.some(c => c.type === t)).length;
+        // Détection planète lente sur axe 3/4/9 (transit_in_house ou transit_aspect IC/MC)
+        let _slowOnAxis = false;
+        for (const slow of _Q186_SLOW) {
+          const hit1 = _q186BestAspect(slow, "Imum Coeli", _Q186_HARD_ASPECTS);
+          const hit2 = _q186BestAspect(slow, "Milieu du Ciel", _Q186_HARD_ASPECTS);
+          if ((hit1 && hit1.orb <= 2.0) || (hit2 && hit2.orb <= 2.0)) { _slowOnAxis = true; break; }
+        }
+        if (_voyageConf >= _Q186_VOYAGE_CONVERSION_MIN_VOYAGE
+            && _voyageN2TypesInVoyage >= _Q186_VOYAGE_CONVERSION_MIN_N2
+            && _slowOnAxis
+            && _q186N1Hits.length === 0) {
+          _q186N1Hits.push({
+            kind: "N1_VOYAGE_CONVERSION",
+            planet: "axis-3-4-9",
+            target: "VOYAGE",
+            voyageConf: _voyageConf,
+            voyageN2Count: _voyageN2TypesInVoyage,
+            type: "subie"
+          });
+        }
+      } catch (_eConv) { /* tolérant */ }
+
+      // 3. Calcul du cap cumulatif (D23)
+      const _q186N1Count = _q186N1Hits.length;
+      const _q186N2Count = _q186N2Hits.length;
+      let _q186Cap;
+      if (_q186N1Count === 0) {
+        _q186Cap = null;                                  // pas de N1 actif → laisser confidence naturel
+      } else if (_q186N2Count === 0) {
+        _q186Cap = _Q186_CAP_BASE_N1_ONLY;                // 48 — visible Top-10 mais pas Top-1
+      } else if (_q186N2Count === 1) {
+        _q186Cap = _Q186_CAP_N1_PLUS_1N2;                 // 80
+      } else if (_q186N2Count === 2) {
+        _q186Cap = _Q186_CAP_N1_PLUS_2N2;                 // 85
+      } else {
+        _q186Cap = _Q186_CAP_N1_PLUS_3N2;                 // 90
+      }
+
+      // 4. Typologie (subie / choisie / par_alliance)
+      let _q186Typology = "atypique";
+      if (_q186N1Count > 0) {
+        const _hasParAlliance = _q186N1Hits.some(h => h.type === "par_alliance");
+        if (_hasParAlliance) {
+          _q186Typology = "par_alliance";
+        } else {
+          // choisie si Uranus dur dominant OU Jupiter trigone (renouveau)
+          const _uranusDom = _q186N1Hits.some(h => h.planet === "Uranus");
+          const _saturnePluton = _q186N1Hits.some(h => h.planet === "Saturne" || h.planet === "Pluton" || h.planet === "Neptune");
+          if (_uranusDom && !_saturnePluton) _q186Typology = "choisie";
+          else _q186Typology = "subie";
+        }
+      }
+
+      // 5. Lecture promesse Piste G
+      const _q186PromiseList = (_natalPromises?.bySignature?.RELOCATION) || [];
+      const _q186PromiseG = _natalPromises?.relocationPisteGDiag || null;
+      const _q186PromiseGScore = _q186PromiseG?.score || 0;
+      const _q186PromiseGActive = _q186PromiseG?.active === true;
+      const _q186PromiseGHits = _q186PromiseG?.hits || [];
+
+      // 6. Lecture profil_type (calque Q180)
+      let _q186ProfilTypeRaw = perso?.profil_type || null;
+      if (!_q186ProfilTypeRaw) {
+        try { _q186ProfilTypeRaw = $("Extract Variables").first()?.json?.profil_type || null; } catch (_e1) {}
+      }
+      if (!_q186ProfilTypeRaw) {
+        try {
+          const _wh = $("Webhook").first()?.json;
+          _q186ProfilTypeRaw = _wh?.body?.profil_type || _wh?.profil_type || null;
+        } catch (_e2) {}
+      }
+      const _q186ProfilType = (_q186ProfilTypeRaw || "prive").toString().toLowerCase().trim();
+      const _q186IsPrivate = _q186ProfilType === "prive";
+
+      // 7. Application du cap cumulatif (lift OU clamp)
+      let _q186TargetSig = sigPayload.find(s => s.code === _Q186_TARGET_CODE);
+      let _q186Created = false;
+      let _q186Before = null;
+      let _q186After = null;
+      let _q186Capped = false;
+      let _q186Lifted = false;
+
+      if (_q186N1Count > 0) {
+        if (!_q186TargetSig) {
+          // Création si signature absente (sous le minConfidence) mais N1 actif
+          const sigDef = (typeof EVENT_SIGNATURES !== "undefined") ? EVENT_SIGNATURES[_Q186_TARGET_CODE] : null;
+          const initialConf = Math.min(_q186Cap, _Q186_FLOOR_BASE_N1);
+          _q186TargetSig = {
+            code: _Q186_TARGET_CODE,
+            label: sigDef?.label || "Déménagement / Migration",
+            labelEN: sigDef?.labelEN || "Relocation / Moving",
+            icon: sigDef?.icon || "🏠",
+            confidence: initialConf,
+            level: initialConf >= 55 ? "high" : initialConf >= 35 ? "medium" : "low",
+            guidance: sigDef?.guidanceText?.[initialConf >= 55 ? "high" : initialConf >= 35 ? "medium" : "low"] || null,
+            matchedConditions: [],
+            isStellarApex: false,
+            _q186InjectedBy: "Q186-N1-floor"
+          };
+          sigPayload.push(_q186TargetSig);
+          _q186Created = true;
+        }
+
+        _q186Before = _q186TargetSig.confidence;
+        // Si confidence < cap → lift (au moins jusqu'à floor) ; si > cap → clamp
+        if (_q186Before > _q186Cap) {
+          _q186TargetSig.confidence = _q186Cap;
+          _q186Capped = true;
+        } else if (_q186Before < _Q186_FLOOR_BASE_N1 && _q186N2Count >= 1) {
+          // Avec ratification N2 mais signature naturelle faible → lift au floor
+          _q186TargetSig.confidence = Math.min(_q186Cap, _Q186_FLOOR_BASE_N1 + (_q186N2Count - 1) * 5);
+          _q186Lifted = true;
+        }
+        _q186After = _q186TargetSig.confidence;
+        _q186TargetSig.level = _q186After >= 55 ? "high" : _q186After >= 35 ? "medium" : "low";
+        _q186TargetSig.guidance = EVENT_SIGNATURES[_Q186_TARGET_CODE]?.guidanceText?.[_q186TargetSig.level] || _q186TargetSig.guidance;
+        _q186TargetSig._q186RelocationDoubleSig = {
+          n1Count: _q186N1Count,
+          n2Count: _q186N2Count,
+          n1Hits: _q186N1Hits,
+          n2Hits: _q186N2Hits,
+          cap: _q186Cap,
+          before: _q186Before,
+          after: _q186After,
+          typology: _q186Typology,
+          promiseG: _q186PromiseGScore,
+          promiseGActive: _q186PromiseGActive,
+          promiseGHits: _q186PromiseGHits,
+          created: _q186Created,
+          capped: _q186Capped,
+          lifted: _q186Lifted
+        };
+        _q186Applied.push(`${_Q186_TARGET_CODE} N1=${_q186N1Count} N2=${_q186N2Count} cap=${_q186Cap} ${_q186Before}→${_q186After} (${_q186Typology}${_q186Created ? " [créé]" : ""}${_q186Capped ? " [clamp]" : ""}${_q186Lifted ? " [lift]" : ""})`);
+      } else if (_q186Target) {
+        _q186Skipped.push(`${_Q186_TARGET_CODE} aucun N1 actif (confidence naturel ${_q186Target.confidence} conservé)`);
+      } else {
+        _q186Skipped.push(`${_Q186_TARGET_CODE} aucun N1 actif et signature absente du sigPayload`);
+      }
+
+      // 8. Cap profil_type=prive @ 65 (Q187) — sauf si Piste G qualifiée + profil_type=public
+      let _q186ProfilCapped = false;
+      let _q186ProfilCappedBefore = null;
+      if (_q186IsPrivate) {
+        const target = sigPayload.find(s => s.code === _Q186_TARGET_CODE);
+        if (target && target.confidence > _Q186_PRIVE_CAP_Q187) {
+          _q186ProfilCappedBefore = target.confidence;
+          target.confidence = _Q186_PRIVE_CAP_Q187;
+          target.level = target.confidence >= 55 ? "high" : target.confidence >= 35 ? "medium" : "low";
+          target.guidance = EVENT_SIGNATURES[_Q186_TARGET_CODE]?.guidanceText?.[target.level] || target.guidance;
+          target._q187ProfilCap = {
+            before: _q186ProfilCappedBefore,
+            after: _Q186_PRIVE_CAP_Q187,
+            profilType: _q186ProfilType,
+            promiseGActive: _q186PromiseGActive,
+            reason: "Q187 — RELOCATION plafonné @ 65 pour profil privé (anti-hallucination Madame Dupont)."
+          };
+          _q186ProfilCapped = true;
+          _q186Applied.push(`${_Q186_TARGET_CODE} cap profil ${_q186ProfilCappedBefore}→${_Q186_PRIVE_CAP_Q187} (Q187, profil_type=prive)`);
+        }
+      }
+
+      // 9. Re-tri du sigPayload si modification
+      if (_q186Applied.length > 0) {
+        sigPayload.sort((a, b) => (b.confidence || 0) - (a.confidence || 0));
+      }
+
+      if (_q186Applied.length > 0) {
+        console.log(`[Q186 S6.22 retour 84] RELOCATION : ${_q186Applied.join(" | ")}`);
+      } else {
+        console.log(`[Q186 S6.22 retour 84] RELOCATION no-op (${_q186Skipped.join(", ") || "aucun"})`);
+      }
+
+      finalOutput[0].json._q186RelocationDiag = {
+        version: "S6.22-Q186-Q187-D20D24",
+        target: _Q186_TARGET_CODE,
+        n1Count: _q186N1Count,
+        n2Count: _q186N2Count,
+        n1Hits: _q186N1Hits,
+        n2Hits: _q186N2Hits,
+        cap: _q186Cap,
+        typology: _q186Typology,
+        promiseGScore: _q186PromiseGScore,
+        promiseGActive: _q186PromiseGActive,
+        promiseGHits: _q186PromiseGHits,
+        master4: _q186Master4,
+        planetsInM4: _q186PlanetsInM4,
+        luneEligible: _q186LuneEligible,
+        profilType: _q186ProfilType,
+        profilCapped: _q186ProfilCapped,
+        profilCapValue: _Q186_PRIVE_CAP_Q187,
+        profilCapBefore: _q186ProfilCappedBefore,
+        before: _q186Before,
+        after: _q186After,
+        capped: _q186Capped,
+        lifted: _q186Lifted,
+        created: _q186Created,
+        applied: _q186Applied,
+        skipped: _q186Skipped
+      };
+    } catch (eQ186) {
+      console.log("[WARN] S6.22 Q186 RELOCATION:", eQ186.message, eQ186.stack?.split("\n")[1]?.trim());
+    }
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    // ═══════════════════════════════════════════════════════════════════════════
     // SPRINT 6.21 — ÉTOILES FIXES V2 (Couches B + C + Clause Némésis)
     // ═══════════════════════════════════════════════════════════════════════════
     // Cadrage : SITE/scripts/PREV-CADRAGE-RD-ETOILES-FIXES-V2-S621.md (figé)
@@ -19564,6 +20054,62 @@ if (_mdseResults.length > 0 && finalOutput.length > 0) {
         }
       } catch(_eNABlock) { console.log("[WARN] S6.21.1 _s60NatalAffinityBlock:", _eNABlock.message); }
 
+      // ═══════════════════════════════════════════════════════════════════════
+      // SPRINT 6.22 — Bloc RELOCATION (typologie subie/choisie/par_alliance)
+      // ═══════════════════════════════════════════════════════════════════════
+      // Doctrine retour 83-bis (D24) : la coexistence libre RELOCATION × SCANDALE
+      // est maintenue. Le LLM fait la synthèse narrative naturelle :
+      //   « Un scandale politique majeur (Algol MC) qui force à l'exil (Relocation
+      //     subie, Pluton ☌ Maître M4). »
+      // Le bloc explicite la typologie + le canal d'activation (N1 strict, voyage
+      // converti, par_alliance) + la Piste G STELLAR_NOMADIC + le cap profil_type.
+      const _S60_RELOC_TYPO = {
+        subie:        "déracinement subi (transit lent dur Saturne/Pluton/Neptune sur IC, Maître M4 ou planète angulaire en M4) — exil, contrainte, séparation forcée du foyer",
+        choisie:      "renouveau choisi (Uranus dur ou Jupiter trigone IC/M4) — émigration entrepreneuriale, expatriation positive, nouveau chapitre",
+        par_alliance: "déménagement par union (Saturne/Pluton/Uranus ☌ DSC + MARIAGE actif ≥ 50) — changement de statut et de lieu de vie via le mariage ou la mise en couple",
+        atypique:     "configuration atypique : laisser parler le contexte sans typologie figée"
+      };
+      let _s60RelocationBlock = "";
+      try {
+        const _q186Diag = finalOutput[0].json._q186RelocationDiag || null;
+        const _s60Top5Reloc = _s60Sorted.slice(0, 5);
+        const _hasRelocInTop5 = _s60Top5Reloc.some(s => s.code === "RELOCATION");
+        const _emitReloc = _q186Diag && _q186Diag.n1Count > 0 && _hasRelocInTop5;
+        if (_emitReloc) {
+          const typo = _q186Diag.typology || "atypique";
+          const n1Lines = (_q186Diag.n1Hits || []).slice(0, 4).map(h => {
+            const lab = h.kind === "N1_IC" ? "Transit lent IC"
+              : h.kind === "N1_RULER_M4" ? `Transit sur Maître M4 (${h.target})`
+              : h.kind === "N1_PLANET_M4" ? `Transit sur planète natale en M4 (${h.target})`
+              : h.kind === "N1_LUNE_ANGULAR" ? "Transit Saturne/Pluton ☌ Lune (M4 ou angulaire)"
+              : h.kind === "N1_PAR_ALLIANCE" ? `Transit ☌ Descendant + MARIAGE actif (par_alliance, MARIAGE@${h.mariageConf})`
+              : h.kind === "N1_VOYAGE_CONVERSION" ? `Conversion VOYAGE→RELOCATION (VOYAGE@${h.voyageConf}, ${h.voyageN2Count} ratifications N2)`
+              : h.kind;
+            const orbStr = (typeof h.orb === "number") ? ` orb ${h.orb.toFixed(2)}°` : "";
+            return `    • ${lab} : ${h.planet || "—"}${h.aspect ? " " + h.aspect : ""} ${h.target || ""}${orbStr}`;
+          }).join("\n");
+          const n2Count = _q186Diag.n2Count || 0;
+          const capStr = _q186Diag.cap != null ? `cap ${_q186Diag.cap}` : "cap —";
+          const profilCapNote = _q186Diag.profilCapped
+            ? `\n  ⚠ Cap profil Q187 : RELOCATION plafonné @ ${_q186Diag.profilCapValue} (profil_type=prive). Ne pas remonter en Top-1 sauf si la biographie atteste un déménagement / exil avéré pour cette année.`
+            : "";
+          const promiseGNote = _q186Diag.promiseGActive
+            ? `\n  ★ Piste G STELLAR_NOMADIC active (cumul=${_q186Diag.promiseGScore}, hits [${(_q186Diag.promiseGHits || []).slice(0,4).join(", ")}]) : sujet dont la promesse natale signe un destin nomade — donne du poids interprétatif au RELOCATION quand il est en Top-3.`
+            : "";
+          _s60RelocationBlock =
+            `\n══ NOTES RELOCATION — double signature N1+N2 + typologie (Q186 S6.22) ══\n` +
+            `  🏠 Typologie : « ${typo} » → ${_S60_RELOC_TYPO[typo] || _S60_RELOC_TYPO.atypique}.\n` +
+            `  Niveau 1 (déclencheurs) : ${_q186Diag.n1Count} actif(s).\n` +
+            (n1Lines ? n1Lines + "\n" : "") +
+            `  Niveau 2 (ratifications) : ${n2Count} actif(s) → ${capStr}.\n` +
+            promiseGNote + profilCapNote +
+            `\n  Loi 12 (S6.22) : si RELOCATION est en Top-1, mentionne explicitement la typologie\n` +
+            `  (subie/choisie/par_alliance) dans la primary_reason, sans nommer le sujet.\n` +
+            `  Coexistence libre maintenue avec SCANDALE et SEPARATION (D24) — le scandale\n` +
+            `  politique peut être la CAUSE de l'exil, le LLM fait la synthèse.\n`;
+        }
+      } catch(_eRelocBlock) { console.log("[WARN] S6.22 _s60RelocationBlock:", _eRelocBlock.message); }
+
       // Construire description doctrinale courte par sig (max 5 conditions strength≥0.7)
       function _s60SigDescr(sig, idx) {
         const conds = (sig.matchedConditions || []).filter(c => c.strength >= 0.7).slice(0, 5);
@@ -19875,6 +20421,22 @@ if (_mdseResults.length > 0 && finalOutput.length > 0) {
         `      → Le LLM peut toujours désobéir au Top-1 selon Loi 4-VIP, mais\n` +
         `        si l'affinité natale est massive (≥ 0.50) ET la biographie\n` +
         `        confirme, refuser de remonter ce code = faute professionnelle.\n\n` +
+        `Loi 12 — Typologie RELOCATION + coexistence libre (S6.22 D24) :\n` +
+        `  Le bloc « NOTES RELOCATION » expose la typologie active (subie /\n` +
+        `  choisie / par_alliance) et le canal d'activation (transit lent IC,\n` +
+        `  Maître M4, planète en M4, Lune angulaire, voyage_to_relocation,\n` +
+        `  par_alliance MARIAGE). Quand RELOCATION est en Top-1 :\n` +
+        `      → Tu DOIS mentionner la typologie dans primary_reason sans nommer\n` +
+        `        le sujet (« Déménagement subi par transit Pluton ☌ Maître M4 »,\n` +
+        `        « Expatriation choisie via Uranus IC », « Changement de lieu de\n` +
+        `        vie par alliance — Saturne ☌ DSC + signature MARIAGE simultanée »).\n` +
+        `      → Coexistence libre RELOCATION × SCANDALE × SEPARATION : si SCANDALE\n` +
+        `        ou SEPARATION est aussi en Top-3, raconte le lien causal naturel\n` +
+        `        (ex : « Un scandale politique majeur (Algol MC) qui force à l'exil »).\n` +
+        `      → Si RELOCATION a été plafonné par Q187 (cap profil_type=prive @ 65),\n` +
+        `        ne le remonte JAMAIS en Top-1 (sauf événement public absolument certain).\n` +
+        `      → Si la Piste G STELLAR_NOMADIC est active (sujet doctrinalement nomade),\n` +
+        `        cite la racine natale dans la primary_reason (cf. Loi 11-ter).\n\n` +
         `══ RÈGLES DE CONFIDENCE_IN_CHOICE (Q50-A — calibration humilité) ══\n` +
         `- "high"   : tu es certain à >85% (écart confidence Top-1 vs Top-2 ≥ 8)\n` +
         `- "medium" : confiance modérée (écart 3-7) — utilisée AUSSI quand les techniques\n` +
@@ -19912,6 +20474,7 @@ if (_mdseResults.length > 0 && finalOutput.length > 0) {
         _s60ScandaleBlock +
         _s60FixedStarV2Block +
         _s60NatalAffinityBlock +
+        _s60RelocationBlock +
         `\nTop-5 du moteur (triés par rankingScore décroissant — confidence × affinité natale) :\n\n` +
         _s60Top3.map((s, i) => _s60SigDescr(s, i)).join("\n\n") +
         `\n\n` +
