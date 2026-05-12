@@ -19358,6 +19358,81 @@ if (_mdseResults.length > 0 && finalOutput.length > 0) {
     // ═══════════════════════════════════════════════════════════════════════════
 
     // ═══════════════════════════════════════════════════════════════════════════
+    // SPRINT 6.22.1 / Couche A (2026-05-12, retour 88 astrologue) —
+    // CAP PRIVÉ UNIVERSEL @65 sur profil_type=prive.
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Doctrine astrologue (note 88) : « Avoir un score de 95 sur CARRIERE_UP
+    // pour un profil Privé est une alerte rouge. Cela signifie que la Couche A
+    // (Hard Caps) est trouée. Nous avons cappé SCANDALE (à 50, Q180) et
+    // RELOCATION (à 65, Q187) pour les profils privés, mais nous avons
+    // apparemment laissé CARRIERE_UP, FINANCE_UP ou d'autres codes s'envoler
+    // sans filet. Il faut un Cap Privé universel pour empêcher le bruit de
+    // fond de s'imposer en Top-1. »
+    //
+    // Diagnostic livré (note 86 §6.7) : 100 % des 10 Mme Dupont sont en fuite
+    // Couche A (50 % pure + 40 % mixte avec D marginale + 10 % aggravée par
+    // boost post-cap). Couche D (rankingScore) ne touche pas confidence donc
+    // n'est pas la cause. Recommandation : cap universel @65 en fin de
+    // pipeline, après TOUS les boosts contextuels (S55 Q35b, S27 Promotion,
+    // PNSS V4, S35 carr) et AVANT la Couche D (qui ne modifie que rankingScore).
+    //
+    // Position : juste avant Couche D (l. 19378+). Réversible : si
+    // profil_type=public, aucun cap appliqué.
+    //
+    // Codes couverts (les 10 majeurs sans cap profil_type=prive existant) :
+    //   CARRIERE_UP, FINANCE_UP, MARIAGE, ENFANT, SEPARATION,
+    //   JURIDIQUE_UP/DOWN, DEUIL, SANTE_UP/DOWN, SPIRITUEL.
+    // Caps existants conservés : Q100-B ACCIDENT@65, Q120 VOYAGE@65,
+    // Q180 SCANDALE@50, Q187 RELOCATION@65 (ces caps sont plus stricts ou
+    // équivalents et restent prioritaires : `Math.min` les préserve).
+    try {
+      const _S6221_VERSION = "S6.22.1-CAP-PRIVE-UNIVERSEL-rc1";
+      const _S6221_CAP_PRIVE_UNIVERSEL = 65;
+      const _S6221_CAPPED = [];
+
+      // Lecture profil_type (calque Q180 / Q187 / S60 — pattern multi-source)
+      let _s6221ProfilTypeRaw = perso?.profil_type || null;
+      if (!_s6221ProfilTypeRaw) {
+        try { _s6221ProfilTypeRaw = $("Extract Variables").first()?.json?.profil_type || null; } catch (_e1) {}
+      }
+      if (!_s6221ProfilTypeRaw) {
+        try {
+          const _wh = $("Webhook").first()?.json || {};
+          _s6221ProfilTypeRaw = _wh?.body?.profil_type || _wh?.profil_type || null;
+        } catch (_e2) {}
+      }
+      const _s6221ProfilType = (_s6221ProfilTypeRaw || "prive").toString().toLowerCase().trim();
+      const _s6221IsPrivate = _s6221ProfilType === "prive";
+
+      if (_s6221IsPrivate && Array.isArray(sigPayload)) {
+        for (const sig of sigPayload) {
+          if ((sig.confidence || 0) > _S6221_CAP_PRIVE_UNIVERSEL) {
+            const before = sig.confidence;
+            sig.confidence = _S6221_CAP_PRIVE_UNIVERSEL;
+            sig._s6221CapPrive = {
+              before,
+              after: _S6221_CAP_PRIVE_UNIVERSEL,
+              scope: "universal_prive_S6.22.1",
+              profilType: _s6221ProfilType,
+              version: _S6221_VERSION,
+            };
+            _S6221_CAPPED.push(`${sig.code} ${before}→${_S6221_CAP_PRIVE_UNIVERSEL}`);
+          }
+        }
+        if (_S6221_CAPPED.length) {
+          console.log(`[${_S6221_VERSION}] Cap privé universel @${_S6221_CAP_PRIVE_UNIVERSEL} appliqué (${_S6221_CAPPED.length} sig) : ${_S6221_CAPPED.join(", ")}`);
+        } else {
+          console.log(`[${_S6221_VERSION}] profil_type=prive — aucun code > ${_S6221_CAP_PRIVE_UNIVERSEL}, cap inactif sur ce thème`);
+        }
+      } else if (!_s6221IsPrivate) {
+        console.log(`[${_S6221_VERSION}] profil_type=${_s6221ProfilType} → cap privé universel désactivé (mode public)`);
+      }
+    } catch (_eS6221) {
+      console.log("[WARN] S6.22.1 Couche A:", _eS6221.message, _eS6221.stack?.split("\n")[1]?.trim());
+    }
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    // ═══════════════════════════════════════════════════════════════════════════
     // SPRINT 6.21.1 / Couche D (2026-05-12, retour 82-bis astrologue D5-D9) —
     // Re-ranking du Top-N par affinités natales.
     // ═══════════════════════════════════════════════════════════════════════════
