@@ -4615,6 +4615,47 @@ try {
   }
 } catch(e) {}
 
+// ═══════════════════════════════════════════════════════════════════════════
+// SPRINT 6.21.1 (2026-05-12, retour 82-bis astrologue D5+D8) — PATCH -bis :
+// Connecter la Piste F HÉRITAGE (étoile bénéfique en M8 natale) au scoring
+// _mdseNatalPromise consommé par EVENT_SIGNATURES.HÉRITAGE.
+// ═══════════════════════════════════════════════════════════════════════════
+// Bug détecté audit fa1d849 : la Piste F (lignes 1558-1623) écrit dans
+// _natalPromises.heritagePisteFDiag mais le matcher EVENT_SIGNATURES consomme
+// _mdseNatalPromise[code] (autre boucle ligne 4500-4615), sans pont entre les
+// deux. Conséquence : sur 63 cas critiques, _q137HeritageDiag.appliedCount=0
+// → la Piste F est inerte en S6.21.
+//
+// Patch : après calcul _mdseNatalPromise, on injecte un bonus selon le nombre
+// de hits Piste F. Formule : 8 + 2 × hits, capé à 15. Cela garantit que tout
+// sujet ayant Spica/Régulus/Sirius/Mirach/Véga/Zubeneschamali en M8 (ou
+// Jupiter natal en M8) obtient un score de promesse HÉRITAGE ≥ 10, ce qui :
+//   • Active la condition {type:"natal_promise",sigCode:"HÉRITAGE"} dans
+//     EVENT_SIGNATURES.HÉRITAGE.
+//   • Skippe le cap Q137-A @ 60 (HÉRITAGE peut monter > 60 légitimement).
+try {
+  const _heritagePisteF = (typeof _natalPromises !== "undefined")
+    ? _natalPromises.heritagePisteFDiag
+    : null;
+  if (_heritagePisteF && _heritagePisteF.active && Array.isArray(_heritagePisteF.hits)) {
+    const _f1Score = Math.min(15, 8 + (_heritagePisteF.hits.length * 2));
+    const _previousScore = _mdseNatalPromise["HÉRITAGE"] || 0;
+    if (_f1Score > _previousScore) {
+      _mdseNatalPromise["HÉRITAGE"] = _f1Score;
+      _mdseNatalPromiseDetails["HÉRITAGE"] = {
+        ..._mdseNatalPromiseDetails["HÉRITAGE"],
+        S621bisPisteFConnect: {
+          previousScore: _previousScore,
+          newScore: _f1Score,
+          hits: _heritagePisteF.hits
+        }
+      };
+    }
+  }
+} catch(e) {
+  console.log("[WARN] S6.21.1 Piste F connect:", e.message);
+}
+
 // ═══ PROFIL NATAL ARCHÉTYPAL (PNA) v15 — Pondération holistique par le thème ═══
 const _pnaProfile = { domains:{}, temperament:{}, sigPriority:{}, ranking:[], stats:{} };
 try {
@@ -18722,23 +18763,79 @@ if (_mdseResults.length > 0 && finalOutput.length > 0) {
       // === 3) Couche C — protectsDown (plancher minConf+5, réversible Loi 11) ===
       // protectsDown s'applique dès lors que l'étoile est natalement présente
       // (protection structurelle, pas dépendante d'un trigger transit).
+      //
+      // SPRINT 6.21.1 (2026-05-12, retour 82-bis astrologue D5+D8) — PATCH NEMESIS
+      // Doctrine astrologue : « Le patch S6.21.1 est vital car, comme nous
+      // l'avons dit pour la Némésis, la chute annule toute protection. »
+      //
+      // 3 règles de garde-fou pour résoudre l'annulation Couche B par Couche C :
+      //   R1 : si une activation boostsDown OU nemesisDown existe déjà sur le
+      //        même code (par n'importe quelle étoile dans le même item), la
+      //        protection est BYPASSÉE (la chute karmique prime sur le bouclier).
+      //   R2 : si _q179ScandaleDiag.injected=true ET promiseQualified=true,
+      //        toute protection sur SCANDALE est BYPASSÉE (la promesse natale
+      //        Public Personnae cumul ≥ 12 + Lilith ☌/□/☍ Lune/Vénus est trop
+      //        forte pour être étouffée par une étoile bénéfique).
+      //   R3 : floor proportionnel max(before - 30) sur les protections qui
+      //        s'appliquent — plus aucune chute brutale au-delà de 30 points
+      //        (au lieu d'écraser à 35 inconditionnellement).
       const _fsv2ProtectFloor = _FSV2_MIN_CONFIDENCE + _FSV2_PROTECT_FLOOR_OFFSET; // 35
+      const _fsv2BypassedProtections = [];
+
+      // R1 — codes déjà boostés à la baisse par Couche B (boostDown ou nemesisDown)
+      const _fsv2DownCodes = new Set(
+        _fsv2Activations
+          .filter(a => a.mode === "boostDown" || a.mode === "nemesisDown")
+          .map(a => a.code)
+      );
+
+      // R2 — Q179 SCANDALE qualifié + injecté ?
+      const _q179SDiag = finalOutput[0].json._q179ScandaleDiag;
+      const _fsv2Q179Active = !!(_q179SDiag && _q179SDiag.injected === true && _q179SDiag.promiseQualified === true);
+
       for (const carrier of _fsv2NatalCarriers) {
         if (!carrier.def.protectsDown || !carrier.def.protectsDown.length) continue;
         for (const protCode of carrier.def.protectsDown) {
           const target = sigPayload.find(s => s.code === protCode);
           if (!target) continue;
+
+          // R1 — bypass si Couche B a déjà appliqué une chute sur ce code
+          if (_fsv2DownCodes.has(protCode)) {
+            _fsv2BypassedProtections.push({
+              star: carrier.star, code: protCode,
+              reason: "R1_layerB_active_on_same_code",
+              currentValue: target.confidence
+            });
+            continue;
+          }
+
+          // R2 — bypass si Q179 SCANDALE qualifié (promesse + déclencheur)
+          if (protCode === "SCANDALE" && _fsv2Q179Active) {
+            _fsv2BypassedProtections.push({
+              star: carrier.star, code: protCode,
+              reason: "R2_Q179_scandale_promise_qualified",
+              q179Score: _q179SDiag.promiseScore,
+              currentValue: target.confidence
+            });
+            continue;
+          }
+
+          // R3 — floor proportionnel : la protection ne fait pas chuter plus de 30 points
           if (target.confidence > _fsv2ProtectFloor) {
             const before = target.confidence;
-            target.confidence = _fsv2ProtectFloor;
+            const proportionalFloor = Math.max(_fsv2ProtectFloor, before - 30);
+            target.confidence = proportionalFloor;
             target._fsv2ProtectDown = {
               star: carrier.star, natalLabel: carrier.natalLabel,
-              before, after: _fsv2ProtectFloor,
+              before, after: proportionalFloor,
+              floorMode: proportionalFloor > _fsv2ProtectFloor ? "R3_proportional_max_minus_30" : "absolute_minconf_plus_5",
               reversibleByVip: true                                            // Loi 11
             };
             _fsv2Activations.push({
               star: carrier.star, mode: "protectDown", code: protCode,
-              before, after: _fsv2ProtectFloor, reversibleByVip: true
+              before, after: proportionalFloor,
+              floorMode: target._fsv2ProtectDown.floorMode,
+              reversibleByVip: true
             });
           }
         }
@@ -18746,7 +18843,7 @@ if (_mdseResults.length > 0 && finalOutput.length > 0) {
 
       // === 4) Diagnostic complet ===
       finalOutput[0].json._etoilesFixesV2Diag = {
-        version: _FSV2_VERSION,
+        version: _FSV2_VERSION + "-S6.21.1",
         natalCarriers: _fsv2NatalCarriers.map(c => ({
           star: c.star, natalLabel: c.natalLabel, kind: c.natalKind,
           orb: c.orb, maison: c.maison, tier: c.def.tier, royal: !!c.def.royal
@@ -18755,7 +18852,9 @@ if (_mdseResults.length > 0 && finalOutput.length > 0) {
         nemesisCount: _fsv2Activations.filter(a => a.mode === "nemesisCapUp" || a.mode === "nemesisDown").length,
         boostUpCount: _fsv2Activations.filter(a => a.mode === "boostUp").length,
         boostDownCount: _fsv2Activations.filter(a => a.mode === "boostDown").length,
-        protectDownCount: _fsv2Activations.filter(a => a.mode === "protectDown").length
+        protectDownCount: _fsv2Activations.filter(a => a.mode === "protectDown").length,
+        bypassedProtections: _fsv2BypassedProtections,                       // S6.21.1 R1+R2
+        bypassedCount: _fsv2BypassedProtections.length
       };
 
       if (_fsv2Activations.length > 0) {
@@ -18765,6 +18864,392 @@ if (_mdseResults.length > 0 && finalOutput.length > 0) {
       }
     } catch (eFsv2) {
       console.log("[WARN] S6.21 Fixed Stars V2:", eFsv2.message, eFsv2.stack?.split("\n")[1]?.trim());
+    }
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // SPRINT 6.21.1 / Couche D (2026-05-12, retour 82-bis astrologue D5-D9) —
+    // Re-ranking du Top-N par affinités natales.
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Doctrine astrologue : « La Couche D rétablit la primauté de la carte du
+    // ciel natale, tout en préservant l'impact des déclencheurs événementiels.
+    // Une pluie torrentielle (Pluton sur le Fond du Ciel) ne donne pas le même
+    // résultat si elle tombe sur un désert (thème sans aucune promesse de
+    // mobilité) ou sur une terre fertile en graines nomades. »
+    //
+    // Formule : rankingScore = confidence × (1 + α × natalAffinity)
+    //   • α = 0.30 (modulateur global validé D7) → boost max +30 %
+    //   • natalAffinity ∈ [0, 1.0] (clamp), score brut / 100
+    //   • Trier par rankingScore DESC pour le Top-N final
+    //
+    // Tables d'affinité §2.d retour 82-bis + ajouts astrologue :
+    //   • HÉRITAGE : +10 Saturne natal en M8 (patience qui mène au gain)
+    //   • SEPARATION : +15 Uranus angulaire (instabilité chronique)
+    try {
+      const _NA_VERSION = "S6.21.1-NATAL-AFFINITY-D-rc1";
+      const _NA_ALPHA = 0.30;
+      const _NA_NORMALIZER = 100;
+
+      // Helpers
+      const _naHouse = (planet) => natalDict?.[planet]?.house;
+      const _naSign = (planet) => natalDict?.[planet]?.sign;
+      const _naIsAngle = (h) => h === 1 || h === 4 || h === 7 || h === 10;
+      const _naMutableSigns = new Set(["Gémeaux", "Vierge", "Sagittaire", "Poissons"]);
+      const _ANGLES_SET = new Set([1, 4, 7, 10]);
+
+      const _naHasNatalAsp = (p1, p2, types, maxOrb) => {
+        const arr = (typeof natalAspectsMap !== "undefined") ? (natalAspectsMap[p1] || []) : [];
+        for (const a of arr) {
+          if (a.planete === p2 && types.includes(a.type) && a.orbe <= maxOrb) {
+            return { aspect: a.type, orb: a.orbe };
+          }
+        }
+        return null;
+      };
+
+      const _naHardAspects = ["Conjonction", "Carré", "Opposition"];
+      const _naHarmAspects = ["Trigone", "Sextile"];
+
+      // Diags accessibles
+      const _q179SD = finalOutput[0].json._q179ScandaleDiag;
+      const _fsv2D = finalOutput[0].json._etoilesFixesV2Diag;
+      const _fsv2Carriers = (_fsv2D && Array.isArray(_fsv2D.natalCarriers)) ? _fsv2D.natalCarriers : [];
+      const _heritagePisteF = (typeof _natalPromises !== "undefined") ? _natalPromises.heritagePisteFDiag : null;
+      const _bySig = (typeof _natalPromises !== "undefined") ? _natalPromises.bySignature || {} : {};
+
+      // Maître M7 et M8 traditionnels (calcul minimal)
+      const _signOrder = ["Bélier","Taureau","Gémeaux","Cancer","Lion","Vierge","Balance","Scorpion","Sagittaire","Capricorne","Verseau","Poissons"];
+      const _ascSign = _naSign("Ascendant");
+      const _ascIdx = _ascSign ? _signOrder.indexOf(_ascSign) : -1;
+      const _m7Sign = _ascIdx >= 0 ? _signOrder[(_ascIdx + 6) % 12] : null;
+      const _m8Sign = _ascIdx >= 0 ? _signOrder[(_ascIdx + 7) % 12] : null;
+      const _m4Sign = _ascIdx >= 0 ? _signOrder[(_ascIdx + 3) % 12] : null;
+      const _m9Sign = _ascIdx >= 0 ? _signOrder[(_ascIdx + 8) % 12] : null;
+      const _m10Sign = _ascIdx >= 0 ? _signOrder[(_ascIdx + 9) % 12] : null;
+      const _m2Sign = _ascIdx >= 0 ? _signOrder[(_ascIdx + 1) % 12] : null;
+      const _m5Sign = _ascIdx >= 0 ? _signOrder[(_ascIdx + 4) % 12] : null;
+      const _m6Sign = _ascIdx >= 0 ? _signOrder[(_ascIdx + 5) % 12] : null;
+      const _m12Sign = _ascIdx >= 0 ? _signOrder[(_ascIdx + 11) % 12] : null;
+      const _MAITRES_TRAD_SAFE = (typeof MAITRES_TRAD !== "undefined") ? MAITRES_TRAD : {};
+      const _m7 = _m7Sign ? _MAITRES_TRAD_SAFE[_m7Sign] : null;
+      const _m8 = _m8Sign ? _MAITRES_TRAD_SAFE[_m8Sign] : null;
+      const _m4 = _m4Sign ? _MAITRES_TRAD_SAFE[_m4Sign] : null;
+      const _m9 = _m9Sign ? _MAITRES_TRAD_SAFE[_m9Sign] : null;
+      const _m10 = _m10Sign ? _MAITRES_TRAD_SAFE[_m10Sign] : null;
+      const _m2 = _m2Sign ? _MAITRES_TRAD_SAFE[_m2Sign] : null;
+      const _m5 = _m5Sign ? _MAITRES_TRAD_SAFE[_m5Sign] : null;
+      const _m6 = _m6Sign ? _MAITRES_TRAD_SAFE[_m6Sign] : null;
+      const _m12 = _m12Sign ? _MAITRES_TRAD_SAFE[_m12Sign] : null;
+
+      // Stellium counter par maison
+      const _naStelliumByHouse = {};
+      const _NA_PLANETS_MAIN = ["Soleil","Lune","Mercure","Vénus","Mars","Jupiter","Saturne","Uranus","Neptune","Pluton"];
+      for (const p of _NA_PLANETS_MAIN) {
+        const h = _naHouse(p);
+        if (h) _naStelliumByHouse[h] = (_naStelliumByHouse[h] || 0) + 1;
+      }
+
+      const _naCarrierOnLumOrAngle = (starName) => {
+        // True si un carrier de cette étoile est sur Soleil/Lune/Asc/MC orb ≤ 1
+        return _fsv2Carriers.some(c => c.star === starName &&
+          (c.natalLabel === "Soleil" || c.natalLabel === "Lune" ||
+           c.natalLabel === "Ascendant" || c.natalLabel === "Milieu du Ciel") &&
+          (c.orb || 99) <= 1.0);
+      };
+
+      const _naCarrierOnPlanet = (starName, planet, maxOrb = 1.5) => {
+        return _fsv2Carriers.some(c => c.star === starName && c.natalLabel === planet && (c.orb || 99) <= maxOrb);
+      };
+
+      const _naCarrierOnAngle = (starName) => {
+        return _fsv2Carriers.some(c => c.star === starName &&
+          (c.natalLabel === "Ascendant" || c.natalLabel === "Milieu du Ciel" ||
+           c.natalLabel === "Descendant" || c.natalLabel === "Imum Coeli"));
+      };
+
+      // Tables d'affinité par code (§2.d retour 82-bis + ajouts D5-D9)
+      const _NA_TABLES = {
+        SCANDALE: [
+          { label: "Q179 promesse qualifiée (cumul ≥ 12)", points: 30,
+            check: () => !!(_q179SD && _q179SD.promiseQualified === true) },
+          { label: "Q179 promiseScore brut /30 → 0..13",
+            points: () => _q179SD ? Math.min(13, Math.floor((_q179SD.promiseScore || 0) * 0.5)) : 0 },
+          { label: "Lilith natale en M1/M7/M10", points: 8,
+            check: () => { const h = _naHouse("Lune Noire") || _naHouse("Lilith"); return h === 1 || h === 7 || h === 10; } },
+          { label: "Lune dur Saturne ou Pluton ≤1°", points: 10,
+            check: () => !!(_naHasNatalAsp("Lune", "Saturne", _naHardAspects, 1) || _naHasNatalAsp("Lune", "Pluton", _naHardAspects, 1)) },
+          { label: "Vénus dur Saturne ou Pluton ≤1°", points: 10,
+            check: () => !!(_naHasNatalAsp("Vénus", "Saturne", _naHardAspects, 1) || _naHasNatalAsp("Vénus", "Pluton", _naHardAspects, 1)) },
+          { label: "Stellium M8 (≥3 planètes)", points: 8, check: () => (_naStelliumByHouse[8] || 0) >= 3 },
+          { label: "Stellium M12 (≥3 planètes)", points: 8, check: () => (_naStelliumByHouse[12] || 0) >= 3 },
+          { label: "Algol/Alcyone sur luminaire/angle ≤1°", points: 15,
+            check: () => _naCarrierOnLumOrAngle("Algol") || _naCarrierOnLumOrAngle("Alcyone") }
+        ],
+        "HÉRITAGE": [
+          { label: "Piste F qualifiée (étoile bénéfique en M8)", points: 25,
+            check: () => !!(_heritagePisteF && _heritagePisteF.active) },
+          { label: "Jupiter natal en M8", points: 15, check: () => _naHouse("Jupiter") === 8 },
+          { label: "Maître M8 natal en M2/M4/M5", points: 10,
+            check: () => { const h = _m8 && _naHouse(_m8); return h === 2 || h === 4 || h === 5; } },
+          { label: "Pluton natal en M8", points: 8, check: () => _naHouse("Pluton") === 8 },
+          { label: "Nœud Nord natal en M8 ou M2", points: 6,
+            check: () => { const h = _naHouse("Nœud Nord"); return h === 8 || h === 2; } },
+          { label: "Saturne natal en M8 (D6 ajout astrologue)", points: 10,
+            check: () => _naHouse("Saturne") === 8 }
+        ],
+        CARRIERE_UP: [
+          { label: "Régulus/Sirius/Aldébaran/Spica conjoint MC ou Soleil", points: 25,
+            check: () => ["Régulus","Sirius","Aldébaran","Spica"].some(s =>
+              _naCarrierOnPlanet(s, "Milieu du Ciel", 1.5) || _naCarrierOnPlanet(s, "Soleil", 1.5)) },
+          { label: "Soleil ou Jupiter angulaire (M1/M10)", points: 15,
+            check: () => _naIsAngle(_naHouse("Soleil")) || _naIsAngle(_naHouse("Jupiter")) },
+          { label: "Stellium M10 (≥3 planètes)", points: 12, check: () => (_naStelliumByHouse[10] || 0) >= 3 },
+          { label: "Maître MC natal en M1 ou M11", points: 10,
+            check: () => { const h = _m10 && _naHouse(_m10); return h === 1 || h === 11; } },
+          { label: "PNA domain carriere top-2",
+            points: () => {
+              try {
+                const r = (typeof _pnaProfile !== "undefined") ? (_pnaProfile.ranking || []) : [];
+                const idx = r.findIndex(x => x === "carriere" || x?.code === "carriere" || x?.domain === "carriere");
+                return (idx >= 0 && idx < 2) ? 8 : 0;
+              } catch { return 0; }
+            } }
+        ],
+        MARIAGE: [
+          { label: "Vénus angulaire sans aspect dur natal", points: 20,
+            check: () => {
+              const vh = _naHouse("Vénus");
+              if (!_naIsAngle(vh)) return false;
+              const hasHard = ["Saturne","Mars","Pluton"].some(p => _naHasNatalAsp("Vénus", p, _naHardAspects, 3));
+              return !hasHard;
+            } },
+          { label: "Vénus en M5/M7 + harmonique Jupiter", points: 15,
+            check: () => {
+              const vh = _naHouse("Vénus");
+              return (vh === 5 || vh === 7) && !!_naHasNatalAsp("Vénus", "Jupiter", _naHarmAspects, 3);
+            } },
+          { label: "Lune en M7 ou conjoint DSC", points: 12,
+            check: () => _naHouse("Lune") === 7 || !!_naHasNatalAsp("Lune", "Descendant", ["Conjonction"], 3) },
+          { label: "Maître M7 natal dignifié", points: 10,
+            check: () => {
+              if (!_m7) return false;
+              try {
+                const sg = _naSign(_m7);
+                const d = (typeof _mdseDignite === "function") ? _mdseDignite(_m7, sg) : null;
+                return d === "Domicile" || d === "Exaltation";
+              } catch { return false; }
+            } },
+          { label: "Spica/Mirach conjoint Vénus natal", points: 12,
+            check: () => _naCarrierOnPlanet("Spica", "Vénus", 1.5) || _naCarrierOnPlanet("Mirach", "Vénus", 1.5) }
+        ],
+        DEUIL: [
+          { label: "Hyleg dur natal serré ≤2° à maléfique (PLANETE_AFFLIGEE_DURE)", points: 25,
+            check: () => Array.isArray(_bySig.DEUIL) && _bySig.DEUIL.some(p => p.type === "PLANETE_AFFLIGEE_DURE") },
+          { label: "Mars ou Saturne en M8 (MALEFIQUE_DOMICILIAIRE)", points: 15,
+            check: () => _naHouse("Mars") === 8 || _naHouse("Saturne") === 8 },
+          { label: "Pluton natal en M4 ou M8", points: 10,
+            check: () => _naHouse("Pluton") === 4 || _naHouse("Pluton") === 8 },
+          { label: "Algol/Alcyone conjoint Lune ≤1°", points: 18,
+            check: () => _naCarrierOnPlanet("Algol", "Lune", 1.0) || _naCarrierOnPlanet("Alcyone", "Lune", 1.0) }
+        ],
+        SEPARATION: [
+          { label: "VENUS_AFFLIGEE_DURE (Saturne/Mars/Pluton dur ≤2°)", points: 25,
+            check: () => Array.isArray(_bySig.SEPARATION) && _bySig.SEPARATION.some(p => p.type === "VENUS_AFFLIGEE_DURE") },
+          { label: "MAITRE_M7_AFFLIGE", points: 20,
+            check: () => Array.isArray(_bySig.SEPARATION) && _bySig.SEPARATION.some(p => p.type === "MAITRE_M7_AFFLIGE") },
+          { label: "Lilith natale conjoint Vénus ≤1°", points: 15,
+            check: () => !!_naHasNatalAsp("Lune Noire", "Vénus", ["Conjonction"], 1) || !!_naHasNatalAsp("Lilith", "Vénus", ["Conjonction"], 1) },
+          { label: "M7 contient Saturne ou Pluton", points: 10,
+            check: () => _naHouse("Saturne") === 7 || _naHouse("Pluton") === 7 },
+          { label: "Uranus angulaire ASC/MC/DSC/IC (D6 ajout astrologue)", points: 15,
+            check: () => _naIsAngle(_naHouse("Uranus")) }
+        ],
+        ENFANT: [
+          { label: "Vénus en M5 + harmonique Jupiter ou Lune", points: 20,
+            check: () => _naHouse("Vénus") === 5 && (!!_naHasNatalAsp("Vénus","Jupiter",_naHarmAspects,3) || !!_naHasNatalAsp("Vénus","Lune",_naHarmAspects,3)) },
+          { label: "Maître M5 natal dignifié", points: 10,
+            check: () => {
+              if (!_m5) return false;
+              try { const sg = _naSign(_m5); const d = (typeof _mdseDignite === "function") ? _mdseDignite(_m5, sg) : null; return d === "Domicile" || d === "Exaltation"; } catch { return false; }
+            } },
+          { label: "Lune en M5", points: 12, check: () => _naHouse("Lune") === 5 },
+          { label: "Lune ou Vénus harmonique Jupiter ≤2°", points: 10,
+            check: () => !!_naHasNatalAsp("Lune", "Jupiter", _naHarmAspects, 2) || !!_naHasNatalAsp("Vénus", "Jupiter", _naHarmAspects, 2) }
+        ],
+        ACCIDENT: [
+          { label: "Mars natal en M1 ou M6 (MALEFIQUE_DOMICILIAIRE)", points: 20,
+            check: () => _naHouse("Mars") === 1 || _naHouse("Mars") === 6 },
+          { label: "Algol conjoint Mars natal ≤1°", points: 15,
+            check: () => _naCarrierOnPlanet("Algol", "Mars", 1.0) },
+          { label: "Soleil dur Mars ou Pluton ≤1°", points: 12,
+            check: () => !!_naHasNatalAsp("Soleil", "Mars", _naHardAspects, 1) || !!_naHasNatalAsp("Soleil", "Pluton", _naHardAspects, 1) },
+          { label: "Uranus en M1", points: 10, check: () => _naHouse("Uranus") === 1 }
+        ],
+        SANTE_DOWN: [
+          { label: "Hyleg blessé (PLANETE_AFFLIGEE_DURE)", points: 20,
+            check: () => Array.isArray(_bySig.SANTE_DOWN) && _bySig.SANTE_DOWN.some(p => p.type === "PLANETE_AFFLIGEE_DURE") },
+          { label: "Saturne en M6", points: 12, check: () => _naHouse("Saturne") === 6 },
+          { label: "Maître M6 natal en M8 ou M12", points: 10,
+            check: () => { const h = _m6 && _naHouse(_m6); return h === 8 || h === 12; } },
+          { label: "Hyleg dur Pluton/Neptune ≤2°", points: 10,
+            check: () => ["Soleil","Lune","Ascendant"].some(h => !!_naHasNatalAsp(h, "Pluton", _naHardAspects, 2) || !!_naHasNatalAsp(h, "Neptune", _naHardAspects, 2)) }
+        ],
+        JURIDIQUE_DOWN: [
+          { label: "Mercure dur Saturne ou Pluton ≤2°", points: 15,
+            check: () => !!_naHasNatalAsp("Mercure", "Saturne", _naHardAspects, 2) || !!_naHasNatalAsp("Mercure", "Pluton", _naHardAspects, 2) },
+          { label: "Maître M9 natal en M12", points: 12,
+            check: () => _m9 && _naHouse(_m9) === 12 },
+          { label: "Uranus en M9", points: 8, check: () => _naHouse("Uranus") === 9 },
+          { label: "Vindemiatrix conjoint planète angulaire", points: 12,
+            check: () => _fsv2Carriers.some(c => c.star === "Vindemiatrix" && (c.maison === 1 || c.maison === 4 || c.maison === 7 || c.maison === 10)) }
+        ],
+        JURIDIQUE_UP: [
+          { label: "Maître M9 natal dignifié", points: 12,
+            check: () => {
+              if (!_m9) return false;
+              try { const sg = _naSign(_m9); const d = (typeof _mdseDignite === "function") ? _mdseDignite(_m9, sg) : null; return d === "Domicile" || d === "Exaltation"; } catch { return false; }
+            } },
+          { label: "Jupiter en M9", points: 15, check: () => _naHouse("Jupiter") === 9 },
+          { label: "Capella conjoint MC ou Mercure", points: 10,
+            check: () => _naCarrierOnPlanet("Capella", "Milieu du Ciel", 1.5) || _naCarrierOnPlanet("Capella", "Mercure", 1.0) }
+        ],
+        FINANCE_UP: [
+          { label: "Maître M2 natal dignifié", points: 15,
+            check: () => {
+              if (!_m2) return false;
+              try { const sg = _naSign(_m2); const d = (typeof _mdseDignite === "function") ? _mdseDignite(_m2, sg) : null; return d === "Domicile" || d === "Exaltation"; } catch { return false; }
+            } },
+          { label: "Stellium M2 (≥3 planètes)", points: 12, check: () => (_naStelliumByHouse[2] || 0) >= 3 },
+          { label: "Vénus ou Jupiter angulaire", points: 10,
+            check: () => _naIsAngle(_naHouse("Vénus")) || _naIsAngle(_naHouse("Jupiter")) },
+          { label: "Spica conjoint Vénus natal", points: 12,
+            check: () => _naCarrierOnPlanet("Spica", "Vénus", 1.5) }
+        ],
+        FINANCE_DOWN: [
+          { label: "Saturne en M2", points: 15, check: () => _naHouse("Saturne") === 2 },
+          { label: "Pluton dur Vénus ≤1°", points: 12,
+            check: () => !!_naHasNatalAsp("Pluton", "Vénus", _naHardAspects, 1) },
+          { label: "Zubenelgenubi conjoint Vénus", points: 12,
+            check: () => _naCarrierOnPlanet("Zubenelgenubi", "Vénus", 1.0) }
+        ],
+        SPIRITUEL: [
+          { label: "Neptune ou Pluton angulaire", points: 15,
+            check: () => _naIsAngle(_naHouse("Neptune")) || _naIsAngle(_naHouse("Pluton")) },
+          { label: "Maître M9 ou M12 natal dignifié", points: 10,
+            check: () => {
+              try {
+                for (const m of [_m9, _m12]) {
+                  if (!m) continue;
+                  const sg = _naSign(m);
+                  const d = (typeof _mdseDignite === "function") ? _mdseDignite(m, sg) : null;
+                  if (d === "Domicile" || d === "Exaltation") return true;
+                }
+                return false;
+              } catch { return false; }
+            } },
+          { label: "Stellium M9 ou M12 (≥3)", points: 12,
+            check: () => (_naStelliumByHouse[9] || 0) >= 3 || (_naStelliumByHouse[12] || 0) >= 3 }
+        ],
+        VOYAGE: [
+          { label: "Jupiter natal en M9", points: 15, check: () => _naHouse("Jupiter") === 9 },
+          { label: "Maître M9 natal dignifié", points: 12,
+            check: () => {
+              if (!_m9) return false;
+              try { const sg = _naSign(_m9); const d = (typeof _mdseDignite === "function") ? _mdseDignite(_m9, sg) : null; return d === "Domicile" || d === "Exaltation"; } catch { return false; }
+            } },
+          { label: "ASC ou MC en signe mutable", points: 5,
+            check: () => _naMutableSigns.has(_naSign("Ascendant")) || _naMutableSigns.has(_naSign("Milieu du Ciel")) },
+          { label: "Mercure ou Uranus en M9", points: 8,
+            check: () => _naHouse("Mercure") === 9 || _naHouse("Uranus") === 9 }
+        ],
+        RELOCATION: [
+          { label: "Lune natale en M3/M9/M12", points: 10,
+            check: () => { const h = _naHouse("Lune"); return h === 3 || h === 9 || h === 12; } },
+          { label: "Maître M4 natal en M3/M9/M12", points: 12,
+            check: () => { if (!_m4) return false; const h = _naHouse(_m4); return h === 3 || h === 9 || h === 12; } },
+          { label: "Uranus/Pluton/Neptune natal en M4", points: 15,
+            check: () => _naHouse("Uranus") === 4 || _naHouse("Pluton") === 4 || _naHouse("Neptune") === 4 },
+          { label: "Nœud Nord natal en M4 ou Sud en M10", points: 5,
+            check: () => _naHouse("Nœud Nord") === 4 || _naHouse("Nœud Sud") === 10 },
+          { label: "ASC ou MC signe mutable", points: 5,
+            check: () => _naMutableSigns.has(_naSign("Ascendant")) || _naMutableSigns.has(_naSign("Milieu du Ciel")) },
+          { label: "Planète angulaire en M9", points: 4,
+            check: () => ["Soleil","Mars","Jupiter","Saturne"].some(p => _naHouse(p) === 9) }
+        ]
+      };
+
+      // Sauvegarde du rang précédent (pour diff diag)
+      sigPayload.forEach((s, i) => { s._naPreviousRank = i + 1; });
+
+      // Calculer natalAffinity pour chaque sig dans Top-10
+      const _naApplied = [];
+      const topN = Math.min(sigPayload.length, 10);
+      for (let i = 0; i < topN; i++) {
+        const sig = sigPayload[i];
+        const table = _NA_TABLES[sig.code];
+        if (!table) {
+          sig._natalAffinity = 0;
+          sig._natalAffinityScore = 0;
+          sig._natalAffinityBreakdown = [];
+          sig._rankingScore = sig.confidence;
+          continue;
+        }
+        let score = 0;
+        const breakdown = [];
+        for (const rule of table) {
+          let pts = 0;
+          if (typeof rule.points === "function") {
+            pts = rule.points() || 0;
+          } else if (rule.check && rule.check()) {
+            pts = rule.points;
+          }
+          if (pts > 0) {
+            score += pts;
+            breakdown.push(`${rule.label} +${pts}`);
+          }
+        }
+        const affinity = Math.min(1.0, score / _NA_NORMALIZER);
+        sig._natalAffinity = Math.round(affinity * 100) / 100;
+        sig._natalAffinityScore = score;
+        sig._natalAffinityBreakdown = breakdown;
+        sig._rankingScore = Math.round(sig.confidence * (1 + _NA_ALPHA * affinity) * 100) / 100;
+        if (affinity > 0) _naApplied.push(`${sig.code}: conf=${sig.confidence}, aff=${sig._natalAffinity}, rank=${sig._rankingScore}`);
+      }
+      // Default rankingScore = confidence pour les codes au-delà du Top-10
+      for (let i = topN; i < sigPayload.length; i++) {
+        sigPayload[i]._rankingScore = sigPayload[i].confidence;
+        sigPayload[i]._natalAffinity = 0;
+        sigPayload[i]._natalAffinityScore = 0;
+        sigPayload[i]._natalAffinityBreakdown = [];
+      }
+
+      // Re-trier par rankingScore DESC
+      sigPayload.sort((a, b) => (b._rankingScore || b.confidence || 0) - (a._rankingScore || a.confidence || 0));
+
+      // Diag _natalAffinityDiag — Top-10 final
+      finalOutput[0].json._natalAffinityDiag = {
+        version: _NA_VERSION,
+        alpha: _NA_ALPHA,
+        normalizer: _NA_NORMALIZER,
+        topN: sigPayload.slice(0, 10).map((s, idx) => ({
+          code: s.code,
+          confidence: s.confidence,
+          natalAffinity: s._natalAffinity || 0,
+          natalAffinityScore: s._natalAffinityScore || 0,
+          breakdown: s._natalAffinityBreakdown || [],
+          rankingScore: s._rankingScore || s.confidence,
+          newRank: idx + 1,
+          previousRank: s._naPreviousRank || null,
+          rankDelta: (s._naPreviousRank || (idx + 1)) - (idx + 1)
+        })),
+        appliedCount: _naApplied.length
+      };
+
+      if (_naApplied.length > 0) {
+        console.log(`[S6.21.1 Couche D] Natal affinity appliqué sur ${_naApplied.length} sigs (α=${_NA_ALPHA})`);
+      }
+    } catch (eNA) {
+      console.log("[WARN] S6.21.1 Couche D natal affinity:", eNA.message, eNA.stack?.split("\n")[1]?.trim());
     }
     // ═══════════════════════════════════════════════════════════════════════════
 
@@ -19051,6 +19536,33 @@ if (_mdseResults.length > 0 && finalOutput.length > 0) {
           }
         }
       } catch(_eFsv2Block) { console.log("[WARN] S6.21 _s60FixedStarV2Block:", _eFsv2Block.message); }
+
+      // ═══════════════════════════════════════════════════════════════════════
+      // SPRINT 6.21.1 / Couche D (retour 82-bis astrologue D9) — bloc LLM
+      // Affinités natales : explicite la promesse natale dominante par sig
+      // pour que le LLM cite la racine astrologique dans primary_reason.
+      // ═══════════════════════════════════════════════════════════════════════
+      let _s60NatalAffinityBlock = "";
+      try {
+        const _naDiag = finalOutput[0].json._natalAffinityDiag;
+        if (_naDiag && Array.isArray(_naDiag.topN) && _naDiag.appliedCount > 0) {
+          const lines = [];
+          for (const row of _naDiag.topN) {
+            if (!row.natalAffinity || row.natalAffinity <= 0.05) continue;
+            const breakdown = (row.breakdown || []).slice(0, 3).join(", ");
+            const deltaTxt = row.rankDelta > 0 ? `↑${row.rankDelta}` : (row.rankDelta < 0 ? `↓${Math.abs(row.rankDelta)}` : "=");
+            lines.push(`  ${row.code} : conf=${row.confidence} → rank=${row.rankingScore} (affinité natale ${Math.round(row.natalAffinity * 100)}%, rang ${row.previousRank}→${row.newRank} ${deltaTxt})`);
+            if (breakdown) lines.push(`     promesses : ${breakdown}`);
+          }
+          if (lines.length) {
+            _s60NatalAffinityBlock =
+              `\n══ NOTES AFFINITÉS NATALES — Couche D (re-ranking par promesse natale) — S6.21.1 ══\n` +
+              `Le moteur a appliqué une pondération ×(1 + ${_naDiag.alpha} × affinité_natale) pour\n` +
+              `enrichir le classement des transits par les racines du thème natal.\n` +
+              lines.join("\n") + `\n`;
+          }
+        }
+      } catch(_eNABlock) { console.log("[WARN] S6.21.1 _s60NatalAffinityBlock:", _eNABlock.message); }
 
       // Construire description doctrinale courte par sig (max 5 conditions strength≥0.7)
       function _s60SigDescr(sig, idx) {
@@ -19349,6 +19861,20 @@ if (_mdseResults.length > 0 && finalOutput.length > 0) {
         `        contraint la chute »).\n` +
         `      → La seule liberté : choisir entre 2 codes Némésis simultanés (si la\n` +
         `        clause active SCANDALE@80 ET CARRIERE_DOWN@80) selon la biographie.\n\n` +
+        `Loi 11-ter — Citation OBLIGATOIRE de la promesse natale (S6.21.1 D9) :\n` +
+        `  Le bloc « NOTES AFFINITÉS NATALES » (Couche D) expose pour chaque code\n` +
+        `  du Top-N son score d'affinité natale, le delta de rang et les promesses\n` +
+        `  natales dominantes (Q179 SCANDALE, Piste F HÉRITAGE, blessures innées,\n` +
+        `  Vénus angulaire, etc.). Quand le code retenu en Top-1 a été propulsé\n` +
+        `  par cette couche (rankDelta > 0 OU natalAffinity ≥ 0.40) :\n` +
+        `      → Tu DOIS citer dans primary_reason la racine natale dominante\n` +
+        `        (par ex. « SCANDALE en Top-1 — promesse natale Lune en M5\n` +
+        `        affligée Saturne 2.67° + Lilith ☍ Vénus 0.03° (affinité +28%) »).\n` +
+        `      → Cela rend la décision auditable et démontre l'intelligence\n` +
+        `        multi-factorielle de l'algorithme (transit + carte natale).\n` +
+        `      → Le LLM peut toujours désobéir au Top-1 selon Loi 4-VIP, mais\n` +
+        `        si l'affinité natale est massive (≥ 0.50) ET la biographie\n` +
+        `        confirme, refuser de remonter ce code = faute professionnelle.\n\n` +
         `══ RÈGLES DE CONFIDENCE_IN_CHOICE (Q50-A — calibration humilité) ══\n` +
         `- "high"   : tu es certain à >85% (écart confidence Top-1 vs Top-2 ≥ 8)\n` +
         `- "medium" : confiance modérée (écart 3-7) — utilisée AUSSI quand les techniques\n` +
@@ -19385,7 +19911,8 @@ if (_mdseResults.length > 0 && finalOutput.length > 0) {
         _s60LilithBlock +
         _s60ScandaleBlock +
         _s60FixedStarV2Block +
-        `\nTop-5 du moteur (triés par confidence décroissante) :\n\n` +
+        _s60NatalAffinityBlock +
+        `\nTop-5 du moteur (triés par rankingScore décroissant — confidence × affinité natale) :\n\n` +
         _s60Top3.map((s, i) => _s60SigDescr(s, i)).join("\n\n") +
         `\n\n` +
         `Choisis l'index astrologiquement et biographiquement le plus probable.\n` +
