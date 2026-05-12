@@ -1,0 +1,30 @@
+Sécurisation post-incident n8n 12/05 — commits oubliés pré-incident
+
+Suite à l'incident n8n cloud du 12/05 (perte de visibilité workflows à ~11:00),
+audit défensif de l'état git du repo FRA. Ces fichiers tournaient bien en
+production avant le crash mais n'étaient pas versionnés ; ils sont scellés
+maintenant comme garde-fou (sinon en cas de perte disque local, on aurait
+vraiment perdu plusieurs jours de travail).
+
+1) PREV/N8N Prev Prepare Data Theme Individuel
+   Étoiles fixes V5 — passage du catalogue de 23 à 31 étoiles validées par
+   les retours astrologue 65 (Q107-D, +4 étoiles : Alphecca/Toliman/Facies/
+   Sadalmelik) et 66 (Q109-A, +4 étoiles : Mirach/Lesath/Polis/Ascella),
+   plus le hotfix Q107 (+4 étoiles câblées dans _STAR_CODE_MAP mais
+   absentes du catalogue : Capella/Mirfak/Altaïr/Bellatrix).
+   Le Super noeud1 commité (S6.21+) référence ces étoiles via les
+   marqueurs S6.4 Q107-D / Q109-A — sans cette mise à jour,
+   le Super noeud1 plante au runtime.
+
+2) PREV/super-noeud1-pre-*.js (17 snapshots pré-sprint)
+   Snapshots historiques générés par prev-deploy-supernode.mjs avant chaque
+   déploiement de sprint. Servent de points de rollback. Versionnés ici en
+   archive doctrinale (faible coût ; permettent à un futur opérateur de
+   suivre l'évolution diachronique du Super noeud1).
+
+3) PREV/PATCH-S618-AUDIT-CALLBACK.md
+   Document méthodologique du sprint S6.18 (audit du callback PREV).
+
+À partir de maintenant, le repo FRA contient l'état COMPLET du code n8n
+cloud à l'heure du crash. Le redéploiement post-restauration peut donc se
+faire à partir de Git en sécurité.
