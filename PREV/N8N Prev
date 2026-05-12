@@ -19357,6 +19357,302 @@ if (_mdseResults.length > 0 && finalOutput.length > 0) {
     }
     // ═══════════════════════════════════════════════════════════════════════════
 
+    // [Insertion automatique] Bloc S6.23 inséré entre S6.21 FSV2 et S6.22.1 Cap Privé.
+    // Ordre du pipeline : Couche A (caps locaux) → S6.21 FSV2 → **S6.23 progressions** →
+    //                    S6.22.1 Cap Privé universel → S6.21.1 Couche D (re-rank).
+    // Le boost progressé doit s'appliquer AVANT le Cap Privé pour bénéficier de la
+    // protection @65 sur les profils privés (pas de fuite par les progressions).
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // SPRINT 6.23 / Couche A.5 (2026-05-12, retour 90 astrologue) —
+    // DIRECTIONS SECONDAIRES (LUNE PROGRESSÉE) — Phase 6 intégration Super noeud1
+    // ═══════════════════════════════════════════════════════════════════════════
+    try {
+      const _S623_VERSION = "S6.23-LUNE-PROGRESSEE-rc1";
+      const _S623_ENABLED = true;  // Toggle d'activation. Mettre à false pour désactiver.
+
+      if (!_S623_ENABLED) {
+        console.log(`[${_S623_VERSION}] désactivé (toggle off)`);
+      } else if (!Array.isArray(progressionsData) || progressionsData.length < 6) {
+        console.log(`[${_S623_VERSION}] progressionsData absent/incomplet (${progressionsData?.length || 0} mois) — skip`);
+      } else if (!natalDict || typeof natalDict !== "object") {
+        console.log(`[${_S623_VERSION}] natalDict indisponible — skip`);
+      } else {
+        // ─── Constantes ───────────────────────────────────────────────────────
+        const _S623_ORB_MAX = 1.5;
+        const _S623_ASPECTS = [
+          { name: "Conjonction", angle: 0,   strength: 1.00 },
+          { name: "Opposition",  angle: 180, strength: 0.85 },
+          { name: "Trigone",     angle: 120, strength: 0.75 },
+          { name: "Carré",       angle: 90,  strength: 0.85 },
+          { name: "Sextile",     angle: 60,  strength: 0.55 },
+        ];
+        const _S623_PROG_PLANETS = ["Lune", "Soleil", "Vénus", "Mercure", "Mars"];
+        const _S623_NATAL_TARGETS = [
+          "Soleil", "Lune", "Mars", "Mercure", "Jupiter", "Vénus",
+          "Saturne", "Uranus", "Neptune", "Pluton",
+          "Ascendant", "MC", "Descendant", "IC",
+        ];
+        // Mapping codes-clés MC/IC vers nom natalDict (FR complet)
+        const _S623_NATAL_NAME_MAP = { "MC": "Milieu du Ciel", "IC": "Imum Coeli" };
+
+        // Régence classique (Maître de l'Ascendant) — doctrine traditionnelle 7 planètes
+        const _S623_MASTER_OF_SIGN = {
+          "Bélier": "Mars", "Taureau": "Vénus", "Gémeaux": "Mercure", "Cancer": "Lune",
+          "Lion": "Soleil", "Vierge": "Mercure", "Balance": "Vénus", "Scorpion": "Mars",
+          "Sagittaire": "Jupiter", "Capricorne": "Saturne", "Verseau": "Saturne", "Poissons": "Jupiter",
+        };
+        const _S623_ANGULAR_TARGETS = new Set(["Ascendant", "Descendant", "MC", "IC"]);
+
+        // ─── Matrice INTIMATE (validée note 86 §6.6 + ajouts notes 87, 88, 90) ───
+        const _S623_PROG_CODE_MAP = {
+          ENFANT: [
+            { progPlanet: "Lune",  natalTarget: "Lune",      aspects: ["Conjonction", "Trigone", "Carré"], boost: 12 },
+            { progPlanet: "Lune",  natalTarget: "Vénus",     aspects: ["Conjonction", "Trigone"],          boost: 10 },
+            { progPlanet: "Lune",  natalTarget: "Jupiter",   aspects: ["Conjonction", "Trigone", "Sextile"], boost: 10 },
+            { progPlanet: "Lune",  natalTarget: "MC",        aspects: ["Trigone"],                          boost: 6 },
+            { progPlanet: "Vénus", natalTarget: "Jupiter",   aspects: ["Conjonction", "Trigone"],          boost: 6 },
+          ],
+          MARIAGE: [
+            { progPlanet: "Vénus",  natalTarget: "Soleil",      aspects: ["Conjonction", "Trigone"],          boost: 12 },
+            { progPlanet: "Lune",   natalTarget: "Vénus",       aspects: ["Conjonction"],                     boost: 10 },
+            { progPlanet: "Soleil", natalTarget: "Vénus",       aspects: ["Conjonction", "Trigone"],          boost: 10 },
+            { progPlanet: "Lune",   natalTarget: "Descendant",  aspects: ["Conjonction", "Trigone"],          boost: 10 },
+            { progPlanet: "Vénus",  natalTarget: "Descendant",  aspects: ["Conjonction", "Trigone"],          boost: 8  },
+          ],
+          SEPARATION: [
+            { progPlanet: "Lune",   natalTarget: "Saturne",  aspects: ["Carré", "Opposition"], boost: 10 },
+            { progPlanet: "Vénus",  natalTarget: "Saturne",  aspects: ["Carré", "Opposition"], boost: 10 },
+            { progPlanet: "Lune",   natalTarget: "Uranus",   aspects: ["Carré", "Opposition"], boost: 8 },
+            { progPlanet: "Soleil", natalTarget: "Saturne",  aspects: ["Carré", "Opposition"], boost: 8 },
+            { progPlanet: "Vénus",  natalTarget: "Uranus",   aspects: ["Carré", "Opposition"], boost: 6 },
+          ],
+          DEUIL: [
+            // Doctrine validée note 90 : Trigone Pluton EXCLU (régénération, pas perte)
+            { progPlanet: "Lune",   natalTarget: "Pluton",   aspects: ["Conjonction", "Carré", "Opposition"], boost: 12 },
+            { progPlanet: "Lune",   natalTarget: "Saturne",  aspects: ["Conjonction"],                       boost: 10 },
+            { progPlanet: "Soleil", natalTarget: "Saturne",  aspects: ["Carré", "Opposition"],               boost: 8  },
+            { progPlanet: "Soleil", natalTarget: "Pluton",   aspects: ["Carré", "Opposition"],               boost: 8  },
+          ],
+        };
+        const _S623_QUALITY_MULT = { strong: 1.0, medium: 0.6, low: 0.3, background: 0.1 };
+
+        // ─── Helpers angulaires + interpolation ─────────────────────────────
+        const _s623AngularDiff = (a, b) => ((a - b + 540) % 360) - 180;
+        const _s623FindAspect = (diff) => {
+          const absDiff = Math.abs(diff);
+          let best = null;
+          for (const asp of _S623_ASPECTS) {
+            const orb = Math.abs(absDiff - asp.angle);
+            if (orb <= _S623_ORB_MAX && (best === null || orb < best.orb)) best = { ...asp, orb };
+          }
+          return best;
+        };
+        const _s623ParabolicMin = (orbPrev, orbMid, orbNext) => {
+          const denom = (orbPrev - 2 * orbMid + orbNext);
+          if (Math.abs(denom) < 1e-9) return null;
+          const x = (orbPrev - orbNext) / (2 * denom);
+          if (x < -1 || x > 1) return null;
+          return x;
+        };
+        const _s623AddDays = (dateStr, daysOffset) => {
+          const d = new Date(dateStr + "T12:00:00Z");
+          d.setUTCDate(d.getUTCDate() + Math.round(daysOffset));
+          return d.toISOString().slice(0, 10);
+        };
+
+        // ─── Calcul aspectsCondensed (Phase 2 inline) ───────────────────────
+        const _s623Lookup = (name) => {
+          const mapped = _S623_NATAL_NAME_MAP[name] || name;
+          return natalDict[mapped]?.deg;
+        };
+        const _s623TripleTrack = new Map();
+        progressionsData.forEach((monthData, mIdx) => {
+          const planetes = monthData?.planetes;
+          if (!planetes) return;
+          for (const progName of _S623_PROG_PLANETS) {
+            const progPos = planetes[progName]?.longitude_absolue;
+            if (typeof progPos !== "number") continue;
+            for (const natalName of _S623_NATAL_TARGETS) {
+              const natalPos = _s623Lookup(natalName);
+              if (typeof natalPos !== "number") continue;
+              const diff = _s623AngularDiff(progPos, natalPos);
+              const aspect = _s623FindAspect(diff);
+              if (!aspect) continue;
+              const tk = `${progName}|${natalName}|${aspect.name}`;
+              if (!_s623TripleTrack.has(tk)) _s623TripleTrack.set(tk, []);
+              _s623TripleTrack.get(tk).push({ monthIdx: mIdx, orb: aspect.orb, date: monthData.date });
+            }
+          }
+        });
+
+        const _s623AspectsCondensed = [];
+        for (const [tk, points] of _s623TripleTrack.entries()) {
+          if (!points.length) continue;
+          const [progPlanet, natalTarget, aspectName] = tk.split("|");
+          let minIdx = 0;
+          for (let i = 1; i < points.length; i++) if (points[i].orb < points[minIdx].orb) minIdx = i;
+          const minPoint = points[minIdx];
+          let peakDate = minPoint.date, peakOrb = minPoint.orb, interpolated = false;
+          if (minIdx > 0 && minIdx < points.length - 1) {
+            const p = points[minIdx - 1], m = points[minIdx], n = points[minIdx + 1];
+            if (n.monthIdx - p.monthIdx === 2) {
+              const offset = _s623ParabolicMin(p.orb, m.orb, n.orb);
+              if (offset !== null) {
+                peakDate = _s623AddDays(m.date, offset * 30);
+                const a = (p.orb - 2 * m.orb + n.orb) / 2;
+                const b = (n.orb - p.orb) / 2;
+                peakOrb = Math.max(0, m.orb - (b * b) / (4 * a));
+                interpolated = true;
+              }
+            }
+          }
+          const temporalType = points.length <= 6 ? "eventLike" : (points.length >= 9 ? "chronic" : "mixed");
+          let qualityTier = "low";
+          if (temporalType === "eventLike" && peakOrb < 0.3) qualityTier = "strong";
+          else if (temporalType === "eventLike" && peakOrb < 0.8) qualityTier = "medium";
+          else if (temporalType === "chronic") qualityTier = "background";
+          _s623AspectsCondensed.push({
+            progPlanet, natalTarget, aspect: aspectName,
+            monthsActive: points.length, peakDate,
+            peakOrb: Math.round(peakOrb * 1000) / 1000,
+            interpolated, temporalType, qualityTier,
+            strength: _S623_ASPECTS.find((a) => a.name === aspectName)?.strength || 0,
+          });
+        }
+        _s623AspectsCondensed.sort((a, b) => a.peakOrb - b.peakOrb);
+
+        // ─── Scoring + cap+dedup (Phases 3+4+5 inline) ──────────────────────
+        const _s623AscSign = natalDict["Ascendant"]?.sign || null;
+        const _s623MasterOfASC = _S623_MASTER_OF_SIGN[_s623AscSign] || null;
+        const _s623BypassTargets = new Set([..._S623_ANGULAR_TARGETS, _s623MasterOfASC].filter(Boolean));
+
+        // Construction transitBoostByCode (depuis sigPayload existant)
+        const _s623TransitBoostByCode = {};
+        if (Array.isArray(sigPayload)) {
+          for (const sig of sigPayload) {
+            if (sig.code && typeof sig.confidence === "number") {
+              _s623TransitBoostByCode[sig.code] = Math.max(_s623TransitBoostByCode[sig.code] || 0, sig.confidence);
+            }
+          }
+        }
+
+        const _s623ProgSignatures = {};
+        for (const [code, triggers] of Object.entries(_S623_PROG_CODE_MAP)) {
+          const matchedTriggers = [];
+          let totalBoost = 0;
+          let bestOrb = Infinity;
+          let bestPeakDate = null;
+          let bypassed = false;
+
+          for (const trigger of triggers) {
+            const matching = _s623AspectsCondensed.find((a) =>
+              a.progPlanet === trigger.progPlanet &&
+              a.natalTarget === trigger.natalTarget &&
+              trigger.aspects.includes(a.aspect)
+            );
+            if (!matching) continue;
+            const qmul = _S623_QUALITY_MULT[matching.qualityTier] || 0;
+            const smul = matching.strength;
+            const triggerBoost = trigger.boost * qmul * smul;
+            matchedTriggers.push({
+              progPlanet: trigger.progPlanet, natalTarget: trigger.natalTarget,
+              aspect: matching.aspect, peakDate: matching.peakDate, peakOrb: matching.peakOrb,
+              qualityTier: matching.qualityTier, monthsActive: matching.monthsActive,
+              rawBoost: trigger.boost,
+              triggerBoost: Math.round(triggerBoost * 100) / 100,
+            });
+            totalBoost += triggerBoost;
+            if (matching.peakOrb < bestOrb) {
+              bestOrb = matching.peakOrb;
+              bestPeakDate = matching.peakDate;
+            }
+            // Détection bypass : peakOrb < 0.1° ET cible angulaire/maître
+            if (matching.peakOrb < 0.1 && _s623BypassTargets.has(trigger.natalTarget)) {
+              bypassed = true;
+            }
+          }
+          if (matchedTriggers.length === 0) continue;
+
+          // Phase 4 — Cap Option C
+          let cappedBoost = totalBoost;
+          let capApplied = false;
+          const transitBoost = _s623TransitBoostByCode[code] || 0;
+          const cap = transitBoost > 0 ? 0.5 * transitBoost : Infinity;
+          if (!bypassed && transitBoost > 0 && totalBoost > cap) {
+            cappedBoost = cap;
+            capApplied = true;
+          }
+
+          // Phase 5 — Dedup vs transit (calque DHN)
+          let finalBoost = cappedBoost;
+          let dedupApplied = false;
+          if (transitBoost > 30) {
+            finalBoost = cappedBoost * 0.25;
+            dedupApplied = true;
+          }
+
+          _s623ProgSignatures[code] = {
+            code,
+            totalBoost: Math.round(totalBoost * 100) / 100,
+            cappedBoost: Math.round(cappedBoost * 100) / 100,
+            finalBoost: Math.round(finalBoost * 100) / 100,
+            capApplied, bypassed, dedupApplied,
+            peakDate: bestPeakDate,
+            triggers: matchedTriggers,
+          };
+        }
+
+        // ─── Fusion dans sigPayload (additif sur confidence) ─────────────────
+        const _s623Diag = [];
+        for (const [code, sig] of Object.entries(_s623ProgSignatures)) {
+          if (sig.finalBoost <= 0) continue;
+          const existing = Array.isArray(sigPayload) ? sigPayload.find((s) => s.code === code) : null;
+          if (existing) {
+            const before = existing.confidence || 0;
+            const after = Math.min(100, before + sig.finalBoost);
+            existing.confidence = after;
+            existing._s623Progressed = sig;
+            _s623Diag.push(`${code}: ${before}+${sig.finalBoost}→${after}${sig.bypassed ? " [BYPASS]" : ""}${sig.capApplied ? " [CAP]" : ""}${sig.dedupApplied ? " [DEDUP]" : ""}`);
+          } else if (Array.isArray(sigPayload)) {
+            // Création nouvelle entrée
+            sigPayload.push({
+              code,
+              confidence: Math.round(sig.finalBoost * 100) / 100,
+              source: "S6.23-progressed-only",
+              _s623Progressed: sig,
+            });
+            _s623Diag.push(`${code}: +${sig.finalBoost} (NEW)${sig.bypassed ? " [BYPASS]" : ""}${sig.dedupApplied ? " [DEDUP]" : ""}`);
+          }
+        }
+
+        if (_s623Diag.length > 0) {
+          sigPayload.sort((a, b) => (b.confidence || 0) - (a.confidence || 0));
+          console.log(`[${_S623_VERSION}] ASC=${_s623AscSign} (maître=${_s623MasterOfASC}) | aspects condensés=${_s623AspectsCondensed.length} | codes activés=${_s623Diag.length} : ${_s623Diag.join(" | ")}`);
+        } else {
+          console.log(`[${_S623_VERSION}] ASC=${_s623AscSign} | aspects condensés=${_s623AspectsCondensed.length} | aucun code intime activé par les progressions`);
+        }
+        // S6.23 — diag exposé dans finalOutput pour audit/bench (note 90)
+        if (Array.isArray(finalOutput) && finalOutput[0]?.json) {
+          finalOutput[0].json._s623Diag = {
+            version: _S623_VERSION,
+            enabled: _S623_ENABLED,
+            ascSign: _s623AscSign,
+            masterOfASC: _s623MasterOfASC,
+            progressionsCount: progressionsData.length,
+            aspectsCondensedCount: _s623AspectsCondensed.length,
+            progSignaturesCount: Object.keys(_s623ProgSignatures).length,
+            codesActivated: _s623Diag,
+            progSignatures: _s623ProgSignatures,
+          };
+        }
+      }
+    } catch (eS623) {
+      console.log("[WARN] S6.23 Lune progressée:", eS623.message, eS623.stack?.split("\n")[1]?.trim());
+    }
+    // ═══════════════════════════════════════════════════════════════════════════
+
+
     // ═══════════════════════════════════════════════════════════════════════════
     // SPRINT 6.22.1 / Couche A (2026-05-12, retour 88 astrologue) —
     // CAP PRIVÉ UNIVERSEL @65 sur profil_type=prive.
