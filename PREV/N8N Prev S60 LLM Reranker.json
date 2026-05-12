@@ -1,0 +1,142 @@
+{
+  "name": "N8N Prev S60 LLM Reranker",
+  "description": "Sprint 6.0 — chaîne LLM Reranker (Gemini 2.5 Flash) pour fiabilisation Top-K signatures math du Super noeud1 AVANT diffusion aux 12 LLM Maisons + Synthèse. Doctrine astrologue retour 58 Q47-B/Q51-B/Q52-C, retour 77 Q168-B (S6.15). Pattern : LLM as a reranker avec fallback math si confidence='low' ou JSON invalide.",
+  "source": "Backup PREV du 9 mai 2026 11:58 UTC (workflow-pre-S60-2026-05-09T11-58-05-863Z.json)",
+  "attachments": {
+    "inbound": [
+      {
+        "from": "Super noeud1",
+        "cat": "main",
+        "outIdx": 0,
+        "target": "S60 Prepare Rerank",
+        "inIdx": 0
+      }
+    ],
+    "outbound": [
+      {
+        "from": "S60 Apply Rerank",
+        "cat": "main",
+        "outIdx": 0,
+        "target": "Merge 4 fichiers3",
+        "inIdx": 1
+      }
+    ]
+  },
+  "nodes": [
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// S60 Prepare Rerank — réduit les items Super noeud1 à 1 item avec le prompt LLM.\n// Si aucun item n'a _s60RerankInput (cas où S6.0 désactivé ou erreur amont), on ne fait\n// rien et on retourne un item \"skip\" qui désactivera le rerank en aval.\n\nconst allItems = $input.all();\nlet rerankItem = null;\nlet rerankIdx = -1;\nfor (let i = 0; i < allItems.length; i++) {\n  if (allItems[i]?.json?._s60RerankInput && typeof allItems[i].json._s60RerankInput.userPrompt === 'string') {\n    rerankItem = allItems[i].json._s60RerankInput;\n    rerankIdx = i;\n    break;\n  }\n}\n\nif (!rerankItem) {\n  console.log('[S6.0 Prepare] Aucun _s60RerankInput trouvé — skip rerank (fallback math)');\n  return [{ json: { _s60Skip: true, _s60SkipReason: 'no_rerank_input' } }];\n}\n\nconsole.log(`[S6.0 Prepare] Item ${rerankIdx} : top-3=[${rerankItem.top3.map(s => s.code+':'+s.confidence).join(', ')}]`);\nreturn [{\n  json: {\n    _s60Skip: false,\n    _s60ItemIndex: rerankIdx,\n    systemPrompt: rerankItem.systemPrompt,\n    userPrompt: rerankItem.userPrompt,\n    top3: rerankItem.top3,\n    meta: rerankItem.meta\n  }\n}];"
+      },
+      "name": "S60 Prepare Rerank",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -17800,
+        4640
+      ],
+      "id": "72b998a4-ce06-4743-be2b-edf528f01889"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.userPrompt }}",
+        "options": {
+          "systemMessage": "={{ $json.systemPrompt }}"
+        }
+      },
+      "name": "S60 LLM Reranker",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        -17500,
+        4640
+      ],
+      "id": "dc1f848e-ef5c-4cc7-ab7c-eaa6c82d2959"
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-2.5-flash",
+        "options": {}
+      },
+      "name": "S60 Gemini Flash",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        -17500,
+        4860
+      ],
+      "credentials": {
+        "googlePalmApi": {
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      },
+      "id": "7540179c-d28c-458c-8f6a-ebed33458087"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "// S60 Apply Rerank — applique le choix LLM ou fallback math.\n//\n// Doctrine astrologue (retour 58 Q47-B) :\n//   • Si LLM répond confidence_in_choice=\"low\" → fallback top-1 math\n//   • Si LLM JSON invalide ou index hors [0,1,2] → fallback top-1 math\n//   • Si LLM OK → réordonne eventSignatures selon chosen_index\n//\n// Trace : on logge _s60Rerank dans le payload pour audit (chosen_index, reason, fallback).\n\nconst llmInput = $input.first();\nconst llmOutput = llmInput?.json?.output || llmInput?.json?.text || llmInput?.json?.response || '';\n\n// Récupère TOUS les items de Super noeud1 (13 items typiquement)\nconst superItems = $('Super noeud1').all();\nconst skipItem = $('S60 Prepare Rerank').first();\nconst isSkip = skipItem?.json?._s60Skip === true;\n\n// Parse JSON LLM — extrait le contenu entre la première { et la dernière } trouvées,\n// ce qui gère robustement les markdown fences \\`\\`\\`json ... \\`\\`\\` ou tout préfixe/suffixe textuel.\nfunction _s60ParseLLM(raw) {\n  if (!raw || typeof raw !== 'string') return null;\n  const text = raw.trim();\n  const openBrace = text.indexOf('{');\n  const closeBrace = text.lastIndexOf('}');\n  if (openBrace === -1 || closeBrace === -1 || closeBrace <= openBrace) return null;\n  const slice = text.slice(openBrace, closeBrace + 1);\n  try { return JSON.parse(slice); } catch (e) {\n    console.log('[S6.0 Apply] JSON.parse échec sur:', slice.slice(0, 200), '| err:', e.message);\n    return null;\n  }\n}\n\nconst parsed = isSkip ? null : _s60ParseLLM(llmOutput);\n\n// Validation du choix LLM (Q51-B : index ∈ [0, 4] avec Top-5)\nlet rerankApplied = false;\nlet rerankReason = 'fallback_math';\nlet chosenCode = null;\nlet chosenIndex = 0;\nlet llmJson = null;\nlet llmConfidence = null;\nlet llmPrimaryReason = null;\nlet originalTop1Code = null;\n\nif (parsed && typeof parsed.chosen_index === 'number' && parsed.chosen_index >= 0 && parsed.chosen_index <= 4) {\n  llmJson = parsed;\n  llmConfidence = parsed.confidence_in_choice;\n  llmPrimaryReason = parsed.primary_reason;\n  // Q47-B : si LLM dit \"low\", on bascule sur fallback math\n  if (parsed.confidence_in_choice === 'low') {\n    rerankReason = 'llm_abstained_low_confidence';\n  } else {\n    rerankApplied = true;\n    rerankReason = 'llm_chose_index_' + parsed.chosen_index;\n    chosenIndex = parsed.chosen_index;\n  }\n} else if (isSkip) {\n  rerankReason = skipItem.json._s60SkipReason || 'skip';\n} else {\n  rerankReason = 'llm_invalid_json';\n}\n\n// Construit la liste de sortie (= items Super noeud1 avec patch sur item synthèse)\nconst output = [];\nlet q50bFallbackTriggered = false;\nlet q50bFallbackDetail = null;\n\nfor (let i = 0; i < superItems.length; i++) {\n  const item = superItems[i];\n  const newJson = { ...item.json };\n\n  // Patch eventSignatures uniquement sur l'item qui en contient (= synthèse, item index 12 typiquement)\n  if (Array.isArray(newJson.eventSignatures) && newJson.eventSignatures.length > 0) {\n    const sigs = newJson.eventSignatures;\n    const sortKey = (s) => Math.min(95, s.confidence ?? 0) * 1000 + (s.isStellarApex ? 100 : 0);\n    const sorted = [...sigs].sort((a, b) => sortKey(b) - sortKey(a));\n\n    originalTop1Code = sorted[0]?.code || null;\n\n    // Q63-A (Sprint 6.2 round 1) : Q50-B auto-fallback DÉSACTIVÉ.\n    // Le bench S6.1 a montré -8 corrections / 0 régressions sauvées : le system prompt\n    // humble (Q50-A) suffit. On laisse le LLM décider, il est calibré.\n    // (code Q50-B retiré ; q50bFallbackTriggered/q50bFallbackDetail conservés à null pour audit)\n\n    if (rerankApplied && chosenIndex !== 0) {\n      // Réordonner : mettre l'index choisi en top-1, garder le reste comme avant (sans dupliquer)\n      const newTop1 = sorted[chosenIndex];\n      const rest = sorted.filter((_, idx) => idx !== chosenIndex);\n      const reordered = [newTop1, ...rest];\n      newJson.eventSignatures = reordered;\n      chosenCode = newTop1?.code || null;\n    } else {\n      // Fallback ou index 0 = pas de changement\n      chosenCode = sorted[0]?.code || null;\n    }\n\n    // Trace audit\n    newJson._s60Rerank = {\n      version: 'S6.1',\n      applied: rerankApplied,\n      reason: rerankReason,\n      chosenIndex: rerankApplied ? chosenIndex : 0,\n      chosenCode,\n      originalTop1Code,\n      llm: llmJson ? {\n        chosen_index: llmJson.chosen_index,\n        confidence_in_choice: llmConfidence,\n        primary_reason: (llmPrimaryReason || '').slice(0, 280),\n        rejected_reason: llmJson.rejected_reason || null\n      } : null,\n      llmRawSnippet: (llmOutput || '').slice(0, 200),\n      q50bFallback: q50bFallbackDetail,\n      isSkip,\n      meta: skipItem?.json?.meta || null\n    };\n\n    console.log(`[S6.1 Apply] ${rerankApplied ? '✓' : '✗'} ${rerankReason} | top-1: ${originalTop1Code} → ${chosenCode}${q50bFallbackTriggered ? ' [Q50-B]' : ''}`);\n  }\n\n  output.push({ json: newJson });\n}\n\nreturn output;"
+      },
+      "name": "S60 Apply Rerank",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -17200,
+        4640
+      ],
+      "id": "b592da15-1300-4fda-8bc6-ccebbef9dd4f"
+    }
+  ],
+  "connections": {
+    "S60 Prepare Rerank": {
+      "main": [
+        [
+          {
+            "node": "S60 LLM Reranker",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "S60 Gemini Flash": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "S60 LLM Reranker",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "S60 LLM Reranker": {
+      "main": [
+        [
+          {
+            "node": "S60 Apply Rerank",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "S60 Apply Rerank": {
+      "main": [
+        [
+          {
+            "node": "Merge 4 fichiers3",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    }
+  },
+  "meta": {
+    "extractedAt": "2026-05-12T16:30:00Z",
+    "source": "post-crash recovery",
+    "versionScope": "PREV"
+  }
+}
