@@ -1,0 +1,115 @@
+{
+  "source": "PREV — PROD (workflow ID szL522DJiXkppyt1)",
+  "sprint": "S6.18 — Prod Monitoring (D1-A callback proactif)",
+  "spec": "FRA/PREV/PATCH-S618-AUDIT-CALLBACK.md",
+  "exported_at": "2026-05-12T14:55:36.513Z",
+  "nodes": [
+    {
+      "name": "S70 Build Audit Callback",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "parameters": {
+        "jsCode": "// S70 Build Audit Callback (Sprint 6.18 retour 78 — D1-A proactif)\n// Calcule le payload de télémétrie LLM (aucune PII).\n// Émet { _s70Audit: null } si pas de rerank applicable, sinon\n//   { _s70Audit: { url, body } } prêt à brancher dans HTTP Request.\nconst items = $input.all();\nconst out = [];\nfor (const it of items) {\n  const j = it.json || {};\n  const rerank = j._s60Rerank || null;\n  const profilType = (j.profil_type === \"public\") ? \"public\" : \"prive\";\n\n  if (!rerank || typeof rerank !== \"object\") {\n    out.push({ json: { ...j, _s70Audit: null } });\n    continue;\n  }\n\n  const mathTop1Code = String(rerank.originalTop1Code || rerank.mathTop1Code || \"\").toUpperCase();\n  const llmChosenCode = String(rerank.chosenCode || \"\").toUpperCase();\n  const mathTop1Score = Number(rerank.originalTop1Score ?? rerank.mathTop1Score ?? 0) | 0;\n  const llmChosenScore = Number(rerank.chosenScore ?? rerank.confidence_in_choice ?? 0) | 0;\n\n  if (!mathTop1Code || !llmChosenCode) {\n    out.push({ json: { ...j, _s70Audit: null } });\n    continue;\n  }\n\n  // On n'audite QUE les vraies révocations (codes différents et delta > 0).\n  if (mathTop1Code === llmChosenCode || mathTop1Score <= llmChosenScore) {\n    out.push({ json: { ...j, _s70Audit: null } });\n    continue;\n  }\n\n  const reasonRaw = String(rerank.primary_reason || \"\").trim();\n  const orderRefRaw = String(j.order_id || j.orderId || j.commande_ref || \"\").trim();\n  const orderRefSafe = /^[A-Za-z0-9_\\-:]{1,64}$/.test(orderRefRaw) ? orderRefRaw : null;\n  const execId = String($execution?.id || \"\").slice(0, 64) || null;\n\n  const body = {\n    profil_type: profilType,\n    math_top1_code: mathTop1Code,\n    math_top1_score: mathTop1Score,\n    llm_chosen_code: llmChosenCode,\n    llm_chosen_score: llmChosenScore,\n    primary_reason: reasonRaw ? reasonRaw.slice(0, 512) : null,\n    order_ref: orderRefSafe,\n    n8n_execution_id: execId,\n  };\n\n  out.push({\n    json: {\n      ...j,\n      _s70Audit: {\n        url: $env.SITE_PREV_LLM_AUDIT_URL || \"https://tedwarehouseastro.example/api/internal/prev-llm-audit\",\n        body,\n      },\n    },\n  });\n}\nreturn out;\n",
+        "mode": "runOnceForAllItems"
+      }
+    },
+    {
+      "name": "S70 Audit Required?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "a4ec9dfa-ff72-48fc-b400-31dbd8ea54d4",
+              "leftValue": "={{ $json._s70Audit }}",
+              "rightValue": "",
+              "operator": {
+                "type": "object",
+                "operation": "exists",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      }
+    },
+    {
+      "name": "S71 POST Audit Callback",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json._s70Audit.url }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-site-webhook-secret",
+              "value": "={{ $env.N8N_WEBHOOK_SECRET }}"
+            },
+            {
+              "name": "content-type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json._s70Audit.body) }}",
+        "options": {
+          "timeout": 5000
+        }
+      },
+      "continueOnFail": true
+    }
+  ],
+  "connections": {
+    "S70 Build Audit Callback": {
+      "main": [
+        [
+          {
+            "node": "S70 Audit Required?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "S70 Audit Required?": {
+      "main": [
+        [
+          {
+            "node": "S71 POST Audit Callback",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Merge 4 fichiers3",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "S71 POST Audit Callback": {
+      "main": [
+        [
+          {
+            "node": "Merge 4 fichiers3",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    }
+  }
+}
