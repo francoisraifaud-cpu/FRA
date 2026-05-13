@@ -95,6 +95,43 @@ const natalHouses   = enrichedData.maisons;
 const natalPrompts  = enrichedData.prompts;
 const perso         = enrichedData.perso || {};
 
+// ═══════════════════════════════════════════════════════════════════════════
+// SPRINT 6.22.2 Q10-bis (2026-05-13, retour 94 astrologue Q-D arbitrage) —
+// FLAGS D'ABLATION pour matrice de corrélation diagnostic.
+//
+// Permet de désactiver certaines couches de l'algorithme via un flag injecté
+// dans le webhook envelope (champ `_s6222_ablation` en CSV : "Q179,Q186,...").
+//
+// Couches désactivables :
+//   • Q179   : bloc « L'Ombre Publique » (SCANDALE Q179/Q180/Q185 + Q1 strict)
+//   • Q186   : bloc RELOCATION (Q186/Q187 cap + S6.22.2 Q2 floor partile)
+//   • S623   : bloc SCD Lune progressée (Couche A.5)
+//   • NA     : Couche D natal-affinity (re-rank par promesses natales)
+//   • Q1     : sous-bloc Q1 strict SCANDALE (gating biographique) UNIQUEMENT
+//              — laisse Q179/Q180/Q185 actifs si seul "Q1" est listé.
+//
+// Usage : le bench runner injecte `S6222_ABLATION=Q179` côté env var, qui est
+// poussé dans le webhook payload comme `_s6222_ablation: "Q179"`.
+// ═══════════════════════════════════════════════════════════════════════════
+const _s6222Ablation = (() => {
+  const set = new Set();
+  try {
+    const _ppd = $(NODE_PREP_DYNAMIQUE).first()?.json;
+    let raw = "";
+    if (_ppd?.body) {
+      try { raw = (JSON.parse(_ppd.body)._s6222_ablation || ""); } catch(_e1) {}
+    }
+    if (!raw && perso?._s6222_ablation) raw = perso._s6222_ablation;
+    if (raw && typeof raw === "string") {
+      raw.split(",").map(s => s.trim().toUpperCase()).filter(Boolean).forEach(x => set.add(x));
+    }
+  } catch(e) { /* silencieux : pas de flag = exécution normale */ }
+  if (set.size > 0) {
+    console.log(`[S6.22.2 Q10-bis ABLATION] couches désactivées : ${[...set].join(", ")}`);
+  }
+  return set;
+})();
+
 // ---- 1c. PARAMÈTRES FORME & ACCESSIBILITÉ (Sprint 5 — v6.4) ----
 const consigneRedaction = perso.consigne_redaction || 'Tu';
 const genreConsultant = perso.genre || 'M';
@@ -18164,6 +18201,9 @@ if (_mdseResults.length > 0 && finalOutput.length > 0) {
     // Position dans le pipeline : APRÈS Q175-A (cap MARIAGE) et AVANT l'export
     // sigPayload → eventSignatures pour que le boost et le cap profil_type
     // soient les derniers mots sur le score SCANDALE.
+    if (_s6222Ablation.has("Q179")) {
+      console.log("[S6.22.2 Q10-bis] Q179 SCANDALE désactivé (ablation flag)");
+    } else {
     try {
       const _Q181_TARGETS = ["Lune", "Vénus"];
       const _Q181_ASPECTS = ["Conjonction", "Carré", "Opposition"];
@@ -18422,7 +18462,10 @@ if (_mdseResults.length > 0 && finalOutput.length > 0) {
       let _q1HardTrigger = { hits: [], present: false };
       let _q1StrictCapped = false;
       let _q1StrictBefore = null;
+      const _q1Disabled = _s6222Ablation.has("Q1");
+      if (_q1Disabled) console.log("[S6.22.2 Q10-bis] Q1 strict gating SCANDALE désactivé (ablation flag)");
       try {
+        if (_q1Disabled) throw new Error("__Q1_ABLATION_SKIP__");
         // Détection terrain natal Lilith
         const _lilithNatal = (typeof natalDict !== "undefined") ? natalDict?.["Lilith"] : null;
         const _lilithHouse = _lilithNatal?.house || null;
@@ -18487,7 +18530,9 @@ if (_mdseResults.length > 0 && finalOutput.length > 0) {
           }
         }
       } catch (eQ1) {
-        console.log("[WARN] S6.22.2 Q1 SCANDALE strict gating:", eQ1.message);
+        if (eQ1?.message !== "__Q1_ABLATION_SKIP__") {
+          console.log("[WARN] S6.22.2 Q1 SCANDALE strict gating:", eQ1.message);
+        }
       }
 
       // 8. Re-trier sigPayload pour que le top-30 reflète boost et cap
@@ -18538,6 +18583,7 @@ if (_mdseResults.length > 0 && finalOutput.length > 0) {
     } catch (eQ179) {
       console.log("[WARN] S6.20 Q179-Q181 SCANDALE:", eQ179.message, eQ179.stack?.split("\n")[1]?.trim());
     }
+    } // fin if (!_s6222Ablation.has("Q179"))
     // ═══════════════════════════════════════════════════════════════════════════
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -18845,6 +18891,9 @@ if (_mdseResults.length > 0 && finalOutput.length > 0) {
     //         scandale politique Algol — le LLM fera la synthèse narrative).
     //
     // Position : APRÈS Q179 SCANDALE et AVANT Couche B Étoiles Fixes V2.
+    if (_s6222Ablation.has("Q186")) {
+      console.log("[S6.22.2 Q10-bis] Q186/Q187/Q2 RELOCATION désactivé (ablation flag)");
+    } else {
     try {
       const _Q186_TARGET_CODE = "RELOCATION";
       const _Q186_ORB_MAX = 1.5;
@@ -19090,23 +19139,44 @@ if (_mdseResults.length > 0 && finalOutput.length > 0) {
           _q186Cap = _Q186_S6222_Q2_BYPASS_CAP;             // 48 → 70
           _q186Applied.push(`RELOCATION bypass S6.22.2-Q2 partile ${_q186Partile.planet}/${_q186Partile.target}@${_q186Partile.orb.toFixed(3)}° (cap 48→70)`);
 
-          // S6.22.2 round 2 (post-bench R30-73 #1) — Floor conservateur :
-          // on n'élève la confidence native QUE si elle est déjà ≥ 50 (signal natif
-          // pré-existant déjà solide, juste cappé par Q186 N1-only=48). Sinon le
-          // bypass se contente de lever le plafond — pas d'injection forcée, pas
-          // de promotion de signaux faibles. Évite les faux positifs RELOCATION
-          // massifs observés au round 1 (Federer, Britney, Macron, OJ, Britney…).
-          const _Q186_S6222_Q2_FLOOR_MIN_NATIVE = 50;
+          // S6.22.2 round 3 (note 94 retour Q-C arbitrage astrologue 2026-05-13) :
+          // Floor INCONDITIONNEL à 60 (au lieu de 70 conditionnel ≥50 du round 2).
+          // Doctrine : « Un partile à 0.1° doit imposer le code au moins à 60.
+          //   Cela lui permet d'exister dans le Top-3 sans écraser artificiellement
+          //   un événement à 65. » → RELOCATION existe en Top-3 sans usurper Top-1
+          //   d'un signal légitime à 65+. Le cap reste à 70 pour laisser passer
+          //   un signal natif fort jusqu'à 70.
+          const _Q186_S6222_Q2_FLOOR = 60;
           const _q186TargetForFloor = sigPayload.find(s => s.code === _Q186_TARGET_CODE);
-          if (_q186TargetForFloor && (_q186TargetForFloor.confidence || 0) >= _Q186_S6222_Q2_FLOOR_MIN_NATIVE
-              && (_q186TargetForFloor.confidence || 0) < _Q186_S6222_Q2_BYPASS_CAP) {
+          if (!_q186TargetForFloor) {
+            // RELOCATION absent → injection au floor 60 (pas 70).
+            const sigDef = (typeof EVENT_SIGNATURES !== "undefined") ? EVENT_SIGNATURES[_Q186_TARGET_CODE] : null;
+            const _q186Inj = {
+              code: _Q186_TARGET_CODE,
+              label: sigDef?.label || "Déménagement / Expatriation",
+              labelEN: sigDef?.labelEN || "Relocation / Expatriation",
+              icon: sigDef?.icon || "🜂",
+              confidence: _Q186_S6222_Q2_FLOOR,
+              level: "high",
+              guidance: sigDef?.guidanceText?.high || null,
+              matchedConditions: [],
+              isStellarApex: false,
+              _q186S6222Q2Injected: true
+            };
+            sigPayload.push(_q186Inj);
+            _q186S6222Q2Bypass.floorBefore = null;
+            _q186S6222Q2Bypass.floorAfter = _Q186_S6222_Q2_FLOOR;
+            _q186S6222Q2Bypass.floorApplied = true;
+            _q186S6222Q2Bypass.injected = true;
+            _q186Applied.push(`RELOCATION injecté à ${_Q186_S6222_Q2_FLOOR} (S6.22.2 Q2 round 3 floor inconditionnel)`);
+          } else if ((_q186TargetForFloor.confidence || 0) < _Q186_S6222_Q2_FLOOR) {
             _q186S6222Q2Bypass.floorBefore = _q186TargetForFloor.confidence;
-            _q186TargetForFloor.confidence = _Q186_S6222_Q2_BYPASS_CAP;
+            _q186TargetForFloor.confidence = _Q186_S6222_Q2_FLOOR;
             _q186TargetForFloor.level = "high";
             _q186TargetForFloor.guidance = EVENT_SIGNATURES[_Q186_TARGET_CODE]?.guidanceText?.high || _q186TargetForFloor.guidance;
-            _q186S6222Q2Bypass.floorAfter = _Q186_S6222_Q2_BYPASS_CAP;
+            _q186S6222Q2Bypass.floorAfter = _Q186_S6222_Q2_FLOOR;
             _q186S6222Q2Bypass.floorApplied = true;
-            _q186Applied.push(`RELOCATION ${_q186S6222Q2Bypass.floorBefore}→${_Q186_S6222_Q2_BYPASS_CAP} (S6.22.2 Q2 floor partile, signal natif ≥${_Q186_S6222_Q2_FLOOR_MIN_NATIVE})`);
+            _q186Applied.push(`RELOCATION ${_q186S6222Q2Bypass.floorBefore}→${_Q186_S6222_Q2_FLOOR} (S6.22.2 Q2 round 3 floor inconditionnel)`);
           }
         }
       }
@@ -19277,6 +19347,7 @@ if (_mdseResults.length > 0 && finalOutput.length > 0) {
     } catch (eQ186) {
       console.log("[WARN] S6.22 Q186 RELOCATION:", eQ186.message, eQ186.stack?.split("\n")[1]?.trim());
     }
+    } // fin if (!_s6222Ablation.has("Q186"))
     // ═══════════════════════════════════════════════════════════════════════════
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -19826,7 +19897,9 @@ if (_mdseResults.length > 0 && finalOutput.length > 0) {
     // ═══════════════════════════════════════════════════════════════════════════
     try {
       const _S623_VERSION = "S6.23-LUNE-PROGRESSEE-rc1";
-      const _S623_ENABLED = true;  // Toggle d'activation. Mettre à false pour désactiver.
+      // S6.22.2 Q10-bis : flag d'ablation env (laisse le toggle interne intact)
+      const _S623_ENABLED = !_s6222Ablation.has("S623");
+      if (_s6222Ablation.has("S623")) console.log("[S6.22.2 Q10-bis] S6.23 Lune progressée désactivée (ablation flag)");
 
       if (!_S623_ENABLED) {
         console.log(`[${_S623_VERSION}] désactivé (toggle off)`);
@@ -20203,6 +20276,9 @@ if (_mdseResults.length > 0 && finalOutput.length > 0) {
     // Tables d'affinité §2.d retour 82-bis + ajouts astrologue :
     //   • HÉRITAGE : +10 Saturne natal en M8 (patience qui mène au gain)
     //   • SEPARATION : +15 Uranus angulaire (instabilité chronique)
+    if (_s6222Ablation.has("NA")) {
+      console.log("[S6.22.2 Q10-bis] Couche D natal-affinity désactivée (ablation flag)");
+    } else {
     try {
       const _NA_VERSION = "S6.21.1-NATAL-AFFINITY-D-rc1";
       const _NA_ALPHA = 0.30;
@@ -20569,6 +20645,7 @@ if (_mdseResults.length > 0 && finalOutput.length > 0) {
     } catch (eNA) {
       console.log("[WARN] S6.21.1 Couche D natal affinity:", eNA.message, eNA.stack?.split("\n")[1]?.trim());
     }
+    } // fin if (!_s6222Ablation.has("NA"))
     // ═══════════════════════════════════════════════════════════════════════════
 
     finalOutput[0].json.eventSignatures = sigPayload;
