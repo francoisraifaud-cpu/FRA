@@ -3604,6 +3604,18 @@ if (sunNatalDeg !== undefined && daysArray.length > 1) {
     if (srDay?.planetes) {
         // --- Récupérer lat/lon/tz depuis le nœud amont ---
         let birthLat = null, birthLon = null, birthTz = 0;
+        // ═══════════════════════════════════════════════════════════════════════════
+        // SPRINT 6.24.4 (2026-05-14, note 112 retour Astrologue Gemini 3.1 Pro)
+        // RS RELOCALISÉE STRICTE — Doctrine B (école Volguine, modernes anglo-saxons)
+        // Lecture optionnelle de `birthday_place_lat / lng` depuis le payload amont.
+        // Si présent : substitution dans la formule LST (= GST + UT × 15 + Lon) →
+        // angles Asc/MC RS et cuspides Placidus de la RS recalculés au lieu où le
+        // sujet sera le jour de son anniversaire (Q-G25 Doctrine B).
+        // Si absent : fallback silencieux sur la ville natale (Q-G26 statu quo).
+        // Timezone d'anniversaire INUTILE (Q-G30 confirmé : UT = srHourDecimal - birthTz
+        // reste référencé natal, l'instant UTC du retour solaire est invariant).
+        // ═══════════════════════════════════════════════════════════════════════════
+        let birthdayPlaceLat = null, birthdayPlaceLon = null, birthdayPlaceLabel = null;
         try {
             const prepDyn = $(NODE_PREP_DYNAMIQUE).first()?.json;
             if (prepDyn?.body) {
@@ -3611,8 +3623,21 @@ if (sunNatalDeg !== undefined && daysArray.length > 1) {
                 birthLat = payload.latitude;
                 birthLon = payload.longitude;
                 birthTz = payload.timezone || 0;
+                if (Number.isFinite(payload.birthday_place_lat) && Math.abs(payload.birthday_place_lat) <= 90) {
+                    birthdayPlaceLat = payload.birthday_place_lat;
+                }
+                if (Number.isFinite(payload.birthday_place_lng) && Math.abs(payload.birthday_place_lng) <= 180) {
+                    birthdayPlaceLon = payload.birthday_place_lng;
+                }
+                if (typeof payload.birthday_place_formatted_address === "string" && payload.birthday_place_formatted_address.trim()) {
+                    birthdayPlaceLabel = payload.birthday_place_formatted_address.trim();
+                }
             }
         } catch(e2) {}
+        const _S6244_RSRELOC_VERSION = "S6.24.4-rs-relocalisee-doctrine-B-volguine";
+        const _rsLat = (birthdayPlaceLat !== null) ? birthdayPlaceLat : birthLat;
+        const _rsLon = (birthdayPlaceLon !== null) ? birthdayPlaceLon : birthLon;
+        const _rsRelocated = (birthdayPlaceLat !== null && birthdayPlaceLon !== null);
 
         // --- Interpolation pour l'heure exacte du retour solaire ---
         let srHourDecimal = 12;
@@ -3628,8 +3653,10 @@ if (sunNatalDeg !== undefined && daysArray.length > 1) {
         }
 
         // --- Calcul ASC/MC de la RS par formule astronomique ---
+        // S6.24.4 : utilise (_rsLat, _rsLon) qui pointent soit sur birthday_place_*
+        // (RS relocalisée), soit sur (birthLat, birthLon) en fallback (RS natale).
         let srASCdeg = null, srMCdeg = null, srASCsign = null, srMCsign = null, srASChouse = null;
-        if (birthLat !== null && birthLon !== null) {
+        if (_rsLat !== null && _rsLon !== null) {
             const RAD = Math.PI / 180;
             const srDateObj = new Date(srExactDate);
             const srY = srDateObj.getFullYear(), srM = srDateObj.getMonth() + 1, srD = srDateObj.getDate();
@@ -3641,10 +3668,10 @@ if (sunNatalDeg !== undefined && daysArray.length > 1) {
             let GST = 280.46061837 + 360.98564736629 * (JD - 2451545.0) + 0.000387933 * T * T;
             GST = ((GST % 360) + 360) % 360;
             const UT = srHourDecimal - birthTz;
-            const LST = ((GST + UT * 1.00273790935 * 15 + birthLon) % 360 + 360) % 360;
+            const LST = ((GST + UT * 1.00273790935 * 15 + _rsLon) % 360 + 360) % 360;
             const eps = (23.4393 - 0.013 * T) * RAD;
             const ARAMC = LST * RAD;
-            const latRad = birthLat * RAD;
+            const latRad = _rsLat * RAD;
             srASCdeg = ((Math.atan2(-Math.cos(ARAMC), Math.sin(ARAMC) * Math.cos(eps) + Math.tan(latRad) * Math.sin(eps)) / RAD + 180) % 360 + 360) % 360;
             srMCdeg = ((Math.atan2(Math.sin(ARAMC), Math.cos(ARAMC) * Math.cos(eps)) / RAD) % 360 + 360) % 360;
             srASCsign = signs[Math.floor(srASCdeg / 30) % 12];
@@ -3662,6 +3689,12 @@ if (sunNatalDeg !== undefined && daysArray.length > 1) {
         const srPlanets = srDay.planetes;
         const srLines = [];
         const srPlanetList = ["Jupiter","Saturne","Uranus","Neptune","Pluton","Chiron","Mars","Vénus","Mercure","Nœud Nord"];
+        // S6.24.4 (note 112 piège #2 — anti-hallucination LLM) : mention explicite
+        // de la relocalisation pour que le LLM ne s'étonne pas d'un Asc différent
+        // du natal lorsqu'il lit srLines en aval.
+        if (_rsRelocated) {
+            srLines.push(`  ✦ RS RELOCALISÉE à ${birthdayPlaceLabel || `lat ${_rsLat.toFixed(2)}° / lon ${_rsLon.toFixed(2)}°`} (école Volguine, S6.24.4)`);
+        }
         if (srASCdeg !== null) {
             srLines.push(`  ✦ ASC RS : ${(srASCdeg % 30).toFixed(1)}° ${srASCsign} → tombe en M${srASChouse} natale — DOMAINE DOMINANT de l'année`);
             srLines.push(`  ✦ MC RS : ${(srMCdeg % 30).toFixed(1)}° ${srMCsign} → tombe en M${findNatalHouse(srMCdeg)} natale — direction vocationnelle de l'année`);
