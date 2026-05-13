@@ -116,11 +116,21 @@ const perso         = enrichedData.perso || {};
 const _s6222Ablation = (() => {
   const set = new Set();
   try {
-    const _ppd = $(NODE_PREP_DYNAMIQUE).first()?.json;
     let raw = "";
-    if (_ppd?.body) {
-      try { raw = (JSON.parse(_ppd.body)._s6222_ablation || ""); } catch(_e1) {}
+    // Source 1 : webhook body direct (le runner l'injecte via `_s6222_ablation`).
+    try {
+      const _wh = $("Webhook").first()?.json;
+      const _b = _wh?.body && typeof _wh.body === "object" ? _wh.body : _wh;
+      if (_b?._s6222_ablation) raw = _b._s6222_ablation;
+    } catch(_e1) { /* nœud Webhook absent ou inaccessible */ }
+    // Source 2 : Extract Variables (si patch ultérieur pass-through l'a propagé).
+    if (!raw) {
+      try {
+        const _ev = $("Extract Variables").first()?.json;
+        if (_ev?._s6222_ablation) raw = _ev._s6222_ablation;
+      } catch(_e2) {}
     }
+    // Source 3 : perso.* (fallback ultime).
     if (!raw && perso?._s6222_ablation) raw = perso._s6222_ablation;
     if (raw && typeof raw === "string") {
       raw.split(",").map(s => s.trim().toUpperCase()).filter(Boolean).forEach(x => set.add(x));
