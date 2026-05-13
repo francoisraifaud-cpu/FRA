@@ -18189,6 +18189,201 @@ if (_mdseResults.length > 0 && finalOutput.length > 0) {
     // ═══════════════════════════════════════════════════════════════════════════
 
     // ═══════════════════════════════════════════════════════════════════════════
+    // SPRINT 6.24.2 PHASE C (2026-05-13 retour Astrologue Gemini 3.1 Pro note 101)
+    //
+    // Q-D « Arcs Solaires Naibod » — directions symboliques mesurées.
+    //
+    // Doctrine validée note 96 + arbitrage final note 101 :
+    //   • Mouvement Naibod : 0°59'08"/an = 0.98563 deg/an (validé note 96)
+    //   • Orbe partile : 0.5° (sniper biographique ≈ 6 mois de fenêtre)
+    //   • Cibles : 10 planètes natales + ASC + MC + Lilith + Nœuds N/S
+    //   • Aspects : ☌ ⚹ □ △ ☍ uniquement (5 aspects classiques)
+    //   • Pondération additive directe (Q-G3.1 Gemini : modulation event trigger
+    //     pas boost promesse) — un arc ajoute ses pts à la confidence du code
+    //     thématique pour faire émerger un code de l'ombre vers le top-3/top-5
+    //   • Indépendant cap30 S6.24-G (Q-G3.2 Gemini : directions symboliques
+    //     obéissent à barème absolu, pas multiplicatif)
+    //   • Plafonds terminaux respectés (max 85 ; Q1 cap @60 public ; Q180
+    //     cap @50 privé ; cap privé universel @65 garantit la non-régression
+    //     Mme Dupont — Q-D + cap @65 = 65 sur profil privé, cohérent S6.22.3)
+    //   • Timing : pour Phase C v1, yearsSinceBirth = écart décimal entre
+    //     date centrale du rapport et date de naissance (RS relocalisée
+    //     stricte = S6.25 quand le moteur consommera birthday_place_*)
+    //   • Ablation : couche `S624QD` désactivable via _s6222Ablation
+    //
+    // Position : APRÈS sigPayload complet, AVANT Q179/Q180/Q1 (les caps
+    // terminaux brideront naturellement les emballements).
+    // ═══════════════════════════════════════════════════════════════════════════
+    try {
+      const _Q_D_VERSION = "S6.24.2c-Q-D-ARCS-NAIBOD-orb05-additif";
+      const _Q_D_NAIBOD_DEG_PER_YEAR = 0.98563;
+      const _Q_D_ORB_MAX = 0.5;
+      const _Q_D_ENABLED = !_s6222Ablation.has("S624QD");
+
+      const _Q_D_TARGET_PLANETS = [
+        "Soleil","Lune","Mercure","Vénus","Mars","Jupiter","Saturne",
+        "Uranus","Neptune","Pluton","Ascendant","Milieu du Ciel",
+        "Lilith","Nœud Nord","Nœud Sud"
+      ];
+
+      const _Q_D_WEIGHT = {
+        "Saturne":        { hard: 20, harm: 12 },
+        "Pluton":         { hard: 20, harm: 12 },
+        "Uranus":         { hard: 15, harm: 10 },
+        "Jupiter":        { hard: 15, harm: 12 },
+        "Vénus":          { hard: 15, harm: 12 },
+        "Mars":           { hard: 12, harm: 8 },
+        "Soleil":         { hard: 10, harm: 8 },
+        "Lune":           { hard: 10, harm: 8 },
+        "Mercure":        { hard: 8,  harm: 6 },
+        "Neptune":        { hard: 12, harm: 8 },
+        "Nœud Nord":      { hard: 10, harm: 8 },
+        "Nœud Sud":       { hard: 10, harm: 8 },
+        "Lilith":         { hard: 10, harm: 5 },
+        "Ascendant":      { hard: 12, harm: 8 },
+        "Milieu du Ciel": { hard: 12, harm: 8 }
+      };
+
+      // Mapping arc planet → codes thématiques (note 96 §Q-D + Gemini note 101).
+      // Liste vide = transversal (pas de boost ciblé, juste comptabilisé en diag).
+      const _Q_D_NATURAL_CODES = {
+        "Saturne":        ["DEUIL","CARRIERE_DOWN","SANTE_DOWN"],
+        "Pluton":         ["DEUIL","SCANDALE","CRISE"],
+        "Uranus":         ["RUPTURE","RELOCATION","ACCIDENT"],
+        "Jupiter":        ["MARIAGE","CARRIERE_UP","FINANCE_UP"],
+        "Vénus":          ["MARIAGE","ENFANT"],
+        "Mars":           ["ACCIDENT","CARRIERE_DOWN"],
+        "Neptune":        ["DEUIL","CRISE"],
+        "Soleil":         [],
+        "Lune":           [],
+        "Mercure":        [],
+        "Nœud Nord":      ["RELOCATION"],
+        "Nœud Sud":       ["RELOCATION"],
+        "Lilith":         ["SCANDALE"],
+        "Ascendant":      [],
+        "Milieu du Ciel": ["CARRIERE_UP","CARRIERE_DOWN"]
+      };
+
+      // Aspects retenus pour Q-D (5 classiques) + classification dur/harmonique.
+      const _Q_D_ASPECT_TYPE = {
+        "Conjonction": "hard",
+        "Carré":       "hard",
+        "Opposition":  "hard",
+        "Sextile":     "harm",
+        "Trigone":     "harm"
+      };
+
+      if (_Q_D_ENABLED && _mdseResults.length > 0 && finalOutput.length > 0 && dateNaiss) {
+        // yearsSinceBirth = âge décimal au centre de la fenêtre du rapport.
+        // Phase C v1 : sans Solar Return relocalisée (S6.25). Fenêtre 0.5°
+        // ≈ 6 mois donc l'imprécision sub-jour est négligeable.
+        const dateRapportCenter = new Date((dStart.getTime() + dEnd.getTime()) / 2);
+        const _Q_D_MS_PER_YEAR = 365.2422 * 24 * 3600 * 1000;
+        const _q_d_yearsSinceBirth = (dateRapportCenter.getTime() - dateNaiss.getTime()) / _Q_D_MS_PER_YEAR;
+        const _q_d_arcDeg = _q_d_yearsSinceBirth * _Q_D_NAIBOD_DEG_PER_YEAR;
+
+        const _q_d_arcs = [];
+
+        for (const arcPlanet of _Q_D_TARGET_PLANETS) {
+          const arcSrc = natalDict[arcPlanet];
+          if (!arcSrc || typeof arcSrc.deg !== "number") continue;
+          const arcLong = ((arcSrc.deg + _q_d_arcDeg) % 360 + 360) % 360;
+
+          for (const targetPlanet of _Q_D_TARGET_PLANETS) {
+            if (arcPlanet === targetPlanet) continue;
+            const targetSrc = natalDict[targetPlanet];
+            if (!targetSrc || typeof targetSrc.deg !== "number") continue;
+            const targetLong = ((targetSrc.deg % 360) + 360) % 360;
+
+            const diff = getOrb(arcLong, targetLong); // [0..180]
+
+            for (const aspName of Object.keys(_Q_D_ASPECT_TYPE)) {
+              const aspDeg = NATAL_ASP_DEG[aspName];
+              const orb = Math.abs(diff - aspDeg);
+              if (orb <= _Q_D_ORB_MAX) {
+                const aspectType = _Q_D_ASPECT_TYPE[aspName];
+                const weight = (_Q_D_WEIGHT[arcPlanet] && _Q_D_WEIGHT[arcPlanet][aspectType]) || 5;
+                const codes = _Q_D_NATURAL_CODES[arcPlanet] || [];
+                _q_d_arcs.push({
+                  arcPlanet,
+                  targetPlanet,
+                  aspect: aspName,
+                  aspectType,
+                  arcLong: +arcLong.toFixed(3),
+                  targetLong: +targetLong.toFixed(3),
+                  orb: +orb.toFixed(3),
+                  weight,
+                  codes
+                });
+              }
+            }
+          }
+        }
+
+        // Application : modulation additive directe sur sigPayload.
+        // - Plafond intermédiaire à 85 ici (sécurité moteur, Q1/Q180 surcappent
+        //   plus bas si profil_type le requiert).
+        // - Code transversal (codes=[]) → pas de boost ciblé, juste comptabilisé.
+        let _q_d_nApplied = 0;
+        let _q_d_nSkippedTransversal = 0;
+        let _q_d_nSkippedNoMatch = 0;
+        const _q_d_boostsPerCode = {};
+
+        for (const arc of _q_d_arcs) {
+          if (arc.codes.length === 0) {
+            _q_d_nSkippedTransversal++;
+            continue;
+          }
+          let matched = false;
+          for (const sig of sigPayload) {
+            if (arc.codes.indexOf(sig.code) >= 0) {
+              const before = sig.confidence;
+              sig.confidence = Math.min(85, (sig.confidence || 0) + arc.weight);
+              const delta = sig.confidence - before;
+              sig._qdBoost = (sig._qdBoost || 0) + delta;
+              sig._qdSources = sig._qdSources || [];
+              sig._qdSources.push(`${arc.arcPlanet}_${arc.aspect}_${arc.targetPlanet}_+${delta}`);
+              _q_d_boostsPerCode[sig.code] = (_q_d_boostsPerCode[sig.code] || 0) + delta;
+              _q_d_nApplied++;
+              matched = true;
+            }
+          }
+          if (!matched) _q_d_nSkippedNoMatch++;
+        }
+
+        finalOutput[0].json._s624Diag = finalOutput[0].json._s624Diag || {};
+        finalOutput[0].json._s624Diag.qd = {
+          version: _Q_D_VERSION,
+          enabled: true,
+          naibodConstant: _Q_D_NAIBOD_DEG_PER_YEAR,
+          orbMax: _Q_D_ORB_MAX,
+          yearsSinceBirth: +_q_d_yearsSinceBirth.toFixed(4),
+          arcDeg: +_q_d_arcDeg.toFixed(4),
+          dateRapportCenter: dateRapportCenter.toISOString(),
+          birthdayPlaceUsed: false, // S6.25 quand RS relocalisée câblée
+          arcsTotal: _q_d_arcs.length,
+          nApplied: _q_d_nApplied,
+          nSkippedTransversal: _q_d_nSkippedTransversal,
+          nSkippedNoMatch: _q_d_nSkippedNoMatch,
+          boostsPerCode: _q_d_boostsPerCode,
+          arcsSample: _q_d_arcs.slice(0, 30)
+        };
+      } else if (!_Q_D_ENABLED) {
+        if (finalOutput[0] && finalOutput[0].json) {
+          finalOutput[0].json._s624Diag = finalOutput[0].json._s624Diag || {};
+          finalOutput[0].json._s624Diag.qd = {
+            version: _Q_D_VERSION,
+            enabled: false,
+            ablation: "S624QD"
+          };
+        }
+      }
+    } catch (eQD) {
+      console.log("[WARN] S6.24.2 Q-D arcs:", eQD.message, eQD.stack?.split("\n")[1]?.trim());
+    }
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    // ═══════════════════════════════════════════════════════════════════════════
     // SPRINT 6.20 retour 81 (2026-05-11) — Q179/Q180/Q181/Q182 « L'Ombre Publique ».
     //
     // Code SCANDALE — déclencheur math + garde-fou produit + modulateur Maison.
