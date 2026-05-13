@@ -18215,10 +18215,15 @@ if (_mdseResults.length > 0 && finalOutput.length > 0) {
     // terminaux brideront naturellement les emballements).
     // ═══════════════════════════════════════════════════════════════════════════
     try {
-      const _Q_D_VERSION = "S6.24.2c-Q-D-ARCS-NAIBOD-orb05-additif";
+      const _Q_D_VERSION = "S6.24.2c-Q-D-ARCS-NAIBOD-orb05-additif-OFFBYDEFAULT";
       const _Q_D_NAIBOD_DEG_PER_YEAR = 0.98563;
       const _Q_D_ORB_MAX = 0.5;
-      const _Q_D_ENABLED = !_s6222Ablation.has("S624QD");
+      // S6.24.3 phase 0 (note 103 audit Gemini) : Q-D additif désactivé par
+      // défaut. Bilan bench R30-73 (note 102) : M5-LLM 0.0 pts, M1-LLM −2.7 pts.
+      // Diagnostic Gemini : addition brute crée des ex-aequo qui noient le LLM.
+      // Code conservé vivant pour A/B testing via flag `S624QDON` explicite,
+      // en attendant la refonte multiplicative S6.24.3 phase 2.
+      const _Q_D_ENABLED = _s6222Ablation.has("S624QDON");
 
       const _Q_D_TARGET_PLANETS = [
         "Soleil","Lune","Mercure","Vénus","Mars","Jupiter","Saturne",
@@ -18374,7 +18379,9 @@ if (_mdseResults.length > 0 && finalOutput.length > 0) {
           finalOutput[0].json._s624Diag.qd = {
             version: _Q_D_VERSION,
             enabled: false,
-            ablation: "S624QD"
+            defaultOff: true,
+            enableViaFlag: "S624QDON",
+            reason: "S6.24.3 phase 0 (note 103) — additif gelé en attendant refonte multiplicative"
           };
         }
       }
