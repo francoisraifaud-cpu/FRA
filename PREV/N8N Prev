@@ -16953,11 +16953,99 @@ if (finalOutput.length > 0) {
 }
 } catch(e) { console.log("[WARN] Heatmap consolidée v4:", e.message, e.stack?.split("\n").slice(0,3).join(" ")); }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// SPRINT 6.24.3 PHASE 3 (2026-05-14, retour Astrologue Gemini 3.1 Pro note 110)
+// — Scission CLIMAT / DECLENCHEUR pour la matrice 2D du LLM (S60 Apply Rerank)
+// ═══════════════════════════════════════════════════════════════════════════
+// Doctrine validée notes 106 / 108 / 110 :
+//   - climat_potentiel    : terrain natal + cycles internes prédéterminés (promesses, progressions, arcs, retours, dignités, lots, fixed stars natales).
+//   - declencheur_intensite : ciel courant qui touche le natal (transits, éclipses courantes, lunaisons activatrices, stations transitantes, révolutions solaire/lunaire, profections activées).
+//   - double_activation = transit × progression : compté à 100 % dans CLIMAT ET 100 % dans DECLENCHEUR (Q-G22 note 110).
+//   - Bypass synthétiques (Q53-B RELOCATION, Q181 SCANDALE) avec matchedConditions trop pauvres → climat = decl = confidence (Q-G23 note 110).
+//   - confidence historique INCHANGÉE (Q-G24 note 110) — climat & decl sont des métadonnées additives pour le LLM.
+//
+// Normalisation : on redistribue la `confidence` finale (calibrée par toute la cascade : caps doctrinaux 50/60/65/85, multiplicateurs PNA, boost natalBoost, P11/P14, etc.) PROPORTIONNELLEMENT au poids matché par catégorie. Donc :
+//   weightClimat = Σ (cond.weight × cond.strength)  pour cond ∈ CLIMAT ∪ DOUBLE
+//   weightDecl   = Σ (cond.weight × cond.strength)  pour cond ∈ DECLENCHEUR ∪ DOUBLE
+//   total        = Σ (cond.weight × cond.strength)  pour cond ∈ tout
+//                  (DOUBLE compté UNE seule fois dans total pour ne pas surcharger)
+//   climat_potentiel     = round(min(100, sig.confidence × weightClimat / total))
+//   declencheur_intensite= round(min(100, sig.confidence × weightDecl   / total))
+//
+// Avantage : conserve les caps doctrinaux, lisible par le LLM, climat + decl ≈ confidence
+// (sauf double_activation qui boost les deux — ce qui est le but doctrinal).
+const _S6243_VERSION = "S6.24.3-phase3-double-activation-v1";
+const _S6243_DECLENCHEUR_TYPES = new Set([
+    "transit_aspect", "transit_in_house", "transit_minor_aspect", "transit_to_progressed",
+    "station_on_natal",
+    "eclipse_in_house", "eclipse_conjunct_natal",
+    "lunation_trigger", "trigger_transit",
+    "rs_malefic_cluster", "rs_angle_cross", "rs_planet_in_house", "rs_ruler_hit", "rs_relocated",
+    "rl_planet_in_house",
+    "prof_activated",
+    "oob_transit",
+    "ruler_transit", "dispositor_transited"
+]);
+const _S6243_DOUBLE_TYPES = new Set(["double_activation"]);
+// Tous les autres types (natal_promise, progression, solar_arc, primary_direction, firdaria_planet,
+// nodes_in_houses, profection_house, monthly_profection, planetary_return, antiscia_active,
+// prenatal_eclipse, prenatal_syzygy, almuten_hit, triplicity_ruler, planetary_joy, bound_lord_active,
+// critical_degree, fixed_star, multi_house_active, house_axis_active, mondial_cycle, zodiacal_releasing,
+// lot_activation, declination_match, time_lords_convergence, sect_light_hit, embolismic_lunation,
+// prog_moon_ingress, prog_sun_ingress, prog_lunation, etc.) tombent par défaut en CLIMAT.
+
+const _s6243ClassifyType = (t) => {
+    if (!t) return "CLIMAT";
+    if (_S6243_DOUBLE_TYPES.has(t)) return "DOUBLE";
+    if (_S6243_DECLENCHEUR_TYPES.has(t)) return "DECLENCHEUR";
+    return "CLIMAT";
+};
+
+// Calcul des sommes pondérées par catégorie (utilisé à la création + en passe finale).
+// Retourne {wClimat, wDecl, wTotal, fallback} où fallback=true si bypass synthétique
+// ou pas de matchedConditions exploitables → climat = decl = confidence.
+const _s6243ComputeWeights = (sig) => {
+    const conds = Array.isArray(sig.matchedConditions) ? sig.matchedConditions : [];
+    let wClimat = 0, wDecl = 0, wTotal = 0;
+    for (const c of conds) {
+        const w = (typeof c.weight === "number" ? c.weight : 0) * (typeof c.strength === "number" ? c.strength : 0);
+        if (w <= 0) continue;
+        const cat = _s6243ClassifyType(c.type);
+        if (cat === "DOUBLE") {
+            wClimat += w; wDecl += w; wTotal += w;
+        } else if (cat === "DECLENCHEUR") {
+            wDecl += w; wTotal += w;
+        } else {
+            wClimat += w; wTotal += w;
+        }
+    }
+    const isSyntheticBypass = !!(
+        sig._s61Q53bBypass || sig._q179InjectedBy || sig._s6222Q4InjectedBy ||
+        sig._s6222Q5InjectedBy || sig._q186S6222Q2Injected || sig._q186InjectedBy
+    );
+    return { wClimat, wDecl, wTotal, fallback: isSyntheticBypass || wTotal <= 0 };
+};
+
+const _s6243ComputeClimatDecl = (sig) => {
+    const conf = typeof sig.confidence === "number" ? sig.confidence : 0;
+    if (conf <= 0) return { climat_potentiel: 0, declencheur_intensite: 0 };
+    const w = _s6243ComputeWeights(sig);
+    if (w.fallback) {
+        return { climat_potentiel: Math.round(conf), declencheur_intensite: Math.round(conf) };
+    }
+    const climat = Math.round(Math.min(100, conf * (w.wClimat / w.wTotal)));
+    const decl   = Math.round(Math.min(100, conf * (w.wDecl / w.wTotal)));
+    return { climat_potentiel: climat, declencheur_intensite: decl };
+};
+
 // MDSE : Broadcast des signatures événementielles sur tous les items
 if (_mdseResults.length > 0 && finalOutput.length > 0) {
     const sigPayload = _mdseResults.map(s => ({
         code:s.code, label:s.label, labelEN:s.labelEN, icon:s.icon,
         confidence:s.confidence, level:s.level, guidance:s.guidance,
+        // S6.24.3 phase 3 : CLIMAT / DECLENCHEUR (note 110)
+        ..._s6243ComputeClimatDecl(s),
+        _s6243Ratios: _s6243ComputeWeights(s),
         reportable: s._reportable !== false,
         involvedHouses:s.involvedHouses, involvedPlanets:s.involvedPlanets,
         peakWindow:s.peakWindow||null, natalBoost:s.natalBoost||0,
@@ -20894,6 +20982,131 @@ if (_mdseResults.length > 0 && finalOutput.length > 0) {
     } // fin if (!_s6222Ablation.has("NA"))
     // ═══════════════════════════════════════════════════════════════════════════
 
+    // ═══════════════════════════════════════════════════════════════════════════
+    // SPRINT 6.24.3 PHASE 3 — Passe finale CLIMAT/DECLENCHEUR (note 110)
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Recalcule climat_potentiel / declencheur_intensite en respectant la
+    // confidence FINALE post-caps doctrinaux (Q175/Q179/Q180/Q186/Q1/Q186 PRIVE/etc.).
+    // - Sigs avec _s6243Ratios : recalcul prorata sur la nouvelle confidence.
+    // - Sigs synthétiques (RELOCATION/SCANDALE injectés) : héritage climat = decl = confidence.
+    // - Nettoyage du _s6243Ratios pour ne pas polluer le payload exposé au LLM.
+    try {
+        const _s6243Stats = { recalculated: 0, fallback: 0, missing: 0 };
+        for (const sig of sigPayload) {
+            const conf = typeof sig.confidence === "number" ? sig.confidence : 0;
+            if (conf <= 0) {
+                sig.climat_potentiel = 0;
+                sig.declencheur_intensite = 0;
+            } else if (sig._s6243Ratios && !sig._s6243Ratios.fallback && sig._s6243Ratios.wTotal > 0) {
+                sig.climat_potentiel = Math.round(Math.min(100, conf * (sig._s6243Ratios.wClimat / sig._s6243Ratios.wTotal)));
+                sig.declencheur_intensite = Math.round(Math.min(100, conf * (sig._s6243Ratios.wDecl / sig._s6243Ratios.wTotal)));
+                _s6243Stats.recalculated++;
+            } else {
+                // Push synthétique (RELOCATION/SCANDALE/CARRIERE_DOWN) ou ratios indispo : fallback héritage
+                sig.climat_potentiel = Math.round(conf);
+                sig.declencheur_intensite = Math.round(conf);
+                if (sig._s6243Ratios) _s6243Stats.fallback++; else _s6243Stats.missing++;
+            }
+            delete sig._s6243Ratios;
+        }
+        finalOutput[0].json._s6243Diag = {
+            version: _S6243_VERSION,
+            sigCount: sigPayload.length,
+            recalculated: _s6243Stats.recalculated,
+            fallbackBypass: _s6243Stats.fallback,
+            fallbackSynthetic: _s6243Stats.missing,
+            top5: sigPayload.slice(0, 5).map(s => ({
+                code: s.code,
+                confidence: s.confidence,
+                climat: s.climat_potentiel,
+                declencheur: s.declencheur_intensite
+            }))
+        };
+        console.log(`[${_S6243_VERSION}] sigs=${sigPayload.length} recalc=${_s6243Stats.recalculated} fallbackBypass=${_s6243Stats.fallback} fallbackSynth=${_s6243Stats.missing}`);
+    } catch (eS6243) {
+        console.log(`[WARN ${_S6243_VERSION}] passe finale :`, eS6243.message);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // SPRINT 6.24.3 PHASE 3 — CYCLE_INTEGRATION (note 108 Q-G17 + note 110)
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Doctrine note 108 : si AUCUNE signature n'a un declencheur_intensite ≥ 50
+    // sur la période, l'année est calme/structurante → injection d'un code synthétique
+    // CYCLE_INTEGRATION (score 60) qui guide le LLM vers une lecture psychologique/
+    // intégration plutôt que vers un faux événement.
+    // - Profil PRIVE only (le public attend du factuel).
+    // - Bloqué si SCANDALE Q179/Q181 ou RELOCATION Q186 a été créé/forcé.
+    // - Score constant 60 (assez haut pour passer en top-5, assez bas pour s'effacer
+    //   face à un vrai transit).
+    // - Désactivable via flag ablation S6243CIOFF.
+    try {
+      const _CI_VERSION = "S6.24.3-CYCLE_INTEGRATION-v1";
+      const _CI_DISABLED = (typeof _s6222Ablation !== "undefined") && _s6222Ablation.has && _s6222Ablation.has("S6243CIOFF");
+      // Lecture profil_type (pattern Q179)
+      let _ciProfilTypeRaw = (typeof perso !== "undefined" && perso?.profil_type) || null;
+      if (!_ciProfilTypeRaw) { try { _ciProfilTypeRaw = $("Extract Variables").first()?.json?.profil_type || null; } catch (_eCI1) {} }
+      if (!_ciProfilTypeRaw) {
+        try {
+          const _wh = $("Webhook").first()?.json;
+          _ciProfilTypeRaw = _wh?.body?.profil_type || _wh?.profil_type || null;
+        } catch (_eCI2) {}
+      }
+      const _ciProfilType = (_ciProfilTypeRaw || "prive").toString().toLowerCase().trim();
+      const _ciIsPrivate = _ciProfilType === "prive";
+      const _ciHasScandale = sigPayload.some(s => s.code === "SCANDALE" && (s._q179InjectedBy || s._q179Created));
+      const _ciHasRelocSynthetic = sigPayload.some(s => s.code === "RELOCATION" && (s._q186InjectedBy || s._q186Created || s._q186S6222Q2Injected || s._s61Q53bBypass));
+      const _ciMaxDecl = sigPayload.reduce((m, s) => Math.max(m, typeof s.declencheur_intensite === "number" ? s.declencheur_intensite : 0), 0);
+      const _ciAlreadyPresent = sigPayload.some(s => s.code === "CYCLE_INTEGRATION");
+      const _ciShouldEmerge = _ciIsPrivate && !_CI_DISABLED && !_ciHasScandale && !_ciHasRelocSynthetic && !_ciAlreadyPresent && _ciMaxDecl < 50;
+      finalOutput[0].json._cycleIntegrationDiag = {
+        version: _CI_VERSION,
+        enabled: !_CI_DISABLED,
+        profilType: _ciProfilType,
+        maxDeclencheur: _ciMaxDecl,
+        hasScandale: _ciHasScandale,
+        hasRelocSynthetic: _ciHasRelocSynthetic,
+        injected: false
+      };
+      if (_ciShouldEmerge) {
+        const _ciSig = {
+          code: "CYCLE_INTEGRATION",
+          label: "Cycle d'intégration et de consolidation",
+          labelEN: "Cycle of integration and consolidation",
+          icon: "○",
+          confidence: 60,
+          climat_potentiel: 60,
+          declencheur_intensite: 30,
+          level: "medium",
+          guidance: "Année de maturation intérieure et d'intégration des cycles précédents. Pas d'événement extérieur majeur attendu : la croissance est qualitative et structurelle. Bonne période pour consolider les acquis et préparer les cycles à venir.",
+          reportable: true,
+          involvedHouses: [],
+          involvedPlanets: [],
+          peakWindow: null,
+          natalBoost: 0,
+          polarity: 0,
+          qualifiedLabel: "Cycle d'intégration et de consolidation",
+          matchedConditions: [],
+          isStellarApex: false,
+          _cycleIntegrationInjectedBy: _CI_VERSION
+        };
+        sigPayload.push(_ciSig);
+        sigPayload.sort((a, b) => (b.confidence || 0) - (a.confidence || 0));
+        finalOutput[0].json._cycleIntegrationDiag.injected = true;
+        console.log(`[${_CI_VERSION}] Année calme (max declencheur=${_ciMaxDecl}) → CYCLE_INTEGRATION injecté @ confidence 60.`);
+      } else {
+        const reasons = [];
+        if (!_ciIsPrivate) reasons.push("profil_type=public");
+        if (_CI_DISABLED) reasons.push("ablation S6243CIOFF");
+        if (_ciHasScandale) reasons.push("SCANDALE actif");
+        if (_ciHasRelocSynthetic) reasons.push("RELOCATION synthétique actif");
+        if (_ciAlreadyPresent) reasons.push("déjà présent");
+        if (_ciMaxDecl >= 50) reasons.push(`declencheur max ${_ciMaxDecl} ≥ 50`);
+        console.log(`[${_CI_VERSION}] Pas d'injection (${reasons.join(", ") || "ok"}).`);
+      }
+    } catch (eCI) {
+      console.log("[WARN S6.24.3 CYCLE_INTEGRATION]", eCI.message, eCI.stack?.split("\n")[1]?.trim());
+    }
+
     finalOutput[0].json.eventSignatures = sigPayload;
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -21267,7 +21480,11 @@ if (_mdseResults.length > 0 && finalOutput.length > 0) {
         const condLines = conds.map(c => `    • ${c.detail || c.type} (${c.type}, ω=${c.strength})`).join("\n");
         const houses = (sig.involvedHouses || []).slice(0, 4).join(", ") || "—";
         const planets = (sig.involvedPlanets || []).slice(0, 4).join(", ") || "—";
-        return `[${idx}] ${sig.code} — confidence ${sig.confidence} — ${sig.label || sig.code}\n` +
+        // S6.24.3 phase 3 : matrice 2D climat × déclencheur (note 110)
+        const climat = (typeof sig.climat_potentiel === "number") ? sig.climat_potentiel : null;
+        const decl = (typeof sig.declencheur_intensite === "number") ? sig.declencheur_intensite : null;
+        const dim2D = (climat !== null && decl !== null) ? ` — climat ${climat} / déclencheur ${decl}` : "";
+        return `[${idx}] ${sig.code} — confidence ${sig.confidence}${dim2D} — ${sig.label || sig.code}\n` +
                `    Maisons impliquées : ${houses}\n` +
                `    Planètes impliquées : ${planets}\n` +
                `    Conditions doctrinales (top-5 strength≥0.7) :\n${condLines || "    (aucune condition forte)"}`;
@@ -21348,6 +21565,35 @@ if (_mdseResults.length > 0 && finalOutput.length > 0) {
         `astrologiquement et biographiquement le plus probable parmi 5 candidats déjà calculés\n` +
         `par un moteur déterministe.\n\n` +
         _s60ModeBlock +
+        // S6.24.3 phase 3 — note 108 + 110 (Gemini 3.1 Pro) : matrice 2D climat × déclencheur
+        `══ MATRICE DE LECTURE CLIMAT × DÉCLENCHEUR (S6.24.3) ══\n` +
+        `Chaque candidat est désormais qualifié par DEUX dimensions (échelle 0-100), en plus\n` +
+        `de la confidence consolidée :\n` +
+        `  • climat_potentiel    : force du TERRAIN natal et des cycles internes (promesses\n` +
+        `                          natales, progressions, arcs solaires, retours, dignités,\n` +
+        `                          étoiles fixes natales, lots). Score haut = la promesse\n` +
+        `                          est armée structurellement, le sujet est mûr pour cette\n` +
+        `                          thématique.\n` +
+        `  • declencheur_intensite : force des TRANSITS courants qui touchent le natal cette\n` +
+        `                          année (transits lourds, éclipses, lunaisons activatrices,\n` +
+        `                          révolutions solaire/lunaire, profections activées). Score\n` +
+        `                          haut = l'événement est objectivement déclenché par le ciel.\n\n` +
+        `Pour QUALIFIER ton choix (sans contredire la Règle 4 ci-dessous, qui reste\n` +
+        `inviolable au-delà de 2 points d'écart de confidence) :\n` +
+        `  1. ÉVÉNEMENT BIOGRAPHIQUE MAJEUR : climat_potentiel ≥ 60 ET declencheur_intensite ≥ 60.\n` +
+        `     Ex : Saturne transitant le Milieu du Ciel pendant une année avec forte promesse\n` +
+        `     natale CARRIERE_DOWN. Le ciel et le terrain résonnent ensemble.\n` +
+        `  2. ÉVOLUTION INTERNE / MATURATION : climat_potentiel ≥ 60 ET declencheur_intensite < 40.\n` +
+        `     Privilégier la lecture psychologique/intégration sur l'événement factuel.\n` +
+        `  3. ÉVÉNEMENT EXTERNE PASSAGER : climat_potentiel < 50 ET declencheur_intensite ≥ 70.\n` +
+        `     Ne pas surdimensionner : c'est un coup de tonnerre, pas une transformation profonde.\n` +
+        `  4. ANNÉE DE FONDATION (calme) : aucune signature avec declencheur_intensite ≥ 50.\n` +
+        `     Le moteur peut t'avoir injecté CYCLE_INTEGRATION (privé) — privilégie-le, ou\n` +
+        `     la signature au climat_potentiel le plus fort.\n\n` +
+        `IMPORTANT : ces dimensions sont COMPLÉMENTAIRES à la confidence (qui reste le score\n` +
+        `de référence pour l'élection du Top-1, cf. Règle 4). Le climat × déclencheur t'aide\n` +
+        `à comprendre la NATURE de l'événement et à formuler ta primary_reason — pas à\n` +
+        `révoquer le Top-1 mathématique au-delà de la marge tolérée.\n\n` +
         `══ RÈGLES INVIOLABLES ══\n` +
         `1. Tu DOIS choisir un index entre 0 et 4. Aucune autre option n'est permise.\n` +
         `2. Tu n'as AUCUN droit d'inventer un autre code, ni de modifier les confidences.\n` +
