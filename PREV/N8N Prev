@@ -1501,7 +1501,8 @@ const _natalPromises = (() => {
     // ET part d'ombre réveillée (Lilith angulaire ou conjointe aux
     // luminaires). »
     //
-    // Cumul A (Public Personnae) + B (Lilith native active) ≥ 12 → promesse
+    // Cumul A (Public Personnae) + B (Lilith native active) ≥ 14 → promesse
+    // (S6.22.3 Q-γ — durci 12 → 14, retour astrologue note 95)
     // SCANDALE active. Cette promesse N'AJOUTE AUCUN BOOST direct mais
     // gate le déclencheur math Q181-C (post-processing Lilith □/☍/☌
     // Lune ou Vénus orbe ≤ 1°). Madame Dupont (anonyme) franchit
@@ -1582,8 +1583,10 @@ const _natalPromises = (() => {
         _npScandaleHits.push(`B4_Lilith_M${_npLilH}_ombre`);
       }
 
-      // Seuil Q179-C : cumul ≥ 12
-      if (_npScandaleScore >= 12) {
+      // Seuil Q179-C (durci S6.22.3 Q-γ note 95 — 12 → 14) :
+      //   « Exiger une promesse à 14 filtrera naturellement le bruit de couloir
+      //     pour ne garder que les véritables crises de réputation. »
+      if (_npScandaleScore >= 14) {
         _npAddPromise({
           type: "PUBLIC_OMBRE",
           victim: "Réputation publique",
@@ -1597,7 +1600,7 @@ const _natalPromises = (() => {
           scandaleHits: _npScandaleHits
         }, ["SCANDALE"]);
       }
-      out.scandaleDiag = { score: _npScandaleScore, hits: _npScandaleHits, threshold: 12, qualified: _npScandaleScore >= 12 };
+      out.scandaleDiag = { score: _npScandaleScore, hits: _npScandaleHits, threshold: 14, qualified: _npScandaleScore >= 14 };
     } catch (_eScandalePromise) {
       console.log("[WARN] _natalPromises Piste E SCANDALE:", _eScandalePromise.message);
     }
@@ -4672,7 +4675,7 @@ try {
     // Promesse natale = visibilité publique (Soleil/Lune/MC) ☌/dur Lilith
     // ou Pluton ☌/dur MC. La logique fine de cumul Public Personnae (A) +
     // Lilith native active (B) est calculée séparément en post-processing
-    // (Piste E de _natalPromises) avec seuil ≥ 12. Cette définition générique
+    // (Piste E de _natalPromises) avec seuil ≥ 14 (S6.22.3 Q-γ). Cette définition générique
     // alimente seulement le score `_mdseNatalPromise.SCANDALE` consommé par
     // EVENT_SIGNATURES.SCANDALE.conditions.natal_promise pour donner du grain.
     SCANDALE:       { pairs:[["Lilith","Lune"],["Lilith","Soleil"],["Lilith","Milieu du Ciel"],
@@ -7422,7 +7425,7 @@ VOYAGE: {
 // angulaire ou conjointe aux luminaires). »
 // Le déclencheur principal (Lilith ☌/□/☍ Lune ou Vénus orbe ≤ 1°) est
 // appliqué en post-processing Q181-C, conjointement à la promesse
-// Public Personnae cumul ≥ 12 (Piste E _natalPromises). Les conditions
+// Public Personnae cumul ≥ 14 (Piste E _natalPromises, S6.22.3 Q-γ). Les conditions
 // ci-dessous donnent du grain de fond à la signature mathématique pure ;
 // le boost contextuel (+15/+12) et le cap profil_type=prive (Q180) sont
 // appliqués hors `EVENT_SIGNATURES`.
@@ -18200,8 +18203,9 @@ if (_mdseResults.length > 0 && finalOutput.length > 0) {
     //     incontestable de la chute. »
     //
     // Q181-C : déclencheur math = Lilith ☌/□/☍ Lune OU Vénus, orbe ≤ 1°.
-    // Q179-C : gating promesse = cumul Public Personnae + Lilith native ≥ 12
-    //          (déjà calculé dans Piste E _natalPromises.bySignature.SCANDALE).
+    // Q179-C : gating promesse = cumul Public Personnae + Lilith native ≥ 14
+    //          (S6.22.3 Q-γ — seuil durci 12 → 14, déjà calculé dans
+    //           Piste E _natalPromises.bySignature.SCANDALE).
     // Q180   : cap absolu @ 50 si profil_type === "prive" (anti-hallucination
     //          pour la masse anonyme — Madame Dupont ne se voit pas annoncer
     //          un "scandale" pour une simple crise relationnelle).
@@ -18217,7 +18221,10 @@ if (_mdseResults.length > 0 && finalOutput.length > 0) {
     try {
       const _Q181_TARGETS = ["Lune", "Vénus"];
       const _Q181_ASPECTS = ["Conjonction", "Carré", "Opposition"];
-      const _Q181_ORB_MAX = 1.0;
+      // S6.22.3 Q-γ (note 95 retour astrologue 2026-05-13) : orbe resserré
+      //   1.0° → 0.7°. Doctrine : « Le scandale est un événement tranchant.
+      //   Un orbe de 1.0° est trop lâche pour des planètes lentes. »
+      const _Q181_ORB_MAX = 0.7;
       const _Q181_TARGET_CODE = "SCANDALE";
       const _Q181_BOOST_CONJ = 15;
       const _Q181_CAP_CONJ = 80;
@@ -18353,7 +18360,7 @@ if (_mdseResults.length > 0 && finalOutput.length > 0) {
       } else if (!_q179Trigger) {
         _q179Skipped.push(`Aucun aspect Lilith ☌/□/☍ Lune/Vénus ≤ ${_Q181_ORB_MAX}°`);
       } else if (!_q179PromiseQualified) {
-        _q179Skipped.push(`Trigger Lilith${_q179Trigger.glyph}${_q179Trigger.natal} ${_q179Trigger.orb.toFixed(2)}° présent mais promesse Public_Ombre insuffisante (score=${_q179PromiseScore}/12, hits=[${_q179PromiseHits.join(",") || "—"}])`);
+        _q179Skipped.push(`Trigger Lilith${_q179Trigger.glyph}${_q179Trigger.natal} ${_q179Trigger.orb.toFixed(2)}° présent mais promesse Public_Ombre insuffisante (score=${_q179PromiseScore}/14, hits=[${_q179PromiseHits.join(",") || "—"}])`);
       }
 
       // 7. Q180 — cap profil_type=prive (s'applique TOUJOURS, indépendamment du boost Q181)
@@ -18385,25 +18392,25 @@ if (_mdseResults.length > 0 && finalOutput.length > 0) {
       //   - Chirac 1995  : SCANDALE@76 Top-1 = DOCTRINALEMENT VALIDE
       //                    (élection + scandale financement campagne, Conseil
       //                    Constitutionnel Roland Dumas validation limite,
-      //                    affaires HLM Paris en germe). Promesse=12/12 → ne pas capper.
+      //                    affaires HLM Paris en germe). Promesse=14/14 → ne pas capper.
       //   - Darwin 1859  : SCANDALE@82 Top-1 = DOCTRINALEMENT VALIDE
       //                    (publication Origin + scandale scientifique/religieux
       //                    mondial, Wilberforce, presse victorienne).
-      //                    Promesse=20/12 → ne pas capper.
+      //                    Promesse=20/14 → ne pas capper.
       //   - Federer 2003 : SCANDALE@73 = SEUL VRAI faux positif (premier Wimbledon,
-      //                    aucun scandale). Promesse=0/12 → cap mou s'applique ✅.
+      //                    aucun scandale). Promesse=0/14 → cap mou s'applique ✅.
       //   - Polanski 1977: SCANDALE@72 Top-1 = DOCTRINALEMENT VALIDE (viol Geimer).
-      //                    Promesse=16/12 + boost Q181 tiré → ne pas capper.
+      //                    Promesse=16/14 + boost Q181 tiré → ne pas capper.
       //
       // Doctrine consolidée :
-      //   La promesse natale Piste E (cumul ≥ 12 = Public Personnae + Lilith
+      //   La promesse natale Piste E (cumul ≥ 14 = Public Personnae + Lilith
       //   native active) signe astrologiquement la vulnérabilité du sujet
       //   au regard public. Si elle est qualifiée, SCANDALE peut s'imposer
       //   par les conditions natives (Pluton M10, Lilith ☌ Lune, eclipses)
       //   en cohérence avec la biographie réelle (qui contient quasi toujours
       //   une part d'ombre publique chez ces profils).
       //   Le cap mou Q185 ne s'applique QUE si cette signature natale est
-      //   absente (cumul < 12) — alors SCANDALE issu des seules conditions
+      //   absente (cumul < 14) — alors SCANDALE issu des seules conditions
       //   transit-only est plafonné à 50 (réversible par LLM Loi 4-VIP).
       //
       // Symétrique avec Q180 (cap profil_type=prive) : même valeur 50, deux
@@ -18428,39 +18435,50 @@ if (_mdseResults.length > 0 && finalOutput.length > 0) {
             promiseHits: _q179PromiseHits.slice(),
             profilType: _q179ProfilType,
             reversibleByLLM: !_q179IsPrivate,
-            reason: "Q185 — promesse natale Piste E non qualifiée (cumul < 12). " +
+            reason: "Q185 — promesse natale Piste E non qualifiée (cumul < 14). " +
                     "Cap mou pour permettre lecture LLM Loi 4-VIP en profil_type=public " +
                     "(Loi 10-ter : ne renverser que si biographie certifie un scandale public)."
           };
           _q179SoftCapped = true;
-          _q179Applied.push(`${_Q181_TARGET_CODE} cap mou ${_q179SoftCapBefore}→${_Q185_SOFT_CAP} (Q185, promesse non qualifiée score=${_q179PromiseScore}/12)`);
+          _q179Applied.push(`${_Q181_TARGET_CODE} cap mou ${_q179SoftCapBefore}→${_Q185_SOFT_CAP} (Q185, promesse non qualifiée score=${_q179PromiseScore}/14)`);
         }
       }
 
       // ════════════════════════════════════════════════════════════════════
       // 7-ter. S6.22.2 Q1 (note 93 arbitrage Option B) — Gating biographique
       //         et astrologique strict du cap mou Q185
+      //         S6.22.3 Q-α (note 95 retour astrologue) — REFONTE
       // ════════════════════════════════════════════════════════════════════
-      // Doctrine astrologue : « Le Scandale n'est pas un événement qui arrive
-      //   par hasard. Il faut un terrain (Lilith sur axe ou M10/M8/M11) ET un
-      //   déclencheur dur (transit Pluton/Uranus/Saturne sur ce terrain). Si
-      //   la promesse natale est forte (Piste E ≥ 12) mais qu'il n'y a pas de
-      //   transit lourd activateur, on doit capper à 60. Le SCANDALE ne doit
-      //   monter à 80+ que si le feu prend dans l'année. »
+      // Doctrine astrologue note 95 : « Le cap à 60 sur les profils privés est
+      //   redondant avec le Q180 (cap à 50). Q1 doit être réservé au profil_type
+      //   = public. J'approuve également l'ajout de la Maison 2 (finances) et
+      //   Maison 5 (liaisons, créations) au "terrain" de Lilith, ce sont des
+      //   vecteurs classiques de scandales publics. »
       //
-      // Implémentation :
-      //   • _q1Terrain = (Lilith natale en M8/M10/M11) OU (Lilith natale en
-      //     conj ≤ 5° d'un angle ASC/MC/DSC/IC).
+      // Doctrine de fond (note 93) : « Le Scandale n'est pas un événement qui
+      //   arrive par hasard. Il faut un terrain (Lilith sur axe ou maison de
+      //   visibilité publique : M2/M5/M8/M10/M11) ET un déclencheur dur
+      //   (transit Pluton/Uranus/Saturne sur ce terrain). Si la promesse
+      //   natale est forte (Piste E ≥ 14) mais qu'il n'y a pas de transit
+      //   lourd activateur, on doit capper à 60. Le SCANDALE ne doit monter
+      //   à 80+ que si le feu prend dans l'année. »
+      //
+      // Implémentation S6.22.3 :
+      //   • PUBLIC ONLY : Q1 strict ne s'applique QUE si profil_type === "public".
+      //     Pour profil_type === "prive" (défaut), Q180 cap @50 prend déjà le
+      //     relais → Q1 strict est redondant et serait néfaste sur cohorte privée.
+      //   • _q1Terrain = (Lilith natale en M2/M5/M8/M10/M11) OU (Lilith natale
+      //     en conj ≤ 5° d'un angle ASC/MC/DSC/IC).
+      //     ↳ S6.22.3 Q-α : ajout M2 (finances) + M5 (liaisons/créations).
       //   • _q1HardTrigger = transit Saturne/Uranus/Pluton dur (☌/□/☍) sur
       //     Lilith natale OU sur un angle (MC/IC/ASC/DSC), orbe ≤ 1.5°.
-      //   • Si SCANDALE > 60 ET (¬terrain OU ¬trigger) → cap S6.22.2-Q1 @ 60.
-      //     (Cap supplémentaire orthogonal à Q180/Q185, applicable même si
-      //      promesse Piste E qualifiée mais pas de "feu" activateur l'année).
+      //   • Si SCANDALE > 60 ET (¬terrain OU ¬trigger) → cap S6.22.3-Q1-α @ 60.
       //
       // Réversible LLM (Loi 4-VIP) en profil_type=public si écart math < 5.
       // ════════════════════════════════════════════════════════════════════
       const _S6222_Q1_CAP = 60;
-      const _S6222_Q1_TERRAIN_HOUSES = new Set([8, 10, 11]);
+      // S6.22.3 Q-α : ajout M2 (finances) + M5 (liaisons/créations) au terrain.
+      const _S6222_Q1_TERRAIN_HOUSES = new Set([2, 5, 8, 10, 11]);
       const _S6222_Q1_TERRAIN_AXIS = new Set(["Ascendant", "Milieu du Ciel", "Descendant", "Imum Coeli"]);
       const _S6222_Q1_TERRAIN_AXIS_ORB = 5.0;
       const _S6222_Q1_TRIGGER_PLANETS = ["Saturne", "Uranus", "Pluton"];
@@ -18472,10 +18490,20 @@ if (_mdseResults.length > 0 && finalOutput.length > 0) {
       let _q1HardTrigger = { hits: [], present: false };
       let _q1StrictCapped = false;
       let _q1StrictBefore = null;
+      let _q1SkippedPrivate = false;
       const _q1Disabled = _s6222Ablation.has("Q1");
       if (_q1Disabled) console.log("[S6.22.2 Q10-bis] Q1 strict gating SCANDALE désactivé (ablation flag)");
+      // S6.22.3 Q-α : Q1 strict NE s'applique QU'AU profil_type === "public".
+      //   Pour profil_type === "prive" (défaut SITE), Q180 @50 est suffisant et
+      //   couvre déjà la doctrine. Inclure Q1 sur la masse anonyme dégradait le
+      //   M3-LLM de 5.2 pts (note 95 ablation Q1 OFF).
+      if (!_q1Disabled && _q179ProfilType !== "public") {
+        _q1SkippedPrivate = true;
+        console.log("[S6.22.3 Q-α] Q1 strict gating skip : profil_type=" + (_q179ProfilType || "prive_par_defaut") + " (Q180 @50 prime — doublon évité)");
+      }
       try {
         if (_q1Disabled) throw new Error("__Q1_ABLATION_SKIP__");
+        if (_q1SkippedPrivate) throw new Error("__Q1_PRIVATE_SKIP__");
         // Détection terrain natal Lilith
         const _lilithNatal = (typeof natalDict !== "undefined") ? natalDict?.["Lilith"] : null;
         const _lilithHouse = _lilithNatal?.house || null;
@@ -18533,14 +18561,14 @@ if (_mdseResults.length > 0 && finalOutput.length > 0) {
               trigger: _q1HardTrigger,
               missing: !_hasTerrain ? "terrain_natal" : "trigger_dur",
               reversibleByLLM: !_q179IsPrivate,
-              reason: "S6.22.2 Q1 — gating strict : SCANDALE > 60 nécessite terrain natal Lilith (M8/M10/M11 ou conj angle ≤ 5°) ET transit lourd activateur (Saturne/Uranus/Pluton conj/carré/opp Lilith ou angle, orbe ≤ 1.5°)."
+              reason: "S6.22.3 Q1-α — gating strict (profil public) : SCANDALE > 60 nécessite terrain natal Lilith (M2/M5/M8/M10/M11 ou conj angle ≤ 5°) ET transit lourd activateur (Saturne/Uranus/Pluton conj/carré/opp Lilith ou angle, orbe ≤ 1.5°)."
             };
             _q1StrictCapped = true;
-            _q179Applied.push(`${_Q181_TARGET_CODE} cap strict ${_q1StrictBefore}→${_S6222_Q1_CAP} (S6.22.2-Q1, ${!_hasTerrain ? "pas de terrain" : "pas de trigger dur"})`);
+            _q179Applied.push(`${_Q181_TARGET_CODE} cap strict ${_q1StrictBefore}→${_S6222_Q1_CAP} (S6.22.3-Q1-α public, ${!_hasTerrain ? "pas de terrain" : "pas de trigger dur"})`);
           }
         }
       } catch (eQ1) {
-        if (eQ1?.message !== "__Q1_ABLATION_SKIP__") {
+        if (eQ1?.message !== "__Q1_ABLATION_SKIP__" && eQ1?.message !== "__Q1_PRIVATE_SKIP__") {
           console.log("[WARN] S6.22.2 Q1 SCANDALE strict gating:", eQ1.message);
         }
       }
@@ -18557,7 +18585,7 @@ if (_mdseResults.length > 0 && finalOutput.length > 0) {
       }
 
       finalOutput[0].json._q179ScandaleDiag = {
-        version: "S6.22.2-Q179C-Q180-Q181C-Q182-Q185-Q1strict",
+        version: "S6.22.3-Q179C-Q180-Q181C-Q182-Q185-Q1alpha-orb07-promesse14",
         target: _Q181_TARGET_CODE,
         natalCandidates: _Q181_TARGETS.slice(),
         aspects: _Q181_ASPECTS.slice(),
@@ -18583,12 +18611,14 @@ if (_mdseResults.length > 0 && finalOutput.length > 0) {
         cappedAfter: _q179CappedAfter,
         applied: _q179Applied,
         skipped: _q179Skipped,
-        // S6.22.2 Q1 — gating strict
+        // S6.22.2 Q1 — gating strict (S6.22.3 Q-α : public-only + M2/M5)
         s6222Q1StrictCapped: _q1StrictCapped,
+        s6222Q1SkippedPrivate: _q1SkippedPrivate,
         s6222Q1Cap: _S6222_Q1_CAP,
         s6222Q1Before: _q1StrictBefore,
         s6222Q1Terrain: _q1Terrain,
-        s6222Q1Trigger: _q1HardTrigger
+        s6222Q1Trigger: _q1HardTrigger,
+        s6222Q1TerrainHouses: [...(_S6222_Q1_TERRAIN_HOUSES || [])]
       };
     } catch (eQ179) {
       console.log("[WARN] S6.20 Q179-Q181 SCANDALE:", eQ179.message, eQ179.stack?.split("\n")[1]?.trim());
@@ -19802,7 +19832,7 @@ if (_mdseResults.length > 0 && finalOutput.length > 0) {
       //        protection est BYPASSÉE (la chute karmique prime sur le bouclier).
       //   R2 : si _q179ScandaleDiag.injected=true ET promiseQualified=true,
       //        toute protection sur SCANDALE est BYPASSÉE (la promesse natale
-      //        Public Personnae cumul ≥ 12 + Lilith ☌/□/☍ Lune/Vénus est trop
+      //        Public Personnae cumul ≥ 14 + Lilith ☌/□/☍ Lune/Vénus est trop
       //        forte pour être étouffée par une étoile bénéfique).
       //   R3 : floor proportionnel max(before - 30) sur les protections qui
       //        s'appliquent — plus aucune chute brutale au-delà de 30 points
@@ -20279,7 +20309,11 @@ if (_mdseResults.length > 0 && finalOutput.length > 0) {
     // mobilité) ou sur une terre fertile en graines nomades. »
     //
     // Formule : rankingScore = confidence × (1 + α × natalAffinity)
-    //   • α = 0.30 (modulateur global validé D7) → boost max +30 %
+    //   • α = 0.20 (S6.22.3 Q-β note 95 — abaissé 0.30 → 0.20) → boost max +20 %
+    //     Doctrine astrologue : « Un ratio de 0.30 étouffait trop le transit
+    //     "brut" de l'année. Abaisser l'amplification natale à 20 % permettra
+    //     au ciel de l'année de reprendre le dessus sans perdre la teinte de
+    //     fond du thème de naissance. »
     //   • natalAffinity ∈ [0, 1.0] (clamp), score brut / 100
     //   • Trier par rankingScore DESC pour le Top-N final
     //
@@ -20290,8 +20324,8 @@ if (_mdseResults.length > 0 && finalOutput.length > 0) {
       console.log("[S6.22.2 Q10-bis] Couche D natal-affinity désactivée (ablation flag)");
     } else {
     try {
-      const _NA_VERSION = "S6.21.1-NATAL-AFFINITY-D-rc1";
-      const _NA_ALPHA = 0.30;
+      const _NA_VERSION = "S6.22.3-NATAL-AFFINITY-D-alpha020";
+      const _NA_ALPHA = 0.20;  // S6.22.3 Q-β (note 95) : 0.30 → 0.20
       const _NA_NORMALIZER = 100;
 
       // Helpers
@@ -20374,7 +20408,7 @@ if (_mdseResults.length > 0 && finalOutput.length > 0) {
       // Tables d'affinité par code (§2.d retour 82-bis + ajouts D5-D9)
       const _NA_TABLES = {
         SCANDALE: [
-          { label: "Q179 promesse qualifiée (cumul ≥ 12)", points: 30,
+          { label: "Q179 promesse qualifiée (cumul ≥ 14)", points: 30,
             check: () => !!(_q179SD && _q179SD.promiseQualified === true) },
           { label: "Q179 promiseScore brut /30 → 0..13",
             points: () => _q179SD ? Math.min(13, Math.floor((_q179SD.promiseScore || 0) * 0.5)) : 0 },
@@ -20866,7 +20900,7 @@ if (_mdseResults.length > 0 && finalOutput.length > 0) {
             : "";
           // Q185 — note cap mou (profil public, promesse non qualifiée)
           const softCapNote = _scandaleDiag.softCapped
-            ? `\n  ⚠ Cap mou Q185 : SCANDALE a été ramené de ${_scandaleDiag.softCapBefore} à ${_scandaleDiag.softCapValue} parce que la promesse natale Public_Ombre (Piste E) n'est pas qualifiée (cumul=${_scandaleDiag.promiseScore}/12). Cap **réversible** par Loi 4-VIP en profil_type=public si la biographie atteste d'un scandale public certifié pour cette année. En profil_type=prive, ce cap est définitif (Loi 10-bis).`
+            ? `\n  ⚠ Cap mou Q185 : SCANDALE a été ramené de ${_scandaleDiag.softCapBefore} à ${_scandaleDiag.softCapValue} parce que la promesse natale Public_Ombre (Piste E) n'est pas qualifiée (cumul=${_scandaleDiag.promiseScore}/14). Cap **réversible** par Loi 4-VIP en profil_type=public si la biographie atteste d'un scandale public certifié pour cette année. En profil_type=prive, ce cap est définitif (Loi 10-bis).`
             : "";
           const trigDesc = _scandaleDiag.trigger
             ? `Déclencheur math : Lilith ${_scandaleDiag.trigger.glyph || "?"} ${_scandaleDiag.trigger.natal || "?"} natal (orbe ${_scandaleDiag.trigger.orb ?? "?"}°).`
@@ -20876,7 +20910,7 @@ if (_mdseResults.length > 0 && finalOutput.length > 0) {
             `  🜂 Lilith transite ${houseStr} → typologie « ${typo} ».\n` +
             `     Vecteur du scandale : ${_S60_SCANDALE_TYPOLOGIES[typo] || _S60_SCANDALE_TYPOLOGIES.atypique}.\n` +
             `  ${trigDesc}\n` +
-            `  Promesse natale Public_Ombre : score ${_scandaleDiag.promiseScore}/12 — hits [${(_scandaleDiag.promiseHits || []).join(", ") || "—"}].${cappedNote}${softCapNote}\n` +
+            `  Promesse natale Public_Ombre : score ${_scandaleDiag.promiseScore}/14 — hits [${(_scandaleDiag.promiseHits || []).join(", ") || "—"}].${cappedNote}${softCapNote}\n` +
             `  Loi 10 applicable : si SCANDALE est en Top-1, adapte la primary_reason à la typologie ci-dessus sans nommer le sujet.\n`;
         }
       } catch(_eScandaleBlock) { console.log("[WARN] S6.20 _s60ScandaleBlock:", _eScandaleBlock.message); }
@@ -21256,7 +21290,7 @@ if (_mdseResults.length > 0 && finalOutput.length > 0) {
         `Loi 10 — Modulateur typologique SCANDALE (S6.20 retour 81 Q182) :\n` +
         `  Quand une section "NOTES SCANDALE" est présente dans le user prompt, le\n` +
         `  moteur a détecté Lilith ☌/□/☍ Lune ou Vénus à orbe ≤ 1° + une promesse\n` +
-        `  natale Public_Ombre (cumul ≥ 12) qualifiée. La Maison de transit de\n` +
+        `  natale Public_Ombre (cumul ≥ 14) qualifiée. La Maison de transit de\n` +
         `  Lilith donne le VECTEUR du scandale, pas son existence :\n` +
         `    • M8/M9   → typologie « sexuel_judiciaire »   (sphère sexualité, justice, étranger).\n` +
         `    • M10/M11 → typologie « mediatique_reputationnel » (procès médiatique, perte d'alliés).\n` +
@@ -21275,7 +21309,7 @@ if (_mdseResults.length > 0 && finalOutput.length > 0) {
         `  ★ Loi 10-ter (Q185 cap mou — S6.20.1 retour 82) :\n` +
         `    Si la note SCANDALE indique « Cap mou Q185 : SCANDALE ramené de XX à 50 »,\n` +
         `    le moteur a détecté Lilith ☌/□/☍ Lune ou Vénus à orbe ≤ 1° MAIS la\n` +
-        `    promesse natale Public_Ombre (Piste E) est insuffisante (cumul < 12).\n` +
+        `    promesse natale Public_Ombre (Piste E) est insuffisante (cumul < 14).\n` +
         `    Doctrine astrologique (retour 82) : Lilith sur la Lune peut signifier\n` +
         `    autant la « foule hypnotisée » (triomphe foudroyant et clivant — Chirac\n` +
         `    élu, Federer victorieux, Darwin publié) que la « foule qui lynche ».\n` +
@@ -21369,6 +21403,39 @@ if (_mdseResults.length > 0 && finalOutput.length > 0) {
         `        biographiquement.\n` +
         `      → Reste interdite l'utilisation de cette loi sur profil_type=prive\n` +
         `        (par définition : aucune profession publique notoire à un anonyme).\n\n` +
+        `Loi 14 — Justification stricte des tie-breaks (S6.22.3 — note 95) :\n` +
+        `  Doctrine : « Le LLM doit citer EXPLICITEMENT (1) la règle doctrinale\n` +
+        `   invoquée et (2) le déclencheur astrologique précis qui justifie son\n` +
+        `   choix face aux mathématiques. Sans cela, on ne peut pas auditer la\n` +
+        `   dérive comportementale (LLM drift) sur les classements serrés. »\n` +
+        `  RÈGLE INVIOLABLE :\n` +
+        `      Dès que tu modifies le Top-1 mathématique (chosen_index ≠ 0),\n` +
+        `      OU dès que tu retiens le Top-1 alors que l'écart Top-1 vs Top-2 ≤ 5\n` +
+        `      (zone de tie autorisée par Règle 4),\n` +
+        `      tu DOIS renseigner le champ \`tie_break_justification\` du JSON\n` +
+        `      avec deux sous-champs OBLIGATOIRES :\n` +
+        `         "rule"           : nom de la règle/loi invoquée (ex : "Règle 4-VIP",\n` +
+        `                            "Loi 11", "Loi 13 — profession publique",\n` +
+        `                            "Loi 1 — DEUIL parent 3 conditions",\n` +
+        `                            "Top-1 math conservé — pas de raison de dévier") ;\n` +
+        `         "astro_trigger"  : aspect ou promesse natale précis qui justifie\n` +
+        `                            (ex : "Saturne ☌ MC orbe 0.4°", "Lilith □ Lune\n` +
+        `                            orbe 0.6°", "Maître M7 Vénus en chute Vierge",\n` +
+        `                            "Promesse natale STELLAR_HERITAGE_M8 Spica orb 1.2°").\n` +
+        `      Si tu te contentes du Top-1 sans dévier ET écart Top-1/Top-2 > 5,\n` +
+        `      le champ peut être omis (ou rule="N/A — top-1 math sans ambiguïté").\n` +
+        `  CAS-ÉCOLE Loi 14 :\n` +
+        `      Top-1 math = SCANDALE@70 + Top-2 = CARRIERE_UP@68 (écart 2).\n` +
+        `      Tu retiens CARRIERE_UP via Loi 4-VIP biographie certaine.\n` +
+        `      → tie_break_justification = {\n` +
+        `           "rule": "Règle 4-VIP — biographie certaine élection 1860",\n` +
+        `           "astro_trigger": "Jupiter ☌ MC orbe 0.5° + profection M10 active"\n` +
+        `         }\n` +
+        `  CAS-ÉCOLE NÉGATIF (à éviter) :\n` +
+        `      tie_break_justification = { "rule": "intuition", "astro_trigger": "—" }\n` +
+        `      → C'est ce que la doctrine appelle "vibration sémantique" : sanctionné.\n` +
+        `      Si tu ne peux pas citer un aspect précis du payload, conserve l'index 0\n` +
+        `      avec confidence_in_choice="low" (Règle 4 protège ton humilité).\n\n` +
         `══ RÈGLES DE CONFIDENCE_IN_CHOICE (Q50-A — calibration humilité) ══\n` +
         `- "high"   : tu es certain à >85% (écart confidence Top-1 vs Top-2 ≥ 8)\n` +
         `- "medium" : confiance modérée (écart 3-7) — utilisée AUSSI quand les techniques\n` +
@@ -21393,9 +21460,16 @@ if (_mdseResults.length > 0 && finalOutput.length > 0) {
         `  "chosen_index": 0|1|2|3|4,\n` +
         `  "primary_reason": "max 280 caractères, doctrine + biographie",\n` +
         `  "rejected_reason": { "rejected_index": 0|1|2|3|4, "why": "max 200 chars" },\n` +
-        `  "confidence_in_choice": "high"|"medium"|"low"\n` +
+        `  "confidence_in_choice": "high"|"medium"|"low",\n` +
+        `  "tie_break_justification": {\n` +
+        `    "rule":          "max 120 chars — règle/loi invoquée (Loi 14 OBLIGATOIRE si chosen_index≠0 ou écart Top-1/Top-2 ≤ 5)",\n` +
+        `    "astro_trigger": "max 160 chars — aspect/promesse natale précis cité depuis le payload"\n` +
+        `  }\n` +
         `}\n` +
-        `En cas d'égalité technique parfaite, conserve l'index 0 (= top-1 moteur déterministe).`;
+        `En cas d'égalité technique parfaite, conserve l'index 0 (= top-1 moteur déterministe).\n` +
+        `RAPPEL Loi 14 : tie_break_justification.rule + .astro_trigger sont OBLIGATOIRES dès que tu\n` +
+        `dévies du Top-1 math OU que l'écart Top-1 vs Top-2 ≤ 5. Sans cela, le bench audit te\n` +
+        `signalera comme "LLM drift" et le déclassement sera annulé en post-processing (S60).`;
 
       const _s60UserPrompt =
         `Sujet : ${_s60Prenom}, genre ${_s60Genre}, âge ${_s60AgeBio || "inconnu"} ans en ${anneeRapport}.\n` +
