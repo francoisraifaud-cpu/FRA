@@ -4614,8 +4614,9 @@ try {
                       keyPlanets:["Uranus","Jupiter","Lune"], houses:[3,4,9], aspects:"hard" },
     SPIRITUEL:      { pairs:[["Neptune","Soleil"],["Neptune","Ascendant"],["Pluton","Lune"],["Neptune","Lune"],["Jupiter","Neptune"],["Pluton","Soleil"]],
                       keyPlanets:["Neptune","Pluton","Chiron","Jupiter"], houses:[9,12], aspects:"hard" },
-    JURIDIQUE_DOWN: { pairs:[["Saturne","Mars"],["Saturne","Jupiter"],["Mars","Jupiter"],["Pluton","Jupiter"],["Saturne","Soleil"]],
-                      keyPlanets:["Saturne","Mars","Pluton","Jupiter"], houses:[7,9], aspects:"hard" },
+    JURIDIQUE_DOWN: { pairs:[["Saturne","Mars"],["Saturne","Jupiter"],["Mars","Jupiter"],["Pluton","Jupiter"],["Saturne","Soleil"],
+                              ["Saturne","Lune"],["Pluton","Lune"],["Saturne","Mercure"]], // S6.22.2 Q5 — M12 (enfermement, ennemis cachés) + M9 (procès/juges)
+                      keyPlanets:["Saturne","Mars","Pluton","Jupiter","Neptune"], houses:[7,9,12], aspects:"hard" },
     JURIDIQUE_UP:   { pairs:[["Jupiter","Jupiter"],["Jupiter","Descendant"],["Jupiter","Soleil"],["Jupiter","Ascendant"],["Vénus","Jupiter"]],
                       keyPlanets:["Jupiter","Vénus","Soleil"], houses:[7,9], aspects:"soft" },
     VOYAGE:         { pairs:[["Jupiter","Jupiter"],["Uranus","Jupiter"],["Jupiter","Ascendant"],["Mercure","Jupiter"],["Soleil","Jupiter"]],
@@ -5008,7 +5009,7 @@ const _mdseAxisRulerTransits = {};
 try {
   const _axisHouses = { FINANCE_UP:[2,8], FINANCE_DOWN:[2,8], CARRIERE_UP:[10,6], CARRIERE_DOWN:[10,6],
     MARIAGE:[7], SEPARATION:[7], DEUIL:[4,8], ACCIDENT:[1,6], SANTE_DOWN:[1,6], SANTE_UP:[1,6],
-    JURIDIQUE_UP:[7,9], JURIDIQUE_DOWN:[7,9], RELOCATION:[4,9], ENFANT:[5], SPIRITUEL:[9,12], VOYAGE:[9,3] };
+    JURIDIQUE_UP:[7,9], JURIDIQUE_DOWN:[7,9,12], RELOCATION:[4,9], ENFANT:[5], SPIRITUEL:[9,12], VOYAGE:[9,3] };
   for (const [code, houses] of Object.entries(_axisHouses)) {
     let count = 0;
     houses.forEach(h => {
@@ -18386,8 +18387,111 @@ if (_mdseResults.length > 0 && finalOutput.length > 0) {
         }
       }
 
+      // ════════════════════════════════════════════════════════════════════
+      // 7-ter. S6.22.2 Q1 (note 93 arbitrage Option B) — Gating biographique
+      //         et astrologique strict du cap mou Q185
+      // ════════════════════════════════════════════════════════════════════
+      // Doctrine astrologue : « Le Scandale n'est pas un événement qui arrive
+      //   par hasard. Il faut un terrain (Lilith sur axe ou M10/M8/M11) ET un
+      //   déclencheur dur (transit Pluton/Uranus/Saturne sur ce terrain). Si
+      //   la promesse natale est forte (Piste E ≥ 12) mais qu'il n'y a pas de
+      //   transit lourd activateur, on doit capper à 60. Le SCANDALE ne doit
+      //   monter à 80+ que si le feu prend dans l'année. »
+      //
+      // Implémentation :
+      //   • _q1Terrain = (Lilith natale en M8/M10/M11) OU (Lilith natale en
+      //     conj ≤ 5° d'un angle ASC/MC/DSC/IC).
+      //   • _q1HardTrigger = transit Saturne/Uranus/Pluton dur (☌/□/☍) sur
+      //     Lilith natale OU sur un angle (MC/IC/ASC/DSC), orbe ≤ 1.5°.
+      //   • Si SCANDALE > 60 ET (¬terrain OU ¬trigger) → cap S6.22.2-Q1 @ 60.
+      //     (Cap supplémentaire orthogonal à Q180/Q185, applicable même si
+      //      promesse Piste E qualifiée mais pas de "feu" activateur l'année).
+      //
+      // Réversible LLM (Loi 4-VIP) en profil_type=public si écart math < 5.
+      // ════════════════════════════════════════════════════════════════════
+      const _S6222_Q1_CAP = 60;
+      const _S6222_Q1_TERRAIN_HOUSES = new Set([8, 10, 11]);
+      const _S6222_Q1_TERRAIN_AXIS = new Set(["Ascendant", "Milieu du Ciel", "Descendant", "Imum Coeli"]);
+      const _S6222_Q1_TERRAIN_AXIS_ORB = 5.0;
+      const _S6222_Q1_TRIGGER_PLANETS = ["Saturne", "Uranus", "Pluton"];
+      const _S6222_Q1_TRIGGER_ASPECTS = ["Conjonction", "Carré", "Opposition"];
+      const _S6222_Q1_TRIGGER_TARGETS = ["Lilith", "Milieu du Ciel", "Imum Coeli", "Ascendant", "Descendant"];
+      const _S6222_Q1_TRIGGER_ORB = 1.5;
+
+      let _q1Terrain = { hasHouseTerrain: false, hasAxisTerrain: false, lilithHouse: null, lilithAxisHits: [] };
+      let _q1HardTrigger = { hits: [], present: false };
+      let _q1StrictCapped = false;
+      let _q1StrictBefore = null;
+      try {
+        // Détection terrain natal Lilith
+        const _lilithNatal = (typeof natalDict !== "undefined") ? natalDict?.["Lilith"] : null;
+        const _lilithHouse = _lilithNatal?.house || null;
+        if (_lilithHouse && _S6222_Q1_TERRAIN_HOUSES.has(_lilithHouse)) {
+          _q1Terrain.hasHouseTerrain = true;
+          _q1Terrain.lilithHouse = _lilithHouse;
+        }
+        const _lilithLong = _lilithNatal?.deg;
+        if (typeof _lilithLong === "number" && typeof natalDict !== "undefined") {
+          for (const axis of _S6222_Q1_TERRAIN_AXIS) {
+            const _ax = natalDict?.[axis];
+            if (_ax && typeof _ax.deg === "number") {
+              let d = Math.abs(_lilithLong - _ax.deg); if (d > 180) d = 360 - d;
+              const dConj = d, dOpp = Math.abs(180 - d), dSquare = Math.abs(90 - d);
+              const minD = Math.min(dConj, dOpp, dSquare);
+              if (minD <= _S6222_Q1_TERRAIN_AXIS_ORB) {
+                _q1Terrain.hasAxisTerrain = true;
+                _q1Terrain.lilithAxisHits.push({ axis, orb: parseFloat(minD.toFixed(2)) });
+              }
+            }
+          }
+        }
+
+        // Détection déclencheur dur transit lent sur Lilith natale ou angle
+        for (const planet of _S6222_Q1_TRIGGER_PLANETS) {
+          for (const aspName of _S6222_Q1_TRIGGER_ASPECTS) {
+            for (const tgt of _S6222_Q1_TRIGGER_TARGETS) {
+              const k = `slow_${planet}|||${aspName}|||${tgt}`;
+              const e = aspectsSuiviLent[k];
+              if (!e?.waves?.length) continue;
+              const orbs = e.waves.map(w => parseFloat(w.minOrb)).filter(x => isFinite(x));
+              const m = orbs.length ? Math.min(...orbs) : null;
+              if (m == null || m > _S6222_Q1_TRIGGER_ORB) continue;
+              _q1HardTrigger.hits.push({ planet, aspect: aspName, target: tgt, orb: parseFloat(m.toFixed(2)) });
+            }
+          }
+        }
+        _q1HardTrigger.present = _q1HardTrigger.hits.length > 0;
+
+        const _hasTerrain = _q1Terrain.hasHouseTerrain || _q1Terrain.hasAxisTerrain;
+        const _hasTrigger = _q1HardTrigger.present;
+
+        // Application : cap @60 si SCANDALE > 60 ET ¬(terrain && trigger)
+        if (!(_hasTerrain && _hasTrigger)) {
+          const target = sigPayload.find(s => s.code === _Q181_TARGET_CODE);
+          if (target && target.confidence > _S6222_Q1_CAP) {
+            _q1StrictBefore = target.confidence;
+            target.confidence = _S6222_Q1_CAP;
+            target.level = target.confidence >= 55 ? "high" : target.confidence >= 35 ? "medium" : "low";
+            target.guidance = EVENT_SIGNATURES[target.code]?.guidanceText?.[target.level] || target.guidance;
+            target._s6222Q1StrictCap = {
+              before: _q1StrictBefore,
+              after: _S6222_Q1_CAP,
+              terrain: _q1Terrain,
+              trigger: _q1HardTrigger,
+              missing: !_hasTerrain ? "terrain_natal" : "trigger_dur",
+              reversibleByLLM: !_q179IsPrivate,
+              reason: "S6.22.2 Q1 — gating strict : SCANDALE > 60 nécessite terrain natal Lilith (M8/M10/M11 ou conj angle ≤ 5°) ET transit lourd activateur (Saturne/Uranus/Pluton conj/carré/opp Lilith ou angle, orbe ≤ 1.5°)."
+            };
+            _q1StrictCapped = true;
+            _q179Applied.push(`${_Q181_TARGET_CODE} cap strict ${_q1StrictBefore}→${_S6222_Q1_CAP} (S6.22.2-Q1, ${!_hasTerrain ? "pas de terrain" : "pas de trigger dur"})`);
+          }
+        }
+      } catch (eQ1) {
+        console.log("[WARN] S6.22.2 Q1 SCANDALE strict gating:", eQ1.message);
+      }
+
       // 8. Re-trier sigPayload pour que le top-30 reflète boost et cap
-      if (_q179Boosted || _q179ProfileCapped || _q179SoftCapped || _q179Created) {
+      if (_q179Boosted || _q179ProfileCapped || _q179SoftCapped || _q179Created || _q1StrictCapped) {
         sigPayload.sort((a, b) => (b.confidence || 0) - (a.confidence || 0));
       }
 
@@ -18398,7 +18502,7 @@ if (_mdseResults.length > 0 && finalOutput.length > 0) {
       }
 
       finalOutput[0].json._q179ScandaleDiag = {
-        version: "S6.20.1-Q179C-Q180-Q181C-Q182-Q185",
+        version: "S6.22.2-Q179C-Q180-Q181C-Q182-Q185-Q1strict",
         target: _Q181_TARGET_CODE,
         natalCandidates: _Q181_TARGETS.slice(),
         aspects: _Q181_ASPECTS.slice(),
@@ -18423,10 +18527,294 @@ if (_mdseResults.length > 0 && finalOutput.length > 0) {
         cappedBefore: _q179CappedBefore,
         cappedAfter: _q179CappedAfter,
         applied: _q179Applied,
-        skipped: _q179Skipped
+        skipped: _q179Skipped,
+        // S6.22.2 Q1 — gating strict
+        s6222Q1StrictCapped: _q1StrictCapped,
+        s6222Q1Cap: _S6222_Q1_CAP,
+        s6222Q1Before: _q1StrictBefore,
+        s6222Q1Terrain: _q1Terrain,
+        s6222Q1Trigger: _q1HardTrigger
       };
     } catch (eQ179) {
       console.log("[WARN] S6.20 Q179-Q181 SCANDALE:", eQ179.message, eQ179.stack?.split("\n")[1]?.trim());
+    }
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // SPRINT 6.22.2 Q4 (note 93 arbitrage Option B) — Boost CARRIERE_DOWN si
+    // SCANDALE actif et MC/M10 reçoit un aspect dissonant
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Doctrine astrologue : « L'écrasante majorité des chutes publiques
+    //   (OJ Simpson, Louis XVI, Mel Gibson) sont intriquées avec un Scandale
+    //   (ou un Juridique_Down). Si le SCANDALE est actif (score > 60), il
+    //   doit transférer une partie de son énergie (+10 pts) au CARRIERE_DOWN
+    //   si le Milieu du Ciel ou la Maison 10 reçoit le moindre aspect
+    //   dissonant. »
+    //
+    // Implémentation :
+    //   • SCANDALE final ≥ 60 (post-Q1/Q179/Q180/Q185)
+    //   • ET (transit lent Saturne/Uranus/Neptune/Pluton aspect dur ☌/□/☍ MC,
+    //         orbe ≤ 1.5°)  OU (planète natale en M10 recevant aspect dur lent
+    //         orbe ≤ 1.5°)  OU (Maître M10 recevant aspect dur lent orbe ≤ 1.5°)
+    //   • → boost CARRIERE_DOWN += 10 pts (cap 90)
+    //   • → si CARRIERE_DOWN absent du sigPayload, injection au plancher 60
+    //
+    // Position : APRÈS Q179/Q1 SCANDALE pour pouvoir lire le score final.
+    try {
+      const _S6222_Q4_TARGET = "CARRIERE_DOWN";
+      const _S6222_Q4_SCANDALE_TRIGGER = 60;
+      const _S6222_Q4_BOOST = 10;
+      const _S6222_Q4_CAP = 90;
+      const _S6222_Q4_FLOOR = 60;
+      const _S6222_Q4_DISS_PLANETS = ["Saturne", "Uranus", "Neptune", "Pluton"];
+      const _S6222_Q4_HARD_ASPECTS = ["Conjonction", "Carré", "Opposition"];
+      const _S6222_Q4_ORB = 1.5;
+      const _S6222_Q4_FAMILY = "Pouvoir/Action";
+
+      const _q4ScandaleSig = sigPayload.find(s => s.code === "SCANDALE");
+      const _q4ScandaleConf = _q4ScandaleSig?.confidence || 0;
+      const _q4Diag = {
+        scandaleConf: _q4ScandaleConf,
+        scandaleActive: _q4ScandaleConf >= _S6222_Q4_SCANDALE_TRIGGER,
+        mcDissonantHits: [],
+        m10PlanetsHits: [],
+        master10Hits: [],
+        boosted: false,
+        before: null,
+        after: null,
+        injected: false
+      };
+
+      if (_q4Diag.scandaleActive) {
+        // Aspects dissonants sur MC
+        for (const planet of _S6222_Q4_DISS_PLANETS) {
+          for (const aspName of _S6222_Q4_HARD_ASPECTS) {
+            const k = `slow_${planet}|||${aspName}|||Milieu du Ciel`;
+            const e = aspectsSuiviLent[k];
+            if (!e?.waves?.length) continue;
+            const orbs = e.waves.map(w => parseFloat(w.minOrb)).filter(x => isFinite(x));
+            const m = orbs.length ? Math.min(...orbs) : null;
+            if (m != null && m <= _S6222_Q4_ORB) {
+              _q4Diag.mcDissonantHits.push({ planet, aspect: aspName, orb: parseFloat(m.toFixed(2)) });
+            }
+          }
+        }
+
+        // Planètes natales en M10
+        const _q4PlanetsInM10 = [];
+        try {
+          if (typeof natalDict !== "undefined") {
+            for (const [pName, pData] of Object.entries(natalDict)) {
+              if (pData?.house === 10 && !["Imum Coeli","Milieu du Ciel","Ascendant","Descendant","Nœud Nord","Nœud Sud","Lilith"].includes(pName)) {
+                _q4PlanetsInM10.push(pName);
+              }
+            }
+          }
+        } catch (_e) { /* tolérant */ }
+        for (const planM10 of _q4PlanetsInM10) {
+          for (const planet of _S6222_Q4_DISS_PLANETS) {
+            for (const aspName of _S6222_Q4_HARD_ASPECTS) {
+              const k = `slow_${planet}|||${aspName}|||${planM10}`;
+              const e = aspectsSuiviLent[k];
+              if (!e?.waves?.length) continue;
+              const orbs = e.waves.map(w => parseFloat(w.minOrb)).filter(x => isFinite(x));
+              const m = orbs.length ? Math.min(...orbs) : null;
+              if (m != null && m <= _S6222_Q4_ORB) {
+                _q4Diag.m10PlanetsHits.push({ planet, aspect: aspName, target: planM10, orb: parseFloat(m.toFixed(2)) });
+              }
+            }
+          }
+        }
+
+        // Maître M10 (régent du signe en cuspide M10)
+        let _q4Master10 = null;
+        try {
+          const _h10 = (typeof natalHouses !== "undefined") ? natalHouses.find(hh => hh.maison === 10) : null;
+          const _r10Sign = _h10?.segments?.[0]?.signe;
+          _q4Master10 = (_r10Sign && typeof MAITRES_TRAD !== "undefined") ? MAITRES_TRAD[_r10Sign] : null;
+        } catch (_eM10) { _q4Master10 = null; }
+        if (_q4Master10) {
+          for (const planet of _S6222_Q4_DISS_PLANETS) {
+            for (const aspName of _S6222_Q4_HARD_ASPECTS) {
+              const k = `slow_${planet}|||${aspName}|||${_q4Master10}`;
+              const e = aspectsSuiviLent[k];
+              if (!e?.waves?.length) continue;
+              const orbs = e.waves.map(w => parseFloat(w.minOrb)).filter(x => isFinite(x));
+              const m = orbs.length ? Math.min(...orbs) : null;
+              if (m != null && m <= _S6222_Q4_ORB) {
+                _q4Diag.master10Hits.push({ planet, aspect: aspName, master10: _q4Master10, orb: parseFloat(m.toFixed(2)) });
+              }
+            }
+          }
+        }
+
+        const _q4HasSignal = _q4Diag.mcDissonantHits.length > 0
+                          || _q4Diag.m10PlanetsHits.length > 0
+                          || _q4Diag.master10Hits.length > 0;
+
+        if (_q4HasSignal) {
+          let target = sigPayload.find(s => s.code === _S6222_Q4_TARGET);
+          if (!target) {
+            const sigDef = (typeof EVENT_SIGNATURES !== "undefined") ? EVENT_SIGNATURES[_S6222_Q4_TARGET] : null;
+            target = {
+              code: _S6222_Q4_TARGET,
+              label: sigDef?.label || "Déstabilisation professionnelle",
+              labelEN: sigDef?.labelEN || "Professional destabilization",
+              icon: sigDef?.icon || "🜂",
+              confidence: _S6222_Q4_FLOOR,
+              level: "high",
+              guidance: sigDef?.guidanceText?.high || null,
+              matchedConditions: [],
+              isStellarApex: false,
+              _s6222Q4InjectedBy: "S6.22.2-Q4"
+            };
+            sigPayload.push(target);
+            _q4Diag.injected = true;
+          }
+          const before = target.confidence;
+          const after = Math.min(_S6222_Q4_CAP, before + _S6222_Q4_BOOST);
+          if (after > before) {
+            target.confidence = after;
+            target.level = target.confidence >= 55 ? "high" : target.confidence >= 35 ? "medium" : "low";
+            target.guidance = EVENT_SIGNATURES[target.code]?.guidanceText?.[target.level] || target.guidance;
+            target._s6222Q4Boost = {
+              scandaleConf: _q4ScandaleConf,
+              before, after,
+              points: after - before,
+              mcDissonantHits: _q4Diag.mcDissonantHits.slice(0, 3),
+              m10PlanetsHits: _q4Diag.m10PlanetsHits.slice(0, 3),
+              master10Hits: _q4Diag.master10Hits.slice(0, 3),
+              injected: _q4Diag.injected
+            };
+            _q4Diag.boosted = true;
+            _q4Diag.before = before;
+            _q4Diag.after = after;
+            // Re-tri sigPayload pour refléter le boost
+            sigPayload.sort((a, b) => (b.confidence || 0) - (a.confidence || 0));
+            console.log(`[S6.22.2 Q4] CARRIERE_DOWN ${before}→${after} (SCANDALE=${_q4ScandaleConf}, MC/M10/M10-master signal${_q4Diag.injected ? ", injecté" : ""})`);
+          }
+        }
+      }
+
+      finalOutput[0].json._s6222Q4CarriereDownDiag = _q4Diag;
+    } catch (eQ4) {
+      console.log("[WARN] S6.22.2 Q4 CARRIERE_DOWN boost:", eQ4.message);
+    }
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // SPRINT 6.22.2 Q5 (note 93 arbitrage Option A) — Élargissement déclencheurs
+    // JURIDIQUE_DOWN sur Maître M9 (procès/juges) + Maître M12 (enfermement)
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Doctrine astrologue : « La Révolution Française ou les grands procès
+    //   médiatiques s'inscrivent souvent sur la Maison 12 (enfermement, ennemis
+    //   cachés) ou la Maison 9 (la loi, les juges). Nous devrons revoir les
+    //   weights de ces maisons pour ce code. »
+    //
+    // Implémentation conservatrice :
+    //   • Maître M9 OU Maître M12 OU Lune/Saturne/Mars natal en M12 = "porteur
+    //     juridique latent".
+    //   • Transit lent Saturne/Pluton/Mars dur (☌/□/☍) sur ce porteur, orbe
+    //     ≤ 1.5° = "déclencheur de procès".
+    //   • → boost JURIDIQUE_DOWN +12 (cap 75) — visible Top-3 sans voler Top-1
+    //     aux signatures fortes (Couche A reste maître). Si JURIDIQUE_DOWN
+    //     absent, injection plancher 55.
+    //
+    // Position : APRÈS Q4 CARRIERE_DOWN, AVANT Q186 RELOCATION, indépendant.
+    try {
+      const _S6222_Q5_TARGET = "JURIDIQUE_DOWN";
+      const _S6222_Q5_BOOST = 12;
+      const _S6222_Q5_CAP = 75;
+      const _S6222_Q5_FLOOR = 55;
+      const _S6222_Q5_TRIGGER_PLANETS = ["Saturne", "Pluton", "Mars"];
+      const _S6222_Q5_HARD_ASPECTS = ["Conjonction", "Carré", "Opposition"];
+      const _S6222_Q5_ORB = 1.5;
+      const _q5Diag = { master9: null, master12: null, planetsInM12: [], hits: [], boosted: false, before: null, after: null, injected: false };
+
+      // 1. Identifier porteurs latents
+      try {
+        const _h9 = (typeof natalHouses !== "undefined") ? natalHouses.find(hh => hh.maison === 9) : null;
+        const _r9Sign = _h9?.segments?.[0]?.signe;
+        _q5Diag.master9 = (_r9Sign && typeof MAITRES_TRAD !== "undefined") ? MAITRES_TRAD[_r9Sign] : null;
+      } catch (_e) { _q5Diag.master9 = null; }
+      try {
+        const _h12 = (typeof natalHouses !== "undefined") ? natalHouses.find(hh => hh.maison === 12) : null;
+        const _r12Sign = _h12?.segments?.[0]?.signe;
+        _q5Diag.master12 = (_r12Sign && typeof MAITRES_TRAD !== "undefined") ? MAITRES_TRAD[_r12Sign] : null;
+      } catch (_e) { _q5Diag.master12 = null; }
+      try {
+        if (typeof natalDict !== "undefined") {
+          for (const pName of ["Lune", "Saturne", "Mars", "Mercure"]) {
+            if (natalDict?.[pName]?.house === 12) _q5Diag.planetsInM12.push(pName);
+          }
+        }
+      } catch (_e) { /* tolérant */ }
+
+      // 2. Détecter transit lent dur sur ces porteurs
+      const _q5Targets = new Set();
+      if (_q5Diag.master9) _q5Targets.add(_q5Diag.master9);
+      if (_q5Diag.master12) _q5Targets.add(_q5Diag.master12);
+      _q5Diag.planetsInM12.forEach(p => _q5Targets.add(p));
+
+      for (const tgt of _q5Targets) {
+        for (const planet of _S6222_Q5_TRIGGER_PLANETS) {
+          for (const aspName of _S6222_Q5_HARD_ASPECTS) {
+            const k = `slow_${planet}|||${aspName}|||${tgt}`;
+            const e = aspectsSuiviLent[k];
+            if (!e?.waves?.length) continue;
+            const orbs = e.waves.map(w => parseFloat(w.minOrb)).filter(x => isFinite(x));
+            const m = orbs.length ? Math.min(...orbs) : null;
+            if (m != null && m <= _S6222_Q5_ORB) {
+              _q5Diag.hits.push({ planet, aspect: aspName, target: tgt, orb: parseFloat(m.toFixed(2)) });
+            }
+          }
+        }
+      }
+
+      // 3. Application boost / injection
+      if (_q5Diag.hits.length > 0) {
+        let target = sigPayload.find(s => s.code === _S6222_Q5_TARGET);
+        if (!target) {
+          const sigDef = (typeof EVENT_SIGNATURES !== "undefined") ? EVENT_SIGNATURES[_S6222_Q5_TARGET] : null;
+          target = {
+            code: _S6222_Q5_TARGET,
+            label: sigDef?.label || "Litige / Blocage contractuel",
+            labelEN: sigDef?.labelEN || "Litigation / Contractual blockage",
+            icon: sigDef?.icon || "⚖",
+            confidence: _S6222_Q5_FLOOR,
+            level: "high",
+            guidance: sigDef?.guidanceText?.high || null,
+            matchedConditions: [],
+            isStellarApex: false,
+            _s6222Q5InjectedBy: "S6.22.2-Q5"
+          };
+          sigPayload.push(target);
+          _q5Diag.injected = true;
+        }
+        const before = target.confidence;
+        const after = Math.min(_S6222_Q5_CAP, before + _S6222_Q5_BOOST);
+        if (after > before) {
+          target.confidence = after;
+          target.level = target.confidence >= 55 ? "high" : target.confidence >= 35 ? "medium" : "low";
+          target.guidance = EVENT_SIGNATURES[target.code]?.guidanceText?.[target.level] || target.guidance;
+          target._s6222Q5Boost = {
+            before, after, points: after - before,
+            master9: _q5Diag.master9, master12: _q5Diag.master12,
+            planetsInM12: _q5Diag.planetsInM12.slice(),
+            hits: _q5Diag.hits.slice(0, 4),
+            injected: _q5Diag.injected
+          };
+          _q5Diag.boosted = true;
+          _q5Diag.before = before;
+          _q5Diag.after = after;
+          sigPayload.sort((a, b) => (b.confidence || 0) - (a.confidence || 0));
+          console.log(`[S6.22.2 Q5] JURIDIQUE_DOWN ${before}→${after} (master9=${_q5Diag.master9}/master12=${_q5Diag.master12}, ${_q5Diag.hits.length} transits${_q5Diag.injected ? ", injecté" : ""})`);
+        }
+      }
+
+      finalOutput[0].json._s6222Q5JuridiqueDownDiag = _q5Diag;
+    } catch (eQ5) {
+      console.log("[WARN] S6.22.2 Q5 JURIDIQUE_DOWN boost:", eQ5.message);
     }
     // ═══════════════════════════════════════════════════════════════════════════
 
@@ -18656,6 +19044,40 @@ if (_mdseResults.length > 0 && finalOutput.length > 0) {
         _q186Cap = _Q186_CAP_N1_PLUS_3N2;                 // 90
       }
 
+      // === S6.22.2 Q2 (note 93 arbitrage Option A) — Bypass partile parfait ===
+      // Doctrine : « Un transit de Pluton ou d'Uranus exactement sur l'Imum Coeli
+      //   (orbe 0.0°) est un séisme existentiel d'une telle magnitude (Dalaï-Lama
+      //   1959) qu'il n'a pas besoin de l'autorisation d'une Lune progressée
+      //   (Niveau 2) pour s'imposer en Top-1. Bypass cap si peakOrb ≤ 0.1° sur
+      //   N1_IC ou N1_LUNE_ANGULAR ou N1_RULER_M4 → cap relevé à 70. »
+      const _Q186_S6222_Q2_PARTILE_ORB = 0.1;
+      const _Q186_S6222_Q2_BYPASS_CAP = 70;
+      const _Q186_S6222_Q2_ELIGIBLE_KINDS = new Set(["N1_IC", "N1_RULER_M4", "N1_PLANET_M4", "N1_LUNE_ANGULAR"]);
+      let _q186S6222Q2Bypass = null;
+      if (_q186N1Count > 0 && _q186N2Count === 0) {
+        const _q186Partile = _q186N1Hits.find(h =>
+          _Q186_S6222_Q2_ELIGIBLE_KINDS.has(h.kind) &&
+          typeof h.orb === "number" && h.orb <= _Q186_S6222_Q2_PARTILE_ORB
+        );
+        if (_q186Partile) {
+          _q186S6222Q2Bypass = {
+            triggered: true,
+            capBefore: _q186Cap,
+            capAfter: _Q186_S6222_Q2_BYPASS_CAP,
+            peakHit: {
+              kind: _q186Partile.kind,
+              planet: _q186Partile.planet,
+              target: _q186Partile.target,
+              aspect: _q186Partile.aspect,
+              orb: _q186Partile.orb,
+            },
+            threshold: _Q186_S6222_Q2_PARTILE_ORB,
+          };
+          _q186Cap = _Q186_S6222_Q2_BYPASS_CAP;             // 48 → 70
+          _q186Applied.push(`RELOCATION bypass S6.22.2-Q2 partile ${_q186Partile.planet}/${_q186Partile.target}@${_q186Partile.orb.toFixed(3)}° (cap 48→70)`);
+        }
+      }
+
       // 4. Typologie (subie / choisie / par_alliance)
       let _q186Typology = "atypique";
       if (_q186N1Count > 0) {
@@ -18791,7 +19213,7 @@ if (_mdseResults.length > 0 && finalOutput.length > 0) {
       }
 
       finalOutput[0].json._q186RelocationDiag = {
-        version: "S6.22-Q186-Q187-D20D24",
+        version: "S6.22.2-Q186-Q187-D20D24",
         target: _Q186_TARGET_CODE,
         n1Count: _q186N1Count,
         n2Count: _q186N2Count,
@@ -18815,7 +19237,9 @@ if (_mdseResults.length > 0 && finalOutput.length > 0) {
         lifted: _q186Lifted,
         created: _q186Created,
         applied: _q186Applied,
-        skipped: _q186Skipped
+        skipped: _q186Skipped,
+        // S6.22.2 Q2 — bypass partile parfait (peakOrb ≤ 0.1° → cap relevé à 70)
+        s6222Q2Bypass: _q186S6222Q2Bypass
       };
     } catch (eQ186) {
       console.log("[WARN] S6.22 Q186 RELOCATION:", eQ186.message, eQ186.stack?.split("\n")[1]?.trim());
@@ -20808,6 +21232,23 @@ if (_mdseResults.length > 0 && finalOutput.length > 0) {
         `        ne le remonte JAMAIS en Top-1 (sauf événement public absolument certain).\n` +
         `      → Si la Piste G STELLAR_NOMADIC est active (sujet doctrinalement nomade),\n` +
         `        cite la racine natale dans la primary_reason (cf. Loi 11-ter).\n\n` +
+        `Loi 13 — Tie-break CARRIERE_UP par profession publique (S6.22.2 Q6) :\n` +
+        `  Quand le Top-2 contient à la fois CARRIERE_UP et un autre code (intime ou\n` +
+        `  public secondaire) avec un écart de confidence math STRICTEMENT < 5 (zone\n` +
+        `  de tie autorisée par Règle 4), et que la biographie du sujet (prénom + nom\n` +
+        `  + domaine d'activité) atteste d'une PROFESSION PUBLIQUE NOTOIRE (acteur,\n` +
+        `  homme politique, sportif élite, scientifique reconnu, artiste majeur,\n` +
+        `  industriel, religieux public, journaliste/figure médiatique), tu PEUX\n` +
+        `  privilégier CARRIERE_UP avec un boost interprétatif de +5 pt.\n` +
+        `      → Dis-le dans ta primary_reason : « Loi 13 — tie-break profession\n` +
+        `        publique : CARRIERE_UP retenu sur tie zone (écart math < 5) ».\n` +
+        `      → Cette loi NE PEUT PAS s'utiliser pour franchir un écart math ≥ 5 :\n` +
+        `        elle ne déroge PAS à la Règle 4. Elle reflète juste le fait que\n` +
+        `        l'astrologie lit la même carte pour un boulanger et un président\n` +
+        `        mais que l'IMPACT public diffère, et que cet impact est déterminable\n` +
+        `        biographiquement.\n` +
+        `      → Reste interdite l'utilisation de cette loi sur profil_type=prive\n` +
+        `        (par définition : aucune profession publique notoire à un anonyme).\n\n` +
         `══ RÈGLES DE CONFIDENCE_IN_CHOICE (Q50-A — calibration humilité) ══\n` +
         `- "high"   : tu es certain à >85% (écart confidence Top-1 vs Top-2 ≥ 8)\n` +
         `- "medium" : confiance modérée (écart 3-7) — utilisée AUSSI quand les techniques\n` +
