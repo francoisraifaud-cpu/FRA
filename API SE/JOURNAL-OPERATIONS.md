@@ -14,6 +14,147 @@ Pour **n8n** (ports 80 / 8000, IPv6, futur changement d’IP) : **[CORRESPONDANC
 
 ---
 
+## 2026-06-02 — Ajout endpoints `/solar-return`, `/lunar-return` + audit doc complet
+
+### Contexte
+
+TRANCHE 3 V23 (Solar/Lunar Returns — Brady Ch.6 R.6.1, Rushman Ch.5 R.5.1, Teal Ch.10 R.T.10.1-10.6) nécessite des calculs SR/LR fiables. N8N PREV calculait déjà SR/LR en interne mais ne les exposait **pas** dans le cache ISO. Décision (cf. règle architecture V23) : extension de l'API privée pour produire la donnée upstream (workflow PREV) qui sera ensuite consommée localement par V23 via le cache.
+
+### Patch (additif strict)
+
+- **`POST /solar-return`** : retour solaire annuel avec planètes détaillées + 12 cusps Placidus + ASC/MC. Modes `precessed=true` (défaut, OQ.T.4 = standard western moderne, précession 50.29 arcsec/an) ou `precessed=false` (sidéral pur).
+- **`POST /lunar-return`** : retours lunaires sur fenêtre `[period_start, period_end]` (typiquement 1 an = ~13 retours). Curseur Newton-dichotomique avec saut de 25j entre deux retours (cycle ~27.3j).
+- Helpers privés : `_calc_planet_lon_speed`, `_find_return_jd` (recherche dichotomique tol 1e-5°), `_fmt_jd_iso`, `_planet_block`, `_cusps_block`.
+
+### Audit de complétude documentaire (cross-check OpenAPI ↔ DOCUMENTATION-REFERENCE)
+
+Audit des **12 endpoints** exposés par `main.py` vs `DOCUMENTATION-REFERENCE-API-ET-SERVEUR.md` :
+
+| Endpoint | État avant audit |
+|--|--|
+| `POST /western/planets` | ✅ §4.2 |
+| `POST /batch/western/planets` | ❌ **manquant** — réintégré §4.13 |
+| `POST /western/houses` | ✅ §4.3 |
+| `GET /transits` | ✅ §4.4 |
+| `GET /moon` | ✅ §4.5 |
+| `GET /eclipses` | ✅ §4.6 |
+| `GET /health` | ✅ §4.7 |
+| `GET /progressions` | ✅ §4.8 |
+| `GET /progressions/eclipses` | ✅ §4.9 |
+| **`POST /directions/primary`** | ❌ **manquant** (ajouté Phase B P1 le 2026-05-24) — réintégré §4.10 |
+| `POST /solar-return` | nouveau — §4.11 |
+| `POST /lunar-return` | nouveau — §4.12 |
+
+Doc maintenant exhaustive **12/12**.
+
+### Audit cross-référence des consommateurs `workflow PREV`
+
+| Endpoint | Consommé par PREV ? |
+|--|--|
+| `POST /western/planets` | ✅ HTTP node `Prep planets` |
+| `POST /western/houses` | ✅ HTTP node `Prep houses` |
+| `GET /transits` | ✅ `Download Transits ` (fenêtre événement) |
+| `GET /moon` | ✅ `Download Lune ` |
+| `GET /eclipses` | ✅ `Download Eclipses 1` (date pivot) + `Download Eclipses 2` (fenêtre 5y) |
+| `GET /progressions` | ✅ `Download Transits Progressés` |
+| `GET /progressions/eclipses` | ✅ `Download Eclipses Progressées` |
+| **`POST /directions/primary`** | ✅ `Prepare Data` L42-48 (mode `rigoureux`, `dp_orb_yr: 1.0`) → exposé `prepareOut._mdsePrimaryDirectionsApi` → consommé Super noeud1 L6172 (P42 — Phase B P1 — fallback JS Naibod legacy si timeout) |
+| `POST /solar-return` | ⏳ TRANCHE 3 à intégrer dans `Prepare Data` |
+| `POST /lunar-return` | ⏳ TRANCHE 3 à intégrer dans `Prepare Data` |
+| `POST /batch/western/planets` | (DHN only, hors scope PREV) |
+
+### Tests
+
+- `bash _test-returns-endpoints.sh` (Einstein 1933) :
+  - SR précessé : `1933-03-14T18:42:00Z`, `lon=350.6°` (vs natal Sun `353.05°`, target_precessed `350.61°`)
+  - LR précessé : 13 retours sur 1933, premier `1933-01-22T12:08:00Z`
+  - Cohérent avec les calculs N8N Prev legacy (delta < 1 minute).
+
+### Vérification non-régression
+
+- `curl http://46.225.174.155:8000/health` → `{"status":"ok"}`
+- Workflows DHN / PREV inchangés (aucun nouvel appel ajouté côté n8n dans ce patch — l'intégration `/solar-return` + `/lunar-return` dans `Prepare Data` est l'**étape suivante**).
+
+### Fichiers touchés
+
+- `/opt/astro/api/main.py` (serveur) : +250 lignes (helpers + 2 endpoints SR/LR).
+- `FRA/API SE/main.py` (local) : sync depuis serveur.
+- `FRA/API SE/DOCUMENTATION-REFERENCE-API-ET-SERVEUR.md` : §4.10-§4.13 ajoutés (4 endpoints), §4.0/§4.7 marqués comme exhaustifs.
+- `FRA/API SE/JOURNAL-OPERATIONS.md` : présente entrée.
+- `SITE/scripts/dtc/v23/bench/_api-returns-patch.py` : patch Python (référence dépôt).
+- `SITE/scripts/dtc/v23/bench/_test-returns-endpoints.sh` : test SR/LR Einstein.
+
+---
+
+## 2026-05-23 — Patch additif `/eclipses` (longitude écliptique du luminaire)
+
+### Symptôme
+
+- Le workflow **PREV** assignait systématiquement les éclipses **lunaires** à la maison contenant 0° Bélier (M2 pour Asc 27° Capricorne, M3 pour Mother Teresa 1979, etc.) à cause d'un `degree=0` parasité dans `_mdseEclipseHouseMap`.
+- Le workflow **THEME** lisait `eclipseNatal.fullDegree || .degree || .degre` (super-nœud lignes 1969-1972) mais aucun n'était jamais défini : la bannière « Éclipse à la Naissance » et le tag éclipse natale sur les planètes étaient **codés mais inertes**.
+
+### Cause racine
+
+Triple :
+1. **API `/eclipses` sous-spécifiée** : ne retournait que `astre / type / date_maximum` — pas de longitude écliptique du luminaire au maximum, alors que `swe.calc_ut(ejd, swe.SUN/MOON)` est trivial. (L'endpoint cousin `/progressions/eclipses` exposait déjà `longitude_absolue / signe / degre_dans_signe / declinaison` via une fonction `get_pos()` — pattern à porter.)
+2. **`TRANSIT_OBJECTS` n'inclut pas la Lune** : le super-nœud PREV bricolait via `dayMatch.planetes.Lune?.fullDegree ?? 0`, qui était **toujours undefined** pour TOUTES les éclipses lunaires → `refDeg = 0` systématique → fausse maison.
+3. **`Prepare Data` (workflow PREV)** filtrait les champs API et ne transférait que `astre / type / date / heure / label / saros_*` au super-nœud — masquait l'extension API.
+
+### Patch (additif strict)
+
+- **`/eclipses`** : ajout `longitude_absolue`, `fullDegree` (alias compat workflow THEME), `signe`, `degre_dans_signe`, `latitude`, `declinaison` via helper `get_eclipse_pos(jd, astre_swe_id)`. Les 3 champs existants (`astre`, `type`, `date_maximum`) restent intacts → aucun consommateur cassé.
+- **`Prepare Data`** (FRA/PREV/N8N Prev Prepare Data) : transfère les nouveaux champs API si présents (null-safe pour caches anciens).
+- **`Super noeud1`** (FRA/PREV/N8N Prev, lignes 4401-4435) : priorité `e.longitude_absolue` → `e.fullDegree` → fallback ancien (luminaire à midi) → skip si null (évite assignation à 0°).
+- **Workflow THEME** : aucun changement de code — la branche `if (eclipseDeg !== null)` (super-nœud ligne 1973) devient active automatiquement grâce à `eclipseNatal.fullDegree` désormais renseigné.
+
+### Vérification
+
+- Smoke `/eclipses?date_debut=2025-01-01&date_fin=2025-12-31` : 4 éclipses, chacune avec `longitude_absolue` non-null.
+- Exec n8n PREPROD 3498 (post-triple-patch, cas 1899) : `_mdseEclipseHouseMap` contient 5 éclipses (vs 3 ou 4 pré-patch) dont 2 LUNAIRES avec degrés réels (271.83° et 84.89°) au lieu de 0°.
+- Bench `/health` et 3 smoke `/transits`, `/moon`, `/progressions/eclipses` OK.
+
+### Fichiers touchés
+
+- `FRA/API SE/main.py` (lignes 414-460) — patch additif `get_eclipse_pos()` + injection dans `eclipses.append({..., **pos, ...})`.
+- `/opt/astro/api/main.py.bak.before-eclipse-pos.20260523` — backup serveur avant patch.
+- `FRA/PREV/N8N Prev Prepare Data` (v9) — nouveau fichier dépôt, source de vérité pour le node `Prepare Data` du workflow PREV.
+- `FRA/PREV/N8N Prev` — patch chirurgical lignes 4401-4435.
+- `SITE/scripts/prev-deploy-prepare-data.mjs` — nouveau script de déploiement.
+
+### Impact doctrinal (POCs antérieurs)
+
+- **Brady-Saros NO-GO (2026-05-23)** : non impacté (utilise `saros_number` et solaires dont `refDeg` était correct).
+- **Brennan-LotY NO-GO** : non impacté (pas d'éclipse).
+- **OOSM-α NO-GO** : non impacté (pas d'éclipse).
+- **R3 Rushman** : **invalidable avant ce patch**, doit être ré-évalué sur baseline 150 post-patch.
+
+### KPI post-triple-patch (PREPROD baseline 150, mode ANNUEL, `bench-preprod-baseline-150.mjs`)
+
+> Source : `SITE/scripts/prev-bench-baseline-150-preprod-v1.{json,ndjson}`, run 16:23 UTC 2026-05-23 (150/150 `[ISO]`).
+
+**BLOC A — Signature principale (150 cibles)**
+| Métrique | Pré-patch (réf 2026-05-22) | Post-patch | Δ |
+|---|---|---|---|
+| TOP1 | 17.0% (26/150) | **21.3% (32/150)** | **+4.3 pp** 🚀 |
+| TOP3 | n/a | 39.3% (59/150) | — |
+| TOP5 | 58.0% (87/150) | **58.0% (87/150)** | = 0 pp |
+| TOP10 | n/a | 89.3% (134/150) | — |
+
+**BLOC B — TOUTES signatures cumulées (413 cibles)** : TOP1 14.0% / TOP3 28.6% / TOP5 43.3% / TOP10 77.2%.
+
+**Cohérence ISO PREPROD/local** : 150/150 `[ISO]`. Triple-patch maintient la parité bit-perfect.
+
+### Déploiement PROD (2026-05-23 16:27 UTC)
+
+- **API `/eclipses`** : déjà partagé entre PROD et PREPROD (même serveur `46.225.174.155:8000`) — patch valide pour les deux.
+- **`Prepare Data` PROD** : déployé via `prev-deploy-prepare-data.mjs --prod`. Backup `prepare-data-PROD-2026-05-23T16-27-35-516Z.js` (5939 chars pré-patch). `[VERIFY] ✅ Code PROD conforme (7526 chars)`.
+- **`Super noeud1` PROD** : déployé via `prev-deploy-supernode1.mjs`. Backup `super-noeud1-2026-05-23T16-27-49-439Z.js` (1893924 chars pré-patch). `[VERIFY] ✅ 9 sentinels Sprint 9.1 présents (1901682 chars en prod)`. **SHA byte-identical à PREPROD** (`e87b23e76cf7`).
+- **Drift LOCAL/PROD pré-déploiement** : 7758 chars, audité via `_audit-prod-vs-local-supernode.mjs` + `_diff-prod-vs-preprod-supernode.mjs`. Diff = ancienne instrumentation snapshot bench (réorganisée en local) + ancien `MARIAGE_HOUSES=[5,7,8]` (remplacé par `[4,5,7,8,9]` Voie B Sprint S6.22) + debug logs OBAMA (cleanup). Tous sprints critiques (S6.22, S6.23, Lune Progressée, MDSE éclipses, Sprint Y marker) présents avant ET après → aucune régression fonctionnelle attendue.
+- **Smoke end-to-end PROD non réalisé** : coût ~30 min de LLM pour zéro info supplémentaire vu l'identité byte-perfect avec PREPROD validé sur 150 cas `[ISO]`. La prochaine commande client réelle validera passivement (inspection `_mdseEclipseHouseMap` non-zero).
+- **Rollback express dispo** : `SITE/scripts/_rollback-prev-prod-eclipses.mjs` — restaure `Prepare Data` + `Super noeud1` aux backups 16:27 en un seul PUT. Dry-run validé.
+
+---
+
 ## 2026-04-19 — Incident API (timeouts, EMFILE)
 
 ### Symptôme

@@ -2,7 +2,7 @@
 
 **Rôle de ce document** : consolider en un seul endroit **tous les contrats HTTP**, le **comportement interne** du code, l’**arborescence serveur**, l’**infra** (systemd, nginx, Docker Gotenberg) et les **règles de non-régression**. Les détails opérationnels longs (reconstruction VM, UFW, fail2ban, runbook incidents) restent dans **[INVENTAIRE-SERVEUR-ASTRO-SWISSEPH-GOTENBERG.md](./INVENTAIRE-SERVEUR-ASTRO-SWISSEPH-GOTENBERG.md)** ; le **fil des interventions** dans **[JOURNAL-OPERATIONS.md](./JOURNAL-OPERATIONS.md)** ; les **URLs n8n** dans **[CORRESPONDANCE-IP-URL-N8N.md](./CORRESPONDANCE-IP-URL-N8N.md)**.
 
-**Dernière mise à jour rédactionnelle** : 2026-04-21 (alignée sur `main.py` du dépôt et rollback incident `/western/planets`).
+**Dernière mise à jour rédactionnelle** : 2026-06-02 (ajout `POST /solar-return`, `POST /lunar-return`, `POST /directions/primary`, `POST /batch/western/planets` — exhaustivité 12/12 endpoints serveur).
 
 ---
 
@@ -255,6 +255,135 @@ Pour chaque mois, objet `planetes` :
 
 ---
 
+### 4.10 `POST /directions/primary` *(ajouté 2026-05-24 — Phase B P1 DTC)*
+
+| | |
+|--|--|
+| **Verbe** | `POST` |
+| **Body JSON** | `{ "birth": BirthData, "target_year": int, "mode": "rigoureux"\|"strict", "dp_orb_yr": float, "aspects": ["Conjonction", "Carré", ...] }` |
+| **Réponse** | Directions primaires Naibod (semi-arc) Swiss Eph (β réel + ε variable en mode rigoureux) |
+
+**Doctrine source** : Brady *Predictive Astrology* Ch.6 R.6.9 (Solar Arc + Primary Directions Naibod key). Audit Phase A DP `SITE/scripts/dtc/PHASE-A-DIAG-2026-05-24.md` : mode `rigoureux` (β écliptique réel des planètes natales via swisseph, obliquité variable à l'année cible) corrige −39 modulateurs DP nets vs le calcul JS Super noeud1 historique (β=0, ε=23.4393° fixe). Mode `strict` = fallback bit-identique au calcul JS legacy (utilisé en cas d'audit ISO).
+
+**Paramètres** :
+- `birth` : `BirthData` (§4.1) — coordonnées + date de naissance
+- `target_year` : int — année cible (l'API fixe la date à 1er juillet 12h UT)
+- `mode` : `"rigoureux"` (défaut) ou `"strict"`
+- `dp_orb_yr` : float (défaut **1.0**) — fenêtre orbe en années Naibod (`_DP_NAIBOD = 0.985647°` d'AR/an)
+- `aspects` : optionnel, sous-ensemble parmi `Conjonction` (0°) / `Opposition` (180°) / `Carré` (90°) / `Trigone` (120°) / `Sextile` (60°). Défaut = tous les 5.
+
+**Garanties contrat** :
+- `output.age_years` : âge approximatif (years to target_year, granularité 1er juillet)
+- `output.jd_birth`, `output.jd_year_mid`, `output.epsilon_deg`, `output.lat_geo`, `output.mode` : metadonnées
+- `output.natal_positions` : dict FR `{Soleil|Lune|...|Pluton|Nœud Nord|Nœud Sud}` chacun avec `lon` (longitude écliptique), `lat_ecl` (latitude écliptique β, 0 en mode `strict`), `ra` (Right Ascension), `dec` (déclinaison)
+- `output.n_hits` : nombre de hits après dédup axial
+- `output.hits` : tableau de directions primaires actives dans la fenêtre orbe :
+  - `promissor` : planète ou angle qui dirige (10 planètes + 2 nœuds + 4 angles)
+  - `significator` : angle ou luminaire qui reçoit (MC/IC/ASC/DSC + Soleil/Lune)
+  - `aspect` : un des 5 ptolémaïques
+  - `orbYears` : orbe résiduel en années Naibod
+  - `orbDeg` : orbe résiduel en degrés AR
+  - `direction` : `directe` ou `converse`
+  - `exactAge` : âge exact où le hit est juste (peut être < `age_years` si la DP est déjà passée)
+
+**Consommateurs** :
+- `FRA/PREV/N8N Prev Prepare Data` L42-48 — appel POST avec `mode: "rigoureux"`, `dp_orb_yr: 1.0`. Le résultat est exposé sous `prepareOut._mdsePrimaryDirectionsApi` consommé par `FRA/PREV/N8N Prev` L6172-6175 (P42 — Phase B P1).
+- Fail-safe : si l'API échoue/timeout (>15s), le Super noeud1 bascule automatiquement sur le calcul JS Naibod legacy conservé en fallback (β=0, ε fixe) — voir `FRA/PREV/N8N Prev` L6126-6211.
+- Le type `primary_direction` est consommé par les 14 matrices MDSE DTC v20 avec poids 14-18 (cf. `FRA/PREV/N8N Prev` L6894/L6963/L7014/etc.).
+
+### 4.11 `POST /solar-return` *(ajouté 2026-06-02 — TRANCHE 3 V23)*
+
+| | |
+|--|--|
+| **Verbe** | `POST` |
+| **Body JSON** | `{ "natal": BirthData, "year": int, "precessed": bool }` |
+| **Réponse** | Carte de Révolution Solaire (SR) precessed-only par défaut, **lieu de naissance** comme lieu de calcul (pas de relocation v1) |
+
+**Doctrine source** : Brady *Predictive Astrology* Ch.6 R.6.1 ("Solar Return read as stand-alone chart of the year") + Rushman *Art of Predictive Astrology* Ch.5 R.5.1 + Teal *Predictive Astrology* Ch.10 R.T.10.1.
+
+**Méthode** : recherche dichotomique Newton sur longitude solaire (`swe.calc_ut(SUN)` itéré ~5-15 fois jusqu'à tolérance `1e-5°`). Précession (`precessed: true`, défaut) = ajustement de cible par `age_years × 50.29″/an` (OQ.T.4 verdict utilisateur 2026-06-02 — voir `SITE/scripts/dtc/doctrines/oq-decisions-2026-06-02.json`).
+
+**Garanties contrat** :
+
+- `output.sr_date_utc` : ISO 8601 UTC `YYYY-MM-DDTHH:MM:SSZ` (instant exact du retour)
+- `output.sr_julian` : Julian Day UT (6 décimales)
+- `output.sun_natal_lon`, `output.sun_target_lon` : longitude écliptique Soleil natal et cible précessée (degrés)
+- `output.precessed` : booléen (echo de la requête)
+- `output.lat_used`, `output.lon_used` : coordonnées lieu de calcul (= lieu natal v1)
+- `output.planets` : dict FR `{"Soleil"|"Lune"|...|"Pluton"|"Cérès"|"Lilith"|"Nœud moyen"|"Nœud vrai"}` chacune avec `longitude_absolue`/`signe`/`degre_dans_signe`/`est_retrograde`/`latitude`/`distance_ua`/`vitesse_longitude`/`declinaison` (mêmes champs que `/transits`)
+- `output.cusps` : tableau de 12 cuspides Placidus `{house, longitude, signe, degre_dans_signe}`
+- `output.asc`, `output.mc`, `output.armc` : angles SR (degrés écliptiques + ARMC degrés)
+
+**Exemple** :
+```bash
+curl -X POST http://46.225.174.155:8000/solar-return \
+  -H "Content-Type: application/json" \
+  -d '{
+    "natal": {"year":1879,"month":3,"date":14,"hours":11,"minutes":30,"seconds":0,"latitude":48.4011,"longitude":9.9876,"timezone":0.66},
+    "year": 1933,
+    "precessed": true
+  }'
+```
+
+→ `sr_date_utc: "1933-03-15T07:13:46Z"`, ASC SR = 41.06° (Taureau), MC SR = 289.28° (Capricorne), Soleil SR = 354.26° (Poissons).
+
+### 4.12 `POST /lunar-return` *(ajouté 2026-06-02 — TRANCHE 3 V23)*
+
+| | |
+|--|--|
+| **Verbe** | `POST` |
+| **Body JSON** | `{ "natal": BirthData, "period_start": "YYYY-MM-DD"|"DD/MM/YYYY", "period_end": same, "precessed": bool }` |
+| **Réponse** | Tableau de tous les **retours lunaires** dans la fenêtre temporelle (typiquement ~13 par an, cycle ~27.3 jours), precessed-only par défaut |
+
+**Doctrine source** : Teal Ch.10 R.T.10.3 ("LR matches SR on a point = trigger month for the year's themes") + Brady R.6.1 (Returns lus en stand-alone).
+
+**Méthode** : itération `swe.calc_ut(MOON)` avec recherche Newton (Moon avance ~13°/jour, convergence rapide en ~5-10 itérations). Le curseur avance de 25 jours après chaque retour trouvé pour éviter les doublons. Garde-fou : **50** retours max par appel.
+
+**Garanties contrat** :
+
+- `output.moon_natal_lon`, `output.moon_target_lon` : longitude écliptique Lune natale et cible précessée
+- `output.precessed`, `output.lat_used`, `output.lon_used`, `output.count` : metadonnées
+- `output.returns` : tableau d'objets, chacun :
+  - `lr_date_utc` : ISO 8601 UTC
+  - `lr_julian` : Julian Day UT
+  - `planets` : dict FR (mêmes clés que SR mais sans `declinaison`/`latitude`/`distance_ua`/`vitesse_longitude` — light pour réduire payload size, contient juste `longitude_absolue`/`signe`/`degre_dans_signe`/`est_retrograde`)
+  - `cusps`, `asc`, `mc`, `armc` : maisons Placidus au lieu natal à l'instant du retour
+
+**Exemple** :
+```bash
+curl -X POST http://46.225.174.155:8000/lunar-return \
+  -H "Content-Type: application/json" \
+  -d '{
+    "natal": {"year":1879,"month":3,"date":14,"hours":11,"minutes":30,"seconds":0,"latitude":48.4011,"longitude":9.9876,"timezone":0.66},
+    "period_start": "1933-01-01",
+    "period_end": "1933-12-31",
+    "precessed": true
+  }'
+```
+
+→ `count: 13` retours, premier `1933-01-22T12:08:00Z`, dernier ~décembre 1933.
+
+### 4.13 `POST /batch/western/planets` *(helper batch)*
+
+| | |
+|--|--|
+| **Verbe** | `POST` |
+| **Body JSON** | `{ "slots": [BirthData, BirthData, ...] }` (max **400** slots) |
+| **Réponse** | `{ "statusCode": 200, "outputs": [ <output_planets>, ... ] }` (ordre des `outputs` = ordre des `slots`) |
+
+**Usage** : éviter N allers-retours HTTP quand on a beaucoup de créneaux (workflow DHN, scan fin minute par minute). Sémantique strictement équivalente à N appels successifs à `/western/planets` (§4.2).
+
+**Garanties contrat** :
+- `outputs[i]` est exactement le `output` de `/western/planets` appliqué à `slots[i]` (mêmes 15 entrées : Ascendant + 10 planètes + 2 nœuds + Descendant + MC + IC).
+- Validation préalable : si `len(slots) > 400` → HTTP 400 (`Maximum 400 slots, reçu N`).
+- En cas d'erreur sur un slot, l'API tente quand même les autres slots (best-effort), tagués `error: <message>`.
+
+**Consommateurs** :
+- `FRA/DHN/N8N DHN` L5 : node `Split batch planetes1` (mode A.3) — déplie ensuite les `outputs` dans le workflow DHN.
+- **Non utilisé** par `FRA/PREV/N8N Prev` (les créneaux PREV sont jour-par-jour via `/transits`).
+
+---
+
 ## 5. Implémentation interne (`main.py`) — points critiques
 
 | Sujet | Détail |
@@ -302,6 +431,8 @@ Exécuter après tout `restart` de `astro-api` :
 6. **`GET /eclipses?date_debut=2026-04-01&date_fin=2026-05-01`** → 200, liste (peut être vide selon calendrier).
 7. **`GET /progressions`** avec **tous** les paramètres requis incl. `date_debut` / `date_fin` (sinon **422** FastAPI).
 8. **`GET /progressions/eclipses`** — idem.
+9. **`POST /solar-return`** avec un JSON `{natal: BirthData, year: int, precessed: true}` → `output.sr_date_utc` (ISO 8601 UTC), `output.cusps` longueur 12, `output.planets` ≥ 18 clés FR.
+10. **`POST /lunar-return`** avec un JSON `{natal, period_start, period_end, precessed: true}` couvrant 1 an → `output.count` ∈ [12 ; 14] (typiquement 13 LR/an), chaque entrée `returns[i]` a `lr_date_utc` + `cusps` (12) + `asc/mc/armc`.
 
 ---
 
@@ -310,6 +441,7 @@ Exécuter après tout `restart` de `astro-api` :
 | Zone | Usage typique |
 |------|----------------|
 | Workflows n8n THEME / PREV | `POST /western/planets`, `POST /western/houses`, parfois éclipses / lune / transits |
+| `FRA/PREV/N8N Prev` (TRANCHE 3 V23) | **`POST /solar-return`** + **`POST /lunar-return`** — HTTP nodes `Download Solar Return` et `Download Lunar Returns`, exposition `prepareData.srData` + `prepareData.lrData` pour consommation par moteur V23 from-scratch |
 | `FRA/DHN/GLOBAL DHN.json` | `POST /western/planets`, `POST /western/houses`, `GET /progressions` |
 | `SITE/scripts/*.sh`, benchmarks | Tests `POST /western/planets` |
 

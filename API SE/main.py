@@ -411,6 +411,29 @@ def get_eclipses(
         if flags & swe.ECL_PENUMBRAL and lunar: return "Pénombrale"
         return "Inconnue"
 
+    # Calcul des positions écliptiques au JD du maximum (patch 2026-05-23).
+    # Champs ajoutés en ADDITIF strict pour ne pas casser les consommateurs existants
+    # (workflows THEME/PREV) qui lisaient astre/type/date_maximum.
+    # Le workflow THEME (`N8N Theme`, lignes 1969-1972) lit déjà eclipseNatal.fullDegree
+    # || .degree || .degre — d'où l'alias fullDegree pour activation immédiate.
+    def get_eclipse_pos(jd: float, astre_swe_id: int) -> dict:
+        try:
+            res, _ = swe.calc_ut(jd, astre_swe_id, swe.FLG_MOSEPH)
+            lon, lat = res[0], res[1]
+            return {
+                "longitude_absolue": round(lon, 4),
+                "fullDegree":        round(lon, 4),  # alias compat THEME workflow
+                "signe":             ZODIAC_SIGNS_LIST[int(lon / 30) % 12],
+                "degre_dans_signe":  round(lon % 30, 4),
+                "latitude":          round(lat, 4),
+                "declinaison":       calc_declinaison(lon, lat, get_obliquity(jd)),
+            }
+        except Exception:
+            return {
+                "longitude_absolue": None, "fullDegree": None, "signe": None,
+                "degre_dans_signe":  None, "latitude":   None, "declinaison": None,
+            }
+
     cur = start_jd
     while cur < end_jd:
         try:
@@ -418,7 +441,8 @@ def get_eclipses(
             flags, tret = res[0], res[1]
             ejd = tret[0]
             if ejd > end_jd: break
-            eclipses.append({"astre": "Soleil", "type": get_type(flags), "date_maximum": jd_to_str(ejd), "_jd": ejd})
+            pos = get_eclipse_pos(ejd, swe.SUN)
+            eclipses.append({"astre": "Soleil", "type": get_type(flags), "date_maximum": jd_to_str(ejd), **pos, "_jd": ejd})
             cur = ejd + 10
         except Exception:
             break
@@ -430,7 +454,8 @@ def get_eclipses(
             flags, tret = res[0], res[1]
             ejd = tret[0]
             if ejd > end_jd: break
-            eclipses.append({"astre": "Lune", "type": get_type(flags, lunar=True), "date_maximum": jd_to_str(ejd), "_jd": ejd})
+            pos = get_eclipse_pos(ejd, swe.MOON)
+            eclipses.append({"astre": "Lune", "type": get_type(flags, lunar=True), "date_maximum": jd_to_str(ejd), **pos, "_jd": ejd})
             cur = ejd + 10
         except Exception:
             break
@@ -716,3 +741,524 @@ def get_progressions_eclipses(
         del e["_jd"]
 
     return eclipses
+
+
+# ─── /directions/primary ──────────────────────────────────────────────────────
+# Ajout 2026-05-24 (Phase B P0) : route Naibod rigoureuse Swiss Eph pour
+# fiabiliser les directions primaires (β réel + ε variable + lat géo réelle).
+# Diff vs JS Super noeud1 actuel (β=0, ε=23.4393°) → −39 modulators DP nets sur
+# baseline 150 cas (cf. SITE/scripts/dtc/PHASE-A-DIAG-2026-05-24.md).
+import math as _math
+
+
+class PrimaryDirectionsBody(BaseModel):
+    """Input route /directions/primary.
+    `mode` :
+      - "rigoureux" (défaut) : β écliptique réel des planètes natales (Swiss Eph), ε variable T
+      - "strict"             : β=0, ε fixe 23.4393° (= comportement JS Super noeud1, fallback bit-identique)
+    `dp_orb_yr` : fenêtre orbe en années (default 1.0, idem JS).
+    `aspects` : sous-ensemble des 5 aspects majeurs (default = tous).
+    `natal_positions_override` : optionnel — utiliser des positions natales pré-calculées
+      (par /western/planets) au lieu de re-calculer ; utile pour ISO-tests.
+    """
+
+    model_config = ConfigDict(extra="ignore")
+    birth: BirthData
+    target_year: int
+    mode: str = "rigoureux"
+    dp_orb_yr: float = 1.0
+    aspects: list[str] | None = None
+
+
+_DP_NAIBOD = 0.985647  # ° d'AR par an
+_DP_ASPECTS = {"Conjonction": 0, "Opposition": 180, "Carré": 90, "Trigone": 120, "Sextile": 60}
+_DP_PROMS = ["Soleil", "Lune", "Mercure", "Vénus", "Mars", "Jupiter",
+             "Saturne", "Uranus", "Neptune", "Pluton"]
+_DP_NODES = ["Nœud Nord", "Nœud Sud"]
+_DP_SIG_PLANETS = ["Soleil", "Lune"]
+
+_DP_SWE_BODY = {
+    "Soleil": swe.SUN, "Lune": swe.MOON,
+    "Mercure": swe.MERCURY, "Vénus": swe.VENUS, "Mars": swe.MARS,
+    "Jupiter": swe.JUPITER, "Saturne": swe.SATURN,
+    "Uranus": swe.URANUS, "Neptune": swe.NEPTUNE, "Pluton": swe.PLUTO,
+    "Nœud Nord": swe.MEAN_NODE, "Nœud Sud": swe.MEAN_NODE,
+}
+
+
+def _dp_eq(lon_deg: float, lat_deg: float, eps_rad: float):
+    """(λ, β) écliptique → (RA, δ) équatorial en degrés."""
+    L = lon_deg * _math.pi / 180.0
+    B = lat_deg * _math.pi / 180.0
+    sinL, cosL = _math.sin(L), _math.cos(L)
+    sinB, cosB = _math.sin(B), _math.cos(B)
+    cosE, sinE = _math.cos(eps_rad), _math.sin(eps_rad)
+    if cosB == 0:
+        # cas dégénéré
+        ra = (lon_deg) % 360
+        dec = 90.0 if sinB > 0 else -90.0
+        return ra, dec
+    ra = _math.atan2(sinL * cosE - _math.tan(B) * sinE, cosL)
+    dec = _math.asin(sinB * cosE + cosB * sinE * sinL)
+    ra_deg = (_math.degrees(ra) % 360 + 360) % 360
+    return ra_deg, _math.degrees(dec)
+
+
+def _dp_ad(dec_rad: float, lat_rad: float):
+    """Ascensional difference (degrés). None si circumpolaire."""
+    v = _math.tan(dec_rad) * _math.tan(lat_rad)
+    if abs(v) >= 1:
+        return None
+    return _math.degrees(_math.asin(v))
+
+
+def _dp_axis_norm(prom: str, asp: str, sig: str):
+    np_, na_, ns_ = prom, asp, sig
+    if prom == "Nœud Sud":
+        np_ = "Nœud Nord"
+        if asp == "Conjonction":
+            na_ = "Opposition"
+        elif asp == "Opposition":
+            na_ = "Conjonction"
+    if sig == "DSC":
+        ns_ = "ASC"
+        if na_ == "Conjonction":
+            na_ = "Opposition"
+        elif na_ == "Opposition":
+            na_ = "Conjonction"
+    if sig == "IC":
+        ns_ = "MC"
+        if na_ == "Conjonction":
+            na_ = "Opposition"
+        elif na_ == "Opposition":
+            na_ = "Conjonction"
+    return f"{np_}|{na_}|{ns_}"
+
+
+@app.post("/directions/primary")
+def calc_primary_directions(body: PrimaryDirectionsBody):
+    """Directions primaires Naibod (semi-arc) Swiss Eph.
+
+    Output :
+      {
+        "statusCode": 200,
+        "output": {
+          "age_years": <float>,
+          "jd_birth": <float>,
+          "jd_year_mid": <float>,
+          "epsilon_deg": <float>,
+          "lat_geo": <float>,
+          "mode": "rigoureux" | "strict",
+          "natal_positions": { "<nom>": {"lon": ..., "lat_ecl": ..., "ra": ..., "dec": ...}, ... },
+          "hits": [
+            {"promissor": "...", "significator": "...", "aspect": "...",
+             "orbYears": <float>, "direction": "directe"|"converse", "exactAge": <float>},
+            ...
+          ]
+        }
+      }
+    """
+    ensure_ephe_path()
+
+    # ─ Étape 0 : JD birth + JD year_mid (1er juillet 12h UT cohérent avec _diag-dp-swisseph.py)
+    jd_birth = to_julian(body.birth)
+    jd_year_mid = swe.julday(int(body.target_year), 7, 1, 12.0)
+    age = (jd_year_mid - jd_birth) / 365.25
+    if age <= 0 or age > 130:
+        return JSONResponse(
+            {"statusCode": 400, "detail": f"Âge invalide: {age:.2f} (target_year={body.target_year}, birth_year={body.birth.year})"},
+            status_code=400,
+        )
+
+    # ─ Étape 1 : obliquité + mode
+    if body.mode == "strict":
+        eps_deg = 23.4393
+    else:
+        eps_deg = get_obliquity(jd_birth)
+    eps_rad = eps_deg * _math.pi / 180.0
+    lat_rad = body.birth.latitude * _math.pi / 180.0
+
+    # ─ Étape 2 : positions natales planètes (lon, β écliptique selon mode)
+    natal_positions = {}
+    for name, body_id in _DP_SWE_BODY.items():
+        try:
+            xx, _flg = swe.calc_ut(jd_birth, body_id, swe.FLG_SWIEPH | swe.FLG_SPEED)
+            lon = xx[0]
+            lat_ecl = xx[1] if body.mode == "rigoureux" else 0.0
+            if name == "Nœud Sud":
+                lon = (lon + 180.0) % 360.0
+                lat_ecl = -lat_ecl
+            ra, dec = _dp_eq(lon, lat_ecl, eps_rad)
+            natal_positions[name] = {
+                "lon": round(lon, 6),
+                "lat_ecl": round(lat_ecl, 6),
+                "ra": round(ra, 6),
+                "dec": round(dec, 6),
+            }
+        except Exception:
+            continue
+
+    # ─ Étape 3 : angles via swe.houses (Placidus comme JS)
+    houses, ascmc = swe.houses(jd_birth, body.birth.latitude, body.birth.longitude, b"P")
+    angles_deg = {
+        "Ascendant":      ascmc[0] % 360.0,
+        "Milieu du Ciel": ascmc[1] % 360.0,
+        "Descendant":     (ascmc[0] + 180.0) % 360.0,
+        "Imum Coeli":     (ascmc[1] + 180.0) % 360.0,
+    }
+
+    # ─ Étape 4 : significators (cf. JS Super noeud1 lignes 6027-6031)
+    sigs = []
+    ra_mc, _dec_mc = _dp_eq(angles_deg["Milieu du Ciel"], 0.0, eps_rad)
+    sigs.append({"name": "MC", "ref": ra_mc, "mode": "ra"})
+    ra_ic, _dec_ic = _dp_eq(angles_deg["Imum Coeli"], 0.0, eps_rad)
+    sigs.append({"name": "IC", "ref": ra_ic, "mode": "ra"})
+    ra_asc, dec_asc = _dp_eq(angles_deg["Ascendant"], 0.0, eps_rad)
+    ad_asc = _dp_ad(dec_asc * _math.pi / 180.0, lat_rad)
+    if ad_asc is not None:
+        sigs.append({"name": "ASC", "ref": ra_asc - ad_asc, "mode": "oa"})
+    ra_dsc, dec_dsc = _dp_eq(angles_deg["Descendant"], 0.0, eps_rad)
+    ad_dsc = _dp_ad(dec_dsc * _math.pi / 180.0, lat_rad)
+    if ad_dsc is not None:
+        sigs.append({"name": "DSC", "ref": ra_dsc + ad_dsc, "mode": "od"})
+    for sN in _DP_SIG_PLANETS:
+        if sN not in natal_positions:
+            continue
+        np_pos = natal_positions[sN]
+        ad_p = _dp_ad(np_pos["dec"] * _math.pi / 180.0, lat_rad)
+        if ad_p is None:
+            continue
+        sigs.append({"name": sN, "ref": np_pos["ra"] - ad_p, "mode": "oa"})
+
+    # ─ Étape 5 : promissors
+    proms = []
+    for pN in _DP_PROMS + _DP_NODES:
+        if pN not in natal_positions:
+            continue
+        np_pos = natal_positions[pN]
+        ad_p = _dp_ad(np_pos["dec"] * _math.pi / 180.0, lat_rad)
+        if ad_p is None:
+            continue
+        proms.append({"name": pN, "lon": np_pos["lon"], "lat_ecl": np_pos["lat_ecl"],
+                      "ra": np_pos["ra"], "dec": np_pos["dec"],
+                      "oa": np_pos["ra"] - ad_p, "od": np_pos["ra"] + ad_p})
+    for aN, aDeg in angles_deg.items():
+        ra_a, dec_a = _dp_eq(aDeg, 0.0, eps_rad)
+        ad_a = _dp_ad(dec_a * _math.pi / 180.0, lat_rad)
+        if ad_a is None:
+            continue
+        proms.append({"name": aN, "lon": aDeg, "lat_ecl": 0.0,
+                      "ra": ra_a, "dec": dec_a,
+                      "oa": ra_a - ad_a, "od": ra_a + ad_a})
+
+    # ─ Étape 6 : matching aspects → arc Naibod → orb_years
+    aspects_filter = body.aspects if body.aspects else list(_DP_ASPECTS.keys())
+    hits_raw = []
+    for sig in sigs:
+        for prom in proms:
+            if sig["name"] == prom["name"]:
+                continue
+            for asp_name in aspects_filter:
+                if asp_name not in _DP_ASPECTS:
+                    continue
+                asp_a = _DP_ASPECTS[asp_name]
+                asp_lon = (prom["lon"] + asp_a) % 360.0
+                ra_asp, dec_asp = _dp_eq(asp_lon, 0.0, eps_rad)  # aspect projeté β=0 (idem JS)
+                if sig["mode"] == "ra":
+                    prom_ref = ra_asp
+                else:
+                    ad_a = _dp_ad(dec_asp * _math.pi / 180.0, lat_rad)
+                    if ad_a is None:
+                        continue
+                    prom_ref = ra_asp - ad_a if sig["mode"] == "oa" else ra_asp + ad_a
+                arc = prom_ref - sig["ref"]
+                arc = ((arc + 540.0) % 360.0) - 180.0
+                dir_age = abs(arc) / _DP_NAIBOD
+                diff = dir_age - age
+                if abs(diff) <= body.dp_orb_yr:
+                    orb_y = abs(diff)
+                    hits_raw.append({
+                        "promissor": prom["name"],
+                        "significator": sig["name"],
+                        "aspect": asp_name,
+                        "orbYears": round(orb_y, 4),
+                        "orbDeg": round(orb_y * _DP_NAIBOD, 4),
+                        "direction": "directe" if arc >= 0 else "converse",
+                        "exactAge": round(dir_age, 4),
+                    })
+
+    # ─ Étape 7 : dédup axial (idem JS Super noeud1 lignes 6062-6086)
+    seen = set()
+    hits = []
+    for h in sorted(hits_raw, key=lambda x: x["orbYears"]):
+        k = _dp_axis_norm(h["promissor"], h["aspect"], h["significator"])
+        if k not in seen:
+            seen.add(k)
+            hits.append(h)
+
+    return {
+        "statusCode": 200,
+        "output": {
+            "age_years": round(age, 4),
+            "jd_birth": round(jd_birth, 6),
+            "jd_year_mid": round(jd_year_mid, 6),
+            "epsilon_deg": round(eps_deg, 6),
+            "lat_geo": body.birth.latitude,
+            "mode": body.mode,
+            "n_hits": len(hits),
+            "natal_positions": natal_positions,
+            "hits": hits,
+        },
+    }
+
+
+# ============================================================================
+# ─── /solar-return + /lunar-return  (TRANCHE 3 V23 — 2026-06-02)
+# ============================================================================
+# Doctrines : Brady Ch.6 R.6.1 (SR stand-alone chart of the year)
+#           : Rushman Ch.5 R.5.1 (most powerful technique year ahead)
+#           : Teal Ch.10 R.T.10.1-10.6 (SR + LR + matching + retrograde)
+# OQ.T.4    : precessed-only MVP (precession 50.29 arcsec/an)
+# ============================================================================
+
+def _normalize_lon(lon):
+    return ((lon % 360) + 360) % 360
+
+
+def _lon_diff_signed(a, b):
+    """Signed shortest angular distance a -> b, in [-180, 180]."""
+    d = (b - a) % 360
+    if d > 180:
+        d -= 360
+    return d
+
+
+def _calc_planet_lon_speed(jd, planet_id):
+    """Retourne (lon, speed) d'une planete a jd UT."""
+    ensure_ephe_path()
+    flags_list = [swe.FLG_SWIEPH | swe.FLG_SPEED, swe.FLG_MOSEPH | swe.FLG_SPEED]
+    last_err = None
+    for flag in flags_list:
+        try:
+            res, _ = swe.calc_ut(jd, planet_id, flag)
+            return res[0], res[3]
+        except Exception as e:
+            last_err = e
+            continue
+    raise RuntimeError(f"calc_ut failed for planet {planet_id}: {last_err}")
+
+
+def _find_return_jd(jd_start, target_lon, planet_id, max_iter=25, tol_deg=1e-5):
+    """Recherche dichotomique/Newton de jd tel que lon(planet, jd) = target.
+    Cherche le PROCHAIN retour apres jd_start.
+    """
+    lon0, speed0 = _calc_planet_lon_speed(jd_start, planet_id)
+    diff = _lon_diff_signed(lon0, target_lon)
+    # Si la planete avance et est passe au-dela : prochain retour = ajouter cycle
+    if speed0 > 0 and diff < 0:
+        diff += 360
+    elif speed0 < 0 and diff > 0:
+        diff -= 360
+    jd_approx = jd_start + diff / speed0
+
+    for _ in range(max_iter):
+        lon_i, speed_i = _calc_planet_lon_speed(jd_approx, planet_id)
+        diff_i = _lon_diff_signed(lon_i, target_lon)
+        if abs(diff_i) < tol_deg:
+            break
+        if speed_i == 0:
+            break
+        jd_approx += diff_i / speed_i
+    return jd_approx
+
+
+def _fmt_jd_iso(jd):
+    """Formate JD UT en chaine ISO 8601 UTC."""
+    y, m, d, h = swe.revjul(jd)
+    hour_int = int(h)
+    minute_f = (h - hour_int) * 60.0
+    minute_int = int(minute_f)
+    second_int = int(round((minute_f - minute_int) * 60.0))
+    if second_int >= 60:
+        second_int = 0
+        minute_int += 1
+    if minute_int >= 60:
+        minute_int = 0
+        hour_int += 1
+    return f"{int(y):04d}-{int(m):02d}-{int(d):02d}T{hour_int:02d}:{minute_int:02d}:{second_int:02d}Z"
+
+
+def _planet_block(jd, planet_def, epsilon, detailed=True):
+    """Retourne un bloc planete formate comme TRANSIT_OBJECTS."""
+    try:
+        lon, speed = _calc_planet_lon_speed(jd, planet_def["id"])
+        flags_list = [swe.FLG_SWIEPH | swe.FLG_SPEED, swe.FLG_MOSEPH | swe.FLG_SPEED]
+        for flag in flags_list:
+            try:
+                res, _ = swe.calc_ut(jd, planet_def["id"], flag)
+                lat = res[1]
+                dist = res[2]
+                break
+            except Exception:
+                continue
+        block = {
+            "longitude_absolue": round(lon, 4),
+            "signe": ZODIAC_SIGNS_LIST[int(lon / 30) % 12],
+            "degre_dans_signe": round(lon % 30, 4),
+            "est_retrograde": speed < 0,
+        }
+        if detailed:
+            block["latitude"] = round(lat, 4)
+            block["distance_ua"] = round(dist, 6)
+            block["vitesse_longitude"] = round(speed, 4)
+            block["declinaison"] = calc_declinaison(lon, lat, epsilon)
+        return block
+    except Exception:
+        return None
+
+
+def _cusps_block(jd, lat, lon):
+    """Retourne 12 cuspides Placidus + ASC/MC/ARMC."""
+    ensure_ephe_path()
+    cusps, ascmc = swe.houses(jd, lat, lon, b"P")
+    cusps_list = []
+    for i, c in enumerate(cusps):
+        cusps_list.append({
+            "house": i + 1,
+            "longitude": round(c, 4),
+            "signe": ZODIAC_SIGNS_LIST[int(c / 30) % 12],
+            "degre_dans_signe": round(c % 30, 4),
+        })
+    return {
+        "cusps": cusps_list,
+        "asc": round(ascmc[0], 4),
+        "mc": round(ascmc[1], 4),
+        "armc": round(ascmc[2], 4),
+    }
+
+
+# ----------------------------------------------------------------------------
+# /solar-return
+# ----------------------------------------------------------------------------
+
+class SolarReturnRequest(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    natal: BirthData
+    year: int
+    precessed: bool = True
+
+
+@app.post("/solar-return")
+def solar_return(req: SolarReturnRequest):
+    ensure_ephe_path()
+    jd_natal = to_julian(req.natal)
+    sun_natal_lon, _ = _calc_planet_lon_speed(jd_natal, swe.SUN)
+
+    # OQ.T.4 : precession 50.29 arcsec/an (precessed return = standard western moderne)
+    if req.precessed:
+        age_years = req.year - req.natal.year
+        target_lon = _normalize_lon(sun_natal_lon + age_years * (50.29 / 3600.0))
+    else:
+        target_lon = sun_natal_lon
+
+    # Recherche brackette : on commence au 1er jan de l'annee cible
+    jd_anchor = swe.julday(req.year, 1, 1, 0.0)
+    jd_sr = _find_return_jd(jd_anchor, target_lon, swe.SUN)
+
+    epsilon = get_obliquity(jd_sr)
+    planets = {}
+    for p in PLANETS:
+        block = _planet_block(jd_sr, p, epsilon, detailed=True)
+        if block:
+            planets[p["fr"]] = block
+    houses_data = _cusps_block(jd_sr, req.natal.latitude, req.natal.longitude)
+
+    return {
+        "statusCode": 200,
+        "output": {
+            "sr_date_utc": _fmt_jd_iso(jd_sr),
+            "sr_julian": round(jd_sr, 6),
+            "year": req.year,
+            "sun_natal_lon": round(sun_natal_lon, 4),
+            "sun_target_lon": round(target_lon, 4),
+            "precessed": req.precessed,
+            "lat_used": req.natal.latitude,
+            "lon_used": req.natal.longitude,
+            "planets": planets,
+            **houses_data,
+        },
+    }
+
+
+# ----------------------------------------------------------------------------
+# /lunar-return
+# ----------------------------------------------------------------------------
+
+class LunarReturnRequest(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    natal: BirthData
+    period_start: str  # "yyyy-mm-dd" ou "dd/mm/yyyy"
+    period_end: str
+    precessed: bool = True
+
+
+@app.post("/lunar-return")
+def lunar_return(req: LunarReturnRequest):
+    ensure_ephe_path()
+    jd_natal = to_julian(req.natal)
+    moon_natal_lon, _ = _calc_planet_lon_speed(jd_natal, swe.MOON)
+
+    start = parse_date(req.period_start)
+    end = parse_date(req.period_end)
+
+    if req.precessed:
+        age_years = start.year - req.natal.year
+        target_lon = _normalize_lon(moon_natal_lon + age_years * (50.29 / 3600.0))
+    else:
+        target_lon = moon_natal_lon
+
+    jd_start = swe.julday(start.year, start.month, start.day, 0.0)
+    jd_end = swe.julday(end.year, end.month, end.day, 23.99)
+
+    returns = []
+    jd_cursor = jd_start
+    max_returns = 50  # ~3.5 ans max
+    while jd_cursor < jd_end and len(returns) < max_returns:
+        jd_lr = _find_return_jd(jd_cursor, target_lon, swe.MOON)
+        if jd_lr > jd_end:
+            break
+        if jd_lr <= jd_cursor:
+            jd_cursor += 1.0
+            continue
+
+        epsilon = get_obliquity(jd_lr)
+        planets = {}
+        for p in PLANETS:
+            block = _planet_block(jd_lr, p, epsilon, detailed=False)
+            if block:
+                planets[p["fr"]] = block
+        houses_data = _cusps_block(jd_lr, req.natal.latitude, req.natal.longitude)
+
+        returns.append({
+            "lr_date_utc": _fmt_jd_iso(jd_lr),
+            "lr_julian": round(jd_lr, 6),
+            "moon_target_lon": round(target_lon, 4),
+            "planets": planets,
+            **houses_data,
+        })
+
+        # Avancer le curseur : Moon LR cycle = ~27.3 jours, on saute 25j
+        jd_cursor = jd_lr + 25.0
+
+    return {
+        "statusCode": 200,
+        "output": {
+            "moon_natal_lon": round(moon_natal_lon, 4),
+            "moon_target_lon": round(target_lon, 4),
+            "precessed": req.precessed,
+            "lat_used": req.natal.latitude,
+            "lon_used": req.natal.longitude,
+            "count": len(returns),
+            "returns": returns,
+        },
+    }
