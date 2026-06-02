@@ -1,0 +1,33 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "sendTo": "={{ $json.to }}",
+        "subject": "={{ $json.subject }}",
+        "message": "={{ $json.html }}",
+        "options": {}
+      },
+      "id": "45d2ab2d-9cad-492d-8a6b-4b46d1056e3c",
+      "name": "Envoyer resultat1",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        12304,
+        3920
+      ],
+      "webhookId": "2d0146b7-ebcb-49f9-8154-e0e9aa008bf6",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "Flg03IHE2aFkPhKq",
+          "name": "Gmail account 2"
+        }
+      }
+    }
+  ],
+  "connections": {},
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "b6efd2f1fad5a0a294db5a1a7e88dd550900216aaeb7344a19bf4cfc45267781"
+  }
+}

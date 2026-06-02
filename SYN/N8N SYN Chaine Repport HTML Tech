@@ -11,57 +11,27 @@
           ]
         }
       },
-      "id": "92f17cab-00f2-4196-949c-2ce81ef4e1e9",
+      "id": "2d492781-3766-40d0-aa31-9a3b34c12453",
       "name": "Contrôle Données Complètes5",
       "type": "n8n-nodes-base.if",
       "typeVersion": 1,
       "position": [
-        1792,
-        3168
+        1488,
+        2720
       ]
     },
     {
       "parameters": {
         "jsCode": "const items = $input.all();\nconst newItems = [];\n\nfor (let i = 0; i < items.length; i++) {\n  const json = items[i].json;\n  const htmlContent = json.html || \"<html><body>Erreur: Aucun HTML généré</body></html>\";\n  \n  // 1. Récupération des variables pour le nom du fichier\n  const nom = json.nom || \"\";\n  const prenom = json.prenom || \"\";\n  const dateBrute = json.date || \"\";\n  \n  // 2. Formatage du nom et de la date (ex: 12/11/1987 devient 12-11-1987)\n  const nomAffiche = prenom && nom ? `${prenom} ${nom}` : (prenom || nom || \"Inconnu\");\n  const dateFormatee = dateBrute.replace(/\\//g, '-');\n  \n  // 3. Création du nom de fichier final\n  let fileName = `index.html`;\n  \n  // 4. Création du binaire avec le nom personnalisé\n  const binaryData = await this.helpers.prepareBinaryData(Buffer.from(htmlContent), fileName, 'text/html');\n  \n  newItems.push({\n    json: json,\n    binary: {\n      data: binaryData\n    }\n  });\n}\n\nreturn newItems;"
       },
-      "id": "9ac592b7-1cf6-4ca2-b52f-3dd40fcce6fa",
+      "id": "d7c3aa12-6da6-49a6-b550-74de65a7a12d",
       "name": "Prépare HTML pour Gotenberg5",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2032,
-        3168
+        1728,
+        2720
       ]
-    },
-    {
-      "parameters": {
-        "name": "={{ $binary.data.fileName }}",
-        "driveId": {
-          "__rl": true,
-          "mode": "list",
-          "value": "My Drive"
-        },
-        "folderId": {
-          "__rl": true,
-          "value": "1Y1Ab0-erjWXxWTrL6Jd47HNWRl78AWsU",
-          "mode": "id"
-        },
-        "options": {}
-      },
-      "id": "5ad7077a-2bb8-4047-90e9-506637059e91",
-      "name": "Upload Google Drive2",
-      "type": "n8n-nodes-base.googleDrive",
-      "typeVersion": 3,
-      "position": [
-        2720,
-        3168
-      ],
-      "credentials": {
-        "googleDriveOAuth2Api": {
-          "id": "9VfQaRqjSmo3Rv1Z",
-          "name": "Google Drive account 2"
-        }
-      }
     },
     {
       "parameters": {
@@ -86,26 +56,26 @@
           }
         }
       },
-      "id": "b3fa7c5f-9f16-4e3f-899c-fe8c263c7075",
+      "id": "0c1e2a3a-1b00-4ee6-ba30-4fb6833be4b5",
       "name": "Convert HTML to PDF3",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        2256,
-        3168
+        1952,
+        2720
       ]
     },
     {
       "parameters": {
         "jsCode": "const items = $input.all();\n\nlet persoAStr = '', persoBStr = '', typoLabel = '';\ntry {\n  const synVars = $('Extract Variables SYN').first()?.json || {};\n  const pa = synVars.personne_a || {};\n  const pb = synVars.personne_b || {};\n  if (pa.prenom || pa.nom) persoAStr = `${pa.prenom || ''} ${(pa.nom || '').toUpperCase()}`.trim();\n  if (pb.prenom || pb.nom) persoBStr = `${pb.prenom || ''} ${(pb.nom || '').toUpperCase()}`.trim();\n  typoLabel = synVars.typologie || '';\n} catch(e) {}\nif (!persoAStr || !persoBStr || !typoLabel) {\n  try {\n    const prep = $('Super noeud Syn').first()?.json?._meta || {};\n    if (!persoAStr && prep.persoA) persoAStr = prep.persoA;\n    if (!persoBStr && prep.persoB) persoBStr = prep.persoB;\n    if (!typoLabel && prep.typo) typoLabel = prep.typo;\n  } catch(e) {}\n}\nconst safe = s => s.replace(/[<>:\\\"/|?*]/g, '_').trim();\npersoAStr = safe(persoAStr || 'Personne 1');\npersoBStr = safe(persoBStr || 'Personne 2');\ntypoLabel = safe(typoLabel || 'Synastrie');\nconst nomFichierCible = `Rapport Technique Synastrie - ${typoLabel} - ${persoAStr} - ${persoBStr}`;\n\nfor (const item of items) {\n  if (!item.binary) continue;\n  if (item.binary.data) {\n    item.binary.data.fileName = `${nomFichierCible}.pdf`;\n    item.binary.data.mimeType = 'application/pdf';\n    item.binary.data.fileExtension = 'pdf';\n  }\n  if (item.binary.html_file) {\n    delete item.binary.html_file;\n  }\n}\n\nreturn items;"
       },
-      "id": "14311d57-2792-4d17-922f-6b368c6b47c4",
+      "id": "659c11a2-797e-4480-b0ff-ca014d534d1f",
       "name": "Fix Nom & MIME PDF final3",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2496,
-        3168
+        2192,
+        2720
       ]
     }
   ],
@@ -145,13 +115,7 @@
     },
     "Fix Nom & MIME PDF final3": {
       "main": [
-        [
-          {
-            "node": "Upload Google Drive2",
-            "type": "main",
-            "index": 0
-          }
-        ]
+        []
       ]
     }
   },

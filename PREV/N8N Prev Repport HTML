@@ -1324,49 +1324,59 @@ const _renderHeatmap = (hd, bgColor, badgeBg, badgeTxt) => {
         const _sT = {high:'#991b1b',medium:'#92400e',low:'#166534'};
         const _rB = (r) => r==="SOLIDE"?L.fiable:r==="PROBABLE"?L.probable:r==="POSSIBLE"?L.possible:L.fragile;
         const _rC = (r) => r==="SOLIDE"?'#166534':r==="PROBABLE"?'#1e40af':r==="POSSIBLE"?'#854d0e':'#94a3b8';
+        // Phase 2 Produit (2026-05-23) : label DESCRIPTIF de la configuration astrologique.
+        // Ne promet PAS la réalisation (mesure : les 4 profils ont des taux TOP1 ~10%).
+        // Doit rester IDENTIQUE dans les 3 rapports (HTML, HTML Tech, HTML Final).
+        const _profilFiab = (sig) => {
+            const matched = (sig && Array.isArray(sig.matchedConditions)) ? sig.matchedConditions.length : 0;
+            const counter = (sig && typeof sig.counterIndicators === 'number') ? sig.counterIndicators : 0;
+            const spread  = (sig && sig.confidenceRange && typeof sig.confidenceRange.high === 'number' && typeof sig.confidenceRange.low === 'number')
+                ? (sig.confidenceRange.high - sig.confidenceRange.low) : null;
+            const robust  = (sig && typeof sig.robustness === 'number') ? sig.robustness : 0;
+            let key;
+            if (counter === 0 && matched >= 4 && (spread === null || spread <= 10) && robust >= 80) key = 'CLAIR';
+            else if (counter >= 3 && (matched === 0 || counter * 2 >= matched))                     key = 'AMBIGU';
+            else if (matched === 0 || (counter >= 6 && counter >= matched))                         key = 'FRAGILE';
+            else                                                                                    key = 'NUANCE';
+            const T = {
+                CLAIR:   { key: 'CLAIR',   lbl: isEN ? '✅ Clear configuration'                : '✅ Configuration nette',                 col: '#166534' },
+                NUANCE:  { key: 'NUANCE',  lbl: isEN ? '◉ Present configuration with nuances'  : '◉ Configuration présente avec nuances',  col: '#1e40af' },
+                AMBIGU:  { key: 'AMBIGU',  lbl: isEN ? '△ Contrasting themes'                  : '△ Thématiques contrastées',              col: '#b45309' },
+                FRAGILE: { key: 'FRAGILE', lbl: isEN ? '○ Configuration without strong signal' : '○ Configuration peu marquée',            col: '#94a3b8' }
+            };
+            return T[key];
+        };
+        // Phase 2bis (2026-05-24) : ligne contre-indicateurs SOBRE.
+        // Affichée UNIQUEMENT si counterIndicators >= 3 (= signal d'alerte tangible, médiane des counter non nuls).
+        // Format compact 1 ligne <= 110 chars, top 2 contre-indicateurs courts (<=50 chars).
+        // ZÉRO impact KPI release (couche présentation pure). Identique sur HTML Final / Tech / data.
+        const _phase2bisLines = (sig, isEN) => {
+            const cc = (sig && typeof sig.counterIndicators === 'number') ? sig.counterIndicators : 0;
+            if (cc < 3) return '';
+            const carr = (sig && Array.isArray(sig.counterDetails)) ? sig.counterDetails : [];
+            const ctop = carr.filter(x => typeof x==='string' && x.length<=50).slice(0,2);
+            const ctxt = ctop.length===0
+                ? (isEN ? (cc+' tempering elements') : (cc+' éléments tempèrent ce signal'))
+                : (isEN ? (cc+' tempering elements: ') : (cc+' éléments à tempérer : ')) + ctop.join(' · ');
+            return '<div style="margin-top:6px;font-size:11px;color:#92400e">⚠ '+ctxt+'</div>';
+        };
         // Sprint 32 / Axe B : titre aligné sur le pivot éditorial (configurations actives, pas événements prédits)
         h += `<div style="page-break-before:always;break-before:page;margin-top:16px;padding:14px 18px;background:#fafbff;border:1px solid #d0daf0;border-radius:8px"><div style="font-size:0.85rem;font-weight:700;color:#1e3a8a;margin-bottom:10px">${isEN ? '🔍 Active Astrological Configurations' : '🔍 Configurations astrologiques actives'}</div>`;
         // v19.12 (F2) : ne mentionner que les sigs reportable=true (level !== low, calculé S1).
         // Les sigs filtrées (low conf) restent dans heatmap/data (debug/recall) mais masquées au lecteur.
-        const _displaySigs = hd.eventSignatures.filter(s => s.reportable !== false);
+        const _displaySigs = hd.eventSignatures.filter(s => s.reportable !== false).sort((a,b)=>(b.confidence||0)-(a.confidence||0)).slice(0, 5);
         _displaySigs.forEach((sig, idx) => {
             const bg=_sB[sig.level]||_sB.low, brd=_sR[sig.level]||_sR.low, tx=_sT[sig.level]||_sT.low;
             const dl = sig.qualifiedLabel && sig.qualifiedLabel !== sig.label ? sig.qualifiedLabel : sig.label;
             h += `<div style="margin-bottom:10px;padding:10px 14px;background:${bg};border-left:4px solid ${brd};border-radius:4px">`;
             h += `<div style="display:flex;justify-content:space-between;align-items:center"><span style="font-size:0.85rem;color:${tx};font-weight:700">${sig.icon} ${dl}</span><span style="font-size:0.8rem;font-weight:700;color:${tx}">${sig.confidence}%</span></div>`;
-            h += `<div style="margin-top:4px;font-size:0.7rem;color:${_rC(sig.robustnessLabel)};font-weight:600">${_rB(sig.robustnessLabel)}`;
+            const _pf = _profilFiab(sig);
+            h += `<div style="margin-top:4px;font-size:0.7rem;color:${_pf.col};font-weight:600">${_pf.lbl}`;
             if (sig.convergence >= 4) h += ` · ${sig.convergence}/12 techniques`;
             if (sig.safetyOverride) h += ` <span style="color:#dc2626;font-size:0.62rem">🔒 ${L.reinsSec}</span>`;
             h += `</div>`;
-            if (sig.pnaTier) { const _pC = {PRIMAIRE:'#991b1b',SECONDAIRE:'#1e40af',TERTIAIRE:'#94a3b8'}; h += `<div style="margin-top:2px;font-size:0.65rem;color:${_pC[sig.pnaTier]||'#94a3b8'}">🧬 ${L.profilNat} ${sig.pnaTier === 'PRIMAIRE' ? L.domPrioritaire : sig.pnaTier === 'SECONDAIRE' ? L.domSecondaire : L.domMineur} (${L.poids} ${sig.pnaWeight||'—'})</div>`; }
-            // Sprint 26-27 : badge "Promesse natale" (score 0-15) — indique la prédisposition naturelle du thème natal au type d'événement
-            if (sig.s25Parasite && typeof sig.s25Parasite.np === 'number') {
-                const _np = sig.s25Parasite.np;
-                const _npBg = _np >= 10 ? '#dcfce7' : _np >= 6 ? '#dbeafe' : _np >= 3 ? '#fef9c3' : '#fee2e2';
-                const _npTx = _np >= 10 ? '#166534' : _np >= 6 ? '#1e40af' : _np >= 3 ? '#854d0e' : '#991b1b';
-                const _npLbl = _np >= 10 ? (isEN ? 'Strong natal disposition' : 'Forte disposition natale') : _np >= 6 ? (isEN ? 'Marked natal disposition' : 'Disposition natale marquée') : _np >= 3 ? (isEN ? 'Mild natal disposition' : 'Disposition natale modeste') : (isEN ? 'Weak natal disposition' : 'Disposition natale faible');
-                h += `<div style="margin-top:2px;display:inline-block;padding:1px 6px;background:${_npBg};border-radius:3px;font-size:0.6rem;font-weight:700;color:${_npTx}">🎯 ${_npLbl} ${_np}/15</div>`;
-            }
-            // Sprint 27 : badge "Promotion structurelle" — sig boostée par concordance NP fort + appuis natal/progressé
-            if (sig.s27Promotion) {
-                const _s27 = sig.s27Promotion;
-                const _s27Pct = Math.round((_s27.boost - 1) * 100);
-                h += ` <span style="display:inline-block;padding:1px 6px;background:#ede9fe;border-radius:3px;font-size:0.6rem;font-weight:700;color:#5b21b6;margin-left:4px">⚡ ${isEN ? 'Structurally boosted' : 'Promu structurellement'} +${_s27Pct}% (${_s27.signals} ${isEN ? 'signals' : 'signaux'})</span>`;
-            }
-            if (sig.progMoonMonths?.length > 0) h += `<div style="margin-top:1px;font-size:0.62rem;color:#7c3aed">🌙 ${L.luneProg} ${sig.progMoonMonths.join(', ')}</div>`;
-            if (sig.maleficOverride?.length > 0) h += `<div style="margin-top:1px;font-size:0.62rem;color:#dc2626">⚠️ ${sig.maleficOverride.join(', ')} → ${L.penalite} ×${sig.maleficPenalty||'?'}</div>`;
-            if (sig.nodalReturn) h += `<div style="margin-top:1px;font-size:0.62rem;color:#7c3aed">☊ ${sig.nodalReturn}</div>`;
-            if (sig.natalConfigBoost?.length > 0) h += `<div style="margin-top:1px;font-size:0.62rem;color:#059669">🔗 ${L.configNat} ${sig.natalConfigBoost.join(', ')}</div>`;
-            if (sig.eclipseReactivation?.length > 0) h += `<div style="margin-top:1px;font-size:0.62rem;color:#6d28d9">🌑 ${L.eclReactivee} ${sig.eclipseReactivation.slice(0,2).join('; ')}</div>`;
-            if (sig.aspectPhase) h += `<div style="margin-top:1px;font-size:0.62rem;color:#0369a1">🎯 ${sig.aspectPhase === 'applying' ? L.enApplication : L.enSeparation}</div>`;
-            if (sig.progAspects?.length > 0) h += `<div style="margin-top:1px;font-size:0.62rem;color:#b45309">🔮 ${sig.progAspects.slice(0,3).join('; ')}</div>`;
-            if (sig.progStations?.length > 0) h += `<div style="margin-top:1px;font-size:0.62rem;color:#7c3aed">🔄 ${sig.progStations.join('; ')}</div>`;
-            if (sig.progSignChanges?.length > 0) h += `<div style="margin-top:1px;font-size:0.62rem;color:#059669">♈ ${sig.progSignChanges.join('; ')}</div>`;
-            if (sig.arcAspects?.length > 0) h += `<div style="margin-top:1px;font-size:0.62rem;color:#dc2626">☀ ${sig.arcAspects.slice(0,3).join('; ')}</div>`;
-            if (sig.dpConfirmed?.length > 0) h += `<div style="margin-top:1px;font-size:0.62rem;color:#7e22ce;font-weight:600">🏛️ ${isEN ? 'Primary Dir.' : 'Dir. primaire'} : ${sig.dpConfirmed.slice(0,2).join('; ')}</div>`;
-            if (sig.firdConfirmed) h += `<div style="margin-top:1px;font-size:0.62rem;color:#b45309">⏳ ${isEN ? 'Time-lord' : 'Chronocrateur'} : ${sig.firdConfirmed}</div>`;
-            if ((sig.pyramidLevel||0) >= 2) { const _pyrBg = sig.pyramidLevel >= 3 ? '#fef3c7' : '#ede9fe'; const _pyrTx = sig.pyramidLevel >= 3 ? '#92400e' : '#5b21b6'; const _pyrLbl = sig.pyramidLevel >= 3 ? (isEN ? '🔺 Full Pyramid' : '🔺 Pyramide complète') : (isEN ? '🏛️ Primary Dir. confirmed' : '🏛️ Dir. primaire confirmée'); h += `<div style="margin-top:2px;display:inline-block;padding:1px 6px;background:${_pyrBg};border-radius:3px;font-size:0.6rem;font-weight:700;color:${_pyrTx}">${_pyrLbl}</div>`; }
-            if (sig.counterIndicators > 0) h += `<div style="margin-top:1px;font-size:0.62rem;color:#d97706">🛡️ ${sig.counterIndicators} ${L.contreInd}${sig.counterDetails?.length > 0 ? ' : ' + sig.counterDetails.slice(0,2).join('; ') : ''}</div>`;
+            h += _phase2bisLines(sig, isEN);
+            /* _SIMPLIFY_TOP5_ : badges techniques retirés (PNA, NP, S27, prog, arc, DP, Firdaria, Pyramid, counter-ind.) */
             if (sig.peakWindow) {
               // Palier 14 / Patch H : displayDates équilibrées (passe H1 Super noeud1).
               // Fallback sur triggerDates puis peakDates si non disponibles.
@@ -1375,7 +1385,7 @@ const _renderHeatmap = (hd, bgColor, badgeBg, badgeTxt) => {
                 : (sig.displayDates?.length > 0
                     ? sig.displayDates
                     : (sig.triggerDates?.length > 0 ? sig.triggerDates : (sig.peakWindow.peakDates || [])));
-              const dispDates = _src.slice(0,5).map(d => d?.slice(5)).filter(Boolean);
+              const dispDates = _src.slice(0,5).map(d => (d===((sig.peakWindow&&sig.peakWindow.principalDate)||null)?'★':'')+(d?.slice(5)||'')).filter(Boolean);
               h += `<div style="margin-top:3px;font-size:0.68rem;color:#64748b">📌 ${sig.peakWindow.start?.slice(5)||''} → ${sig.peakWindow.end?.slice(5)||''}${dispDates.length > 0 ? ' · ⚡ ' + dispDates.join(', ') : ''}</div>`;
             }
             if (sig.guidance) h += `<div style="margin-top:4px;font-size:0.7rem;color:#475569;font-style:italic">${sig.guidance}</div>`;

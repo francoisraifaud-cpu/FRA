@@ -1,0 +1,72 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://46.225.174.155:3000/forms/chromium/convert/html",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "parameterType": "formBinaryData",
+              "name": "files",
+              "inputDataFieldName": "html_file"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          }
+        }
+      },
+      "id": "d9cf8f60-ca5f-436e-b2bb-96560cd7e40b",
+      "name": "Convert HTML to PDF",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -17440,
+        5024
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\n\nfor (const item of items) {\n  if (!item.binary) continue;\n\n  // Récupère le nom du fichier depuis le premier noeud (pour préserver le format)\n  const desiredName = item.json.desiredFilename || \"Données Techniques Prévisions.pdf\";\n\n  // 1. On cible spécifiquement le vrai fichier PDF renvoyé par Gotenberg (sous la clé 'data')\n  if (item.binary.data) {\n    item.binary.data.fileName = desiredName;\n    item.binary.data.mimeType = 'application/pdf';\n    item.binary.data.fileExtension = 'pdf';\n  }\n\n  // 2. On supprime le fichier HTML d'origine pour ne garder QUE le PDF et éviter les doublons\n  if (item.binary.html_file) {\n    delete item.binary.html_file;\n  }\n}\n\nreturn items;"
+      },
+      "id": "e6109380-5736-4fc4-9b23-f11075d28a4a",
+      "name": "Fix Nom & MIME PDF final",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -17264,
+        5024
+      ]
+    }
+  ],
+  "connections": {
+    "Convert HTML to PDF": {
+      "main": [
+        [
+          {
+            "node": "Fix Nom & MIME PDF final",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fix Nom & MIME PDF final": {
+      "main": [
+        []
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "b6efd2f1fad5a0a294db5a1a7e88dd550900216aaeb7344a19bf4cfc45267781"
+  }
+}
