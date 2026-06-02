@@ -1146,6 +1146,15 @@ class SolarReturnRequest(BaseModel):
     natal: BirthData
     year: int
     precessed: bool = True
+    # RS RELOCALISEE Doctrine B Volguine (Brady Ch.6 R.6.1, Teal Ch.10 R.T.10.4) :
+    # si fournis, les cuspides Placidus + ASC + MC + ARMC sont calcules au lieu de
+    # relocation (= ou la personne se trouve a l'instant du retour solaire).
+    # Si null/absents : fallback sur natal.latitude / natal.longitude (= RS natale).
+    # Les positions planetaires absolues (longitude Soleil/Lune/etc.) restent globales
+    # et identiques dans tous les cas.
+    relocation_lat: float | None = None
+    relocation_lon: float | None = None
+    relocation_label: str | None = None
 
 
 @app.post("/solar-return")
@@ -1171,7 +1180,22 @@ def solar_return(req: SolarReturnRequest):
         block = _planet_block(jd_sr, p, epsilon, detailed=True)
         if block:
             planets[p["fr"]] = block
-    houses_data = _cusps_block(jd_sr, req.natal.latitude, req.natal.longitude)
+
+    # RS RELOCALISEE : si relocation_lat/lon fournis et valides (|lat|<=90, |lon|<=180),
+    # cuspides Placidus + ASC/MC calcules au lieu de relocation (lieu prochain
+    # anniversaire). Sinon : fallback natal (RS natale).
+    reloc_lat_valid = (
+        req.relocation_lat is not None
+        and -90.0 <= req.relocation_lat <= 90.0
+    )
+    reloc_lon_valid = (
+        req.relocation_lon is not None
+        and -180.0 <= req.relocation_lon <= 180.0
+    )
+    relocated = reloc_lat_valid and reloc_lon_valid
+    lat_used = req.relocation_lat if relocated else req.natal.latitude
+    lon_used = req.relocation_lon if relocated else req.natal.longitude
+    houses_data = _cusps_block(jd_sr, lat_used, lon_used)
 
     return {
         "statusCode": 200,
@@ -1182,8 +1206,10 @@ def solar_return(req: SolarReturnRequest):
             "sun_natal_lon": round(sun_natal_lon, 4),
             "sun_target_lon": round(target_lon, 4),
             "precessed": req.precessed,
-            "lat_used": req.natal.latitude,
-            "lon_used": req.natal.longitude,
+            "relocated": relocated,
+            "relocation_label": req.relocation_label if relocated else None,
+            "lat_used": lat_used,
+            "lon_used": lon_used,
             "planets": planets,
             **houses_data,
         },
@@ -1200,6 +1226,11 @@ class LunarReturnRequest(BaseModel):
     period_start: str  # "yyyy-mm-dd" ou "dd/mm/yyyy"
     period_end: str
     precessed: bool = True
+    # LR RELOCALISEE Doctrine B (Teal Ch.10 R.T.10.4) : meme logique que SR.
+    # Si null/absents : fallback sur natal.latitude / natal.longitude (= LR natale).
+    relocation_lat: float | None = None
+    relocation_lon: float | None = None
+    relocation_label: str | None = None
 
 
 @app.post("/lunar-return")
@@ -1220,6 +1251,19 @@ def lunar_return(req: LunarReturnRequest):
     jd_start = swe.julday(start.year, start.month, start.day, 0.0)
     jd_end = swe.julday(end.year, end.month, end.day, 23.99)
 
+    # LR RELOCALISEE : meme logique que SR (cf. /solar-return).
+    reloc_lat_valid = (
+        req.relocation_lat is not None
+        and -90.0 <= req.relocation_lat <= 90.0
+    )
+    reloc_lon_valid = (
+        req.relocation_lon is not None
+        and -180.0 <= req.relocation_lon <= 180.0
+    )
+    relocated = reloc_lat_valid and reloc_lon_valid
+    lat_used = req.relocation_lat if relocated else req.natal.latitude
+    lon_used = req.relocation_lon if relocated else req.natal.longitude
+
     returns = []
     jd_cursor = jd_start
     max_returns = 50  # ~3.5 ans max
@@ -1237,7 +1281,7 @@ def lunar_return(req: LunarReturnRequest):
             block = _planet_block(jd_lr, p, epsilon, detailed=False)
             if block:
                 planets[p["fr"]] = block
-        houses_data = _cusps_block(jd_lr, req.natal.latitude, req.natal.longitude)
+        houses_data = _cusps_block(jd_lr, lat_used, lon_used)
 
         returns.append({
             "lr_date_utc": _fmt_jd_iso(jd_lr),
@@ -1256,8 +1300,10 @@ def lunar_return(req: LunarReturnRequest):
             "moon_natal_lon": round(moon_natal_lon, 4),
             "moon_target_lon": round(target_lon, 4),
             "precessed": req.precessed,
-            "lat_used": req.natal.latitude,
-            "lon_used": req.natal.longitude,
+            "relocated": relocated,
+            "relocation_label": req.relocation_label if relocated else None,
+            "lat_used": lat_used,
+            "lon_used": lon_used,
             "count": len(returns),
             "returns": returns,
         },

@@ -2,7 +2,7 @@
 
 **Rôle de ce document** : consolider en un seul endroit **tous les contrats HTTP**, le **comportement interne** du code, l’**arborescence serveur**, l’**infra** (systemd, nginx, Docker Gotenberg) et les **règles de non-régression**. Les détails opérationnels longs (reconstruction VM, UFW, fail2ban, runbook incidents) restent dans **[INVENTAIRE-SERVEUR-ASTRO-SWISSEPH-GOTENBERG.md](./INVENTAIRE-SERVEUR-ASTRO-SWISSEPH-GOTENBERG.md)** ; le **fil des interventions** dans **[JOURNAL-OPERATIONS.md](./JOURNAL-OPERATIONS.md)** ; les **URLs n8n** dans **[CORRESPONDANCE-IP-URL-N8N.md](./CORRESPONDANCE-IP-URL-N8N.md)**.
 
-**Dernière mise à jour rédactionnelle** : 2026-06-02 (ajout `POST /solar-return`, `POST /lunar-return`, `POST /directions/primary`, `POST /batch/western/planets` — exhaustivité 12/12 endpoints serveur).
+**Dernière mise à jour rédactionnelle** : 2026-06-02 (ajout `POST /solar-return`, `POST /lunar-return` avec **relocation Volguine** + intégration `Prepare Data` v12, `POST /directions/primary`, `POST /batch/western/planets` — exhaustivité 12/12 endpoints serveur).
 
 ---
 
@@ -291,17 +291,22 @@ Pour chaque mois, objet `planetes` :
 - Fail-safe : si l'API échoue/timeout (>15s), le Super noeud1 bascule automatiquement sur le calcul JS Naibod legacy conservé en fallback (β=0, ε fixe) — voir `FRA/PREV/N8N Prev` L6126-6211.
 - Le type `primary_direction` est consommé par les 14 matrices MDSE DTC v20 avec poids 14-18 (cf. `FRA/PREV/N8N Prev` L6894/L6963/L7014/etc.).
 
-### 4.11 `POST /solar-return` *(ajouté 2026-06-02 — TRANCHE 3 V23)*
+### 4.11 `POST /solar-return` *(ajouté 2026-06-02 — TRANCHE 3 V23, relocation patch v12)*
 
 | | |
 |--|--|
 | **Verbe** | `POST` |
-| **Body JSON** | `{ "natal": BirthData, "year": int, "precessed": bool }` |
-| **Réponse** | Carte de Révolution Solaire (SR) precessed-only par défaut, **lieu de naissance** comme lieu de calcul (pas de relocation v1) |
+| **Body JSON** | `{ "natal": BirthData, "year": int, "precessed": bool, "relocation_lat": float?, "relocation_lon": float?, "relocation_label": str? }` |
+| **Réponse** | Carte de Révolution Solaire (SR) precessed-only par défaut, **relocalisée au lieu fourni** ou fallback lieu natal |
 
 **Doctrine source** : Brady *Predictive Astrology* Ch.6 R.6.1 ("Solar Return read as stand-alone chart of the year") + Rushman *Art of Predictive Astrology* Ch.5 R.5.1 + Teal *Predictive Astrology* Ch.10 R.T.10.1.
 
 **Méthode** : recherche dichotomique Newton sur longitude solaire (`swe.calc_ut(SUN)` itéré ~5-15 fois jusqu'à tolérance `1e-5°`). Précession (`precessed: true`, défaut) = ajustement de cible par `age_years × 50.29″/an` (OQ.T.4 verdict utilisateur 2026-06-02 — voir `SITE/scripts/dtc/doctrines/oq-decisions-2026-06-02.json`).
+
+**Relocation Doctrine B Volguine (patch 2026-06-02 v12)** : Brady Ch.6 R.6.1 et Teal Ch.10 R.T.10.4 stipulent que les cuspides Placidus + ASC/MC/ARMC d'une SR doivent être calculés au **lieu où la personne se trouve à l'instant du retour solaire**, pas au lieu natal.
+- Si `relocation_lat` ∈ [-90, 90] **et** `relocation_lon` ∈ [-180, 180] sont fournis → cuspides recalculées au lieu de relocation.
+- Sinon (null/absent/hors borne) → fallback automatique sur `natal.latitude / natal.longitude` (SR natale stricte).
+- **Important** : les positions planétaires absolues (longitude Soleil/Lune/Mercure/...) sont **globales** et identiques dans les deux cas. Seuls les angles et cuspides changent.
 
 **Garanties contrat** :
 
@@ -309,59 +314,106 @@ Pour chaque mois, objet `planetes` :
 - `output.sr_julian` : Julian Day UT (6 décimales)
 - `output.sun_natal_lon`, `output.sun_target_lon` : longitude écliptique Soleil natal et cible précessée (degrés)
 - `output.precessed` : booléen (echo de la requête)
-- `output.lat_used`, `output.lon_used` : coordonnées lieu de calcul (= lieu natal v1)
-- `output.planets` : dict FR `{"Soleil"|"Lune"|...|"Pluton"|"Cérès"|"Lilith"|"Nœud moyen"|"Nœud vrai"}` chacune avec `longitude_absolue`/`signe`/`degre_dans_signe`/`est_retrograde`/`latitude`/`distance_ua`/`vitesse_longitude`/`declinaison` (mêmes champs que `/transits`)
-- `output.cusps` : tableau de 12 cuspides Placidus `{house, longitude, signe, degre_dans_signe}`
-- `output.asc`, `output.mc`, `output.armc` : angles SR (degrés écliptiques + ARMC degrés)
+- `output.relocated` : booléen — `true` si la SR a été relocalisée, `false` si fallback natal
+- `output.relocation_label` : string ou `null` — label transmis (ex. "Paris, France") ou null si fallback
+- `output.lat_used`, `output.lon_used` : coordonnées effectivement utilisées (relocation si fournie, sinon natal)
+- `output.planets` : dict FR `{"Soleil"|"Lune"|...|"Pluton"|"Cérès"|"Lilith"|"Nœud moyen"|"Nœud vrai"}` chacune avec `longitude_absolue`/`signe`/`degre_dans_signe`/`est_retrograde`/`latitude`/`distance_ua`/`vitesse_longitude`/`declinaison` (mêmes champs que `/transits`) — **invariants vs relocation**
+- `output.cusps` : tableau de 12 cuspides Placidus `{house, longitude, signe, degre_dans_signe}` — **dépend du lieu**
+- `output.asc`, `output.mc`, `output.armc` : angles SR (degrés écliptiques + ARMC degrés) — **dépendent du lieu**
 
-**Exemple** :
+**Exemple — SR natale (relocation absente)** :
 ```bash
 curl -X POST http://46.225.174.155:8000/solar-return \
   -H "Content-Type: application/json" \
   -d '{
-    "natal": {"year":1879,"month":3,"date":14,"hours":11,"minutes":30,"seconds":0,"latitude":48.4011,"longitude":9.9876,"timezone":0.66},
+    "natal": {"year":1879,"month":3,"date":14,"hours":11,"minutes":30,"seconds":0,"latitude":48.4,"longitude":10.0,"timezone":1},
     "year": 1933,
     "precessed": true
   }'
 ```
 
-→ `sr_date_utc: "1933-03-15T07:13:46Z"`, ASC SR = 41.06° (Taureau), MC SR = 289.28° (Capricorne), Soleil SR = 354.26° (Poissons).
+→ `sr_date_utc: "1933-03-15T06:53:22Z"`, `relocated: false`, ASC SR = 32.02°, MC SR = 284.53° (Ulm).
 
-### 4.12 `POST /lunar-return` *(ajouté 2026-06-02 — TRANCHE 3 V23)*
+**Exemple — SR relocalisée à Paris** :
+```bash
+curl -X POST http://46.225.174.155:8000/solar-return \
+  -H "Content-Type: application/json" \
+  -d '{
+    "natal": {"year":1879,"month":3,"date":14,"hours":11,"minutes":30,"seconds":0,"latitude":48.4,"longitude":10.0,"timezone":1},
+    "year": 1933,
+    "precessed": true,
+    "relocation_lat": 48.85,
+    "relocation_lon": 2.35,
+    "relocation_label": "Paris, France"
+  }'
+```
+
+→ `sr_date_utc: "1933-03-15T06:53:22Z"` (identique), `relocated: true`, ASC SR = 17.33°, MC SR = 277.46° (Paris). Le Soleil reste au même degré (354.25°), seuls les angles et maisons changent.
+
+**Consommateurs** :
+- `FRA/PREV/N8N Prev Prepare Data` v12 (2026-06-02) : lit `birthday_place_lat / _lng / _formatted_address` depuis le payload webhook (formulaire site « lieu prochain anniversaire ») et les passe en `relocation_lat / _lon / _label`. Exposé en aval comme `prepareOut._v23SolarReturn`.
+
+### 4.12 `POST /lunar-return` *(ajouté 2026-06-02 — TRANCHE 3 V23, relocation patch v12)*
 
 | | |
 |--|--|
 | **Verbe** | `POST` |
-| **Body JSON** | `{ "natal": BirthData, "period_start": "YYYY-MM-DD"|"DD/MM/YYYY", "period_end": same, "precessed": bool }` |
-| **Réponse** | Tableau de tous les **retours lunaires** dans la fenêtre temporelle (typiquement ~13 par an, cycle ~27.3 jours), precessed-only par défaut |
+| **Body JSON** | `{ "natal": BirthData, "period_start": "YYYY-MM-DD"\|"DD/MM/YYYY", "period_end": same, "precessed": bool, "relocation_lat": float?, "relocation_lon": float?, "relocation_label": str? }` |
+| **Réponse** | Tableau de tous les **retours lunaires** dans la fenêtre temporelle (typiquement ~13 par an, cycle ~27.3 jours), precessed-only par défaut, **relocalisés au lieu fourni** ou fallback lieu natal |
 
-**Doctrine source** : Teal Ch.10 R.T.10.3 ("LR matches SR on a point = trigger month for the year's themes") + Brady R.6.1 (Returns lus en stand-alone).
+**Doctrine source** : Teal Ch.10 R.T.10.3 ("LR matches SR on a point = trigger month for the year's themes") + R.T.10.4 (relocation) + Brady R.6.1 (Returns lus en stand-alone).
 
 **Méthode** : itération `swe.calc_ut(MOON)` avec recherche Newton (Moon avance ~13°/jour, convergence rapide en ~5-10 itérations). Le curseur avance de 25 jours après chaque retour trouvé pour éviter les doublons. Garde-fou : **50** retours max par appel.
+
+**Relocation Doctrine B Volguine (patch 2026-06-02 v12)** : même comportement que `/solar-return` (cf. §4.11) — paramètres `relocation_lat / _lon / _label` optionnels, validation `[-90, 90]` / `[-180, 180]`, fallback automatique sur natal si invalides. Toutes les 13 LR de la fenêtre utilisent le **même** lieu de relocation (hypothèse : la personne reste dans la même ville sur la période demandée). Si un voyage entre deux LR est attendu, faire deux appels distincts avec deux `relocation_*` différents.
 
 **Garanties contrat** :
 
 - `output.moon_natal_lon`, `output.moon_target_lon` : longitude écliptique Lune natale et cible précessée
-- `output.precessed`, `output.lat_used`, `output.lon_used`, `output.count` : metadonnées
+- `output.precessed` : echo
+- `output.relocated`, `output.relocation_label` : `true`/label si relocation effective, `false`/null sinon
+- `output.lat_used`, `output.lon_used` : coordonnées effectives (relocation si fournie, sinon natal)
+- `output.count` : nombre de LR trouvées dans la fenêtre
 - `output.returns` : tableau d'objets, chacun :
   - `lr_date_utc` : ISO 8601 UTC
   - `lr_julian` : Julian Day UT
-  - `planets` : dict FR (mêmes clés que SR mais sans `declinaison`/`latitude`/`distance_ua`/`vitesse_longitude` — light pour réduire payload size, contient juste `longitude_absolue`/`signe`/`degre_dans_signe`/`est_retrograde`)
-  - `cusps`, `asc`, `mc`, `armc` : maisons Placidus au lieu natal à l'instant du retour
+  - `moon_target_lon` : echo de la cible
+  - `planets` : dict FR (mêmes clés que SR mais sans `declinaison`/`latitude`/`distance_ua`/`vitesse_longitude` — light pour réduire payload size, contient juste `longitude_absolue`/`signe`/`degre_dans_signe`/`est_retrograde`) — **invariants vs relocation**
+  - `cusps`, `asc`, `mc`, `armc` : maisons Placidus au **lieu de relocation** (ou natal si fallback) à l'instant du retour — **dépendent du lieu**
 
-**Exemple** :
+**Exemple — LR natale** :
 ```bash
 curl -X POST http://46.225.174.155:8000/lunar-return \
   -H "Content-Type: application/json" \
   -d '{
-    "natal": {"year":1879,"month":3,"date":14,"hours":11,"minutes":30,"seconds":0,"latitude":48.4011,"longitude":9.9876,"timezone":0.66},
-    "period_start": "1933-01-01",
-    "period_end": "1933-12-31",
+    "natal": {"year":1879,"month":3,"date":14,"hours":11,"minutes":30,"seconds":0,"latitude":48.4,"longitude":10.0,"timezone":1},
+    "period_start": "01/01/1933",
+    "period_end": "31/12/1933",
     "precessed": true
   }'
 ```
 
-→ `count: 13` retours, premier `1933-01-22T12:08:00Z`, dernier ~décembre 1933.
+→ `count: 13` retours, premier `1933-01-22T11:48:32Z`, `relocated: false`.
+
+**Exemple — LR relocalisées à Paris** :
+```bash
+curl -X POST http://46.225.174.155:8000/lunar-return \
+  -H "Content-Type: application/json" \
+  -d '{
+    "natal": {"year":1879,"month":3,"date":14,"hours":11,"minutes":30,"seconds":0,"latitude":48.4,"longitude":10.0,"timezone":1},
+    "period_start": "01/01/1933",
+    "period_end": "31/12/1933",
+    "precessed": true,
+    "relocation_lat": 48.85,
+    "relocation_lon": 2.35,
+    "relocation_label": "Paris, France"
+  }'
+```
+
+→ `count: 13`, `relocated: true`, dates identiques mais asc/mc/cusps recalculés au méridien de Paris.
+
+**Consommateurs** :
+- `FRA/PREV/N8N Prev Prepare Data` v12 (2026-06-02) : même logique que SR (lit `birthday_place_*` du payload webhook). Exposé en aval comme `prepareOut._v23LunarReturns.returns[]`.
 
 ### 4.13 `POST /batch/western/planets` *(helper batch)*
 

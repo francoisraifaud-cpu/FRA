@@ -14,6 +14,59 @@ Pour **n8n** (ports 80 / 8000, IPv6, futur changement d’IP) : **[CORRESPONDANC
 
 ---
 
+## 2026-06-02 (soir) — Patch relocation `/solar-return` + `/lunar-return` + intégration `Prepare Data` v12
+
+### Symptôme
+
+Bug doctrinal critique signalé par l'utilisateur : la v1 des endpoints `/solar-return` et `/lunar-return` calculait toujours les cuspides Placidus + ASC/MC/ARMC au lieu **natal**, alors que la doctrine western moderne (Brady Ch.6 R.6.1, Teal Ch.10 R.T.10.4, Volguine RS relocalisée — déjà implémentée dans Super noeud1 S6.24.4) impose le **lieu où la personne se trouve à l'instant du retour solaire**. Le formulaire site PREV expose déjà ce champ (`birthday_place_lat / _lng / _formatted_address`) mais il n'était pas câblé aux 2 nouveaux endpoints SR/LR.
+
+### Patch additif strict
+
+- **`main.py` API** : ajout de trois champs optionnels à `SolarReturnRequest` et `LunarReturnRequest` :
+  - `relocation_lat: float | None` (validation `[-90, 90]`)
+  - `relocation_lon: float | None` (validation `[-180, 180]`)
+  - `relocation_label: str | None` (passthrough pour traçabilité)
+  - Logique : `relocated = lat_valid AND lon_valid` → si vrai, `lat_used / lon_used = relocation_*`, sinon `= natal.*`. Fallback automatique silencieux.
+  - Output enrichi : `relocated` (bool), `relocation_label` (echo ou null), `lat_used`, `lon_used`.
+- **`FRA/PREV/N8N Prev Prepare Data` v12** : lecture de `_birth.birthday_place_lat / _lng / _formatted_address` (= payload webhook complet, déjà disponible côté `2. Préparation dynamique1`). Mêmes bornes de validation que Super noeud1 S6.24.4 (cohérence Doctrine B Volguine). Si présents et valides → ajoutés au body API `relocation_lat / _lon / _label`. Sinon → omis (fallback API natal).
+- **Garantie astro** : les positions planétaires absolues (longitude écliptique Soleil/Lune/Mercure/...) sont **invariantes** vs relocation — seuls les angles et cuspides changent.
+
+### Tests
+
+- `bash _smoke-returns-relocation.sh` (Einstein 1933, 5 cas) :
+  - **TEST 1** SR natal (Ulm) : ASC 32.02° / MC 284.53°
+  - **TEST 2** SR relocalisée Paris (48.85 / 2.35) : ASC 17.33° / MC 277.46° — `sr_date_utc` **identique** à TEST 1 ✓
+  - **TEST 3** SR relocalisée NY (40.71 / -74.01) : ASC 269.86° / MC 203.51° — `sr_date_utc` **identique** ✓
+  - **TEST 4** LR Paris 13 retours : asc/mc recalculés au méridien Paris ✓
+  - **TEST 5** Coords invalides (`lat=999`) : `relocated=false`, fallback natal → **résultat identique TEST 1** ✓ (garantit le fail-safe)
+
+### Déploiement
+
+- API serveur `/opt/astro/api/main.py` synchronisée + `systemctl restart astro-api.service` + `/health` OK
+- `FRA/PREV/N8N Prev Prepare Data` v12 déployée en **PREPROD** (workflow `jKwmxAm3HvjpHC5U`) via `SITE/scripts/prev-deploy-prepare-data.mjs`. 7/7 sentinelles vérifiées post-PUT (`transitsData`, `eclipsesData`, `_mdsePrimaryDirectionsApi`, `_v23SolarReturn`, `_v23LunarReturns`, `birthday_place_lat`, `relocation_lat`).
+- Backup PREPROD v11 conservé : `SITE/scripts/prev-prepare-data-backups/prepare-data-2026-06-02T22-01-50-768Z.js`.
+- **PROD non déployée à ce stade** — décision utilisateur (reste en v9, sera promue à terme avec V23 TRANCHE 3).
+
+### Comportement utilisateur final
+
+| Cas formulaire site | Champ payload | Comportement |
+|---|---|---|
+| « Lieu prochain anniversaire » **vide** | `birthday_place_lat` absent ou null | Fallback automatique sur lieu de naissance — SR/LR natales |
+| « Lieu prochain anniversaire » **renseigné** | `birthday_place_lat`/`_lng` numériques | SR/LR **relocalisées** au lieu saisi — cuspides + ASC/MC recalculés |
+| Coords présentes mais hors borne | `lat > 90` ou `\|lon\| > 180` | Validation côté `Prepare Data` (v12) ET côté API → fallback natal silencieux |
+
+### Fichiers touchés
+
+- `/opt/astro/api/main.py` (serveur) : +`relocation_*` aux 2 Pydantic models, +`relocated` aux outputs.
+- `FRA/API SE/main.py` (local) : sync depuis serveur.
+- `FRA/API SE/DOCUMENTATION-REFERENCE-API-ET-SERVEUR.md` : §4.11 + §4.12 réécrites avec exemples relocation, en-tête maj.
+- `FRA/API SE/JOURNAL-OPERATIONS.md` : présente entrée.
+- `FRA/API SE/_smoke-returns-relocation.sh` : test 5 cas Einstein 1933.
+- `FRA/PREV/N8N Prev Prepare Data` : v11 → v12 (lecture `birthday_place_*` + envoi `relocation_*`).
+- `SITE/scripts/prev-deploy-prepare-data.mjs` : 7 sentinelles (ajout v12 markers).
+
+---
+
 ## 2026-06-02 — Ajout endpoints `/solar-return`, `/lunar-return` + audit doc complet
 
 ### Contexte
