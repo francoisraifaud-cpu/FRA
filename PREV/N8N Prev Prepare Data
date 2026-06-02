@@ -22,6 +22,15 @@
 //   cuspides Placidus + ASC + MC + ARMC recalculés au lieu de relocation. Sinon →
 //   fallback côté API sur les coords natales (RS/LR natales). Les positions
 //   planétaires absolues (longitude Soleil/Lune/etc.) restent globales et inchangées.
+// Nouveau v13 (2026-06-03) : FIX SOURCE RELOCATION — lecture des champs
+//   `birthday_place_*` depuis `_vars` (= $("Extract Variables").first().json,
+//   payload webhook complet) au lieu de `_birth` (= JSON.parse(_prep.body) qui
+//   ne contient que les params natal pour swisseph year/month/.../latitude/longitude).
+//   Bug v12 : `_birth.birthday_place_lat` etait undefined => Number.isFinite(undefined)
+//   = false => fallback natal silencieux meme quand la relocation etait envoyee.
+//   Audit exec 8847 a confirme : Extract Variables contient bien birthday_place_lat,
+//   2. Preparation dynamique1 body ne contient que natal swisseph (cf.
+//   scripts/_audit-exec-8847.mjs).
 // ==========================================
 
 const allItems = $input.all();
@@ -88,23 +97,25 @@ try {
         const _periodStart = _vars.date_entree;
         const _periodEnd   = _vars.date_sortie;
 
-        // v12 : RS/LR RELOCALISÉES Doctrine B Volguine. Le payload webhook complet
-        // (incluant `birthday_place_lat / _lng / _formatted_address`) est passé tel
-        // quel à `2. Préparation dynamique1` qui le sérialise dans `body`. Donc
-        // `_birth` (= JSON.parse(_prep.body)) contient déjà ces champs.
-        // Bornage : lat ∈ [-90,90], lng ∈ [-180,180] (même validation que
-        // Super noeud1 S6.24.4 ligne 3772-3780).
-        // Si l'un des deux est absent ou hors borne → fallback côté API sur les
-        // coords natales (= RS/LR natale).
+        // v13 (2026-06-03) : FIX RELOCATION — la source des champs `birthday_place_*`
+        // n'est PAS `_birth` (= JSON.parse(_prep.body) qui ne contient que les params
+        // natal pour swisseph : year/month/date/latitude/longitude...), mais bien
+        // `_vars` (= $("Extract Variables").first().json qui contient les 30+ champs
+        // du payload webhook original, dont les 3 champs reloc). Audit exec 8847
+        // a confirmé : `2. Préparation dynamique1` body = natal seul, `Extract
+        // Variables` json = payload webhook complet (cf. _audit-exec-8847.mjs).
+        // Doctrine B Volguine (Brady Ch.6 R.6.1, Teal Ch.10 R.T.10.4) : RS/LR
+        // relocalisées au lieu d'événement quand renseigné, sinon natal.
+        // Bornage : lat ∈ [-90,90], lng ∈ [-180,180] (parité S6.24.4 L3772-3780).
         let _relocLat = null, _relocLon = null, _relocLabel = null;
-        if (Number.isFinite(_birth.birthday_place_lat) && Math.abs(_birth.birthday_place_lat) <= 90) {
-            _relocLat = _birth.birthday_place_lat;
+        if (Number.isFinite(_vars.birthday_place_lat) && Math.abs(_vars.birthday_place_lat) <= 90) {
+            _relocLat = _vars.birthday_place_lat;
         }
-        if (Number.isFinite(_birth.birthday_place_lng) && Math.abs(_birth.birthday_place_lng) <= 180) {
-            _relocLon = _birth.birthday_place_lng;
+        if (Number.isFinite(_vars.birthday_place_lng) && Math.abs(_vars.birthday_place_lng) <= 180) {
+            _relocLon = _vars.birthday_place_lng;
         }
-        if (typeof _birth.birthday_place_formatted_address === "string" && _birth.birthday_place_formatted_address.trim()) {
-            _relocLabel = _birth.birthday_place_formatted_address.trim();
+        if (typeof _vars.birthday_place_formatted_address === "string" && _vars.birthday_place_formatted_address.trim()) {
+            _relocLabel = _vars.birthday_place_formatted_address.trim();
         }
 
         // ── /solar-return ──

@@ -23927,14 +23927,17 @@ try {
     _eclipsesProgressees: typeof eclipsesProgressees !== 'undefined' ? eclipsesProgressees : [],
     // V23 TRANCHE 3 (2026-06-02) — Retours Solaires/Lunaires relocalises Doctrine
     // Brady Ch.6 R.6.1 + Teal Ch.10 R.T.10.4, calcules en amont par "Prepare Data"
-    // v12 via API privee /solar-return + /lunar-return avec relocation_lat/_lng.
+    // v13 via API privee /solar-return + /lunar-return avec relocation_lat/_lng.
     // Source : prepareOut = $input.first().json (cf. L84). Sans ces champs, V23
     // helpers/core/returns-builder + brady/solar-return-significators + teal/lr-sr-matcher
     // sont muets (Section G eteinte dans les 14 codes). PROD-safe : si Prepare Data
-    // anterieur a v12 ou si API indisponible, prepareOut._v23* = undefined => null
+    // anterieur a v13 ou si API indisponible, prepareOut._v23* = undefined => null
     // => helpers V23 retournent [] sans crash (cf. SPEC-V23 § Section G).
+    // Fix 2026-06-03 : _v23LunarReturns est un OBJET wrapper { moon_natal_lon, ...,
+    // returns: [...] } pas un Array (verifie audit exec 8847). Removed Array.isArray
+    // qui causait fallback null silencieux meme quand API LR retournait correctement.
     _v23SolarReturn: (prepareOut && prepareOut._v23SolarReturn) ? prepareOut._v23SolarReturn : null,
-    _v23LunarReturns: (prepareOut && Array.isArray(prepareOut._v23LunarReturns)) ? prepareOut._v23LunarReturns : null,
+    _v23LunarReturns: (prepareOut && prepareOut._v23LunarReturns) ? prepareOut._v23LunarReturns : null,
     eventSignatures: typeof sigPayload !== 'undefined' && Array.isArray(sigPayload) ? sigPayload.slice() : [],
     periode: typeof periodeLabel !== 'undefined' ? periodeLabel : null
   };
