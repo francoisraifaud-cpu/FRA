@@ -300,7 +300,10 @@ sortedA.forEach(([houseNum, data]) => {
     // Si maison clé mais vide : afficher "Neutre / —" au lieu du score chiffré
     const scoreBadge = isVraimentVide
         ? `<span style="display:inline-block;background:#f1f5f9;color:#64748b;font-size:15.5px;font-weight:500;padding:4px 13px;border-radius:20px;margin:2px 3px;font-style:italic;" title="${isEN ? 'No major activation in this house — neutral domain for this couple' : 'Aucune activation majeure dans cette maison — domaine neutre pour ce couple'}">${isEN ? 'Neutral / —' : 'Neutre / —'}</span>`
-        : `<span style="display:inline-block;background:${hCol.bg};color:${hCol.txt};font-size:15.5px;font-weight:600;padding:4px 13px;border-radius:20px;margin:2px 3px;" title="${tooltipTxt}">${isEN ? 'Harmony:' : 'Harmonie :'} ${hScoreH}/100</span>`;
+        : `<span style="display:inline-block;background:${hCol.bg};color:${hCol.txt};font-size:15.5px;font-weight:600;padding:4px 13px;border-radius:20px;margin:2px 3px;" title="${tooltipTxt}">${isEN ? 'Fluidity:' : 'Fluidité :'} ${hScoreH}/100</span>`;
+    const intensBadge = isVraimentVide
+        ? ''
+        : `<span style="display:inline-block;background:#f3e8ff;color:#7e22ce;font-size:15.5px;font-weight:600;padding:4px 13px;border-radius:20px;margin:2px 3px;" title="${isEN ? 'Energetic charge of this domain' : 'Charge énergétique de ce domaine'}">${isEN ? 'Intensity:' : 'Intensité :'} ${hScoreI}/100</span>`;
     const princBadge = data.is_principale
         ? `<span style="display:inline-block;background:#dbeafe;color:#1e40af;font-size:15.5px;font-weight:600;padding:4px 13px;border-radius:20px;margin:2px 3px;border:1px solid #2E5FA3;">${isEN ? 'Primary' : 'Principale'}</span>`
         : '';
@@ -323,7 +326,7 @@ sortedA.forEach(([houseNum, data]) => {
             ${buildOverlayBadges(overlayPlanets, '#e8f0fe', '#1F3864')}
             ${buildOverlayStarBadges(overlayPlanets, _etoileMatchesB, [], h)}
             ${overlayPlanets.filter(p => (p.tier || 3) <= 2).length === 0 ? `<span style="display:inline-block;background:#f5f5f5;color:#777;font-size:15.5px;font-weight:600;padding:4px 13px;border-radius:20px;margin:2px 3px;">${isEN ? 'No major overlay planets' : 'Aucune planète majeure en overlay'}</span>` : ''}
-            ${princBadge} ${scoreBadge}
+            ${princBadge} ${scoreBadge} ${intensBadge}
         </div>
         <div style="background:#f4f6ff;border-left:4px solid #2E5FA3;padding:11px 20px;">
             <p style="font-size:15.5px;font-style:italic;font-weight:400;color:#1F3864;line-height:1.6;margin:0;text-align:justify;">${esc(hMeta.desc)}</p>
@@ -369,7 +372,10 @@ sortedB.forEach(([houseNum, data]) => {
         : `Note d\u2019harmonie (50 = neutre, 100 = très fluide, 0 = très bloquée). Intensité interne : ${hScoreIB}/100.`);
     const scoreBadgeB = isVraimentVideB
         ? `<span style="display:inline-block;background:#f1f5f9;color:#64748b;font-size:15.5px;font-weight:500;padding:4px 13px;border-radius:20px;margin:2px 3px;font-style:italic;" title="${isEN ? 'No major activation in this house — neutral domain for this couple' : 'Aucune activation majeure dans cette maison — domaine neutre pour ce couple'}">${isEN ? 'Neutral / —' : 'Neutre / —'}</span>`
-        : `<span style="display:inline-block;background:${hColB.bg};color:${hColB.txt};font-size:15.5px;font-weight:600;padding:4px 13px;border-radius:20px;margin:2px 3px;" title="${tooltipTxtB}">${isEN ? 'Harmony:' : 'Harmonie :'} ${hScoreHB}/100</span>`;
+        : `<span style="display:inline-block;background:${hColB.bg};color:${hColB.txt};font-size:15.5px;font-weight:600;padding:4px 13px;border-radius:20px;margin:2px 3px;" title="${tooltipTxtB}">${isEN ? 'Fluidity:' : 'Fluidité :'} ${hScoreHB}/100</span>`;
+    const intensBadgeB = isVraimentVideB
+        ? ''
+        : `<span style="display:inline-block;background:#f3e8ff;color:#7e22ce;font-size:15.5px;font-weight:600;padding:4px 13px;border-radius:20px;margin:2px 3px;" title="${isEN ? 'Energetic charge of this domain' : 'Charge énergétique de ce domaine'}">${isEN ? 'Intensity:' : 'Intensité :'} ${hScoreIB}/100</span>`;
     const princBadgeB = data.is_principale
         ? `<span style="display:inline-block;background:#fed7aa;color:#c2410c;font-size:15.5px;font-weight:600;padding:4px 13px;border-radius:20px;margin:2px 3px;border:1px solid #c2410c;">${isEN ? 'Primary' : 'Principale'}</span>`
         : '';
@@ -392,7 +398,7 @@ sortedB.forEach(([houseNum, data]) => {
             ${buildOverlayBadges(overlayPlanets, '#fed7aa', '#c2410c')}
             ${buildOverlayStarBadges(overlayPlanets, _etoileMatchesA, [], h)}
             ${overlayPlanets.filter(p => (p.tier || 3) <= 2).length === 0 ? `<span style="display:inline-block;background:#f5f5f5;color:#777;font-size:15.5px;font-weight:600;padding:4px 13px;border-radius:20px;margin:2px 3px;">${isEN ? 'No major overlay planets' : 'Aucune planète majeure en overlay'}</span>` : ''}
-            ${princBadgeB} ${scoreBadgeB}
+            ${princBadgeB} ${scoreBadgeB} ${intensBadgeB}
         </div>
         <div style="background:#fffaf5;border-left:4px solid #c2410c;padding:11px 20px;">
             <p style="font-size:15.5px;font-style:italic;font-weight:400;color:#7c2d12;line-height:1.6;margin:0;text-align:justify;">${esc(hMeta.desc)}</p>
@@ -547,6 +553,54 @@ function buildSynFinalTocHtml() {
 </nav><div class="syn-final-toc-pagebreak" style="page-break-after:always;break-after:page;height:0;margin:0;padding:0;overflow:hidden" aria-hidden="true"></div>`;
 }
 
+// ════════════════════════════════════════════════════════════════════════
+// COMPOSANT PARTAGÉ — Tableau de bord relationnel (8 indices /100)
+// Rendu STRICTEMENT IDENTIQUE dans les 3 rapports (Final, Tech, Données Tech).
+// Toutes les chaînes proviennent de l'objet moteur `relationship_dashboard`.
+// Toute modification doit être répliquée à l'identique dans les 3 fichiers.
+// ════════════════════════════════════════════════════════════════════════
+function buildSynDashboard(dashObj, en, band) {
+    if (!dashObj || !dashObj.metrics || !dashObj.groups) return '';
+    const M = dashObj.metrics, L = dashObj.labels || {};
+    const t = (o, f) => o ? (en ? (o.en || o.fr) : (o.fr || o.en)) : (f || '');
+    const bar = (key) => {
+        const m = M[key];
+        if (!m) return '';
+        const nm = en ? (m.name_en || m.name) : m.name;
+        const bandTxt = en ? (m.label_en || m.label) : m.label;
+        const desc = en ? (m.desc_en || m.desc || '') : (m.desc || m.desc_en || '');
+        const score = Math.max(0, Math.min(100, Math.round(m.score || 0)));
+        const dir = (key === 'karmique' && (en ? m.direction_en : m.direction)) ? ' \u00b7 ' + (en ? m.direction_en : m.direction) : '';
+        return '<div style="margin:11px 0;text-align:left">'
+            + '<div style="display:flex;justify-content:space-between;align-items:baseline;font-size:0.85em;margin-bottom:2px">'
+            + '<span style="color:#1F3864;font-weight:600">' + (m.icon ? m.icon + '\u00a0' : '') + nm + '</span>'
+            + '<span style="color:' + (m.color || '#475569') + ';font-weight:700">' + score + '<span style="font-size:0.72em;color:#94a3b8">/100</span> <span style="font-size:0.82em;font-weight:600">' + bandTxt + dir + '</span></span>'
+            + '</div>'
+            + '<div style="height:9px;background:#dfe7f4;border-radius:6px;overflow:hidden"><div style="height:100%;width:' + score + '%;background:' + (m.color || '#2563eb') + ';border-radius:6px"></div></div>'
+            + (desc ? '<div style="font-size:0.7em;color:#64748b;margin-top:3px;line-height:1.35">' + desc + '</div>' : '')
+            + '</div>';
+    };
+    const grp = (gkey) => {
+        const lab = L[gkey] || {};
+        const title = en ? (lab.en || lab.fr || '') : (lab.fr || lab.en || '');
+        const hint = en ? (lab.hint_en || '') : (lab.hint_fr || '');
+        return '<div style="flex:1;min-width:250px;text-align:left">'
+            + '<div style="font-family:\'Playfair Display\',serif;font-size:0.92em;color:#1F3864;font-weight:600;border-bottom:1px solid #c3d4ee;padding-bottom:4px;margin-bottom:1px">' + title + '</div>'
+            + (hint ? '<div style="font-size:0.7em;color:#64748b;font-style:italic;margin-bottom:6px">' + hint + '</div>' : '')
+            + (dashObj.groups[gkey] || []).map(bar).join('')
+            + '</div>';
+    };
+    const bandTop = band && (en ? (band.band_en || band.band) : band.band);
+    const qbLine = bandTop ? '<div style="text-align:center;font-size:0.95em;font-weight:600;color:' + (band.color || '#475569') + ';margin:2px 0 14px">' + bandTop + '</div>' : '';
+    return '<div style="margin:24px 0;padding:20px 22px;background:linear-gradient(135deg,#eef2fb,#dbeafe);border:1px solid #c3d4ee;border-radius:12px">'
+        + '<div style="font-family:\'Playfair Display\',serif;font-size:1.05em;color:#1F3864;font-weight:600;text-align:center;margin-bottom:4px">' + t(dashObj.title, en ? 'Relationship Dashboard' : 'Tableau de bord relationnel') + '</div>'
+        + '<div style="font-size:0.74em;color:#64748b;text-align:center;font-style:italic;margin:0 auto 14px;max-width:520px">' + t(dashObj.intro) + '</div>'
+        + qbLine
+        + '<div style="display:flex;gap:28px;flex-wrap:wrap">' + grp('lien') + grp('domaines') + '</div>'
+        + (t(dashObj.note) ? '<div style="margin-top:14px;font-size:0.72em;color:#94a3b8;font-style:italic;line-height:1.5;text-align:center;max-width:560px;margin-left:auto;margin-right:auto">' + t(dashObj.note) + '</div>' : '')
+        + '</div>';
+}
+
 const html = `<!DOCTYPE html>
 <html lang="${isEN ? 'en' : 'fr'}">
 <head>
@@ -586,15 +640,17 @@ ${synthese ? `
 </div>` : ''}
 
 ${globalScore > 0 ? '<div id="syn-final-score">' + (() => {
-    // v6.0.0 — Note d'Harmonie unique (0..100), baseline 50 = neutre.
-    // v6.3.0 — Q9 : pour Rivalité, ajout d'un Indice d'Adversité séparé.
-    const sColor = globalScore >= 80 ? "#16a34a" : globalScore >= 65 ? "#166534" : globalScore >= 50 ? "#1F3864" : globalScore >= 35 ? "#92400e" : "#991b1b";
+    // v7.2.0 — Section score unifiée : tableau de bord relationnel identique
+    // dans les 3 rapports (composant buildSynDashboard ci-dessous). Toutes les
+    // chaînes (titre, intro, libellés, descriptions, note) proviennent du moteur
+    // (relationship_dashboard) pour interdire toute dérive entre rapports.
     const qb = globalScoreDetail?.qualitative_band || {};
-    const qualLabel = (isEN ? (qb.band_en || qb.band) : qb.band) || (globalScore >= 65 ? (isEN ? 'Solid compatibility' : 'Compatibilité solide') : globalScore >= 50 ? (isEN ? 'Contrasted relationship' : 'Relation contrastée') : (isEN ? 'Limited compatibility' : 'Compatibilité limitée'));
-    const qualDesc = isEN ? (qb.desc_en || qb.desc || qb.desc_fr || '') : (qb.desc || qb.desc_fr || '');
+    const dash = synData.relationship_dashboard || (prepData._synRef || {}).relationship_dashboard || null;
     const adv = synData.adversity_index;
+    const dashHtml = buildSynDashboard(dash, isEN, qb);
+    if (!dashHtml) return '';
     const advBlock = adv ? (
-        '<div style="margin-top:14px;padding:14px;background:linear-gradient(135deg,#fef2f2,#fed7aa);border:2px solid #c2410c;border-radius:10px">'
+        '<div style="margin:24px 0 0;padding:14px;background:linear-gradient(135deg,#fef2f2,#fed7aa);border:2px solid #c2410c;border-radius:10px;text-align:center">'
         + '<div style="font-family:Playfair Display,serif;font-size:0.95em;color:#7c2d12;margin-bottom:4px">' + (isEN ? 'Adversity Index' : 'Indice d\u2019Adversit\u00e9') + '</div>'
         + '<div style="font-size:1.9em;font-weight:700;color:#c2410c">' + adv.score + '<span style="font-size:0.45em;color:#94a3b8">/100</span></div>'
         + '<div style="font-size:0.85em;font-weight:500;color:#7c2d12;margin-top:3px;font-style:italic">' + (isEN ? 'Friction quality : ' : 'Qualit\u00e9 de friction : ') + (adv.qualitative || '') + '</div>'
@@ -605,18 +661,7 @@ ${globalScore > 0 ? '<div id="syn-final-score">' + (() => {
         + '</div>'
         + '</div>'
     ) : '';
-    return '<div style="text-align:center;margin:30px 0 30px;padding:20px;background:linear-gradient(135deg,#eef2fb,#dbeafe);border:2px solid #2E5FA3;border-radius:12px">'
-        + '<div style="font-family:Playfair Display,serif;font-size:1em;color:#1F3864;margin-bottom:6px">' + (isEN ? 'Harmony Score' : 'Note d\u2019Harmonie') + '</div>'
-        + '<div style="font-size:2.4em;font-weight:700;color:' + sColor + '">' + globalScore + '<span style="font-size:0.4em;color:#64748b">/100</span></div>'
-        + '<div style="font-size:0.95em;font-weight:600;color:' + (qb.color || '#475569') + ';margin-top:6px">' + qualLabel + '</div>'
-        + (qualDesc ? '<div style="font-size:0.82em;color:#64748b;margin-top:4px;max-width:480px;margin-left:auto;margin-right:auto">' + qualDesc + '</div>' : '')
-        + '<div style="margin-top:10px;font-size:0.7em;color:#94a3b8;font-style:italic;line-height:1.45;max-width:480px;margin-left:auto;margin-right:auto">'
-        + (isEN
-            ? 'The Harmony score (50 = neutral) reflects the overall fluidity of the bond between you. The per-house scores below measure harmony in each life domain.'
-            : 'La Note d\u2019Harmonie (50 = neutre) reflète la fluidité globale du lien entre vous. Les notes par maison ci-dessous mesurent l\u2019harmonie sur chaque domaine de vie.')
-        + '</div>'
-        + advBlock
-        + '</div>';
+    return dashHtml + advBlock;
 })() + '</div>' : ''}
 
 <div id="syn-final-exec">${execSummary}</div>
@@ -624,6 +669,9 @@ ${globalScore > 0 ? '<div id="syn-final-score">' + (() => {
 <div id="syn-final-maisons" style="page-break-before:always;break-before:page;page-break-after:avoid;break-after:avoid;background:#1F3864;padding:15px 26px;border-radius:8px;margin:0 0 22px;">
     <h2 style="font-family:'Playfair Display',Georgia,serif;font-size:18px;font-weight:600;color:white;letter-spacing:0.2px;margin:0;">&#8962;&nbsp; ${isEN ? 'Astrological Houses' : 'Maisons Astrologiques'}</h2>
 </div>
+<div style="background:#f4f6ff;border:1px solid #c3d4ee;border-radius:8px;padding:10px 16px;margin:0 0 20px;font-size:0.82em;color:#475569;line-height:1.55">${isEN
+    ? '<strong style="color:#1F3864">How to read the house badges.</strong> Each house shows two landmarks out of 100: <span style="color:#0369a1;font-weight:600">Fluidity</span> = how easy this life area feels (50 = neutral), and <span style="color:#7e22ce;font-weight:600">Intensity</span> = the energetic charge at play there. They describe the texture of the area, not a grade.'
+    : '<strong style="color:#1F3864">Comment lire les badges des maisons.</strong> Chaque maison affiche deux rep\u00e8res sur 100 : <span style="color:#0369a1;font-weight:600">Fluidit\u00e9</span> = l\u2019aisance ressentie dans ce domaine (50 = neutre), et <span style="color:#7e22ce;font-weight:600">Intensit\u00e9</span> = la charge \u00e9nerg\u00e9tique qui s\u2019y joue. Ils d\u00e9crivent la texture du domaine, pas une note.'}</div>
 
 <div id="syn-final-perspective-a" style="page-break-before:avoid;break-before:avoid;">
 <div style="background:#2E5FA3;padding:15px 26px;border-radius:8px;margin:44px 0 22px;">

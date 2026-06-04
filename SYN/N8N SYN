@@ -5919,9 +5919,9 @@ const _BAND_VOCABULARY = {
         3: { band: "Compatibilité solide", band_en: "Solid compatibility", desc: "Bonne harmonie générale, quelques zones de friction qui peuvent enrichir la relation.", desc_en: "Good general harmony, some friction zones that can enrich the relationship.", color: "#65a30d" },
         4: { band: "Relation intense et transformative", band_en: "Intense and transformative relationship", desc: "Lien magnétique mais éprouvant. Les énergies fortes peuvent sublimer ou éroder selon la maturité du couple.", desc_en: "Magnetic but demanding bond. Strong energies can either sublimate or erode depending on the couple's maturity.", color: "#f59e0b" },
         5: { band: "Relation contrastée", band_en: "Contrasted relationship", desc: "Mélange de fluidité et de friction. Demande des efforts conscients pour stabiliser la dynamique.", desc_en: "Mix of fluidity and friction. Requires conscious effort to stabilize the dynamic.", color: "#eab308" },
-        6: { band: "Tension forte, dynamique éprouvante", band_en: "Strong tension, demanding dynamic", desc: "Charge émotionnelle élevée mais frictions dominantes. Instabilité probable sans accompagnement.", desc_en: "High emotional charge but dominant frictions. Likely instability without support.", color: "#ef4444" },
-        7: { band: "Compatibilité limitée", band_en: "Limited compatibility", desc: "Peu de ressources astrologiques pour soutenir la relation. Tonalité atone.", desc_en: "Few astrological resources to sustain the relationship. Lukewarm tone.", color: "#dc2626" },
-        8: { band: "Compatibilité critique", band_en: "Critical compatibility", desc: "Les frictions structurelles dominent largement les soutiens. Relation à fortes contraintes.", desc_en: "Structural frictions largely dominate the supports. Heavily constrained relationship.", color: "#991b1b" }
+        6: { band: "Lien intense et exigeant", band_en: "Intense, demanding bond", desc: "Charge émotionnelle élevée et frictions marquées. La dynamique demande un travail conscient des deux partenaires pour se stabiliser et se sublimer.", desc_en: "High emotional charge and marked frictions. The dynamic calls for conscious work from both partners to stabilize and sublimate it.", color: "#f59e0b" },
+        7: { band: "Lien à construire volontairement", band_en: "Bond to build deliberately", desc: "Peu d'élan astrologique spontané : le lien se construit par choix et par effort conscient plus qu'il ne coule de source.", desc_en: "Little spontaneous astrological momentum: the bond is built by choice and conscious effort rather than flowing naturally.", color: "#d97706" },
+        8: { band: "Lien-chantier, fortes contraintes", band_en: "Demanding bond, strong constraints", desc: "Les frictions structurelles dominent les soutiens naturels. Un lien exigeant, qui ne tient que par un engagement conscient et une vraie maturité des deux côtés.", desc_en: "Structural frictions dominate the natural supports. A demanding bond that holds only through conscious commitment and genuine maturity on both sides.", color: "#b45309" }
     },
     // v7.0.1 — Q57 astrologue (audit 18223) : registre constructif pour
     // Business / Mentorat / Fratrie / Famille. Lexique : alliance, duo,
@@ -5933,9 +5933,9 @@ const _BAND_VOCABULARY = {
         3: { band: "Partenariat solide", band_en: "Solid partnership", desc: "Bonne complémentarité d'ensemble, quelques zones de friction qui peuvent enrichir la mission commune.", desc_en: "Good overall complementarity, some friction zones that can enrich the joint mission.", color: "#65a30d" },
         4: { band: "Synergie intense et transformative", band_en: "Intense and transformative synergy", desc: "Synergie magnétique mais exigeante. Les énergies fortes peuvent sublimer le projet ou l'éroder selon la maturité du partenariat.", desc_en: "Magnetic but demanding synergy. Strong energies can either sublimate the project or erode it depending on the partnership's maturity.", color: "#f59e0b" },
         5: { band: "Alliance contrastée", band_en: "Contrasted alliance", desc: "Mélange de fluidité et de friction dans le binôme. Demande des efforts conscients pour stabiliser la dynamique de travail.", desc_en: "Mix of fluidity and friction in the duo. Requires conscious effort to stabilize the working dynamic.", color: "#eab308" },
-        6: { band: "Tension forte, alliance éprouvante", band_en: "Strong tension, demanding alliance", desc: "Énergie de construction élevée mais frictions dominantes. Instabilité du partenariat probable sans cadre clair.", desc_en: "High constructive energy but dominant frictions. Likely partnership instability without a clear framework.", color: "#ef4444" },
-        7: { band: "Partenariat limité", band_en: "Limited partnership", desc: "Peu de ressources astrologiques pour soutenir l'alliance. Lien de construction atone.", desc_en: "Few astrological resources to sustain the alliance. Lukewarm constructive bond.", color: "#dc2626" },
-        8: { band: "Partenariat critique", band_en: "Critical partnership", desc: "Les frictions structurelles dominent largement les ressources. Alliance à fortes contraintes, blocages probables.", desc_en: "Structural frictions largely dominate the resources. Heavily constrained alliance, likely deadlocks.", color: "#991b1b" }
+        6: { band: "Alliance intense et exigeante", band_en: "Intense, demanding alliance", desc: "Énergie de construction élevée et frictions marquées. Le partenariat demande un cadre clair et un travail conscient pour transformer la tension en moteur.", desc_en: "High constructive energy and marked frictions. The partnership needs a clear framework and conscious work to turn tension into a driver.", color: "#f59e0b" },
+        7: { band: "Alliance à construire volontairement", band_en: "Alliance to build deliberately", desc: "Peu d'élan astrologique spontané : l'alliance tient par l'organisation et l'effort conscient plus que par une synergie naturelle.", desc_en: "Little spontaneous astrological momentum: the alliance holds through organization and conscious effort rather than natural synergy.", color: "#d97706" },
+        8: { band: "Alliance-chantier, fortes contraintes", band_en: "Demanding alliance, strong constraints", desc: "Les frictions structurelles dominent les ressources naturelles. Une alliance exigeante, viable surtout avec des rôles clairs et un engagement conscient des deux côtés.", desc_en: "Structural frictions dominate the natural resources. A demanding alliance, viable mainly with clear roles and conscious commitment on both sides.", color: "#b45309" }
     },
     proximity: {
         1: { band: "Synergie remarquable", band_en: "Remarkable synergy", desc: "Complicité fluide et stimulante. Le lien social est facile, vivant, durable.", desc_en: "Fluid and stimulating complicity. The social bond is easy, lively, durable.", color: "#16a34a" },
@@ -5943,9 +5943,9 @@ const _BAND_VOCABULARY = {
         3: { band: "Bonne compatibilité", band_en: "Good compatibility", desc: "Affinités solides avec quelques différences enrichissantes.", desc_en: "Solid affinities with some enriching differences.", color: "#65a30d" },
         4: { band: "Lien intense, parfois inconfortable", band_en: "Intense bond, sometimes uncomfortable", desc: "Beaucoup d'énergie partagée, mais des frictions qui demandent de la maturité pour être tenues.", desc_en: "Much shared energy, but frictions that require maturity to be held.", color: "#f59e0b" },
         5: { band: "Affinités contrastées", band_en: "Contrasted affinities", desc: "Mélange de complicité et de divergences. Le lien existe mais demande du compromis.", desc_en: "Mix of complicity and divergences. The bond exists but demands compromise.", color: "#eab308" },
-        6: { band: "Tension manifeste", band_en: "Manifest tension", desc: "Beaucoup d'énergie, mais largement frictionnelle. Le lien fatigue plus qu'il ne nourrit.", desc_en: "Plenty of energy, but largely frictional. The bond drains more than it feeds.", color: "#ef4444" },
-        7: { band: "Affinités tièdes", band_en: "Lukewarm affinities", desc: "Peu de carburant astrologique. Le lien tend à se diluer faute de moteur.", desc_en: "Little astrological fuel. The bond tends to dilute for lack of engine.", color: "#dc2626" },
-        8: { band: "Incompatibilité de fond", band_en: "Fundamental mismatch", desc: "Différences structurelles majeures. La cohabitation sociale demanderait beaucoup de tolérance.", desc_en: "Major structural differences. Social cohabitation would demand much tolerance.", color: "#991b1b" }
+        6: { band: "Lien intense et frictionnel", band_en: "Intense, frictional bond", desc: "Beaucoup d'énergie partagée, mais largement frictionnelle. Le lien demande de la conscience pour nourrir plus qu'il ne fatigue.", desc_en: "Plenty of shared energy, but largely frictional. The bond requires awareness to feed rather than drain.", color: "#f59e0b" },
+        7: { band: "Affinités discrètes", band_en: "Discreet affinities", desc: "Peu de carburant astrologique spontané : le lien se maintient par l'intention et les occasions partagées plus que par un élan naturel.", desc_en: "Little spontaneous astrological fuel: the bond is sustained by intention and shared occasions rather than natural momentum.", color: "#d97706" },
+        8: { band: "Différences structurelles marquées", band_en: "Marked structural differences", desc: "Différences structurelles importantes. Le lien reste possible mais demande beaucoup de tolérance et un effort conscient des deux côtés.", desc_en: "Significant structural differences. The bond remains possible but requires much tolerance and conscious effort on both sides.", color: "#b45309" }
     },
     adversity: {
         // v6.5.0 — Q24 astrologue : niveau 0 spécial « Indifférence astrale »
@@ -9485,6 +9485,148 @@ const doubleWhammyList = (() => {
     return list.sort((a, b) => b.count - a.count);
 })();
 
+// ---- 11z. TABLEAU DE BORD RELATIONNEL — 8 indices /100 (lecture seule) ----
+// v7.1.0 — agrégation d'affichage. NE MODIFIE PAS le scoring v6.8.0 gelé :
+// lit uniquement des valeurs déjà calculées (harmony/intensity V6,
+// longevityIndex, pilier2.nodal, pilier4 homonymes+signes, houses_hi) et
+// expose 8 métriques /100 pour le dashboard des 3 rapports.
+const relationshipDashboard = (() => {
+    const clamp = (x) => Math.max(0, Math.min(100, Math.round(x)));
+    // Le détail émis renomme les piliers (pilier4_structural / pilier2_karmique) ;
+    // fallback sur les clés courtes par sécurité.
+    const _p4 = (globalScoreDetail && (globalScoreDetail.pilier4_structural || globalScoreDetail.pilier4)) || {};
+    const _p2 = (globalScoreDetail && (globalScoreDetail.pilier2_karmique || globalScoreDetail.pilier2)) || {};
+    const _li = longevityIndex || {};
+    const _bd = _li.breakdown || {};
+
+    // Harmonie moyenne d'une maison (moyenne des 2 directions), neutre = 50
+    const houseHarmony = (h) => {
+        const a = houseHIBinA[h] || houseHIBinA[String(h)] || {};
+        const b = houseHIAinB[h] || houseHIAinB[String(h)] || {};
+        const vals = [a.harmony, b.harmony].filter((v) => typeof v === "number");
+        return vals.length ? vals.reduce((s, v) => s + v, 0) / vals.length : 50;
+    };
+    // Relation de signe fondamentale pour une planète personnelle
+    const signRel = (planet) => {
+        const pairs = (_p4.sign_compatibility && _p4.sign_compatibility.pairs) || [];
+        const p = pairs.find((x) => x.planet === planet);
+        if (!p) return 0;
+        return p.relation === "same_element" ? 15
+            : p.relation === "compatible" ? 8
+            : p.relation === "incompatible" ? -10
+            : p.relation === "aversion" ? -15 : 0;
+    };
+    // Homonyme planétaire (aspect direct planète↔même planète)
+    const hasBonus = (id) => ((_p4.bonuses || []).some((b) => b.id === id));
+    const hasPen = (id) => ((_p4.penalties || []).some((p) => p.id === id));
+    const homo = (soft, hard) => (hasBonus(soft) ? 25 : 0) - (hasPen(hard) ? 25 : 0);
+
+    // Bandes qualitatives (couleurs douces, sans connotation d'échec)
+    const bandQuality = (s, isEN) => s >= 75 ? { fr: "Très fort", en: "Very strong", c: "#16a34a" }
+        : s >= 60 ? { fr: "Fort", en: "Strong", c: "#2563eb" }
+        : s >= 45 ? { fr: "Modéré", en: "Moderate", c: "#0891b2" }
+        : s >= 30 ? { fr: "À cultiver", en: "To cultivate", c: "#d97706" }
+        : { fr: "En construction", en: "In the making", c: "#b45309" };
+    const bandIntensity = (s) => s >= 75 ? { fr: "Très intense", en: "Very intense", c: "#7c3aed" }
+        : s >= 60 ? { fr: "Intense", en: "Intense", c: "#8b5cf6" }
+        : s >= 45 ? { fr: "Modérée", en: "Moderate", c: "#a78bfa" }
+        : s >= 30 ? { fr: "Légère", en: "Light", c: "#c4b5fd" }
+        : { fr: "Paisible", en: "Peaceful", c: "#cbd5e1" };
+    const bandKarmic = (s) => s >= 75 ? { fr: "Très marqué", en: "Very marked", c: "#9333ea" }
+        : s >= 60 ? { fr: "Marqué", en: "Marked", c: "#a855f7" }
+        : s >= 45 ? { fr: "Présent", en: "Present", c: "#c084fc" }
+        : s >= 30 ? { fr: "Léger", en: "Light", c: "#d8b4fe" }
+        : { fr: "Discret", en: "Faint", c: "#cbd5e1" };
+
+    const mk = (score, band, desc, desc_en, extra) => Object.assign({
+        score: clamp(score),
+        label: band.fr, label_en: band.en, color: band.c,
+        desc, desc_en
+    }, extra || {});
+
+    // 1. Fluidité (= harmony V6)
+    const fluiditeScore = clamp(globalScoreDetail.harmony);
+    // 2. Intensité (= intensity V6)
+    const intensiteScore = clamp(globalScoreDetail.intensity);
+    // 3. Durabilité (= longevityIndex /15)
+    const durabiliteScore = clamp((Number(_li.score) || 0) / 15 * 100);
+    // 4. Karmique (quantité de contact nodal + direction)
+    const nq = Number(_p2.nodal_qual_score) || 0;            // 0..5
+    const ev = Number(_bd.nodes_evolutive) || 0;             // NN (croissance)
+    const rep = Number(_bd.nodes_repetitive) || 0;           // NS (déjà-vu)
+    const karmiqueScore = clamp(nq / 5 * 60 + Math.min(40, (ev + rep) * 8));
+    const karmDir = (ev > rep + 0.5) ? { fr: "Évolutif (croissance)", en: "Evolutionary (growth)" }
+        : (rep > ev + 0.5) ? { fr: "Répétitif (déjà-vu)", en: "Repetitive (déjà-vu)" }
+        : { fr: "Équilibré", en: "Balanced" };
+    // 5. Connexion mentale (Mercure↔Mercure + signe)
+    const mentalScore = clamp(50 + homo("mercure_mercure_soft", "mercure_mercure_hard") + signRel("Mercure"));
+    // 6. Sécurité émotionnelle (Lune↔Lune + signe + Maison IV)
+    const securiteAspect = 50 + homo("lune_lune_soft", "lune_lune_hard") + signRel("Lune");
+    const securiteScore = clamp(0.5 * houseHarmony(4) + 0.5 * securiteAspect);
+    // 7. Alignement des valeurs (Vénus↔Vénus + signe + Maison II)
+    const valeursAspect = 50 + homo("venus_venus_soft", "venus_venus_hard") + signRel("Vénus");
+    const valeursScore = clamp(0.5 * houseHarmony(2) + 0.5 * valeursAspect);
+    // 8. Résonance publique (Maisons X + XI)
+    const resonanceScore = clamp((houseHarmony(10) + houseHarmony(11)) / 2);
+
+    return {
+        scale: 100,
+        version: "v7.1.0",
+        title: { fr: "Tableau de bord relationnel", en: "Relationship Dashboard" },
+        intro: {
+            fr: "Huit indices descriptifs notés de 0 à 100 : des repères pour comprendre la relation, pas des notes de réussite.",
+            en: "Eight descriptive indices scored from 0 to 100: landmarks to understand the relationship, not pass/fail grades."
+        },
+        note: {
+            fr: "Ces indices décrivent la matière première du lien, pas sa réussite. Un lien peu fluide mais intense est souvent un lien de croissance : la maturité et le travail des deux personnes comptent bien davantage que ces chiffres.",
+            en: "These indices describe the raw material of the bond, not its success. A bond low in fluidity but high in intensity is often a growth bond: the maturity and shared work of both people matter far more than these numbers."
+        },
+        groups: {
+            lien: ["fluidite", "intensite", "durabilite", "karmique"],
+            domaines: ["mental", "securite", "valeurs", "resonance"]
+        },
+        labels: {
+            lien: { fr: "Le Lien", en: "The Bond", hint_fr: "La nature profonde du lien", hint_en: "The bond\u2019s deep nature" },
+            domaines: { fr: "Les Domaines", en: "The Domains", hint_fr: "Où la relation se joue au quotidien", hint_en: "Where it plays out day-to-day" }
+        },
+        metrics: {
+            fluidite: mk(fluiditeScore, bandQuality(fluiditeScore),
+                "Aisance naturelle et confort du lien au quotidien.",
+                "Natural ease and day-to-day comfort of the bond.",
+                { name: "Fluidité", name_en: "Fluidity", icon: "🌊" }),
+            intensite: mk(intensiteScore, bandIntensity(intensiteScore),
+                "Charge énergétique, passion et puissance transformatrice.",
+                "Energetic charge, passion and transformative power.",
+                { name: "Intensité", name_en: "Intensity", icon: "🌋" }),
+            durabilite: mk(durabiliteScore, bandQuality(durabiliteScore),
+                "Capacité du lien à tenir dans la durée (Saturne, structure, engagement).",
+                "Capacity of the bond to last over time (Saturn, structure, commitment).",
+                { name: "Durabilité", name_en: "Durability", icon: "🪨" }),
+            karmique: mk(karmiqueScore, bandKarmic(karmiqueScore),
+                "Profondeur du fil karmique (Nœuds lunaires) et direction de la rencontre.",
+                "Depth of the karmic thread (lunar Nodes) and direction of the encounter.",
+                { name: "Karmique", name_en: "Karmic", icon: "🧭",
+                    direction: karmDir.fr, direction_en: karmDir.en }),
+            mental: mk(mentalScore, bandQuality(mentalScore),
+                "Fluidité intellectuelle et qualité de la communication (Mercure).",
+                "Intellectual flow and quality of communication (Mercury).",
+                { name: "Connexion mentale", name_en: "Mental connection", icon: "🏎️" }),
+            securite: mk(securiteScore, bandQuality(securiteScore),
+                "Sécurité affective, vulnérabilité et sentiment de refuge (Lunes, Maison IV).",
+                "Emotional safety, vulnerability and sense of refuge (Moons, House IV).",
+                { name: "Sécurité émotionnelle", name_en: "Emotional safety", icon: "🛡️" }),
+            valeurs: mk(valeursScore, bandQuality(valeursScore),
+                "Alignement des valeurs, du goût et du rapport au matériel (Vénus, Maison II).",
+                "Alignment of values, taste and material outlook (Venus, House II).",
+                { name: "Alignement des valeurs", name_en: "Shared values", icon: "🎨" }),
+            resonance: mk(resonanceScore, bandQuality(resonanceScore),
+                "Rayonnement social du lien et capacité à bâtir ensemble (Maisons X, XI).",
+                "Social radiance of the bond and ability to build together (Houses X, XI).",
+                { name: "Résonance publique", name_en: "Public resonance", icon: "🏛️" })
+        }
+    };
+})();
+
 const _fullSynData = {
     meta: {
         personne_a: personneA,
@@ -9567,6 +9709,7 @@ const _fullSynData = {
     natal_blocks_b: natalBlocksB,
     shared_natal_blocks: sharedNatalBlocks,
     longevity_index: longevityIndex,
+    relationship_dashboard: relationshipDashboard,
     house_compensation_log: houseCompensationLog,
     venus_mars_contacts: venusMarsContacts,
     venus_mars_alert_active: venusMarsAlertActive,
@@ -9667,6 +9810,7 @@ const _slotResult = {
         natal_blocks_b: natalBlocksB,
         shared_natal_blocks: sharedNatalBlocks,
         longevity_index: longevityIndex,
+        relationship_dashboard: relationshipDashboard,
         house_compensation_log: houseCompensationLog,
         venus_mars_contacts: venusMarsContacts,
         venus_mars_alert_active: venusMarsAlertActive,

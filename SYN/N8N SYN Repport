@@ -26,6 +26,54 @@ const nomA = escH((persoA.nom || '').toUpperCase());
 const prenomB = escH(persoB.prenom || 'B');
 const nomB = escH((persoB.nom || '').toUpperCase());
 
+// ════════════════════════════════════════════════════════════════════════
+// COMPOSANT PARTAGÉ — Tableau de bord relationnel (8 indices /100)
+// Rendu STRICTEMENT IDENTIQUE dans les 3 rapports (Final, Tech, Données Tech).
+// Toutes les chaînes proviennent de l'objet moteur `relationship_dashboard`.
+// Toute modification doit être répliquée à l'identique dans les 3 fichiers.
+// ════════════════════════════════════════════════════════════════════════
+function buildSynDashboard(dashObj, en, band) {
+    if (!dashObj || !dashObj.metrics || !dashObj.groups) return '';
+    const M = dashObj.metrics, L = dashObj.labels || {};
+    const t = (o, f) => o ? (en ? (o.en || o.fr) : (o.fr || o.en)) : (f || '');
+    const bar = (key) => {
+        const m = M[key];
+        if (!m) return '';
+        const nm = en ? (m.name_en || m.name) : m.name;
+        const bandTxt = en ? (m.label_en || m.label) : m.label;
+        const desc = en ? (m.desc_en || m.desc || '') : (m.desc || m.desc_en || '');
+        const score = Math.max(0, Math.min(100, Math.round(m.score || 0)));
+        const dir = (key === 'karmique' && (en ? m.direction_en : m.direction)) ? ' \u00b7 ' + (en ? m.direction_en : m.direction) : '';
+        return '<div style="margin:11px 0;text-align:left">'
+            + '<div style="display:flex;justify-content:space-between;align-items:baseline;font-size:0.85em;margin-bottom:2px">'
+            + '<span style="color:#1F3864;font-weight:600">' + (m.icon ? m.icon + '\u00a0' : '') + nm + '</span>'
+            + '<span style="color:' + (m.color || '#475569') + ';font-weight:700">' + score + '<span style="font-size:0.72em;color:#94a3b8">/100</span> <span style="font-size:0.82em;font-weight:600">' + bandTxt + dir + '</span></span>'
+            + '</div>'
+            + '<div style="height:9px;background:#dfe7f4;border-radius:6px;overflow:hidden"><div style="height:100%;width:' + score + '%;background:' + (m.color || '#2563eb') + ';border-radius:6px"></div></div>'
+            + (desc ? '<div style="font-size:0.7em;color:#64748b;margin-top:3px;line-height:1.35">' + desc + '</div>' : '')
+            + '</div>';
+    };
+    const grp = (gkey) => {
+        const lab = L[gkey] || {};
+        const title = en ? (lab.en || lab.fr || '') : (lab.fr || lab.en || '');
+        const hint = en ? (lab.hint_en || '') : (lab.hint_fr || '');
+        return '<div style="flex:1;min-width:250px;text-align:left">'
+            + '<div style="font-family:\'Playfair Display\',serif;font-size:0.92em;color:#1F3864;font-weight:600;border-bottom:1px solid #c3d4ee;padding-bottom:4px;margin-bottom:1px">' + title + '</div>'
+            + (hint ? '<div style="font-size:0.7em;color:#64748b;font-style:italic;margin-bottom:6px">' + hint + '</div>' : '')
+            + (dashObj.groups[gkey] || []).map(bar).join('')
+            + '</div>';
+    };
+    const bandTop = band && (en ? (band.band_en || band.band) : band.band);
+    const qbLine = bandTop ? '<div style="text-align:center;font-size:0.95em;font-weight:600;color:' + (band.color || '#475569') + ';margin:2px 0 14px">' + bandTop + '</div>' : '';
+    return '<div style="margin:24px 0;padding:20px 22px;background:linear-gradient(135deg,#eef2fb,#dbeafe);border:1px solid #c3d4ee;border-radius:12px">'
+        + '<div style="font-family:\'Playfair Display\',serif;font-size:1.05em;color:#1F3864;font-weight:600;text-align:center;margin-bottom:4px">' + t(dashObj.title, en ? 'Relationship Dashboard' : 'Tableau de bord relationnel') + '</div>'
+        + '<div style="font-size:0.74em;color:#64748b;text-align:center;font-style:italic;margin:0 auto 14px;max-width:520px">' + t(dashObj.intro) + '</div>'
+        + qbLine
+        + '<div style="display:flex;gap:28px;flex-wrap:wrap">' + grp('lien') + grp('domaines') + '</div>'
+        + (t(dashObj.note) ? '<div style="margin-top:14px;font-size:0.72em;color:#94a3b8;font-style:italic;line-height:1.5;text-align:center;max-width:560px;margin-left:auto;margin-right:auto">' + t(dashObj.note) + '</div>' : '')
+        + '</div>';
+}
+
 const headerTitle = isEN
     ? `Synastry Technical Data —<br>${prenomA} ${nomA} and ${prenomB} ${nomB}`
     : `Données Techniques Synastrie —<br>${prenomA} ${nomA} et ${prenomB} ${nomB}`;
@@ -258,36 +306,21 @@ const _chLabels = isEN
     : {'double_whammy_tension':'Double Whammy en tension','mars_saturne_hard_cross':'Mars-Saturne en tension croisée','neptune_fall_on_angle':'Neptune affaibli sur un angle','chiron_hard_personal':'Chiron dur aux personnelles','no_soleil_lune_soft':'Absence Soleil-Lune harmonique','lune_lune_hard':'Lune-Lune en tension','chart_rulers_no_aspect':'Maîtres de carte sans aspect','mars_hard_luminaires':'Mars dur aux luminaires','pluton_hard_personal':'Pluton dur aux personnelles','excessive_shared_fixity':'Excès de fixité partagée','poisoned_fusions_debilitated':'Fusions empoisonnées','no_venus_venus_soft':'Absence Vénus-Vénus harmonique','soleil_soleil_hard':'Clash d\'identité Soleil-Soleil','mercure_mercure_hard':'Friction mentale Mercure-Mercure','venus_venus_hard':'Clash de valeurs Vénus-Vénus','mars_mars_hard':'Conflit Mars-Mars','asc_asc_hard':'Friction de persona ASC-ASC','mc_mc_hard':'Tension de direction MC-MC'};
 _penCard.slice(0, 3).forEach(p => { _sumDefis.push(_chLabels[p.id] || p.id.replace(/_/g, ' ')); });
 
-const _sc2 = globalScore >= 75 ? "#166534" : globalScore >= 50 ? "#1F3864" : globalScore >= 30 ? "#92400e" : "#991b1b";
+const _sc2 = globalScore >= 75 ? "#166534" : globalScore >= 50 ? "#1F3864" : globalScore >= 30 ? "#d97706" : "#b45309";
 
 html += `<div id="syn-doc-fiche" style="page-break-after:always;margin-bottom:20px">
 <h2 class="section-title">${isEN ? 'Synastry Summary Card' : 'Fiche Synastrie'}</h2>
 <div style="display:flex;gap:16px;margin-top:15px">
 <div style="flex:1;display:flex;flex-direction:column;gap:12px">
-<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:14px;text-align:center">
-    <div style="font-weight:600;font-size:0.85em;color:#1F3864;margin-bottom:6px">${isEN ? 'Global Score' : 'Score Global'}</div>
-    <div style="font-size:2.5em;font-weight:700;color:${_sc2}">${globalScore}<span style="font-size:0.4em;color:#94a3b8">/100</span></div>
-    ${_gsd2.qualitative_band ? `<div style="font-size:0.8em;font-weight:600;color:${_gsd2.qualitative_band.color || '#374151'};margin-top:2px">${isEN ? (_gsd2.qualitative_band.band_en || _gsd2.qualitative_band.band) : _gsd2.qualitative_band.band}</div>` : ''}
+<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:14px">
+    <div style="display:flex;gap:10px;justify-content:center">
+        <div style="flex:1;text-align:center"><div style="font-weight:600;font-size:0.8em;color:#0369a1;margin-bottom:4px">${isEN ? 'Fluidity' : 'Fluidité'}</div><div style="font-size:2.1em;font-weight:700;color:${_sc2}">${globalScore}<span style="font-size:0.4em;color:#94a3b8">/100</span></div></div>
+        <div style="width:1px;background:#cbd5e1"></div>
+        <div style="flex:1;text-align:center"><div style="font-weight:600;font-size:0.8em;color:#7e22ce;margin-bottom:4px">${isEN ? 'Intensity' : 'Intensité'}</div><div style="font-size:2.1em;font-weight:700;color:#7c3aed">${typeof _gsd2.intensity === 'number' ? _gsd2.intensity : '—'}<span style="font-size:0.4em;color:#94a3b8">/100</span></div></div>
+    </div>
+    ${_gsd2.qualitative_band ? `<div style="font-size:0.82em;font-weight:600;color:${_gsd2.qualitative_band.color || '#374151'};margin-top:8px;text-align:center">${isEN ? (_gsd2.qualitative_band.band_en || _gsd2.qualitative_band.band) : _gsd2.qualitative_band.band}</div>` : ''}
+    <div style="font-size:0.68em;color:#94a3b8;font-style:italic;margin-top:6px;text-align:center;line-height:1.45">${isEN ? 'Two descriptive indices, not a verdict score: Fluidity = natural ease, Intensity = energetic charge.' : 'Deux indices descriptifs, pas une note-verdict : Fluidité = aisance naturelle, Intensité = charge énergétique.'}</div>
 </div>
-${(() => {
-    const ds = (input.dual_score) || {};
-    const fl = ds.fluidite || {};
-    const it = ds.intensite || {};
-    const flColor = (fl.score || 0) >= 70 ? '#16a34a' : (fl.score || 0) >= 50 ? '#2563eb' : (fl.score || 0) >= 35 ? '#d97706' : '#dc2626';
-    const itColor = (it.score || 0) >= 75 ? '#7c3aed' : (it.score || 0) >= 55 ? '#2563eb' : (it.score || 0) >= 35 ? '#d97706' : '#6b7280';
-    return `<div style="display:flex;gap:8px">
-    <div style="flex:1;background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;padding:10px;text-align:center">
-        <div style="font-weight:600;font-size:0.75em;color:#0369a1;margin-bottom:4px">${isEN ? 'Fluidity' : 'Fluidité'}</div>
-        <div style="font-size:1.6em;font-weight:700;color:${flColor}">${fl.score || '?'}</div>
-        <div style="font-size:0.7em;color:${flColor};font-weight:600">${isEN ? (fl.label_en || fl.label || '') : (fl.label || '')}</div>
-    </div>
-    <div style="flex:1;background:#faf5ff;border:1px solid #d8b4fe;border-radius:8px;padding:10px;text-align:center">
-        <div style="font-weight:600;font-size:0.75em;color:#7e22ce;margin-bottom:4px">${isEN ? 'Intensity' : 'Intensité'}</div>
-        <div style="font-size:1.6em;font-weight:700;color:${itColor}">${it.score || '?'}</div>
-        <div style="font-size:0.7em;color:${itColor};font-weight:600">${isEN ? (it.label_en || it.label || '') : (it.label || '')}</div>
-    </div>
-</div>`;
-})()}
 <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:12px">
     <div style="font-weight:600;font-size:0.82em;color:#1F3864;margin-bottom:2px">${isEN ? 'Top 5 Strongest Aspects' : 'Top 5 Aspects les plus forts'}</div>
     <div style="font-size:0.7em;color:#64748b;font-style:italic;margin-bottom:6px">${isEN ? '(Raw geometric score : orb + nature, before structural weighting)' : '(Score brut géométrique : orbe + nature, avant pondération structurelle)'}</div>
@@ -365,36 +398,16 @@ if (globalScore > 0) {
     const _pct3 = Math.round(((_p3.total || 0) / 20) * 100);
     const _pct4 = Math.round(((_p4.total || 0) / 20) * 100);
 
-    const _scoreColor = globalScore >= 75 ? "#166534" : globalScore >= 50 ? "#1F3864" : globalScore >= 30 ? "#92400e" : "#991b1b";
+    const _scoreColor = globalScore >= 75 ? "#166534" : globalScore >= 50 ? "#1F3864" : globalScore >= 30 ? "#d97706" : "#b45309";
 
     const _gaugeR = 60, _gaugeStroke = 12;
     const _gaugeCirc = 2 * Math.PI * _gaugeR;
     const _gaugeDash = (globalScore / 100) * _gaugeCirc;
-    const _gaugeGradient = globalScore >= 75 ? '#16a34a' : globalScore >= 50 ? '#2563eb' : globalScore >= 30 ? '#d97706' : '#dc2626';
+    const _gaugeGradient = globalScore >= 75 ? '#16a34a' : globalScore >= 50 ? '#2563eb' : globalScore >= 30 ? '#d97706' : '#b45309';
 
-    html += `<div id="syn-doc-score" style="text-align:center;margin:15px 0 10px;padding:20px;background:linear-gradient(135deg,#eef2fb,#dbeafe);border:2px solid #2E5FA3;border-radius:12px">
-        <div style="font-family:'Playfair Display',serif;font-size:1.1em;color:#1F3864;margin-bottom:8px">${isEN ? 'Overall Compatibility Score' : 'Score de Compatibilité Global'}</div>
-        <svg width="160" height="160" viewBox="0 0 160 160" style="margin:0 auto;display:block">
-  <circle cx="80" cy="80" r="${_gaugeR}" fill="none" stroke="#e5e7eb" stroke-width="${_gaugeStroke}"/>
-  <circle cx="80" cy="80" r="${_gaugeR}" fill="none" stroke="${_gaugeGradient}" stroke-width="${_gaugeStroke}" stroke-dasharray="${_gaugeDash} ${_gaugeCirc}" stroke-dashoffset="0" transform="rotate(-90 80 80)" stroke-linecap="round"/>
-  <text x="80" y="75" text-anchor="middle" font-size="36" font-weight="700" fill="${_scoreColor}" font-family="Playfair Display,serif">${globalScore}</text>
-  <text x="80" y="98" text-anchor="middle" font-size="14" fill="#64748b">/100</text>
-</svg>
-        ${globalScoreDetail?.qualitative_band ? `<div style="margin-top:6px;font-size:0.9em;font-weight:600;color:${globalScoreDetail.qualitative_band.color || '#374151'}">${isEN ? (globalScoreDetail.qualitative_band.band_en || globalScoreDetail.qualitative_band.band) : globalScoreDetail.qualitative_band.band}</div><div style="font-size:0.78em;color:#64748b;margin-top:3px;max-width:400px;margin-left:auto;margin-right:auto">${isEN ? (globalScoreDetail.qualitative_band.desc_en || globalScoreDetail.qualitative_band.desc || globalScoreDetail.qualitative_band.desc_fr || '') : (globalScoreDetail.qualitative_band.desc || globalScoreDetail.qualitative_band.desc_fr || '')}</div>` : ''}
-        ${(() => {
-            const ds2 = (input.dual_score) || {};
-            const fl2 = ds2.fluidite || {};
-            const it2 = ds2.intensite || {};
-            if (!fl2.score && !it2.score) return '';
-            const flC2 = (fl2.score||0) >= 70 ? '#16a34a' : (fl2.score||0) >= 50 ? '#2563eb' : (fl2.score||0) >= 35 ? '#d97706' : '#dc2626';
-            const itC2 = (it2.score||0) >= 75 ? '#7c3aed' : (it2.score||0) >= 55 ? '#2563eb' : (it2.score||0) >= 35 ? '#d97706' : '#6b7280';
-            return `<div style="display:flex;justify-content:center;gap:24px;margin-top:12px">
-                <div style="text-align:center"><div style="font-size:0.75em;font-weight:600;color:#0369a1;margin-bottom:2px">${isEN ? 'Fluidity' : 'Fluidité'}</div><div style="font-size:1.4em;font-weight:700;color:${flC2}">${fl2.score}</div><div style="font-size:0.7em;color:${flC2}">${isEN ? (fl2.label_en || fl2.label) : fl2.label}</div></div>
-                <div style="width:1px;background:#cbd5e1"></div>
-                <div style="text-align:center"><div style="font-size:0.75em;font-weight:600;color:#7e22ce;margin-bottom:2px">${isEN ? 'Intensity' : 'Intensité'}</div><div style="font-size:1.4em;font-weight:700;color:${itC2}">${it2.score}</div><div style="font-size:0.7em;color:${itC2}">${isEN ? (it2.label_en || it2.label) : it2.label}</div></div>
-            </div>`;
-        })()}
-    </div>`;
+    // v7.2.0 — Section score unifiée : tableau de bord relationnel identique aux 3 rapports.
+    const _dashDt = input.relationship_dashboard || (input._synRef || {}).relationship_dashboard || null;
+    html += `<div id="syn-doc-score">${buildSynDashboard(_dashDt, isEN, globalScoreDetail.qualitative_band || {})}</div>`;
 
     const execLines = [];
     const _dsObj = input.dual_score || {};

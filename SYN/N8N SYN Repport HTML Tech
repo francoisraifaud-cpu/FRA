@@ -266,10 +266,10 @@ sortedA.forEach(([houseNum, data]) => {
     const hCol = _harmonyColorTech(hScoreH);
     const compTag = hi.compensation ? `<span style="display:inline-block;background:#ede9fe;color:#6d28d9;font-size:15.5px;font-weight:600;padding:4px 13px;border-radius:20px;margin:2px 3px;" title="Compensation depuis M${hi.compensation.from_house} (+${hi.compensation.borrowed} pts via axe ${hi.compensation.axis})">⇄ M${hi.compensation.from_house} (+${hi.compensation.borrowed})</span>` : '';
     const _sigA = (hi.dominant_signature && hi.dominant_signature !== 'inactive') ? ` · ${hi.dominant_signature}` : '';
-    const intensityBadge = `<span style="display:inline-block;background:#f1f5f9;color:#475569;font-size:15.5px;font-weight:600;padding:4px 13px;border-radius:20px;margin:2px 3px;" title="${isEN ? 'Internal intensity (not shown in client report)' : 'Intensité interne (non affichée côté client)'}">${isEN ? 'Intensity:' : 'Intensité :'} ${hScoreI}/100${_sigA}</span>`;
+    const intensityBadge = `<span style="display:inline-block;background:#f3e8ff;color:#7e22ce;font-size:15.5px;font-weight:600;padding:4px 13px;border-radius:20px;margin:2px 3px;" title="${isEN ? 'Energetic charge of this domain' : 'Charge énergétique de ce domaine'}">${isEN ? 'Intensity:' : 'Intensité :'} ${hScoreI}/100${_sigA}</span>`;
     const scoreBadge = isVraimentVide_t
         ? `<span style="display:inline-block;background:#f1f5f9;color:#64748b;font-size:15.5px;font-weight:500;padding:4px 13px;border-radius:20px;margin:2px 3px;font-style:italic;" title="${isEN ? 'No major activation in this house' : 'Aucune activation majeure dans cette maison'}">${isEN ? 'Neutral / —' : 'Neutre / —'}</span>`
-        : `<span style="display:inline-block;background:${hCol.bg};color:${hCol.txt};font-size:15.5px;font-weight:600;padding:4px 13px;border-radius:20px;margin:2px 3px;">${isEN ? 'Harmony:' : 'Harmonie :'} ${hScoreH}/100</span>`;
+        : `<span style="display:inline-block;background:${hCol.bg};color:${hCol.txt};font-size:15.5px;font-weight:600;padding:4px 13px;border-radius:20px;margin:2px 3px;">${isEN ? 'Fluidity:' : 'Fluidité :'} ${hScoreH}/100</span>`;
     const princBadge = data.is_principale
         ? `<span style="display:inline-block;background:#dbeafe;color:#1e40af;font-size:15.5px;font-weight:600;padding:4px 13px;border-radius:20px;margin:2px 3px;border:1px solid #2E5FA3;">${isEN ? 'Primary' : 'Principale'}</span>`
         : '';
@@ -327,10 +327,10 @@ sortedB.forEach(([houseNum, data]) => {
     const hColB = _harmonyColorTech(hScoreHB);
     const compTagB = hiB.compensation ? `<span style="display:inline-block;background:#ede9fe;color:#6d28d9;font-size:15.5px;font-weight:600;padding:4px 13px;border-radius:20px;margin:2px 3px;" title="Compensation depuis M${hiB.compensation.from_house} (+${hiB.compensation.borrowed} pts via axe ${hiB.compensation.axis})">⇄ M${hiB.compensation.from_house} (+${hiB.compensation.borrowed})</span>` : '';
     const _sigB = (hiB.dominant_signature && hiB.dominant_signature !== 'inactive') ? ` · ${hiB.dominant_signature}` : '';
-    const intensityBadgeB = `<span style="display:inline-block;background:#f1f5f9;color:#475569;font-size:15.5px;font-weight:600;padding:4px 13px;border-radius:20px;margin:2px 3px;" title="${isEN ? 'Internal intensity (not shown in client report)' : 'Intensité interne (non affichée côté client)'}">${isEN ? 'Intensity:' : 'Intensité :'} ${hScoreIB}/100${_sigB}</span>`;
+    const intensityBadgeB = `<span style="display:inline-block;background:#f3e8ff;color:#7e22ce;font-size:15.5px;font-weight:600;padding:4px 13px;border-radius:20px;margin:2px 3px;" title="${isEN ? 'Energetic charge of this domain' : 'Charge énergétique de ce domaine'}">${isEN ? 'Intensity:' : 'Intensité :'} ${hScoreIB}/100${_sigB}</span>`;
     const scoreBadge = isVraimentVide_tB
         ? `<span style="display:inline-block;background:#f1f5f9;color:#64748b;font-size:15.5px;font-weight:500;padding:4px 13px;border-radius:20px;margin:2px 3px;font-style:italic;" title="${isEN ? 'No major activation in this house' : 'Aucune activation majeure dans cette maison'}">${isEN ? 'Neutral / —' : 'Neutre / —'}</span>`
-        : `<span style="display:inline-block;background:${hColB.bg};color:${hColB.txt};font-size:15.5px;font-weight:600;padding:4px 13px;border-radius:20px;margin:2px 3px;">${isEN ? 'Harmony:' : 'Harmonie :'} ${hScoreHB}/100</span>`;
+        : `<span style="display:inline-block;background:${hColB.bg};color:${hColB.txt};font-size:15.5px;font-weight:600;padding:4px 13px;border-radius:20px;margin:2px 3px;">${isEN ? 'Fluidity:' : 'Fluidité :'} ${hScoreHB}/100</span>`;
     const princBadge = data.is_principale
         ? `<span style="display:inline-block;background:#fed7aa;color:#c2410c;font-size:15.5px;font-weight:600;padding:4px 13px;border-radius:20px;margin:2px 3px;border:1px solid #c2410c;">${isEN ? 'Primary' : 'Principale'}</span>`
         : '';
@@ -490,6 +490,54 @@ function buildSynTechTocHtml() {
 </nav><div class="syn-tech-toc-pagebreak" style="page-break-after:always;break-after:page;height:0;margin:0;padding:0;overflow:hidden" aria-hidden="true"></div>`;
 }
 
+// ════════════════════════════════════════════════════════════════════════
+// COMPOSANT PARTAGÉ — Tableau de bord relationnel (8 indices /100)
+// Rendu STRICTEMENT IDENTIQUE dans les 3 rapports (Final, Tech, Données Tech).
+// Toutes les chaînes proviennent de l'objet moteur `relationship_dashboard`.
+// Toute modification doit être répliquée à l'identique dans les 3 fichiers.
+// ════════════════════════════════════════════════════════════════════════
+function buildSynDashboard(dashObj, en, band) {
+    if (!dashObj || !dashObj.metrics || !dashObj.groups) return '';
+    const M = dashObj.metrics, L = dashObj.labels || {};
+    const t = (o, f) => o ? (en ? (o.en || o.fr) : (o.fr || o.en)) : (f || '');
+    const bar = (key) => {
+        const m = M[key];
+        if (!m) return '';
+        const nm = en ? (m.name_en || m.name) : m.name;
+        const bandTxt = en ? (m.label_en || m.label) : m.label;
+        const desc = en ? (m.desc_en || m.desc || '') : (m.desc || m.desc_en || '');
+        const score = Math.max(0, Math.min(100, Math.round(m.score || 0)));
+        const dir = (key === 'karmique' && (en ? m.direction_en : m.direction)) ? ' \u00b7 ' + (en ? m.direction_en : m.direction) : '';
+        return '<div style="margin:11px 0;text-align:left">'
+            + '<div style="display:flex;justify-content:space-between;align-items:baseline;font-size:0.85em;margin-bottom:2px">'
+            + '<span style="color:#1F3864;font-weight:600">' + (m.icon ? m.icon + '\u00a0' : '') + nm + '</span>'
+            + '<span style="color:' + (m.color || '#475569') + ';font-weight:700">' + score + '<span style="font-size:0.72em;color:#94a3b8">/100</span> <span style="font-size:0.82em;font-weight:600">' + bandTxt + dir + '</span></span>'
+            + '</div>'
+            + '<div style="height:9px;background:#dfe7f4;border-radius:6px;overflow:hidden"><div style="height:100%;width:' + score + '%;background:' + (m.color || '#2563eb') + ';border-radius:6px"></div></div>'
+            + (desc ? '<div style="font-size:0.7em;color:#64748b;margin-top:3px;line-height:1.35">' + desc + '</div>' : '')
+            + '</div>';
+    };
+    const grp = (gkey) => {
+        const lab = L[gkey] || {};
+        const title = en ? (lab.en || lab.fr || '') : (lab.fr || lab.en || '');
+        const hint = en ? (lab.hint_en || '') : (lab.hint_fr || '');
+        return '<div style="flex:1;min-width:250px;text-align:left">'
+            + '<div style="font-family:\'Playfair Display\',serif;font-size:0.92em;color:#1F3864;font-weight:600;border-bottom:1px solid #c3d4ee;padding-bottom:4px;margin-bottom:1px">' + title + '</div>'
+            + (hint ? '<div style="font-size:0.7em;color:#64748b;font-style:italic;margin-bottom:6px">' + hint + '</div>' : '')
+            + (dashObj.groups[gkey] || []).map(bar).join('')
+            + '</div>';
+    };
+    const bandTop = band && (en ? (band.band_en || band.band) : band.band);
+    const qbLine = bandTop ? '<div style="text-align:center;font-size:0.95em;font-weight:600;color:' + (band.color || '#475569') + ';margin:2px 0 14px">' + bandTop + '</div>' : '';
+    return '<div style="margin:24px 0;padding:20px 22px;background:linear-gradient(135deg,#eef2fb,#dbeafe);border:1px solid #c3d4ee;border-radius:12px">'
+        + '<div style="font-family:\'Playfair Display\',serif;font-size:1.05em;color:#1F3864;font-weight:600;text-align:center;margin-bottom:4px">' + t(dashObj.title, en ? 'Relationship Dashboard' : 'Tableau de bord relationnel') + '</div>'
+        + '<div style="font-size:0.74em;color:#64748b;text-align:center;font-style:italic;margin:0 auto 14px;max-width:520px">' + t(dashObj.intro) + '</div>'
+        + qbLine
+        + '<div style="display:flex;gap:28px;flex-wrap:wrap">' + grp('lien') + grp('domaines') + '</div>'
+        + (t(dashObj.note) ? '<div style="margin-top:14px;font-size:0.72em;color:#94a3b8;font-style:italic;line-height:1.5;text-align:center;max-width:560px;margin-left:auto;margin-right:auto">' + t(dashObj.note) + '</div>' : '')
+        + '</div>';
+}
+
 const finalHtml = `<!DOCTYPE html>
 <html lang="${isEN ? 'en' : 'fr'}">
 <head>
@@ -553,17 +601,19 @@ ${globalScore > 0 ? '<div id="syn-tech-score">' + (() => {
     const _classCounts = (globalScoreDetail || {}).class_counts_global || {};
     const _classCountsStr = Object.entries(_classCounts).filter(([_, v]) => v > 0).map(([k, v]) => k + ':' + v).join(' · ') || '—';
     const _scoreV5 = (globalScoreDetail || {}).score_v5 ?? null;
-    return '<div style="text-align:center;margin:30px 0 10px;padding:18px;background:linear-gradient(135deg,#eef2fb,#dbeafe);border:2px solid #2E5FA3;border-radius:12px">'
-        + '<div style="font-family:Playfair Display,serif;font-size:1em;color:#1F3864;margin-bottom:6px">' + (isEN ? 'Harmony Score' : 'Note d\u2019Harmonie') + ' <span style="font-size:0.7em;color:#94a3b8">' + (synData.version || 'v6.0.0') + '</span></div>'
-        + '<div style="font-size:2.4em;font-weight:700;color:' + sColor + '">' + globalScore + '<span style="font-size:0.4em;color:#64748b">/100</span></div>'
-        + (globalScoreDetail?.qualitative_band ? '<div style="margin-top:5px;font-size:0.85em;font-weight:600;color:' + (globalScoreDetail.qualitative_band.color || '#374151') + '">' + (isEN ? (globalScoreDetail.qualitative_band.band_en || globalScoreDetail.qualitative_band.band) : globalScoreDetail.qualitative_band.band) + '</div><div style="font-size:0.72em;color:#64748b;margin-top:2px">' + (isEN ? (globalScoreDetail.qualitative_band.desc_en || globalScoreDetail.qualitative_band.desc || globalScoreDetail.qualitative_band.desc_fr) : (globalScoreDetail.qualitative_band.desc || globalScoreDetail.qualitative_band.desc_fr)) + '</div>' : '')
-        + '<div style="display:flex;justify-content:center;gap:18px;margin-top:14px;font-size:0.78em;color:#475569;flex-wrap:wrap">'
-        + (typeof _intV6Display === "number" ? '<div><strong>' + (isEN ? 'Internal Intensity' : 'Intensité interne') + ':</strong> ' + _intV6Display + '/100</div>' : '')
-        + '<div><strong>' + (isEN ? 'Dominant signature' : 'Signature dominante') + ':</strong> ' + _domSig + '</div>'
-        + (_scoreV5 !== null ? '<div title="Legacy v5 stretched score (debug only)"><strong>v5:</strong> ' + _scoreV5 + '</div>' : '')
-        + '</div>'
-        + '<div style="margin-top:6px;font-size:0.7em;color:#94a3b8">' + (isEN ? 'Aspect classes' : 'Classes d\u2019aspects') + ' : ' + _classCountsStr + '</div>'
-        + '</div>'
+    // v7.2.0 — Section score unifiée : tableau de bord relationnel identique aux
+    // 3 rapports (composant buildSynDashboard). Suivi d'une ligne technique slim
+    // propre au rapport Tech (signature dominante, v5 debug, classes d'aspects).
+    const dash = synData.relationship_dashboard || (prepData._synRef || {}).relationship_dashboard || null;
+    const _qbT = (globalScoreDetail || {}).qualitative_band || {};
+    const _techLine = '<div style="text-align:center;margin:0 0 14px;font-size:0.74em;color:#475569">'
+        + '<span style="color:#94a3b8">' + (isEN ? 'Engine' : 'Moteur') + ' ' + (synData.version || 'v6.0.0') + '</span>'
+        + ' \u00b7 <strong>' + (isEN ? 'Dominant signature' : 'Signature dominante') + ' :</strong> ' + _domSig
+        + (_scoreV5 !== null ? ' \u00b7 <span title="Legacy v5 stretched score (debug only)"><strong>v5 :</strong> ' + _scoreV5 + '</span>' : '')
+        + ' \u00b7 ' + (isEN ? 'Aspect classes' : 'Classes d\u2019aspects') + ' : ' + _classCountsStr
+        + '</div>';
+    return buildSynDashboard(dash, isEN, _qbT)
+        + _techLine
         + '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin:0 0 10px">'
         + '<div style="background:#f8fafc;border:1px solid #cbd5e1;border-radius:8px;padding:8px 10px"><div style="font-weight:600;font-size:0.8em;color:#1e3a5f;margin-bottom:3px">' + (isEN ? 'P1 — Aspectual Quality' : 'P1 — Qualité Aspectuelle') + ' <span style="color:#94a3b8;font-weight:400">(' + (sp1.total||0) + '/35)</span></div><div style="display:flex;align-items:center;gap:6px">' + bar(pct1, '#2563eb') + '</div></div>'
         + '<div style="background:#f8fafc;border:1px solid #cbd5e1;border-radius:8px;padding:8px 10px"><div style="font-weight:600;font-size:0.8em;color:#1e3a5f;margin-bottom:3px">' + (isEN ? 'P2 — Karmic Depth' : 'P2 — Profondeur Karmique') + ' <span style="color:#94a3b8;font-weight:400">(' + (sp2.total||0) + '/30)</span></div><div style="display:flex;align-items:center;gap:6px">' + bar(pct2, '#7c3aed') + '</div></div>'
@@ -597,6 +647,9 @@ ${globalScore > 0 ? '<div id="syn-tech-score">' + (() => {
 <div id="syn-tech-maisons" style="page-break-after:avoid;break-after:avoid;background:#1F3864;padding:15px 26px;border-radius:8px;margin:0 0 22px;">
     <h2 style="font-family:'Playfair Display',Georgia,serif;font-size:18px;font-weight:600;color:white;letter-spacing:0.2px;margin:0;">&#8962;&nbsp; ${isEN ? 'Astrological Houses' : 'Maisons Astrologiques'}</h2>
 </div>
+<div style="background:#f4f6ff;border:1px solid #c3d4ee;border-radius:8px;padding:10px 16px;margin:0 0 20px;font-size:0.82em;color:#475569;line-height:1.55">${isEN
+    ? '<strong style="color:#1F3864">How to read the house badges.</strong> Each house shows two landmarks out of 100: <span style="color:#0369a1;font-weight:600">Fluidity</span> = how easy this life area feels (50 = neutral), and <span style="color:#7e22ce;font-weight:600">Intensity</span> = the energetic charge at play there. They describe the texture of the area, not a grade.'
+    : '<strong style="color:#1F3864">Comment lire les badges des maisons.</strong> Chaque maison affiche deux rep\u00e8res sur 100 : <span style="color:#0369a1;font-weight:600">Fluidit\u00e9</span> = l\u2019aisance ressentie dans ce domaine (50 = neutre), et <span style="color:#7e22ce;font-weight:600">Intensit\u00e9</span> = la charge \u00e9nerg\u00e9tique qui s\u2019y joue. Ils d\u00e9crivent la texture du domaine, pas une note.'}</div>
 
 <div id="syn-tech-perspective-a" style="page-break-before:avoid;break-before:avoid;background:#2E5FA3;padding:15px 26px;border-radius:8px;margin:22px 0 22px;">
     <h2 style="font-family:'Playfair Display',Georgia,serif;font-size:18px;font-weight:600;color:white;letter-spacing:0.2px;margin:0;">&#9728;&nbsp; ${isEN ? `${esc(persoA)}'s Perspective — Impact of ${esc(persoB)}` : `Perspective de ${esc(persoA)} — Impact de ${esc(persoB)}`}</h2>
