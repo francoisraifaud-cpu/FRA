@@ -4383,7 +4383,7 @@ Object.keys(aspectsSuiviLent).forEach(key => {
         const convKey = inW.map(p=>p.label).sort().join("|");
         if (seenConv.has(convKey)) continue; seenConv.add(convKey);
         const maisons = [...new Set(inW.map(p=>p.maison))];
-        const label = `🔥 FENÊTRE DE HAUTE INTENSITÉ du ${wStart} au ${wEnd} (${inW.length} pics simultanés) :\n${inW.map(p=>`  • ${p.label} (pic ${p.date})`).join("\n")}\n→ Convergence rare : plusieurs forces majeures atteignent leur maximum simultanément. Période de transformation accélérée.`;
+        const label = `🔥 FENÊTRE DE HAUTE INTENSITÉ du ${wStart} au ${wEnd} (${inW.length} pics simultanés) :\n${inW.map(p=>`  • ${p.label} (pic ${p.date})`).join("\n")}\n→ Convergence rare : plusieurs contacts célestes exacts culminent dans le même créneau. Climat astrologique particulièrement dense — à présenter comme une tendance de fond, jamais comme un événement de vie daté annoncé.`;
         maisons.forEach(m => { if(m>=1&&m<=12) maisonsResult[m-1].convergences_texte.push(label); });
     }
 }
@@ -13412,7 +13412,7 @@ Le bloc [⚡ ÉVÉNEMENTS COMPOSITES] et la TABLE DE RÉFÉRENCE listent des CON
 
 RÈGLES À APPLIQUER STRICTEMENT :
 
-• Q1 — SEUIL : tout compound ⚡ avec confiance ≥ 60 % DOIT recevoir sa propre section narrative dans la partie « Grands chantiers de l'année » (titre dédié + paragraphe développé). Pas de mention en passant. Cette règle est NON-négociable.
+• Q1 — SURFAÇAGE : tout compound ⚡ d'intensité forte DOIT recevoir sa propre section narrative dédiée (titre + paragraphe développé), présenté comme une CONFIGURATION marquante de l'année — jamais comme un événement annoncé ni daté. Pas de mention en passant. Cette règle est NON-négociable.
 
 • Q2 — ABSORPTION (gain ≥ +10 pts) : si conf(compound) ≥ max(conf des sources) + 10 (ex : Fondation familiale 81 % vs MARIAGE 58 % ⇒ gain +23), tu DOIS ABSORBER les sources dans la section compound. Tu ne fais PAS de section séparée pour MARIAGE 58 % ni ENFANT 45 %. Le compound porte TOUT le récit. Sinon (gain < 10), tu peux faire coexister compound + sources comme thèmes complémentaires.
 EXEMPLE CONCRET — à reproduire exactement : Si la TABLE indique « ⚡ Fondation familiale = 81% » et « 💍 Engagement / Alliance structurante = 58% », tu crées UNE SEULE section intitulée « Fondation familiale (81%) » qui absorbe entièrement l'engagement. Tu ne crées PAS de section « Engagement structurant » séparée. Le mariage est UN aspect de la fondation familiale, PAS un thème distinct.
@@ -13421,16 +13421,16 @@ EXEMPLE CONCRET — à reproduire exactement : Si la TABLE indique « ⚡ Fondat
 
 • Q4 — SANTE_DOWN ET ACCIDENT NE FUSIONNENT PAS : ces deux signatures décrivent des phénomènes physiques DISTINCTS — ACCIDENT = énergie martienne aiguë et ponctuelle (« vigilance accident, dépense énergétique excessive, ralentir lorsque la machine résiste ») ; SANTE_DOWN = usure chronique saturnienne/neptunienne (« fragilité vitale, fatigue de fond, terrain à reconstruire »). Si chacun ≥ 60 %, fais DEUX sections distinctes. Ne JAMAIS les fondre en une vague section « Vigilance physique » qui dilue le diagnostic. Exception : si le compound 🏥 « Vigilance physique renforcée » ≥ 60 % et déclenche l'absorption Q2, alors les sources sont portées par le compound.
 
-• Q5 — DEUX REGISTRES DE DATES, À QUALIFIER EXPLICITEMENT :
-Tu disposes de DEUX types de dates dans le prompt :
-  ① Pics de convergence agrégés — issus de 🎯 TOP-5 SIGNATURES DU MOTEUR, format « pics : YYYY-MM-DD » : ce sont des FENÊTRES de convergence multi-couches. Présente-les comme : « période de convergence autour du [date] » ou « fenêtre de pic le [date] ».
-  ② Pics exacts d'aspects lents — issus des sections [ASPECTS LENTS] / [TRANSITS LENTS], format « 📌 PIC EXACT le YYYY-MM-DD (orbe X.XX°) » : ce sont les contacts EXACTS d'un transit unique au degré près. Présente-les comme : « pic exact le [date] » ou « exactitude le [date] ».
-Tu peux utiliser les deux registres dans un même paragraphe MAIS jamais en confondant le statut. Exemple correct à imiter : « La reconnaissance professionnelle culmine dans une fenêtre de convergence autour du 18 août 2026, avec un point d'exactitude pile le 13 août lorsque Jupiter atteint ton Milieu du Ciel au degré près. »
+• Q5 — DATES : UNIQUEMENT DES PHÉNOMÈNES CÉLESTES RÉELS (jamais de date d'événement prédit) :
+Les seules dates que tu peux citer sont des faits astronomiques vérifiables, JAMAIS la date à laquelle un événement de vie « va arriver » :
+  ① Pics exacts d'aspects lents — sections [ASPECTS LENTS] / [TRANSITS LENTS], format « 📌 PIC EXACT le YYYY-MM-DD (orbe X.XX°) » : contacts EXACTS d'un transit au degré près. Présente-les comme : « pic exact le [date] » / « exactitude le [date] ».
+  ② Éclipses et stations — sections dédiées par maison : éclipse datée tombant sur une maison/un point natal (avec sa lignée Saros), station d'une planète sur un degré sensible. Ce sont des phénomènes célestes datables.
+N'invente AUCUNE date. N'emploie PLUS de « date de convergence » ni de « fenêtre de pic » pour annoncer un événement : tu dates QUAND un PHÉNOMÈNE CÉLESTE est exact, pas quand un fait de vie surviendrait. Exemple correct à imiter : « Jupiter atteint ton Milieu du Ciel au degré près le 13 août, configuration qui éclaire le champ professionnel » — et NON « ta promotion arrive le 13 août ».
 
 UTILISATION DES LEVIERS POUR LES COMPOUNDS :
 Le bloc [⚡ ÉVÉNEMENTS COMPOSITES] te donne le score et la fenêtre globale du compound. Pour les LEVIERS et PICS détaillés, utilise l'union des leviers/pics des deux signatures sources listées dans 🎯 TOP-5 SIGNATURES DU MOTEUR (si elles y sont). Si une source n'apparaît pas dans le top-5, utilise les leviers présents dans la section ANALYSE PAR MAISON correspondant à sa thématique. Ne fabrique JAMAIS de date ou de levier qui ne soit pas explicitement fourni dans le prompt.
 
-⛔ OBLIGATION DE COUVERTURE : toute ligne de la TABLE DE RÉFÉRENCE marquée ⚡ avec un pourcentage ≥ 60 % DOIT apparaître en section narrative dédiée. Aucune ligne ⚡ ≥ 60 % ne peut être omise. Cette règle est NON-négociable.`;
+⛔ OBLIGATION DE COUVERTURE : toute configuration composite ⚡ d'intensité forte DOIT apparaître en section narrative dédiée (comme thème/configuration de l'année, jamais comme événement daté annoncé). Aucune configuration ⚡ forte ne peut être omise. Cette règle est NON-négociable.`;
 
 promptSynth += `\n\n[⛔ CHARTE ANTI-HALLUCINATION — OBLIGATIONS STRICTES]
 1. ORBES & EXACTITUDE : Ne JAMAIS écrire "exactement sur", "station exacte sur", "conjonction exacte" si l'orbe fourni est > 0.5°. Utiliser "à proximité de" (1-2°) ou "dans l'orbe de" (2-3°). "Exactement" = RÉSERVÉ aux orbes ≤ 0.5°.
@@ -17322,11 +17322,11 @@ if (finalOutput.length > 0) {
     if (_mdseResults.length > 0) {
       const _finalPctLines = _mdseResults.map(s => `  ${s.icon} ${s.label} = ${s.confidence}%`);
       if (_mdseCompoundEvents?.length > 0) _mdseCompoundEvents.forEach(ce => _finalPctLines.push(`  ⚡ ${ce.label} = ${ce.confidence}%`));
-      const _finalPctTable = `\n\n🚨 TABLE DE RÉFÉRENCE DES POURCENTAGES — SEULS CHIFFRES AUTORISÉS :\n` +
+      const _finalPctTable = `\n\n🚨 TABLE DE RÉFÉRENCE INTERNE (NE JAMAIS AFFICHER AU LECTEUR) — intensités relatives des thèmes :\n` +
         _finalPctLines.join("\n") +
-        `\n⛔ INTERDIT ABSOLU : tu ne dois JAMAIS écrire un pourcentage différent de ceux listés ci-dessus. ` +
-        `Ne PAS arrondir, ne PAS moyenner, ne PAS inventer. ` +
-        `Copie-colle le chiffre exact depuis cette table. Si tu n'es pas certain du chiffre, NE CITE PAS de pourcentage.`;
+        `\n⛔ USAGE STRICTEMENT INTERNE : cette table sert UNIQUEMENT à hiérarchiser l'importance des thèmes entre eux (lesquels développer davantage). ` +
+        `Tu ne dois JAMAIS écrire de pourcentage dans le texte client : aucun chiffre de « fiabilité », « confiance » ou « probabilité » ne doit apparaître au lecteur, ni ceux-ci ni d'autres. ` +
+        `N'invente jamais de chiffre. Le rapport décrit des configurations et des tendances, pas des probabilités chiffrées.`;
       const _confMap = {};
       _mdseResults.forEach(s => { _confMap[s.code] = { icon: s.icon, label: s.label, conf: s.confidence }; });
       finalOutput.forEach(item => {
@@ -41501,31 +41501,20 @@ function dtcEmpilementEvaluate(payload, eventDate, code) {
         .slice(0, 5);
 
       if (_top5Sigs.length > 0) {
+        // celeste_keep (2026-06-04) : orientation interne de DOMAINES, sans date de
+        // convergence (★) ni %. Le pic de convergence agrégé était l'estimation falsifiable
+        // du moteur (précision ~23% TOP5) ; on ne l'expose plus comme une date d'événement.
+        // Les seules dates du narratif viennent désormais des PHÉNOMÈNES CÉLESTES RÉELS
+        // (éclipses/Saros, transits lents exacts, stations) traités dans leurs sections.
         const _top5Lines = _top5Sigs.map((s, idx) => {
-          const _src = (s.peakWindow?.displayDates && s.peakWindow.displayDates.length > 0)
-            ? s.peakWindow.displayDates
-            : (s.displayDates && s.displayDates.length > 0
-                ? s.displayDates
-                : (s.triggerDates && s.triggerDates.length > 0
-                    ? s.triggerDates
-                    : (s.peakWindow?.peakDates || [])));
-          const _dispDates = _src.slice(0, 5).filter(Boolean);
-          // ★ marker sur la date principale (la mieux notée par score, exposée par H-balanced-v1).
-          const _principal = s.peakWindow?.principalDate || null;
-          const _datesFmt = _dispDates
-            .map(d => (d === _principal) ? `★${d}` : d)
-            .join(", ");
-          const _start = (s.peakWindow?.start || "").slice(5);
-          const _end   = (s.peakWindow?.end   || "").slice(5);
-          const _periode = (_start && _end) ? `${_start} → ${_end}` : "(période non datée)";
-          const _datesTxt = _dispDates.length > 0 ? ` · pics : ${_datesFmt}` : "";
-          return `  ${idx + 1}. ${s.icon || "•"} ${s.label || s.code} (${s.confidence || 0}%) — ${_periode}${_datesTxt}`;
+          return `  ${idx + 1}. ${s.icon || "•"} ${s.label || s.code}`;
         });
-        const _top5Table = `\n\n🎯 TOP-5 SIGNATURES DU MOTEUR — FENÊTRES ÉVÉNEMENTIELLES PRIORITAIRES :\n` +
+        const _top5Table = `\n\n🧭 DOMAINES PRIORITAIRES DE L'ANNÉE (orientation interne — NE PAS lister tels quels au lecteur) :\n` +
           _top5Lines.join("\n") +
-          `\n💡 Ces 5 signatures sont les plus solides détectées par le moteur DTC (triées par confidence). ` +
-          `La date marquée ★ est le pic de convergence le plus dense (score multi-leviers maximal) ; les autres dates sont des fenêtres secondaires de la même signature, pas des thèmes différents. ` +
-          `Si tu décris ces thèmes dans le narratif, tu DOIS : (1) ancrer ton propos aux fenêtres temporelles indiquées (période start→end et dates pics, en privilégiant la date ★) ; (2) ne PAS inventer d'autres thématiques événementielles non listées ci-dessus. Si la confidence d'une signature est faible, traite-la avec nuance (ne PAS la présenter comme certaine).`;
+          `\n💡 Ce sont les sphères de vie les plus activées par la configuration de l'année, par ordre d'intensité décroissante. Utilise-les UNIQUEMENT pour ORIENTER le narratif : privilégie le développement des maisons/thèmes correspondants. ` +
+          `INTERDICTIONS STRICTES : (1) ne PRÉSENTE PAS ces thèmes comme des événements de vie qui vont se produire ; (2) n'annonce AUCUNE date d'événement et ne donne AUCUN pourcentage de probabilité/fiabilité ; (3) ne qualifie aucune de ces thématiques de « certaine » ou « probable ». ` +
+          `Reste DESCRIPTIF du climat astrologique et des tendances (le POURQUOI de la configuration), jamais prédictif d'un fait daté. ` +
+          `Tu PEUX dater des PHÉNOMÈNES CÉLESTES RÉELS (éclipses et leur lignée Saros, contacts exacts de transits lents, stations) tels qu'ils apparaissent dans leurs sections dédiées — ce sont des faits astronomiques, pas des prédictions d'événements. N'invente aucune autre thématique non listée ci-dessus.`;
 
         finalOutput.forEach(item => {
           if (item.json.prompt_user) item.json.prompt_user += _top5Table;
