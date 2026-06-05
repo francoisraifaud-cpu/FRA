@@ -167,6 +167,8 @@ const nomAffiche = ((vars.prenom || "") + " " + (vars.nom || "").toUpperCase()).
 const sousTitre = [vars.date, vars.heure, vars.lieu].filter(Boolean).join(' · ');
 
 const _lotsByHouseTT = {};
+const LOT_EN={"Part de Fortune":"Part of Fortune","Lot de l'Esprit":"Lot of Spirit","Lot de Nécessité":"Lot of Necessity","Lot d'Éros":"Lot of Eros","Lot de Courage":"Lot of Courage","Lot de Némésis":"Lot of Nemesis","Lot de Basis":"Lot of Basis","Lot d'Exaltation":"Lot of Exaltation","Lot du Daemon":"Lot of the Daemon","Lot de Victoire":"Lot of Victory","Lot du Père":"Lot of the Father","Lot de la Mère":"Lot of the Mother","Lot de Maladie":"Lot of Disease","Lot du Mariage":"Lot of Marriage","Lot des Enfants":"Lot of Children","Lot de Voyage":"Lot of Travel"};
+const lotEN=(n)=>LOT_EN[n]||n;
 {
     const _mTT = astroData.maisons || [];
     const _ndTT = {};
@@ -261,7 +263,7 @@ activeMaisons.forEach(meta => {
           });
       }
   });
-  (_lotsByHouseTT[meta.n] || []).forEach(ln => { if (!locatairesLabels.includes(ln)) locatairesLabels.push(ln); });
+  (_lotsByHouseTT[meta.n] || []).forEach(ln => { const _lbl = isEN ? lotEN(ln) : ln; if (!locatairesLabels.includes(_lbl)) locatairesLabels.push(_lbl); });
 
   // On prépare la ligne des badges
   let badgesHtml = `<span style="display: inline-block; background: #e8f0fe; color: #1F3864; font-size: 15.5px; font-weight: 600; padding: 4px 13px; border-radius: 20px; margin: 2px 3px;">Cuspide : ${esc(cuspideSigne)}</span>`;
@@ -295,7 +297,7 @@ activeMaisons.forEach(meta => {
        <div style="font-size: 15.5px; font-weight: 400; color: #8ab4f8; margin-top: 3px; letter-spacing: 0.4px;">${esc(meta.domaines)}</div>
       </td>
      </tr>
-    </table>
+    </tbody></table>
    </div>
    <div style="background: #fafbff; padding: 10px 20px; border-bottom: 1px solid #eaecf5;">
       ${badgesHtml}
@@ -349,6 +351,14 @@ const finalHtml = `<!DOCTYPE html>
  <style>
   @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Source+Sans+3:ital,wght@0,400;0,600;0,700;1,400&display=swap');
   @media print {
+  /* PDF-HARDEN-v1 */
+  thead { display: table-header-group; }
+  tfoot { display: table-footer-group; }
+  tr, img, svg, .keep-together { break-inside: avoid; page-break-inside: avoid; }
+  h1, h2, h3, h4, h5, h6, .section-title, .subsection-title, .sub-direction { break-after: avoid; page-break-after: avoid; }
+  table { page-break-inside: auto; }
+  html, body { height: auto !important; }
+
    .theme-narr-toc { page-break-after: avoid; break-after: avoid; }
    .theme-narr-toc-pagebreak { page-break-after: always !important; break-after: page !important; }
    .house-section { page-break-after: always; break-after: page; }
@@ -377,9 +387,9 @@ const finalHtml = `<!DOCTYPE html>
   <div id="theme-narr-parans" style="background: #ffffff; border-radius: 12px; border: 1px solid #e0e0e0; padding: 20px 26px; margin-bottom: 44px;">
     <p style="font-size: 14px; color: #64748b; font-style: italic; margin: 0 0 14px;">${isEN ? 'A paran forms when a fixed star and a planet simultaneously occupy a cardinal angle (rising, setting, culmination). It is a deep and permanent bond.' : "Un paran se forme quand une étoile fixe et une planète se trouvent simultanément sur un angle cardinal (lever, coucher, culmination). C'est un lien profond et permanent."}</p>
     <table style="width:100%;border-collapse:collapse;font-size:14px;">
-      <tr style="background:#2E5FA3;color:white;"><th style="padding:8px 10px;text-align:left;">${isEN ? 'Fixed Star' : 'Étoile Fixe'}</th><th style="padding:8px;text-align:center;">${isEN ? 'Star Angle' : 'Angle Étoile'}</th><th style="padding:8px 10px;text-align:left;">${isEN ? 'Planet' : 'Planète'}</th><th style="padding:8px;text-align:center;">${isEN ? 'Planet Angle' : 'Angle Planète'}</th><th style="padding:8px;text-align:center;">${isEN ? 'Orb' : 'Orbe'}</th></tr>
+      <thead><tr style="background:#2E5FA3;color:white;"><th style="padding:8px 10px;text-align:left;">${isEN ? 'Fixed Star' : 'Étoile Fixe'}</th><th style="padding:8px;text-align:center;">${isEN ? 'Star Angle' : 'Angle Étoile'}</th><th style="padding:8px 10px;text-align:left;">${isEN ? 'Planet' : 'Planète'}</th><th style="padding:8px;text-align:center;">${isEN ? 'Planet Angle' : 'Angle Planète'}</th><th style="padding:8px;text-align:center;">${isEN ? 'Orb' : 'Orbe'}</th></tr></thead><tbody>
       ${_paranResults.map(pr => `<tr style="border-bottom:1px solid #d0daf0;"><td style="padding:8px 10px;font-weight:600;color:#1F3864;">★ ${esc(pr.etoile)}</td><td style="padding:8px;text-align:center;color:#2E5FA3;">${esc(pr.angle_etoile)}</td><td style="padding:8px 10px;font-weight:600;color:#1F3864;">${esc(pr.planete)}</td><td style="padding:8px;text-align:center;color:#2E5FA3;">${esc(pr.angle_planete)}</td><td style="padding:8px;text-align:center;font-weight:bold;color:${pr.orb <= 0.5 ? '#1F3864' : '#2E5FA3'};">${pr.orb}°</td></tr>${pr.interpretation ? `<tr style="background:#eef2fb;"><td colspan="5" style="padding:6px 12px;font-size:13px;color:#2E5FA3;font-style:italic;">${esc(pr.interpretation)}</td></tr>` : ''}`).join('')}
-    </table>
+    </tbody></table>
   </div>
   ` : ''}
 

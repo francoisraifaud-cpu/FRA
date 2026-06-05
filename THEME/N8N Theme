@@ -996,34 +996,51 @@ const ETOILE_ORBS = {
     "Procyon": 1.5, "Canopus": 1.5, "Arcturus": 1.5, "Deneb Algedi": 1.0,
     "Vindemiatrix": 1.0, "Scheat": 1.0, "Zubenelgenubi": 1.0,
     "Zubeneschamali": 1.0, "Achernar": 1.0, "Deneb": 1.0,
-    "Wega": 1.0, "Alcyone": 1.0
+    "Wega": 1.0, "Alcyone": 1.0,
+    // S6.21 — 12 ajouts 13/05/2026 (Tier 2, orbe 1.0°, sauf maléfiques pures à 0.8°)
+    "Mirach": 1.0, "Mirfak": 1.0, "Bellatrix": 1.0, "Capella": 1.0,
+    "Alphecca": 1.0, "Toliman": 1.0, "Polis": 1.0, "Ascella": 1.0,
+    "Altaïr": 1.0, "Sadalmelik": 1.0,
+    "Lesath": 0.8, "Facies": 0.8
 };
 const ETOILE_DESC = {
-    "Algol":     "Étoile de la Méduse (nature Saturne/Mars) : violence, catastrophe, perte irréversible — mais aussi courage absolu face au danger extrême, capacité à transformer la destruction en renaissance",
-    "Pléiades":  "Cluster des Pléiades / Alcyone (nature Lune/Mars) : deuil, larmes, mystère, liens ancestraux et spiritualité profonde — sensibilité exacerbée aux cycles et à la mémoire collective",
-    "Alcyone":   "Cluster des Pléiades / Alcyone (nature Lune/Mars) : deuil, larmes, mystère, liens ancestraux et spiritualité profonde — sensibilité exacerbée aux cycles et à la mémoire collective",
-    "Aldébaran": "Étoile Royale de l'Est — Œil du Taureau (nature Mars/Mercure) : honneur, intégrité, intelligence vive, vigilance stratégique. L'une des 4 Royales : succès durable si l'intégrité est maintenue",
-    "Sirius":    "Étoile du Grand Chien (nature Jupiter/Mars) : gloire, richesse, fidélité ardente, passion dévorante — nature solaire intense conférant rayonnement et leadership magnétique",
-    "Régulus":   "Étoile Royale du Cœur du Lion (nature Mars/Jupiter) : royauté, leadership naturel, succès fulgurant, ambition. L'une des 4 Royales : grandeur et chute si la vengeance supplante la noblesse",
-    "Spica":     "Épi de la Vierge (nature Vénus/Mars) : don artistique, chance remarquable, raffinement intellectuel, richesse créative — l'une des étoiles les plus bénéfiques du zodiaque",
-    "Antarès":   "Étoile Royale du Cœur du Scorpion (nature Mars/Jupiter) : courage, témérité, passion dévorante, succès militaire ou compétitif. L'une des 4 Royales : rival de Mars, intensité maximale",
-    "Véga":      "Étoile de la Lyre (nature Vénus/Mercure) : charisme magnétique irrésistible, dons artistiques et musicaux exceptionnels, raffinement spirituel et sens du beau transcendant",
-    "Wega":      "Étoile de la Lyre (nature Vénus/Mercure) : charisme magnétique irrésistible, dons artistiques et musicaux exceptionnels, raffinement spirituel et sens du beau transcendant",
-    "Fomalhaut": "Étoile Royale du Sud (nature Vénus/Mercure) : idéalisme visionnaire, rêve créateur, inspiration mystique, sens du sacré. L'une des 4 Royales : grandeur par la vision hors du commun",
-    "Rigel":     "Pied d'Orion (nature Jupiter/Saturne) : ambition intellectuelle, enseignement, capacité de construction à grande échelle — fortune par l'effort persistant et la vision à long terme",
-    "Bételgeuse":"Épaule d'Orion (nature Mars/Mercure) : honneur martial, audace créatrice, succès par l'action directe — énergie colossale mais risque de blessures ou de renversements soudains",
-    "Castor":    "Alpha Gémeaux (nature Mercure) : brillance intellectuelle, écriture, communication — mais vulnérabilité aux blessures ou violence, dualité créative entre lumière et ombre",
-    "Pollux":    "Beta Gémeaux (nature Mars) : force sportive, audace, compétitivité — caractère intrépide mais risque de cruauté ou de témérité excessive",
-    "Procyon":   "Étoile du Petit Chien (nature Mercure/Mars) : activité fébrile, succès rapide mais instable — intelligence vive et capacité d'adaptation, mais attention à la dispersion",
-    "Canopus":   "Étoile du Navire Argo (nature Saturne/Jupiter) : voyage, navigation de la vie, connaissance ancienne — l'une des plus lumineuses : érudition et sagesse acquise par l'expérience lointaine",
-    "Arcturus":  "Gardien de l'Ourse (nature Mars/Jupiter) : prospérité par le voyage ou l'innovation, leadership par la voie non conventionnelle — force de caractère et indépendance d'esprit",
-    "Deneb Algedi":"Queue du Capricorne (nature Saturne/Jupiter) : justice, probité, sens de la loi — réussite par la droiture et la persévérance, mais risque de rigidité morale",
-    "Vindemiatrix":"La Vendangeuse (nature Saturne/Mercure) : veuvage symbolique, perte, sacrifice nécessaire — mais aussi discernement tranchant et capacité de détachement libérateur",
-    "Scheat":    "Épaule de Pégase (nature Mars/Mercure) : naufrage, catastrophe maritime (symbolique), extrême sensibilité — mais imagination sans limites et capacité à transcender le réel",
-    "Zubenelgenubi":"Plateau Sud de la Balance (nature Saturne/Mars) : justice implacable, karma, conséquences inévitables — poids du passé mais capacité de rééquilibrage par l'action juste",
-    "Zubeneschamali":"Plateau Nord de la Balance (nature Jupiter/Mercure) : fortune sociale, intelligence diplomatique, élévation par le mérite et la finesse relationnelle",
-    "Achernar":  "Fin du Fleuve Éridan (nature Jupiter) : bonheur spirituel, succès ecclésiastique ou philosophique, sens du sacré — transformation profonde par l'immersion dans le courant de la vie",
-    "Deneb":     "Queue du Cygne (nature Vénus/Mercure) : don artistique ingénieux, capacité de synthèse entre technique et esthétique — intelligence subtile et charme magnétique"
+    "Algol": { fr: "Étoile de la Méduse (nature Saturne/Mars) : violence, catastrophe, perte irréversible — mais aussi courage absolu face au danger extrême, capacité à transformer la destruction en renaissance", en: "Star of Medusa (Saturn/Mars nature): violence, catastrophe, irreversible loss — but also absolute courage in the face of extreme danger, capacity to transform destruction into rebirth" },
+    "Pléiades": { fr: "Cluster des Pléiades / Alcyone (nature Lune/Mars) : deuil, larmes, mystère, liens ancestraux et spiritualité profonde — sensibilité exacerbée aux cycles et à la mémoire collective", en: "Pleiades / Alcyone cluster (Moon/Mars nature): grief, tears, mystery, ancestral bonds and deep spirituality — heightened sensitivity to cycles and collective memory" },
+    "Alcyone": { fr: "Cluster des Pléiades / Alcyone (nature Lune/Mars) : deuil, larmes, mystère, liens ancestraux et spiritualité profonde — sensibilité exacerbée aux cycles et à la mémoire collective", en: "Pleiades / Alcyone cluster (Moon/Mars nature): grief, tears, mystery, ancestral bonds and deep spirituality — heightened sensitivity to cycles and collective memory" },
+    "Aldébaran": { fr: "Étoile Royale de l'Est — Œil du Taureau (nature Mars/Mercure) : honneur, intégrité, intelligence vive, vigilance stratégique. L'une des 4 Royales : succès durable si l'intégrité est maintenue", en: "Royal Star of the East — Eye of the Bull (Mars/Mercury nature): honor, integrity, sharp intellect, strategic vigilance. One of the 4 Royals: lasting success if integrity is maintained" },
+    "Sirius": { fr: "Étoile du Grand Chien (nature Jupiter/Mars) : gloire, richesse, fidélité ardente, passion dévorante — nature solaire intense conférant rayonnement et leadership magnétique", en: "Star of the Great Dog (Jupiter/Mars nature): glory, wealth, fierce loyalty, devouring passion — intense solar nature conferring radiance and magnetic leadership" },
+    "Régulus": { fr: "Étoile Royale du Cœur du Lion (nature Mars/Jupiter) : royauté, leadership naturel, succès fulgurant, ambition. L'une des 4 Royales : grandeur et chute si la vengeance supplante la noblesse", en: "Royal Star of the Heart of the Lion (Mars/Jupiter nature): royalty, natural leadership, dazzling success, ambition. One of the 4 Royals: greatness and fall if vengeance supplants nobility" },
+    "Spica": { fr: "Épi de la Vierge (nature Vénus/Mars) : don artistique, chance remarquable, raffinement intellectuel, richesse créative — l'une des étoiles les plus bénéfiques du zodiaque", en: "Ear of the Virgin (Venus/Mars nature): artistic gift, remarkable luck, intellectual refinement, creative wealth — one of the most benefic stars of the zodiac" },
+    "Antarès": { fr: "Étoile Royale du Cœur du Scorpion (nature Mars/Jupiter) : courage, témérité, passion dévorante, succès militaire ou compétitif. L'une des 4 Royales : rival de Mars, intensité maximale", en: "Royal Star of the Heart of the Scorpion (Mars/Jupiter nature): courage, recklessness, devouring passion, military or competitive success. One of the 4 Royals: rival of Mars, maximum intensity" },
+    "Véga": { fr: "Étoile de la Lyre (nature Vénus/Mercure) : charisme magnétique irrésistible, dons artistiques et musicaux exceptionnels, raffinement spirituel et sens du beau transcendant", en: "Star of the Lyre (Venus/Mercury nature): irresistible magnetic charisma, exceptional artistic and musical gifts, spiritual refinement and transcendent sense of beauty" },
+    "Wega": { fr: "Étoile de la Lyre (nature Vénus/Mercure) : charisme magnétique irrésistible, dons artistiques et musicaux exceptionnels, raffinement spirituel et sens du beau transcendant", en: "Star of the Lyre (Venus/Mercury nature): irresistible magnetic charisma, exceptional artistic and musical gifts, spiritual refinement and transcendent sense of beauty" },
+    "Fomalhaut": { fr: "Étoile Royale du Sud (nature Vénus/Mercure) : idéalisme visionnaire, rêve créateur, inspiration mystique, sens du sacré. L'une des 4 Royales : grandeur par la vision hors du commun", en: "Royal Star of the South (Venus/Mercury nature): visionary idealism, creative dream, mystical inspiration, sense of the sacred. One of the 4 Royals: greatness through extraordinary vision" },
+    "Rigel": { fr: "Pied d'Orion (nature Jupiter/Saturne) : ambition intellectuelle, enseignement, capacité de construction à grande échelle — fortune par l'effort persistant et la vision à long terme", en: "Foot of Orion (Jupiter/Saturn nature): intellectual ambition, teaching, capacity for large-scale construction — fortune through persistent effort and long-term vision" },
+    "Bételgeuse": { fr: "Épaule d'Orion (nature Mars/Mercure) : honneur martial, audace créatrice, succès par l'action directe — énergie colossale mais risque de blessures ou de renversements soudains", en: "Shoulder of Orion (Mars/Mercury nature): martial honor, creative audacity, success through direct action — colossal energy but risk of injury or sudden reversals" },
+    "Castor": { fr: "Alpha Gémeaux (nature Mercure) : brillance intellectuelle, écriture, communication — mais vulnérabilité aux blessures ou violence, dualité créative entre lumière et ombre", en: "Alpha Gemini (Mercury nature): intellectual brilliance, writing, communication — but vulnerability to injury or violence, creative duality between light and shadow" },
+    "Pollux": { fr: "Beta Gémeaux (nature Mars) : force sportive, audace, compétitivité — caractère intrépide mais risque de cruauté ou de témérité excessive", en: "Beta Gemini (Mars nature): athletic strength, audacity, competitiveness — intrepid character but risk of cruelty or excessive recklessness" },
+    "Procyon": { fr: "Étoile du Petit Chien (nature Mercure/Mars) : activité fébrile, succès rapide mais instable — intelligence vive et capacité d'adaptation, mais attention à la dispersion", en: "Star of the Little Dog (Mercury/Mars nature): febrile activity, rapid but unstable success — sharp intelligence and adaptability, but beware of dispersion" },
+    "Canopus": { fr: "Étoile du Navire Argo (nature Saturne/Jupiter) : voyage, navigation de la vie, connaissance ancienne — l'une des plus lumineuses : érudition et sagesse acquise par l'expérience lointaine", en: "Star of the Argo Ship (Saturn/Jupiter nature): travel, navigation of life, ancient knowledge — one of the brightest: erudition and wisdom acquired through distant experience" },
+    "Arcturus": { fr: "Gardien de l'Ourse (nature Mars/Jupiter) : prospérité par le voyage ou l'innovation, leadership par la voie non conventionnelle — force de caractère et indépendance d'esprit", en: "Guardian of the Bear (Mars/Jupiter nature): prosperity through travel or innovation, leadership through the unconventional path — strength of character and independence of mind" },
+    "Deneb Algedi": { fr: "Queue du Capricorne (nature Saturne/Jupiter) : justice, probité, sens de la loi — réussite par la droiture et la persévérance, mais risque de rigidité morale", en: "Tail of the Capricorn (Saturn/Jupiter nature): justice, probity, sense of law — success through righteousness and perseverance, but risk of moral rigidity" },
+    "Vindemiatrix": { fr: "La Vendangeuse (nature Saturne/Mercure) : veuvage symbolique, perte, sacrifice nécessaire — mais aussi discernement tranchant et capacité de détachement libérateur", en: "The Grape-Gatherer (Saturn/Mercury nature): symbolic widowhood, loss, necessary sacrifice — but also sharp discernment and capacity for liberating detachment" },
+    "Scheat": { fr: "Épaule de Pégase (nature Mars/Mercure) : naufrage, catastrophe maritime (symbolique), extrême sensibilité — mais imagination sans limites et capacité à transcender le réel", en: "Shoulder of Pegasus (Mars/Mercury nature): shipwreck, maritime catastrophe (symbolic), extreme sensitivity — but boundless imagination and capacity to transcend reality" },
+    "Zubenelgenubi": { fr: "Plateau Sud de la Balance (nature Saturne/Mars) : justice implacable, karma, conséquences inévitables — poids du passé mais capacité de rééquilibrage par l'action juste", en: "Southern Pan of the Scales (Saturn/Mars nature): implacable justice, karma, inevitable consequences — weight of the past but capacity for rebalancing through just action" },
+    "Zubeneschamali": { fr: "Plateau Nord de la Balance (nature Jupiter/Mercure) : fortune sociale, intelligence diplomatique, élévation par le mérite et la finesse relationnelle", en: "Northern Pan of the Scales (Jupiter/Mercury nature): social fortune, diplomatic intelligence, elevation through merit and relational finesse" },
+    "Achernar": { fr: "Fin du Fleuve Éridan (nature Jupiter) : bonheur spirituel, succès ecclésiastique ou philosophique, sens du sacré — transformation profonde par l'immersion dans le courant de la vie", en: "End of the River Eridanus (Jupiter nature): spiritual happiness, ecclesiastical or philosophical success, sense of the sacred — profound transformation through immersion in the flow of life" },
+    "Deneb": { fr: "Queue du Cygne (nature Vénus/Mercure) : don artistique ingénieux, capacité de synthèse entre technique et esthétique — intelligence subtile et charme magnétique", en: "Tail of the Swan (Venus/Mercury nature): ingenious artistic gift, capacity for synthesis between technique and aesthetics — subtle intelligence and magnetic charm" },
+    "Mirach": { fr: "Étoile d'Andromède (nature Vénus pure) : harmonie familiale, amour conjugal, équilibre émotionnel — l'une des plus tendres étoiles bénéfiques, accordant beauté intérieure et chaleur des liens", en: "Star of Andromeda (pure Venus nature): family harmony, conjugal love, emotional balance — one of the tenderest benefic stars, granting inner beauty and warmth of bonds" },
+    "Mirfak": { fr: "Alpha de Persée (nature Jupiter/Mars) : courage viril, autorité naturelle, héroïsme calme — capacité à affronter les épreuves avec dignité et à inspirer confiance", en: "Alpha Persei (Jupiter/Mars nature): virile courage, natural authority, calm heroism — capacity to face trials with dignity and to inspire confidence" },
+    "Bellatrix": { fr: "L'Amazone d'Orion (nature Mars/Mercure) : succès fulgurant par la lutte, intelligence guerrière, audace décisionnelle — mais coexistence avec un risque d'accident ou de revers brutal lié à l'impulsivité", en: "Amazon of Orion (Mars/Mercury nature): dazzling success through struggle, warrior intelligence, decisive audacity — but coexisting with a risk of accident or sudden setback linked to impulsivity" },
+    "Capella": { fr: "Étoile du Cocher (nature Mercure/Mars) : intelligence vive et curieuse, talent de communicateur, esprit d'aventure intellectuelle — réussite par la pédagogie, le voyage ou la recherche", en: "Star of the Charioteer (Mercury/Mars nature): keen and curious intelligence, communicator's talent, spirit of intellectual adventure — success through teaching, travel, or research" },
+    "Alphecca": { fr: "Joyau de la Couronne Boréale (nature Vénus/Mercure) : reconnaissance publique, distinctions honorifiques, beauté raffinée — succès par l'art, la diplomatie ou l'élégance intellectuelle", en: "Jewel of the Northern Crown (Venus/Mercury nature): public recognition, honorific distinctions, refined beauty — success through art, diplomacy, or intellectual elegance" },
+    "Toliman": { fr: "Alpha du Centaure (nature Vénus/Jupiter) : protection bienveillante, chance qui s'étend dans la durée, fidélité aux engagements — bénéfice doux mais constant, l'étoile la plus proche de notre Soleil", en: "Alpha Centauri (Venus/Jupiter nature): benevolent protection, luck that lasts over time, faithfulness to commitments — gentle but constant benefit, the closest star to our Sun" },
+    "Lesath": { fr: "Dard du Scorpion (nature Mars pure) : énergie offensive, risque de blessure ou d'agression — mais en aspect contrôlé, talent pour les opérations chirurgicales et les actions tranchantes", en: "Sting of the Scorpion (pure Mars nature): offensive energy, risk of injury or aggression — but in controlled aspect, talent for surgical operations and incisive actions" },
+    "Polis": { fr: "Mu du Sagittaire (nature Jupiter/Mars) : ambition élevée, persévérance, succès militaire ou sportif — capacité à viser haut et à maintenir l'effort sur la durée", en: "Mu Sagittarii (Jupiter/Mars nature): high ambition, perseverance, military or athletic success — capacity to aim high and sustain effort over time" },
+    "Facies": { fr: "Visage de la Nébuleuse (nature Soleil/Mars) : aveuglement par excès de focalisation, mais aussi acuité perceptive extrême sur un domaine précis — l'étoile des compétences hyper-spécialisées", en: "Face of the Nebula (Sun/Mars nature): blindness through excessive focus, but also extreme perceptive acuity in a specific field — the star of hyper-specialized skills" },
+    "Ascella": { fr: "Aisselle du Sagittaire (nature Jupiter/Mercure) : chance dans les contrats, bonheur protégé, succès par l'écriture, l'enseignement ou le commerce — bénéfique douce et fiable", en: "Armpit of the Sagittarius (Jupiter/Mercury nature): luck in contracts, protected happiness, success through writing, teaching, or commerce — gentle and reliable benefic" },
+    "Altaïr": { fr: "Alpha de l'Aigle (nature Mars/Jupiter) : ascension fulgurante par l'audace, vol au-dessus des conventions, succès militaire ou aéronautique — l'étoile des prises de risque visionnaires", en: "Alpha Aquilae (Mars/Jupiter nature): dazzling rise through boldness, flight above conventions, military or aeronautical success — the star of visionary risk-taking" },
+    "Sadalmelik": { fr: "Étoile du Bonheur du Roi — Alpha du Verseau (nature Saturne/Mercure) : sagesse humaniste, sens du collectif, élévation par le savoir partagé — l'étoile des philosophes sociaux et des bâtisseurs d'idées", en: "Star of the King's Fortune — Alpha Aquarii (Saturn/Mercury nature): humanist wisdom, sense of the collective, elevation through shared knowledge — the star of social philosophers and idea-builders" }
 };
 
 // Construire la liste complète des points à vérifier :
@@ -1061,7 +1078,8 @@ pointsEtoiles.forEach(planet => {
                 maison:    house,
                 signe:     planet.zodiac_sign?.name?.fr,
                 isAngle:   !!ANGLES_LABELS[pName],
-                desc:      ETOILE_DESC[eName] || ""
+                desc:      ETOILE_DESC[eName]?.fr || "",
+                descEN:    ETOILE_DESC[eName]?.en || ""
             });
         }
     });
@@ -1088,7 +1106,8 @@ maisons.filter(m => ANGULAR_HOUSES.has(m.House)).forEach(m => {
                 orbMax,
                 precision: diff <= 1.0 ? "forte (≤1°)" : "notable (≤2°)",
                 signe:     cuspSign,
-                desc:      ETOILE_DESC[eName] || ""
+                desc:      ETOILE_DESC[eName]?.fr || "",
+                descEN:    ETOILE_DESC[eName]?.en || ""
             });
         }
     });
@@ -1189,7 +1208,8 @@ if (Math.abs(geoLat) > 0.1) {
                         paranResults.push({
                             planete: pEntry.name,
                             etoile: sName,
-                            etoile_desc: ETOILE_DESC[sName] || "",
+                            etoile_desc: ETOILE_DESC[sName]?.fr || "",
+                            etoile_desc_en: ETOILE_DESC[sName]?.en || "",
                             angle_etoile: sAngle.type,
                             angle_planete: pAngle.type,
                             orb: Math.round(diff * 100) / 100,
@@ -2515,6 +2535,42 @@ if (langueRapport !== 'Français') {
     });
 }
 
+
+// === VERTEX (display-only) — poussé juste avant le return pour rester HORS analytiques ===
+// (aspects/chartShape/configurations sont déjà calculés plus haut : le Vertex n'y entre pas).
+// Vertex = point d'intersection du vertical prime (cercle ouest) avec l'écliptique = Ascendant
+// en co-latitude (90 - φ) sur l'antiméridien (RAMC + 180°). La latitude géographique φ n'est PAS
+// disponible dans cet enrichissement (perso.latitude absent → geoLat=0), on la DÉRIVE donc de
+// l'ASC + MC (auto-suffisant, identique en THEME et SYN). Self-contained / PROD-safe.
+// Non clôné vers PREV (DTC) : le fan-out est un patch ciblé, pas une copie intégrale.
+(() => {
+    const _vxMc  = planetes.find(p => p.planet?.fr === "Milieu du Ciel");
+    const _vxAsc = planetes.find(p => p.planet?.fr === "Ascendant");
+    if (!_vxMc || !_vxAsc || !Number.isFinite(_vxMc.fullDegree) || !Number.isFinite(_vxAsc.fullDegree)) return;
+    if (planetes.some(p => (p.planet?.fr || p.planet?.en) === "Vertex")) return;
+    const _VX_RAD = Math.PI / 180, _VX_EPS = 23.4393 * _VX_RAD;
+    const _vxMcR = _vxMc.fullDegree * _VX_RAD, _vxAscR = _vxAsc.fullDegree * _VX_RAD;
+    const _vxRamc = Math.atan2(Math.sin(_vxMcR) * Math.cos(_VX_EPS), Math.cos(_vxMcR));
+    const _vxSinAsc = Math.sin(_vxAscR);
+    if (Math.abs(_vxSinAsc) < 1e-6) return;               // ASC ≈ 0°/180° (cas quasi impossible) : on s'abstient
+    // ASC = atan2(cos RAMC, -(sin RAMC·cos ε + tan φ·sin ε))  ⇒  on isole tan φ :
+    const _vxD = Math.cos(_vxRamc) * Math.cos(_vxAscR) / _vxSinAsc;
+    const _vxTanPhi = (-_vxD - Math.sin(_vxRamc) * Math.cos(_VX_EPS)) / Math.sin(_VX_EPS);
+    const _vxPhi = Math.atan(_vxTanPhi);                  // latitude géographique (-90..90)
+    if (!Number.isFinite(_vxPhi) || Math.abs(_vxPhi) > 89.5 * _VX_RAD) return;
+    const _vxRamcOpp = _vxRamc + Math.PI;
+    const _vxCoLat = (Math.PI / 2) - _vxPhi;              // co-latitude
+    const _vxRad = Math.atan2(Math.cos(_vxRamcOpp), -Math.sin(_vxRamcOpp) * Math.cos(_VX_EPS) - Math.tan(_vxCoLat) * Math.sin(_VX_EPS));
+    const vertexDeg = ((_vxRad / _VX_RAD) % 360 + 360) % 360;
+    planetes.push({
+        planet: { fr: "Vertex", en: "Vertex" },
+        fullDegree: vertexDeg,
+        normDegree: vertexDeg % 30,
+        retroStr: "",
+        isRetro: "False",
+        zodiac_sign: { name: { fr: signs[Math.floor(vertexDeg / 30) % 12].fr } }
+    });
+})();
 
 return [{
     json: {
