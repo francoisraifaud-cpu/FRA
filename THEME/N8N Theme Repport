@@ -316,8 +316,8 @@ const generateWheelSVG = (planetes, maisons) => {
 
     const bodies = allPts.filter(p => !p.lot);
     const lots   = allPts.filter(p => p.lot);
-    fanPlace(bodies, R_PL, 7);
-    fanPlace(lots, R_LOT, 6);
+    fanPlace(bodies, R_PL, 6.5);
+    fanPlace(lots, R_LOT, 5);
 
     let svgLines = "", svgBgs = "", svgGlyphs = "";
 
@@ -327,7 +327,7 @@ const generateWheelSVG = (planetes, maisons) => {
         const t1 = pol(trueS, R_SI), t2 = pol(trueS, R_SI - 7);     // tick à la position réelle
         svgLines += `<line x1="${t1.x.toFixed(1)}" y1="${t1.y.toFixed(1)}" x2="${t2.x.toFixed(1)}" y2="${t2.y.toFixed(1)}" stroke="${col}" stroke-width="${lw}" opacity="0.85"/>`;
         const off = Math.abs(angDiff(p.displayA, p.trueA));
-        if (off > 0.3) {                                            // rappel tick → glyphe dès qu'il y a décalage
+        if (off > 1.5) {                                            // rappel tick → glyphe seulement si décalage notable (sinon glyphe ~devant son degré)
             const g = pol(e2s(p.displayA), glyphR);
             svgLines += `<line x1="${t2.x.toFixed(1)}" y1="${t2.y.toFixed(1)}" x2="${g.x.toFixed(1)}" y2="${g.y.toFixed(1)}" stroke="${leadCol || col}" stroke-width="0.8" opacity="0.7"/>`;
         }
@@ -362,20 +362,27 @@ const generateWheelSVG = (planetes, maisons) => {
 
     // ── Étoiles fixes : nom seul, RADIALEMENT à l'extérieur de la roue (aligné sur la planète hôte) ──
     const ANGLE_HOSTS = ["Ascendant", "Descendant", "Milieu du Ciel", "Imum Coeli"];
-    // 1) Un label PAR ÉTOILE (dédupliqué entre hôtes) ancré sur la conjonction la plus serrée.
+    // Longitudes écliptiques J2000 du catalogue (nœud « 3c. Étoiles Fixes »). L'ordre RELATIF est stable
+    // à la précession → on ancre chaque étiquette sur le degré réel de l'étoile (et non sur sa planète-hôte),
+    // ce qui garantit l'ordre zodiacal (ex. Praesepe avant Asellus Borealis avant Asellus Australis).
+    const STAR_LON = {"Algol":56.22,"Pléiades":59.98,"Pleiades":59.98,"Aldébaran":69.78,"Aldebaran":69.78,"Sirius":104.05,"Régulus":149.83,"Regulus":149.83,"Spica":203.836,"Antarès":249.77,"Antares":249.77,"Véga":285.32,"Vega":285.32,"Fomalhaut":333.87,"Rigel":76.83,"Bételgeuse":88.75,"Betelgeuse":88.75,"Canopus":104.97,"Castor":110.25,"Pollux":113.22,"Procyon":115.78,"Arcturus":204.23,"Vindemiatrix":189.95,"Zubenelgenubi":225.08,"Zubeneschamali":229.37,"Deneb Algedi":323.55,"Scheat":359.37,"Achernar":345.32,"Deneb":335.33,"Mirach":30.43,"Mirfak":62.06,"Bellatrix":80.94,"Capella":81.95,"Alphecca":222.3,"Toliman":239.85,"Lesath":264.22,"Polis":273.23,"Facies":278.3,"Ascella":283.67,"Altaïr":301.66,"Altair":301.66,"Sadalmelik":333.48,"Markab":353.486,"Praesepe":127.282,"Asellus Borealis":127.538,"Asellus Australis":128.722};
+    // 1) Un label PAR ÉTOILE (dédupliqué entre hôtes), ancré sur le DEGRÉ RÉEL de l'étoile.
     const starAcc = {};
     (etoileMatches || []).forEach(em => {
         if (posMap[em.planete] === undefined) return;
         const name = isEN ? (em.etoile_en || em.etoile) : em.etoile;
+        const lon = (typeof STAR_LON[name] === "number") ? STAR_LON[name]
+                  : (typeof STAR_LON[em.etoile] === "number") ? STAR_LON[em.etoile]
+                  : posMap[em.planete];   // fallback : position de l'hôte si l'étoile est hors catalogue
         const orb = (typeof em.orb === "number") ? em.orb : (parseFloat(em.orb) || 99);
         const isAngleHost = ANGLE_HOSTS.includes(em.planete);
         const prev = starAcc[name];
-        if (!prev || orb < prev.orb) starAcc[name] = { ang: posMap[em.planete], orb, isAngleHost: isAngleHost || (prev && prev.isAngleHost) };
+        if (!prev || orb < prev.orb) starAcc[name] = { lon, orb, isAngleHost: isAngleHost || (prev && prev.isAngleHost) };
         else if (isAngleHost) prev.isAngleHost = true;
     });
-    let starLabels = Object.entries(starAcc).map(([name, v]) => ({ name, norm: ((e2s(v.ang) % 360) + 360) % 360, isAngleHost: v.isAngleHost }));
-    // 2) Anti-chevauchement : étale chaque grappe de labels trop proches autour de son centre.
-    const STAR_GAP = 6.2;
+    // 2) Tri ZODIACAL (par longitude réelle) puis anti-chevauchement qui étale chaque grappe SANS permuter l'ordre.
+    let starLabels = Object.entries(starAcc).map(([name, v]) => ({ name, norm: ((e2s(v.lon) % 360) + 360) % 360, isAngleHost: v.isAngleHost }));
+    const STAR_GAP = 2.4;
     starLabels.sort((a, b) => a.norm - b.norm);
     if (starLabels.length > 1) {
         const clusters = []; let cur = [starLabels[0]];
