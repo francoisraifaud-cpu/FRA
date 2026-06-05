@@ -86,7 +86,7 @@ const prenom = vars.prenom || "";
 const nomAffiche = (prenom && nom && nom !== "Inconnu") ? `${prenom} ${(nom || "").toUpperCase()}`.trim() : (prenom || (nom || "").toUpperCase() || "Client");
 const date = vars.date || "--/--/----";
 const heure = vars.heure || "--H--";
-const lieu = vars.lieu || "Lieu inconnu";
+const lieu = vars.lieu || (isEN ? "Unknown location" : "Lieu inconnu");
 const anneePrevision = vars.annee || String(new Date().getFullYear());
 
 const typeRapport = (vars.rapport || "Annuel").trim();
@@ -97,6 +97,10 @@ const THEMES = {
     'Journalier':   { bg:'#5c2a0a', accent:'#c05621', badge:'#fff0e8', badgeTxt:'#5c2a0a' }
 };
 const theme = THEMES[typeRapport] || THEMES['Annuel'];
+const TYPE_EN={'Annuel':'Annual','Mensuel':'Monthly','Hebdomadaire':'Weekly','Journalier':'Daily'};
+const typeRapportLabel = isEN ? (TYPE_EN[typeRapport] || typeRapport) : typeRapport;
+const LOT_EN={"Part de Fortune":"Part of Fortune","Lot de l'Esprit":"Lot of Spirit","Lot de Nécessité":"Lot of Necessity","Lot d'Éros":"Lot of Eros","Lot de Courage":"Lot of Courage","Lot de Némésis":"Lot of Nemesis","Lot de Basis":"Lot of Basis","Lot d'Exaltation":"Lot of Exaltation","Lot du Daemon":"Lot of the Daemon","Lot de Victoire":"Lot of Victory","Lot du Père":"Lot of the Father","Lot de la Mère":"Lot of the Mother","Lot de Maladie":"Lot of Disease","Lot du Mariage":"Lot of Marriage","Lot des Enfants":"Lot of Children","Lot de Voyage":"Lot of Travel"};
+const lotEN=(n)=>LOT_EN[n]||n;
 
 const formatDate = (str) => {
     if (!str) return "";
@@ -108,11 +112,11 @@ const formatDate = (str) => {
 const dateEntreeStr = formatDate(vars.date_entree || `01/01/${anneePrevision}`);
 const dateSortieStr = formatDate(vars.date_sortie || `31/12/${anneePrevision}`);
 const titrePrincipal = isEN
-    ? `Technical Forecast Report - ${typeRapport} - ${dateEntreeStr} - ${dateSortieStr} - ${nomAffiche}`
+    ? `Technical Forecast Report - ${typeRapportLabel} - ${dateEntreeStr} - ${dateSortieStr} - ${nomAffiche}`
     : `Rapport Technique Prévisions - ${typeRapport} - ${dateEntreeStr} - ${dateSortieStr} - ${nomAffiche}`;
 const _fdfT = (s) => { if (!s) return ""; s = s.trim(); if (s.includes("/")) return s.replace(/\//g, "_"); const [y,m,d] = s.split("-"); return `${d}_${m}_${y}`; };
 const _desiredPdfNameT = isEN
-    ? `Technical Forecast Report - ${typeRapport} - ${_fdfT(vars.date_entree || `01/01/${anneePrevision}`)} - ${_fdfT(vars.date_sortie || `31/12/${anneePrevision}`)} - ${nomAffiche}`
+    ? `Technical Forecast Report - ${typeRapportLabel} - ${_fdfT(vars.date_entree || `01/01/${anneePrevision}`)} - ${_fdfT(vars.date_sortie || `31/12/${anneePrevision}`)} - ${nomAffiche}`
     : `Rapport Technique Prévisions - ${typeRapport} - ${_fdfT(vars.date_entree || `01/01/${anneePrevision}`)} - ${_fdfT(vars.date_sortie || `31/12/${anneePrevision}`)} - ${nomAffiche}`;
 
 const sousTitre = [date, heure, lieu].filter(Boolean).join(' · ');
@@ -348,8 +352,8 @@ let _heatmapHtml = '';
     const _grFRT = {daily:'pour cette journ\u00e9e',weekly:'par jour sur la semaine',monthly:'par semaine sur le mois',annual:"par mois sur l'ann\u00e9e"};
     const _grENT = {daily:'for this day',weekly:'per day over the week',monthly:'per week over the month',annual:'per month over the year'};
     const pedag = isEN
-      ? '<strong>\ud83d\udca1 How to read this heatmap?</strong><br>This heat map synthesizes the <strong>density of astrological activations</strong> per house ' + _grENT[_grT] + '. Each cell is a weighted score combining: <strong>planetary weight</strong> (Pluto \u00d75, Neptune/Uranus/Saturn \u00d74\u2026), <strong>aspect type</strong> (Conjunction \u00d71.3, Square/Opposition \u00d71.2, Trine \u00d70.8, Sextile \u00d70.7), <strong>angular house bonus</strong> (Houses 1/4/7/10 \u00d71.2, cadent \u00d70.85), and <strong>time-lord amplification</strong> (Annual Lord \u00d71.5, Firdaria \u00d71.3). Long transits are <em>distributed</em> over their full duration, repeat passages are reduced (\u00d70.8), and eclipses are capped at 2 per cell. The <strong style="color:#991b1b">Tension</strong> column sums hard aspects (\u25a1 \u260d \u260c \u26bb), while <strong style="color:#1e40af">Support</strong> sums soft aspects (\u25b3 \u26b9). <strong>Score</strong> normalizes each house on a 0\u2013100 scale.'
-      : '<strong>\ud83d\udca1 Comment lire cette heatmap ?</strong><br>Cette carte thermique synth\u00e9tise la <strong>densit\u00e9 d\u2019activations astrologiques</strong> par maison ' + _grFRT[_grT] + '. Chaque cellule est un score pond\u00e9r\u00e9 combinant : <strong>poids plan\u00e9taire</strong> (Pluton \u00d75, Neptune/Uranus/Saturne \u00d74\u2026), <strong>type d\u2019aspect</strong> (Conjonction \u00d71.3, Carr\u00e9/Opposition \u00d71.2, Trigone \u00d70.8, Sextile \u00d70.7), <strong>bonus maisons angulaires</strong> (M1/4/7/10 \u00d71.2, cadentes \u00d70.85), et <strong>amplification temporelle</strong> (Seigneur de l\u2019ann\u00e9e \u00d71.5, Firdaria \u00d71.3). Les transits longs sont <em>distribu\u00e9s</em> sur toute leur dur\u00e9e, les passages multiples (r\u00e9trogradation) sont r\u00e9duits (\u00d70.8), et les \u00e9clipses sont plafonn\u00e9es \u00e0 2 par cellule. La colonne <strong style="color:#991b1b">Tension</strong> totalise les aspects durs (\u25a1 \u260d \u260c \u26bb), tandis que <strong style="color:#1e40af">Support</strong> totalise les aspects doux (\u25b3 \u26b9). <strong>Score</strong> normalise chaque maison sur une \u00e9chelle 0\u2013100.';
+      ? '<strong>\ud83d\udca1 How to read this heatmap?</strong><br>This heat map synthesizes the <strong>density of astrological activations</strong> per house ' + _grENT[_grT] + '. Each cell is a weighted score combining: <strong>planetary weight</strong> (Pluto \u00d75, Neptune/Uranus/Saturn \u00d74\u2026), <strong>aspect type</strong> (Conjunction \u00d71.3, Square/Opposition \u00d71.2, Trine \u00d70.8, Sextile \u00d70.7), <strong>angular house bonus</strong> (Houses 1/4/7/10 \u00d71.2, cadent \u00d70.85), and <strong>time-lord amplification</strong> (Firdaria \u00d71.3). Long transits are <em>distributed</em> over their full duration, repeat passages are reduced (\u00d70.8), and eclipses are capped at 2 per cell. The <strong style="color:#991b1b">Tension</strong> column sums hard aspects (\u25a1 \u260d \u260c \u26bb), while <strong style="color:#1e40af">Support</strong> sums soft aspects (\u25b3 \u26b9). <strong>Score</strong> normalizes each house on a 0\u2013100 scale.'
+      : '<strong>\ud83d\udca1 Comment lire cette heatmap ?</strong><br>Cette carte thermique synth\u00e9tise la <strong>densit\u00e9 d\u2019activations astrologiques</strong> par maison ' + _grFRT[_grT] + '. Chaque cellule est un score pond\u00e9r\u00e9 combinant : <strong>poids plan\u00e9taire</strong> (Pluton \u00d75, Neptune/Uranus/Saturne \u00d74\u2026), <strong>type d\u2019aspect</strong> (Conjonction \u00d71.3, Carr\u00e9/Opposition \u00d71.2, Trigone \u00d70.8, Sextile \u00d70.7), <strong>bonus maisons angulaires</strong> (M1/4/7/10 \u00d71.2, cadentes \u00d70.85), et <strong>amplification temporelle</strong> (Firdaria \u00d71.3). Les transits longs sont <em>distribu\u00e9s</em> sur toute leur dur\u00e9e, les passages multiples (r\u00e9trogradation) sont r\u00e9duits (\u00d70.8), et les \u00e9clipses sont plafonn\u00e9es \u00e0 2 par cellule. La colonne <strong style="color:#991b1b">Tension</strong> totalise les aspects durs (\u25a1 \u260d \u260c \u26bb), tandis que <strong style="color:#1e40af">Support</strong> totalise les aspects doux (\u25b3 \u26b9). <strong>Score</strong> normalise chaque maison sur une \u00e9chelle 0\u2013100.';
     let o = '<div style="margin-top:44px"><div style="background:' + theme.bg + ';padding:15px 26px;border-radius:8px;margin:0 0 22px"><h2 style="font-family:Playfair Display,Georgia,serif;font-size:18px;font-weight:600;color:white;margin:0">\ud83d\udcca&nbsp; ' + (isEN ? 'Intensity Heatmap' : "Heatmap d\u2019Intensit\u00e9") + '</h2></div>';
     o += '<div style="background:#fff;border-radius:12px;border:1px solid #e0e0e0;padding:20px 26px;margin-bottom:10px">';
     o += '<div style="background:#f0f7ff;border:1px solid #d0daf0;border-radius:8px;padding:14px 18px;margin:0 0 16px;font-size:13px;color:#334155;line-height:1.55">' + pedag + '</div>';
@@ -358,14 +362,14 @@ let _heatmapHtml = '';
     if (_hd.firdMajor) o += ' \u00b7 <span style="color:#1F3864">\u23f3 ' + _hd.firdMajor + ' (Firdaria) \u00d71.3</span>';
     o += '</p>';
     var tenT = _hd.tensionTotals || [], supT = _hd.supportTotals || [];
-    o += '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:11px;text-align:center"><tr style="background:' + theme.bg + ';color:white"><th style="padding:4px 4px;text-align:left">' + (isEN ? 'House' : 'Maison') + '</th>';
-    lbs.forEach(l => { o += '<th style="padding:4px 2px">' + l + '</th>'; }); o += '<th style="padding:4px 4px">' + (isEN?'Tension':'Tension') + '</th><th style="padding:4px 4px">Support</th><th style="padding:4px 4px">Total</th><th style="padding:4px 4px">Score</th></tr>';
+    o += '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:11px;text-align:center"><thead><tr style="background:' + theme.bg + ';color:white"><th style="padding:4px 4px;text-align:left">' + (isEN ? 'House' : 'Maison') + '</th>';
+    lbs.forEach(l => { o += '<th style="padding:4px 2px">' + l + '</th>'; }); o += '<th style="padding:4px 4px">' + (isEN?'Tension':'Tension') + '</th><th style="padding:4px 4px">Support</th><th style="padding:4px 4px">Total</th><th style="padding:4px 4px">Score</th></tr></thead><tbody>';
     g.forEach((row, i) => { const t = row.reduce((a,b)=>a+b,0); const nV = norm[i] !== undefined ? norm[i] : 0; const isT3 = top3.includes(i+1); const tV = tenT[i]||0, sV = supT[i]||0; o += '<tr><td style="padding:3px 4px;font-weight:700;text-align:left;white-space:nowrap">' + (isT3?'\ud83d\udd25 ':'') + 'M' + (i+1) + '</td>'; row.forEach(v => { o += '<td style="padding:3px 2px;background:' + hc(v) + ';color:' + tc2(v) + ';font-weight:' + (v>0?'700':'400') + '">' + (v>0?Math.round(v):'\u00b7') + '</td>'; }); o += '<td style="padding:3px 4px;background:#fef2f2;color:#991b1b;font-weight:700">' + Math.round(tV) + '</td>'; o += '<td style="padding:3px 4px;background:#eff6ff;color:#1e40af;font-weight:700">' + Math.round(sV) + '</td>'; const tBg = t/mx>=0.5?'#1e3a8a':t>0?'#dbeafe':'#f8fafc'; o += '<td style="padding:3px 4px;background:' + tBg + ';color:' + (t/mx>=0.5?'#fff':'#1e3a8a') + ';font-weight:700">' + Math.round(t) + '</td>'; o += '<td style="padding:3px 4px;background:' + nBg(nV) + ';color:' + nTc(nV) + ';font-weight:700">' + nV + '/100</td></tr>'; });
-    o += '</table></div>';
+    o += '</tbody></table></div>';
     if (top3.length > 0) o += '<div style="margin-top:10px;font-size:13px;color:#1e3a8a;font-weight:600">\ud83c\udfc6 ' + (isEN ? 'Most activated houses: ' : 'Maisons les plus sollicit\u00e9es : ') + top3.map(m => 'M' + m).join(', ') + '</div>';
     o += '<div style="display:flex;flex-wrap:wrap;gap:10px;margin-top:10px;font-size:12px;color:#64748b;align-items:center"><span>' + (isEN ? 'Legend:' : 'L\u00e9gende :') + '</span><span style="background:#f8fafc;padding:2px 8px;border:1px solid #e2e8f0;border-radius:3px">' + (isEN?'Calm':'Calme') + '</span><span style="background:#dbeafe;padding:2px 8px;border-radius:3px;color:#1e3a8a">' + (isEN?'Low':'Faible') + '</span><span style="background:#93c5fd;padding:2px 8px;border-radius:3px;color:#1e3a8a">' + (isEN?'Moderate':'Mod\u00e9r\u00e9') + '</span><span style="background:#3b82f6;padding:2px 8px;border-radius:3px;color:white">' + (isEN?'Strong':'Fort') + '</span><span style="background:#1e40af;padding:2px 8px;border-radius:3px;color:white">' + (isEN?'Intense':'Intense') + '</span><span style="margin-left:8px">|</span><span style="background:#fef2f2;padding:2px 8px;border-radius:3px;color:#991b1b">' + (isEN?'Tension':'Tension') + '</span><span style="background:#eff6ff;padding:2px 8px;border-radius:3px;color:#1e40af">Support</span></div>';
     o += '</div></div>';
-    if (_hd.eventSignatures && _hd.eventSignatures.length > 0) {
+    if (false /* SIG_HIDDEN */ && _hd.eventSignatures && _hd.eventSignatures.length > 0) {
         var _sB={high:'#fef2f2',medium:'#fffbeb',low:'#f0fdf4'}, _sR={high:'#fca5a5',medium:'#fcd34d',low:'#86efac'}, _sT={high:'#991b1b',medium:'#92400e',low:'#166534'};
         var _rL=function(r){return r==="SOLIDE"?(isEN?'✅ Reliable':'✅ Fiable'):r==="PROBABLE"?(isEN?'◉ Probable':'◉ Probable'):r==="POSSIBLE"?(isEN?'△ Possible':'△ Possible'):(isEN?'○ Fragile':'○ Fragile');};
         var _rC=function(r){return r==="SOLIDE"?'#166534':r==="PROBABLE"?'#1e40af':r==="POSSIBLE"?'#854d0e':'#94a3b8';};
@@ -470,6 +474,14 @@ const html = `<!DOCTYPE html>
  <style>
   @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Source+Sans+3:ital,wght@0,400;0,600;0,700;1,400&display=swap');
   @media print {
+  /* PDF-HARDEN-v1 */
+  thead { display: table-header-group; }
+  tfoot { display: table-footer-group; }
+  tr, img, svg, .keep-together { break-inside: avoid; page-break-inside: avoid; }
+  h1, h2, h3, h4, h5, h6, .section-title, .subsection-title, .sub-direction { break-after: avoid; page-break-after: avoid; }
+  table { page-break-inside: auto; }
+  html, body { height: auto !important; }
+
    .prev-tech-toc { page-break-after: avoid; break-after: avoid; }
    .prev-tech-toc-pagebreak { page-break-after: always !important; break-after: page !important; }
    .house-section { page-break-after: always; break-after: page; }
@@ -504,9 +516,9 @@ __PREV_TECH_TOC_PLACEHOLDER__
   <div id="prev-tech-parans" style="background: #ffffff; border-radius: 12px; border: 1px solid #e0e0e0; padding: 20px 26px; margin-bottom: 44px;">
     <p style="font-size: 14px; color: #64748b; font-style: italic; margin: 0 0 14px;">${isEN ? 'A paran forms when a fixed star and a planet simultaneously occupy a cardinal angle. It is a deep and permanent stellar bond.' : "Un paran se forme quand une étoile fixe et une planète se trouvent simultanément sur un angle cardinal. C'est un lien stellaire profond et permanent."}</p>
     <table style="width:100%;border-collapse:collapse;font-size:14px;">
-      <tr style="background:#2E5FA3;color:white;"><th style="padding:8px 10px;text-align:left;">${isEN ? 'Fixed Star' : 'Étoile Fixe'}</th><th style="padding:8px;text-align:center;">${isEN ? 'Star Angle' : 'Angle Étoile'}</th><th style="padding:8px 10px;text-align:left;">${isEN ? 'Planet' : 'Planète'}</th><th style="padding:8px;text-align:center;">${isEN ? 'Planet Angle' : 'Angle Planète'}</th><th style="padding:8px;text-align:center;">${isEN ? 'Orb' : 'Orbe'}</th></tr>
+      <thead><tr style="background:#2E5FA3;color:white;"><th style="padding:8px 10px;text-align:left;">${isEN ? 'Fixed Star' : 'Étoile Fixe'}</th><th style="padding:8px;text-align:center;">${isEN ? 'Star Angle' : 'Angle Étoile'}</th><th style="padding:8px 10px;text-align:left;">${isEN ? 'Planet' : 'Planète'}</th><th style="padding:8px;text-align:center;">${isEN ? 'Planet Angle' : 'Angle Planète'}</th><th style="padding:8px;text-align:center;">${isEN ? 'Orb' : 'Orbe'}</th></tr></thead><tbody>
       ${_paranResults.map(pr => `<tr style="border-bottom:1px solid #d0daf0;"><td style="padding:8px 10px;font-weight:600;color:#1F3864;">★ ${esc(pr.etoile)}</td><td style="padding:8px;text-align:center;color:#2E5FA3;">${esc(pr.angle_etoile)}</td><td style="padding:8px 10px;font-weight:600;color:#1F3864;">${esc(pr.planete)}</td><td style="padding:8px;text-align:center;color:#2E5FA3;">${esc(pr.angle_planete)}</td><td style="padding:8px;text-align:center;font-weight:bold;color:${pr.orb <= 0.5 ? '#1F3864' : '#2E5FA3'};">${pr.orb}°</td></tr>${pr.interpretation ? `<tr style="background:#eef2fb;"><td colspan="5" style="padding:6px 12px;font-size:13px;color:#2E5FA3;font-style:italic;">${esc(pr.interpretation)}</td></tr>` : ''}`).join('')}
-    </table>
+    </tbody></table>
   </div>
   ` : ''}
 
@@ -527,7 +539,7 @@ __PREV_TECH_TOC_PLACEHOLDER__
             });
         }
     });
-    (_lotsByHouseT[m.n] || []).forEach(ln => { if (!locatairesLabels.includes(ln)) locatairesLabels.push(ln); });
+    (_lotsByHouseT[m.n] || []).forEach(ln => { const _lbl = isEN ? lotEN(ln) : ln; if (!locatairesLabels.includes(_lbl)) locatairesLabels.push(_lbl); });
 
     const _pbStyle = _hIdx === 0 ? '' : 'page-break-before: always; break-before: page; ';
     return `
@@ -541,7 +553,7 @@ __PREV_TECH_TOC_PLACEHOLDER__
          <div style="font-size: 15.5px; font-weight: 400; color: #8ab4f8; margin-top: 3px; letter-spacing: 0.4px;">${esc(m.domaines)}</div>
         </td>
        </tr>
-      </table>
+      </tbody></table>
      </div>
      <div style="background: #fafbff; padding: 10px 20px; border-bottom: 1px solid #eaecf5;">
         <span style="display: inline-block; background: ${theme.badge}; color: ${theme.badgeTxt}; font-size: 15.5px; font-weight: 600; padding: 4px 13px; border-radius: 20px; margin: 2px 3px;">${isEN ? 'Cusp' : 'Cuspide'} : ${esc(cuspideSigne)}</span>

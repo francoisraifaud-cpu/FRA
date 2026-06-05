@@ -763,8 +763,10 @@ html += `<h2 class="section-title page-break" id="syn-doc-bi-roue">${isEN ? 'Syn
 
 // ── BI-ROUE SVG SYNASTRIQUE ──
 const biwheel = input.biwheel || {};
-const bwPlanetsA = biwheel.planets_a || [];
-const bwPlanetsB = biwheel.planets_b || [];
+// Dédoublonnage par nom : la source émet parfois le Vertex en double (même degré) → évite le double glyphe sur la bi-roue.
+const _dedupeByName = arr => { const seen = new Set(); return (arr || []).filter(p => { if (!p || !p.name) return true; if (seen.has(p.name)) return false; seen.add(p.name); return true; }); };
+const bwPlanetsA = _dedupeByName(biwheel.planets_a);
+const bwPlanetsB = _dedupeByName(biwheel.planets_b);
 const bwCuspsA = biwheel.cusps_a || [];
 
 if (bwPlanetsA.length > 0 && bwPlanetsB.length > 0) {
@@ -778,7 +780,7 @@ if (bwPlanetsA.length > 0 && bwPlanetsB.length > 0) {
         "Lot de Nécessité":"⊖","Lot de Némésis":"⚖","Lot de Basis":"⬡",
         "Lot d'Exaltation":"△","Lot du Daemon":"☿̦","Lot de Victoire":"⚜",
         "Lot du Père":"⚑","Lot de la Mère":"⚘","Lot de Maladie":"⚕",
-        "Lot des Enfants":"✦","Lot de Voyage":"✢","Lot de Courage":"⚔",
+        "Lot des Enfants":"✦","Lot de Voyage":"✈","Lot de Courage":"⚔",
         "Vertex":"⊹","Anti-Vertex":"⊹","Nœud moyen":"☊","Nœud vrai":"☊"
     };
     const signGlyphs = ["♈","♉","♊","♋","♌","♍","♎","♏","♐","♑","♒","♓"];
@@ -929,30 +931,56 @@ if (bwPlanetsA.length > 0 && bwPlanetsB.length > 0) {
     svg.push(svgLines);
     svg.push(svgGlyphs);
 
-    // ── Étoiles fixes : nom seul, RADIALEMENT à l'extérieur, color-codées par personne (A / B) ──
+    // ── Étoiles fixes : un label PAR ÉTOILE (dédupliqué par personne), color-codées A/B, anti-chevauchement ──
     const ANGLE_HOSTS = ["Ascendant","Descendant","Milieu du Ciel","Imum Coeli"];
-    const drawStars = (matches, posMap, color) => {
-        const hosts = {};
+    const starAcc = {};   // clé = couleur|nom (dédup par personne) -> conjonction la plus serrée
+    const collectStars = (matches, posMap, color) => {
         (matches || []).forEach(em => {
-            const host = em.planete;
-            if (posMap[host] === undefined) return;
-            (hosts[host] = hosts[host] || []).push(isEN ? (em.etoile_en || em.etoile) : em.etoile);
-        });
-        Object.entries(hosts).forEach(([host, stars]) => {
-            const svgA = e2s(posMap[host]);
-            const nrm = ((svgA % 360) + 360) % 360;
-            const flip = (nrm > 90 && nrm < 270);
-            const rot = flip ? nrm + 180 : nrm;
-            const anchor = flip ? "end" : "start";
-            const base = ANGLE_HOSTS.includes(host) ? R_OUT + 50 : R_OUT + 11;
-            const a0 = pol(svgA, R_OUT + 1), a1 = pol(svgA, base - 2);
-            svg.push(`<line x1="${a0.x.toFixed(1)}" y1="${a0.y.toFixed(1)}" x2="${a1.x.toFixed(1)}" y2="${a1.y.toFixed(1)}" stroke="${color}" stroke-width="0.6" opacity="0.55"/>`);
-            const tp = pol(svgA, base);
-            svg.push(`<text x="${tp.x.toFixed(1)}" y="${tp.y.toFixed(1)}" transform="rotate(${rot.toFixed(1)} ${tp.x.toFixed(1)} ${tp.y.toFixed(1)})" text-anchor="${anchor}" dominant-baseline="central" font-size="8.5" fill="${color}" font-style="italic" font-weight="600" font-family="'Source Sans 3',Arial,sans-serif">${stars.join(" · ")}</text>`);
+            if (posMap[em.planete] === undefined) return;
+            const name = isEN ? (em.etoile_en || em.etoile) : em.etoile;
+            const orb = (typeof em.orb === "number") ? em.orb : (parseFloat(em.orb) || 99);
+            const isAngleHost = ANGLE_HOSTS.includes(em.planete);
+            const key = color + "|" + name;
+            const prev = starAcc[key];
+            if (!prev || orb < prev.orb) starAcc[key] = { name, color, ang: posMap[em.planete], orb, isAngleHost: isAngleHost || (prev && prev.isAngleHost) };
+            else if (isAngleHost) prev.isAngleHost = true;
         });
     };
-    drawStars(input.etoile_matches_a, posMapA, COLOR_A);
-    drawStars(input.etoile_matches_b, posMapB, COLOR_B);
+    collectStars(input.etoile_matches_a, posMapA, COLOR_A);
+    collectStars(input.etoile_matches_b, posMapB, COLOR_B);
+    let starLabels = Object.values(starAcc).map(v => ({ name: v.name, color: v.color, norm: ((e2s(v.ang) % 360) + 360) % 360, isAngleHost: v.isAngleHost }));
+    // anti-chevauchement : étale chaque grappe (A + B confondus) autour de son centre
+    const STAR_GAP = 6.2;
+    starLabels.sort((a, b) => a.norm - b.norm);
+    if (starLabels.length > 1) {
+        const clusters = []; let cur = [starLabels[0]];
+        for (let i = 1; i < starLabels.length; i++) {
+            if (starLabels[i].norm - starLabels[i - 1].norm < STAR_GAP) cur.push(starLabels[i]);
+            else { clusters.push(cur); cur = [starLabels[i]]; }
+        }
+        clusters.push(cur);
+        if (clusters.length > 1) {
+            const first = clusters[0], last = clusters[clusters.length - 1];
+            if ((first[0].norm + 360) - last[last.length - 1].norm < STAR_GAP) { clusters[0] = last.concat(first); clusters.pop(); }
+        }
+        for (const cl of clusters) {
+            if (cl.length < 2) continue;
+            const mean = cl.reduce((acc, L) => acc + L.norm, 0) / cl.length;
+            const span = (cl.length - 1) * STAR_GAP;
+            cl.forEach((L, k) => { L.norm = (((mean - span / 2 + k * STAR_GAP) % 360) + 360) % 360; });
+        }
+    }
+    starLabels.forEach(L => {
+        const svgA = L.norm;
+        const flip = (svgA > 90 && svgA < 270);
+        const rot = flip ? svgA + 180 : svgA;
+        const anchor = flip ? "end" : "start";
+        const base = L.isAngleHost ? R_OUT + 50 : R_OUT + 11;
+        const a0 = pol(svgA, R_OUT + 1), a1 = pol(svgA, base - 2);
+        svg.push(`<line x1="${a0.x.toFixed(1)}" y1="${a0.y.toFixed(1)}" x2="${a1.x.toFixed(1)}" y2="${a1.y.toFixed(1)}" stroke="${L.color}" stroke-width="0.6" opacity="0.55"/>`);
+        const tp = pol(svgA, base);
+        svg.push(`<text x="${tp.x.toFixed(1)}" y="${tp.y.toFixed(1)}" transform="rotate(${rot.toFixed(1)} ${tp.x.toFixed(1)} ${tp.y.toFixed(1)})" text-anchor="${anchor}" dominant-baseline="central" font-size="8.5" fill="${L.color}" font-style="italic" font-weight="600" font-family="'Source Sans 3',Arial,sans-serif">${L.name}</text>`);
+    });
 
     svg.push(`<circle cx="${CX}" cy="${CY}" r="7" fill="#1a237e" stroke="white" stroke-width="2"/>`);
     svg.push(`<circle cx="${CX}" cy="${CY}" r="2.5" fill="white"/>`);

@@ -144,7 +144,7 @@ const generateWheelSVG = (planetes, maisons) => {
         "Lot de Nécessité":"⊖","Lot d'Éros":"♡","Lot de Courage":"⚔","Lot de Némésis":"⚖",
         "Lot de Basis":"◇","Lot d'Exaltation":"△","Lot du Daemon":"✶",
         "Lot de Victoire":"⚜","Lot du Père":"⚑","Lot de la Mère":"⚘",
-        "Lot de Maladie":"⚕","Lot du Mariage":"♥","Lot des Enfants":"✦","Lot de Voyage":"✢"
+        "Lot de Maladie":"⚕","Lot du Mariage":"♥","Lot des Enfants":"✦","Lot de Voyage":"✈"
     };
     const signGlyphs = ["♈","♉","♊","♋","♌","♍","♎","♏","♐","♑","♒","♓"];
     // Couleurs d'éléments — IDENTIQUES à _elColors du rapport (cohérence graphique roue ↔ stats)
@@ -361,23 +361,52 @@ const generateWheelSVG = (planetes, maisons) => {
     s.push(svgGlyphs);
 
     // ── Étoiles fixes : nom seul, RADIALEMENT à l'extérieur de la roue (aligné sur la planète hôte) ──
-    const starHosts = {};
+    const ANGLE_HOSTS = ["Ascendant", "Descendant", "Milieu du Ciel", "Imum Coeli"];
+    // 1) Un label PAR ÉTOILE (dédupliqué entre hôtes) ancré sur la conjonction la plus serrée.
+    const starAcc = {};
     (etoileMatches || []).forEach(em => {
         if (posMap[em.planete] === undefined) return;
-        (starHosts[em.planete] = starHosts[em.planete] || []).push(isEN ? (em.etoile_en || em.etoile) : em.etoile);
+        const name = isEN ? (em.etoile_en || em.etoile) : em.etoile;
+        const orb = (typeof em.orb === "number") ? em.orb : (parseFloat(em.orb) || 99);
+        const isAngleHost = ANGLE_HOSTS.includes(em.planete);
+        const prev = starAcc[name];
+        if (!prev || orb < prev.orb) starAcc[name] = { ang: posMap[em.planete], orb, isAngleHost: isAngleHost || (prev && prev.isAngleHost) };
+        else if (isAngleHost) prev.isAngleHost = true;
     });
-    const ANGLE_HOSTS = ["Ascendant", "Descendant", "Milieu du Ciel", "Imum Coeli"];
-    Object.entries(starHosts).forEach(([host, stars]) => {
-        const svgA = e2s(posMap[host]);
-        const nrm = ((svgA % 360) + 360) % 360;
-        const flip = (nrm > 90 && nrm < 270);
-        const rot = flip ? nrm + 180 : nrm;
+    let starLabels = Object.entries(starAcc).map(([name, v]) => ({ name, norm: ((e2s(v.ang) % 360) + 360) % 360, isAngleHost: v.isAngleHost }));
+    // 2) Anti-chevauchement : étale chaque grappe de labels trop proches autour de son centre.
+    const STAR_GAP = 6.2;
+    starLabels.sort((a, b) => a.norm - b.norm);
+    if (starLabels.length > 1) {
+        const clusters = []; let cur = [starLabels[0]];
+        for (let i = 1; i < starLabels.length; i++) {
+            if (starLabels[i].norm - starLabels[i - 1].norm < STAR_GAP) cur.push(starLabels[i]);
+            else { clusters.push(cur); cur = [starLabels[i]]; }
+        }
+        clusters.push(cur);
+        // fusion wrap-around (dernier ↔ premier via 360°)
+        if (clusters.length > 1) {
+            const first = clusters[0], last = clusters[clusters.length - 1];
+            if ((first[0].norm + 360) - last[last.length - 1].norm < STAR_GAP) { clusters[0] = last.concat(first); clusters.pop(); }
+        }
+        for (const cl of clusters) {
+            if (cl.length < 2) continue;
+            let mean = cl.reduce((acc, L) => acc + L.norm, 0) / cl.length;
+            const span = (cl.length - 1) * STAR_GAP;
+            cl.forEach((L, k) => { L.norm = (((mean - span / 2 + k * STAR_GAP) % 360) + 360) % 360; });
+        }
+    }
+    // 3) Rendu : nom seul, radial, à l'extérieur de la roue.
+    starLabels.forEach(L => {
+        const svgA = L.norm;
+        const flip = (svgA > 90 && svgA < 270);
+        const rot = flip ? svgA + 180 : svgA;
         const anchor = flip ? "end" : "start";
-        const base = ANGLE_HOSTS.includes(host) ? R_OUT + 50 : R_OUT + 11;   // dégage sigle d'axe + degré
+        const base = L.isAngleHost ? R_OUT + 50 : R_OUT + 11;   // dégage sigle d'axe + degré
         const a0 = pol(svgA, R_OUT + 1), a1 = pol(svgA, base - 2);
         s.push(`<line x1="${a0.x.toFixed(1)}" y1="${a0.y.toFixed(1)}" x2="${a1.x.toFixed(1)}" y2="${a1.y.toFixed(1)}" stroke="${NAVY2}" stroke-width="0.6" opacity="0.55"/>`);
         const tp = pol(svgA, base);
-        s.push(`<text x="${tp.x.toFixed(1)}" y="${tp.y.toFixed(1)}" transform="rotate(${rot.toFixed(1)} ${tp.x.toFixed(1)} ${tp.y.toFixed(1)})" text-anchor="${anchor}" dominant-baseline="central" font-size="8.5" fill="${NAVY}" font-style="italic" font-weight="600" font-family="'Source Sans 3',Arial,sans-serif">${stars.join(" · ")}</text>`);
+        s.push(`<text x="${tp.x.toFixed(1)}" y="${tp.y.toFixed(1)}" transform="rotate(${rot.toFixed(1)} ${tp.x.toFixed(1)} ${tp.y.toFixed(1)})" text-anchor="${anchor}" dominant-baseline="central" font-size="8.5" fill="${NAVY}" font-style="italic" font-weight="600" font-family="'Source Sans 3',Arial,sans-serif">${L.name}</text>`);
     });
 
     s.push(`<circle cx="${CX}" cy="${CY}" r="6.5" fill="${NAVY}" stroke="white" stroke-width="2"/>`);
@@ -757,7 +786,7 @@ html += `<div id="theme-legends" class="force-page-break-legend">
             <div class="legend-item"><span class="legend-glyph" style="color:#9a7b4f;">⚕</span> ${isEN ? 'Lot of Illness' : 'Lot de Maladie'}</div>
             <div class="legend-item"><span class="legend-glyph" style="color:#9a7b4f;">♥</span> ${isEN ? 'Lot of Marriage' : 'Lot du Mariage'}</div>
             <div class="legend-item"><span class="legend-glyph" style="color:#9a7b4f;">✦</span> ${isEN ? 'Lot of Children' : 'Lot des Enfants'}</div>
-            <div class="legend-item"><span class="legend-glyph" style="color:#9a7b4f;">✢</span> ${isEN ? 'Lot of Travel' : 'Lot de Voyage'}</div>
+            <div class="legend-item"><span class="legend-glyph" style="color:#9a7b4f;">✈</span> ${isEN ? 'Lot of Travel' : 'Lot de Voyage'}</div>
         </div>
         <div><div class="legend-title">${isEN ? 'Zodiac Signs' : 'Signes du Zodiaque'}</div>
             <div class="legend-item"><span class="legend-glyph" style="color:#1F3864">♈</span> Bélier — <small>Feu / Cardinal</small></div>
@@ -1480,7 +1509,7 @@ const LOTS_DISPLAY = [
     {fr:"Lot de Maladie",      en:"Lot of Disease",     desc: isEN ? "Physical vulnerability, fragility points"            : "Vulnérabilité physique, points de fragilité", glyph:"⚕"},
     {fr:"Lot du Mariage",      en:"Lot of Marriage",    desc: isEN ? "Union, commitment, life partnership"                 : "Union, engagement, partenariat de vie", glyph:"♥"},
     {fr:"Lot des Enfants",     en:"Lot of Children",    desc: isEN ? "Offspring, creativity, progeny"                      : "Descendance, créativité, progéniture", glyph:"✦"},
-    {fr:"Lot de Voyage",       en:"Lot of Travel",      desc: isEN ? "Displacement, distant quest, exploration"            : "Déplacement, quête lointaine, exploration", glyph:"✢"}
+    {fr:"Lot de Voyage",       en:"Lot of Travel",      desc: isEN ? "Displacement, distant quest, exploration"            : "Déplacement, quête lointaine, exploration", glyph:"✈"}
 ];
 const lotsInChart = LOTS_DISPLAY.filter(ld => (input.planetes || []).some(p => p.planet?.fr === ld.fr));
 if (lotsInChart.length > 0) {

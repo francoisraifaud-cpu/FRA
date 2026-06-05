@@ -2421,7 +2421,7 @@ const getPrioriteFlags = (pNatal, pTransit = null) => {
         flags.push(`⭐ ANGULAIRE (${angNames}) — PLANÈTE DE PREMIER PLAN`);
     }
     if (pNatal === chartRuler) flags.push(`👑 MAÎTRE DU THÈME (ASC en ${ascSign}) — TRANSIT PRIORITAIRE`);
-    if (profections?.annuelle?.seigneur === pNatal) flags.push(`🎯 SEIGNEUR DE L'ANNÉE (profection M${profections.annuelle.maison}) — amplification maximale`);
+    if (false /* WS_PLACIDUS_RETRAIT */ && profections?.annuelle?.seigneur === pNatal) flags.push(`🎯 SEIGNEUR DE L'ANNÉE (profection M${profections.annuelle.maison}) — amplification maximale`);
     const stellarData = stellarByPlanet[pNatal];
     // v6 : étoile fixe conjointe = amplificateur stellaire permanent
     if (stellarData?.length > 0) {
@@ -4443,9 +4443,11 @@ cfg.sysSynth = cfg.sysSynth
     .replace('Tutoie systématiquement le consultant.', pronomInstr + genreAccord);
 const markdownInstr = ' FORMATAGE : Utilise ## pour les titres de section et ### pour les sous-titres. Ne mets jamais de gras (**) autour des titres ## ou ###.';
 const dataFidelityInstr = ' FIDÉLITÉ AUX DONNÉES : utilise EXCLUSIVEMENT les données fournies dans le prompt. Ne déduis JAMAIS une position non fournie. Ne JAMAIS halluciner un aspect, un transit ou une maison.';
-const pyramidInstr = ' HIÉRARCHIE PRÉDICTIVE (6 couches, du sommet vers la base) : 1) Directions Primaires (tournants inévitables) > 2) Époque de vie (Firdaria, ZR, Profections) > 3) Climat annuel (Progressions, Arcs, RS) > 4) Activations majeures (Transits lourds, Éclipses) > 5) Déclencheurs (Mars, Lunaisons, rapides) > 6) Complémentaires. Un événement = convergence de MINIMUM 3 couches. Un transit isolé n\'est PAS un événement.';
-cfg.sys += markdownInstr + dataFidelityInstr + pyramidInstr;
-cfg.sysSynth += markdownInstr + dataFidelityInstr + pyramidInstr;
+const pyramidInstr = ' HIÉRARCHIE PRÉDICTIVE (6 couches, du sommet vers la base) : 1) Directions Primaires (tournants inévitables) > 2) Époque de vie (Firdaria) > 3) Climat annuel (Progressions, Arcs, RS) > 4) Activations majeures (Transits lourds, Éclipses) > 5) Déclencheurs (Mars, Lunaisons, rapides) > 6) Complémentaires. Un événement = convergence de MINIMUM 3 couches. Un transit isolé n\'est PAS un événement.';
+// Promesse natale (Rushman) — ancrage de fiabilité narrative (2026-06-04)
+const natalPromiseInstr = ' PROMESSE NATALE (Rushman) : un thème de l\'année ne se développe en fil conducteur QUE s\'il est porté par une promesse du thème NATAL (planète, maison, maître ou configuration de naissance concernés). Avant de projeter une dynamique sur l\'année, ancre-la explicitement dans le thème de naissance (formule du type « ce terrain est déjà inscrit dans ton ciel natal par … »). Si aucun significateur natal ne soutient le thème, traite-le comme une coloration passagère de transit, jamais comme un axe structurant de l\'année.';
+cfg.sys += markdownInstr + dataFidelityInstr + pyramidInstr + natalPromiseInstr;
+cfg.sysSynth += markdownInstr + dataFidelityInstr + pyramidInstr + natalPromiseInstr;
 
 // ---- 12b. TOP 5 TRANSIT FILTER — Anti-infobésité v6 ----
 // Trie les transits lents scorés par maison, détermine le Top N pour le prompt LLM.
@@ -12453,7 +12455,7 @@ const charteEthiqueCore =
     `- DIGNITÉS : Pérégrin ≠ Exil ≠ Chute — utilise UNIQUEMENT le terme fourni.\n` +
     `- DÉCLINAISON vs LONGITUDE : parallèle (//) ≠ conjonction zodiacale.\n` +
     `- Ne mentionne AUCUNE technique dont la section ne figure pas dans les données ci-dessous.\n` +
-    `- ALMUTEM FIGURIS ≠ SEIGNEUR DE L'ANNÉE : l'Almutem Figuris est la planète au pouvoir essentiel maximal du thème natal (calculé par dignités sur les points clés). Le seigneur de l'année est le maître du signe de la maison de profection annuelle. Ne JAMAIS confondre ces deux concepts ni attribuer le titre d'Almutem au seigneur de profection.\n` +
+    `- ALMUTEM FIGURIS : planète au pouvoir essentiel maximal du thème natal (calculé par dignités sur les points clés). Ne JAMAIS attribuer ce titre à une autre planète.\n` +
     (sensitivityProfilePrev ? sensitivityProfilePrev + `⛔ SEULS les éléments/modes LISTÉS ci-dessus sont en vulnérabilité ou familiarité. Ne JAMAIS en inventer d'autres.\n` : ``) +
     `\n`;
 
@@ -12461,7 +12463,7 @@ const charteEthiqueTech = {
     firdaria:    `- FIRDARIA : le chronocrateur actif est une toile de fond structurante, ses transits résonnent plus fortement.\n`,
     eclipses:    `- CYCLES SAROS : intègre le thème Saros comme coloration de fond de l'éclipse, reformule-le en lien avec le vécu natal.\n`,
     progressions:`- PROGRESSIONS : maturation intérieure lente — pas de dates précises. Seul le transit crée l'événement concret.\n`,
-    profections: `- PROFECTIONS : le seigneur de l'année colore les transits, ne confonds pas avec le maître du thème.\n`,
+    profections: `` /* WS_PLACIDUS_RETRAIT : profections whole-sign retirées du narratif */,
     lunaisons:   `- LUNAISONS : rythment le mois, ne sont PAS des événements majeurs. Une phrase, pas un paragraphe.\n`,
     mondiaux:    `- ASPECTS MONDIAUX T→T : toiles de fond collectives, pas personnels. Une à deux phrases.\n`,
     midpoints:   `- TECHNIQUES MINEURES (midpoints, antiscia, translations) : NUANCES, une phrase de contexte suffit.\n`,
@@ -12639,7 +12641,7 @@ const positionMemoPrev = `[MÉMO POSITIONS NATALES — RÉFÉRENCE ABSOLUE]\n` +
     `\n⛔ Ne JAMAIS écrire qu'une planète NATALE est en Maison X si ce mémo indique une autre maison. Les planètes DE TRANSIT changent de maison — les planètes NATALES sont fixes.\n⛔ Ne JAMAIS écrire qu'une planète NATALE est dans un SIGNE différent de celui indiqué entre parenthèses ci-dessus. Les signes DE TRANSIT peuvent différer — les signes NATALS sont fixes.\n` +
     `⚠ GOUVERNEUR DU THÈME : ${chartRuler || "non calculé"} (maître de l'ASC) — planète pivot de l'identité. Ne PAS confondre avec les maîtres de cuspide de maison.\n` +
     `⚠ ALMUTEM FIGURIS de ce thème : ${almutemFiguris || "non calculé"} — seule planète au pouvoir essentiel maximal. Ne JAMAIS attribuer ce titre à une autre planète.\n` +
-    `⚠ SEIGNEUR DE L'ANNÉE (profection annuelle) : ${profections?.annuelle?.seigneur || "non calculé"} (maître du signe de M${profections?.annuelle?.maison || "?"})${profections?.bascule ? ` — BASCULE le ${profections.bascule.date} vers M${profections.bascule.maisonNext} (${profections.bascule.signeNext}), nouveau seigneur : ${profections.bascule.seigneurNext || "?"}` : ""} — Ne JAMAIS confondre Almutem (${almutemFiguris || "?"}) et Seigneur de l'année (${profections?.annuelle?.seigneur || "?"}) : ce sont deux concepts DISTINCTS.\n` +
+    `` /* WS_PLACIDUS_RETRAIT : Seigneur de l'année (profection whole-sign) retiré du narratif */ +
     `[MAÎTRISES DE MAISONS — Le maître d'une maison = ruler du signe de sa CUSPIDE]\n${houseRulersLinesPrev.join(" | ")}\n⛔ Ne JAMAIS dire qu'une planète est "maître de la Maison X" si elle ne figure pas ci-dessus. Le maître est EXCLUSIVEMENT déterminé par le signe de la cuspide, PAS par un signe intercepté.\n` +
     oobMemoPrev + interceptedMemoPrev;
 
@@ -12740,8 +12742,8 @@ maisonsResult.forEach(m => {
     const resoStr = computeResonances(m.maison);
     if (resoStr) prompt += `\n\n[RÉSONANCES INTER-MAISONS]\n${resoStr}`;
 
-    // Profections (contexte natal/annuel — placé dans la section natale)
-    if (profections) {
+    // Profections (contexte natal/annuel) — WS_PLACIDUS_RETRAIT : retiré du narratif (whole-sign incompatible Placidus)
+    if (false /* WS_PLACIDUS_RETRAIT */ && profections) {
         const pAnn=profections.annuelle, pMens=profections.mensuelle, pBas=profections.bascule;
         if (pAnn.maison===m.maison) {
             prompt += `\n\n[PROFECTION ANNUELLE — MAISON ${m.maison} EST LA MAISON DE L'ANNÉE]\nÂge : ${profections.age} ans.${pAnn.seigneur?`\nSeigneur de l'année : ${pAnn.seigneur} (M${pAnn.maison_seigneur}) — transits amplifiés.`:""}`;
@@ -13174,11 +13176,11 @@ if (_mdseZRPeakPeriod.sign) {
 }
 
 if (_mdseReturnEvents.length > 0) promptSynth += `\n\n[🔄 RETOURS PLANÉTAIRES ACTIFS (COUCHE ÉPOQUE)]\n${_mdseReturnEvents.map(r => `- ${r.label}`).join("\n")}`;
-if (_mdseBoundProfection) promptSynth += `\n\n[📜 BOUND PROFECTION — Termes égyptiens (COUCHE ÉPOQUE)]\n${_mdseBoundProfection.label}${_mdseBoundProfection.next ? `\n→ Prochain terme (bascule) : ${_mdseBoundProfection.next.boundLord} en ${_mdseBoundProfection.next.sign}` : ""}\n→ Le bound lord (maître du terme) colore la sous-période de la profection annuelle. Ses transits et configurations natales prennent une importance accrue.`;
+if (false /* WS_PLACIDUS_RETRAIT */ && _mdseBoundProfection) promptSynth += `\n\n[📜 BOUND PROFECTION — Termes égyptiens (COUCHE ÉPOQUE)]\n${_mdseBoundProfection.label}${_mdseBoundProfection.next ? `\n→ Prochain terme (bascule) : ${_mdseBoundProfection.next.boundLord} en ${_mdseBoundProfection.next.sign}` : ""}\n→ Le bound lord (maître du terme) colore la sous-période de la profection annuelle. Ses transits et configurations natales prennent une importance accrue.`;
 
 if (cyclesActifs.length>0) promptSynth += `\n\n[CYCLES DE VIE EN COURS — Initiations structurelles]\n${cyclesActifs.map(c=>`- ${c.label} (${c.planete} M${c.maison||"?"}) — approx. ${c.dateApprox}, âge ~${c.age} ans.`).join("\n")}`;
 
-if (profections) {
+if (false /* WS_PLACIDUS_RETRAIT */ && profections) {
     const profTxt=formatProfection();
     if(profTxt) {
         promptSynth += `\n\n[PROFECTION ANNUELLE — Filtre annuel traditionnel]\n${profTxt}`;
@@ -13924,7 +13926,7 @@ if (finalOutput.length > 0) {
     const _hmTension = Array.from({length:12},()=>Array(_hmCols).fill(0));
     const _hmSupport = Array.from({length:12},()=>Array(_hmCols).fill(0));
     const _eclCap = Array.from({length:12},()=>Array(_hmCols).fill(0));
-    const _ampFactor = (pn) => { let f=1; if(_profLordHM&&pn===_profLordHM)f*=1.5; if(_firdMajorHM&&(pn===_firdMajorHM||pn===_firdSubHM))f*=1.3; return f; };
+    const _ampFactor = (pn) => { let f=1; /* WS_PLACIDUS_RETRAIT : amplification Seigneur de l'année (whole-sign) retirée de la heatmap */ if(_firdMajorHM&&(pn===_firdMajorHM||pn===_firdSubHM))f*=1.3; return f; };
     const _ASP_MULT = {"Conjonction":1.3,"Opposition":1.2,"Carré":1.2,"Quinconce":1.0,"Trigone":0.8,"Sextile":0.7,"Semi-Carré":0.9,"Sesqui-Carré":0.9,"Semi-Sextile":0.6,"Quintile":0.7,"Biquintile":0.7};
     const _HARD_ASP_BASE = new Set(["Opposition","Carré","Quinconce","Semi-Carré","Sesqui-Carré"]);
     const _MALEFIC_P = new Set(["Saturne","Mars","Pluton","Neptune","Uranus","Chiron","Lilith","Nœud Sud"]);
@@ -17345,7 +17347,7 @@ if (finalOutput.length > 0) {
     } catch(e) { console.log("[WARN] Anti-hallucination post-fix:", e.message); }
     // --- ANTI-HALLUCINATION : identités clés (seigneur, gouverneur, almutem) ---
     try {
-    if (profections?.annuelle?.seigneur) {
+    if (false /* WS_PLACIDUS_RETRAIT */ && profections?.annuelle?.seigneur) {
       const _idTable = `\n\n🚨 IDENTITÉS CLÉS — NE JAMAIS CONFONDRE :\n` +
         `  👑 GOUVERNEUR DU THÈME (maître ASC) = ${chartRuler || "?"}\n` +
         `  🎯 SEIGNEUR DE L'ANNÉE (profection M${profections.annuelle.maison}, ${profections.annuelle.signe_cuspide || "?"}) = ${profections.annuelle.seigneur}\n` +
@@ -17376,7 +17378,7 @@ if (finalOutput.length > 0) {
             supportTotals: _supportTotals.map(v=>Math.round(v)),
             normalized: _normalized, top3: _top3,
             granularity: _hmGranularity,
-            profLord: _profLordHM, firdMajor: _firdMajorHM,
+            profLord: null /* WS_PLACIDUS_RETRAIT : Seigneur de l'année retiré de l'affichage */, firdMajor: _firdMajorHM,
             eventSignatures: _mdseResults.map(s => ({
                 code:s.code, label:s.label, labelEN:s.labelEN, icon:s.icon,
                 confidence:s.confidence, level:s.level, guidance:s.guidance||"",

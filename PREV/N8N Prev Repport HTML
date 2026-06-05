@@ -239,7 +239,8 @@ const annee         = perso.annee || String(new Date().getFullYear());
 const dateEntreeStr = formatDate(perso.date_entree || `01/01/${annee}`);
 const dateSortieStr = formatDate(perso.date_sortie || `31/12/${annee}`);
 
-const labelType   = typeRapport;
+const TYPE_EN_DT={'Annuel':'Annual','Mensuel':'Monthly','Hebdomadaire':'Weekly','Journalier':'Daily'};
+const labelType   = isEN ? (TYPE_EN_DT[typeRapport] || typeRapport) : typeRapport;
 const showRapides = ["Mensuel","Hebdomadaire","Journalier"].includes(typeRapport);
 const titrePrincipal = `${L.titre} - ${labelType} - ${dateEntreeStr} - ${dateSortieStr} - ${prenomNom}`;
 const _fdf = (s) => { if (!s) return ""; s = s.trim(); if (s.includes("/")) return s.replace(/\//g, "_"); const [y,m,d] = s.split("-"); return `${d}_${m}_${y}`; };
@@ -281,6 +282,15 @@ const signGlyphs = {
     "Lion":"♌","Vierge":"♍","Balance":"♎","Scorpion":"♏",
     "Sagittaire":"♐","Capricorne":"♑","Verseau":"♒","Poissons":"♓"
 };
+const FR2EN = {
+    "Soleil":"Sun","Lune":"Moon","Mercure":"Mercury","Vénus":"Venus","Mars":"Mars","Jupiter":"Jupiter","Saturne":"Saturn","Uranus":"Uranus","Neptune":"Neptune","Pluton":"Pluto","Nœud Nord":"North Node","Nœud Sud":"South Node","Chiron":"Chiron","Cérès":"Ceres","Pallas":"Pallas","Junon":"Juno","Vesta":"Vesta","Lilith":"Lilith","Milieu du Ciel":"Midheaven","Imum Coeli":"Imum Coeli","Ascendant":"Ascendant","Descendant":"Descendant",
+    "Part de Fortune":"Part of Fortune","Lot de l'Esprit":"Lot of Spirit","Lot de Nécessité":"Lot of Necessity","Lot d'Éros":"Lot of Eros","Lot de Courage":"Lot of Courage","Lot de Némésis":"Lot of Nemesis","Lot de Basis":"Lot of Basis","Lot d'Exaltation":"Lot of Exaltation","Lot du Daemon":"Lot of the Daemon",
+    "Bélier":"Aries","Taureau":"Taurus","Gémeaux":"Gemini","Cancer":"Cancer","Lion":"Leo","Vierge":"Virgo","Balance":"Libra","Scorpion":"Scorpio","Sagittaire":"Sagittarius","Capricorne":"Capricorn","Verseau":"Aquarius","Poissons":"Pisces",
+    "Conjonction":"Conjunction","Opposition":"Opposition","Carré":"Square","Trigone":"Trine","Sextile":"Sextile","Quinconce":"Quincunx","Semi-carré":"Semi-square","Sesqui-carré":"Sesquiquadrate","Semi-sextile":"Semi-sextile",
+    "Nouvelle Lune":"New Moon","Pleine Lune":"Full Moon","Premier Quartier":"First Quarter","Dernier Quartier":"Last Quarter",
+    "Station rétrograde":"Retrograde Station","Station directe":"Direct Station"
+};
+const T = (s) => (isEN && s != null && FR2EN[s] != null) ? FR2EN[s] : s;
 const g     = (name) => glyphs[name] ? `<span class="glyph">${glyphs[name]}</span>` : "";
 const badge = (a, isAngle) => {
     const c   = aspectColors[a] || defaultColor;
@@ -452,7 +462,7 @@ const renderAxeMaitrises = (maisNum) => {
     const node = (p, nd, r) => nd ? `<span class="axe-node">
         <span class="axe-planet">${g(p)}${p}</span>
         ${r?`<span class="axe-retro">℞</span>`:""}
-        <span class="axe-pos">M${nd.house} · ${nd.sign}</span>
+        <span class="axe-pos">M${nd.house} · ${T(nd.sign)}</span>
         <span class="axe-dig" style="color:${digColor(nd.force)};background:${digBg(nd.force)}">${nd.sym||""} ${nd.dignite}</span>
     </span>` : "";
 
@@ -512,14 +522,14 @@ const renderFiguresNatales = (maisNum, aspectsList) => {
             const q   = l.orbe<=1?"★ ":"";
             const dig = natalDictR[l.planete];
             return `<div class="fn-link">
-                <span class="fn-asp" style="color:${(aspectColors[l.type]||defaultColor).text}">${l.type}</span>
-                ${g(l.planete)} <strong>${l.planete}</strong>
-                <span class="fn-meta">M${l.maison} · ${l.signe} · ${q}${l.orbe}°</span>
+                <span class="fn-asp" style="color:${(aspectColors[l.type]||defaultColor).text}">${T(l.type)}</span>
+                ${g(l.planete)} <strong>${T(l.planete)}</strong>
+                <span class="fn-meta">M${l.maison} · ${T(l.signe)} · ${q}${l.orbe}°</span>
                 ${dig&&dig.force!=="NEUTRE"?`<span class="fn-dig ${dig.cls}">${dig.sym} ${dig.dignite}</span>`:""}
             </div>`;
         }).join("");
         lines.push(`<div class="fn-group">
-            <div class="fn-header">${g(pN)} <strong>${pN}</strong> ${L.reseauActive}</div>
+            <div class="fn-header">${g(pN)} <strong>${T(pN)}</strong> ${L.reseauActive}</div>
             ${linesP}
         </div>`);
     });
@@ -545,7 +555,7 @@ const renderDignitesActives = (aspectsList) => {
         items.push(`<div class="timeline-item dig-item" style="border-left-color:${col};background:${bg}">
             <div class="event-text">
                 <span class="dig-badge" style="color:${col};border-color:${col}">${nd.sym} ${nd.dignite}</span>
-                ${g(pN)} <strong>${pN}</strong> natal en <strong>${nd.sign}</strong> — ${msg}
+                ${g(pN)} <strong>${T(pN)}</strong> ${isEN ? 'natal in' : 'natal en'} <strong>${T(nd.sign)}</strong> — ${msg}
             </div>
         </div>`);
     });
@@ -658,7 +668,7 @@ const renderTransits = (list, emptyMsg) => {
     return list.map(t =>
         `<div class="timeline-item" style="border-left-color:#1e3a8a">
             <div class="date-box">${t.debut} ➔ ${t.fin}</div>
-            <div class="event-text">${g(t.planete)} <strong>${t.planete}</strong> ${L.traverse} ${signGlyphs[t.signe]||""} <strong>${t.signe}</strong></div>
+            <div class="event-text">${g(t.planete)} <strong>${T(t.planete)}</strong> ${L.traverse} ${signGlyphs[t.signe]||""} <strong>${T(t.signe)}</strong></div>
         </div>`
     ).join("");
 };
@@ -672,9 +682,9 @@ const renderAspects = (list, emptyMsg) => {
         return `<div class="timeline-item${isAng ? " angle-row" : ""}" style="border-left-color:${c.border};${rowBg}">
             <div class="date-box">${a.debut} ➔ ${a.fin}</div>
             <div class="event-text">
-                ${g(a.pTransit)} <strong>${a.pTransit}</strong>
+                ${g(a.pTransit)} <strong>${T(a.pTransit)}</strong>
                 ${L.en} ${badge(a.type, isAng)}
-                ${L.aVotre} ${g(a.pNatal)} <strong>${a.pNatal}</strong> ${L.natal}
+                ${L.aVotre} ${g(a.pNatal)} <strong>${T(a.pNatal)}</strong> ${L.natal}
                 ${isAng ? `<span class="angle-pill">${glyphs[a.pNatal]||a.pNatal}</span>` : ""}
             </div>
         </div>`;
@@ -690,9 +700,9 @@ const renderStations = (list) => {
         return `<div class="timeline-item station-item" style="border-left-color:${color}">
             <div class="date-box">${s.date}</div>
             <div class="event-text">
-                ${g(s.planete)} <strong>${s.planete}</strong>
-                <span class="station-badge" style="color:${color};background:${bg};border-color:${color}">${isRetro ? "℞" : "D"} ${s.type}</span>
-                en ${signGlyphs[s.signe]||""} <strong>${s.signe}</strong>
+                ${g(s.planete)} <strong>${T(s.planete)}</strong>
+                <span class="station-badge" style="color:${color};background:${bg};border-color:${color}">${isRetro ? "℞" : "D"} ${T(s.type)}</span>
+                ${isEN ? 'in' : 'en'} ${signGlyphs[s.signe]||""} <strong>${T(s.signe)}</strong>
             </div>
         </div>`;
     }).join("");
@@ -709,13 +719,13 @@ const renderLunaisons = (list) => {
             <div class="date-box">${l.date}</div>
             <div class="event-text">
                 <span style="font-size:1.1rem">${isNL ? "🌑" : "🌕"}</span>
-                <span class="lunai-badge" style="color:${color};background:${bg};border-color:${color}">${l.type}</span>
-                en ${signGlyphs[l.signe]||""} <strong>${l.signe}</strong>
+                <span class="lunai-badge" style="color:${color};background:${bg};border-color:${color}">${T(l.type)}</span>
+                ${isEN ? 'in' : 'en'} ${signGlyphs[l.signe]||""} <strong>${T(l.signe)}</strong>
                 <span style="color:#94a3b8;font-size:0.82rem">(${((l.degre??0) % 30).toFixed(1)}°)</span>
             </div>
         </div>`;
     }).join("");
-    return `<div class="section-title lunai-title">☽ Lunaisons</div>${html}`;
+    return `<div class="section-title lunai-title">☽ ${L.lunaisons}</div>${html}`;
 };
 
 const renderEclipses = (list) => {
@@ -734,8 +744,8 @@ const renderEclipses = (list) => {
             <div class="date-box">${e.date}${e.heure ? " " + e.heure : ""}</div>
             <div class="event-text">
                 <span class="eclipse-icon" style="color:${color}">${isSol ? "☉" : "☽"}</span>
-                <span class="eclipse-badge" style="color:${color};background:${bg};border-color:${color}">${L.eclipse} ${(e.type||'').toUpperCase()} ${L.de} ${(e.astre||'').toUpperCase()}</span>
-                en ${signGlyphs[e.signe]||""} <strong>${e.signe}</strong>${sarosBadge}
+                <span class="eclipse-badge" style="color:${color};background:${bg};border-color:${color}">${L.eclipse} ${(e.type||'').toUpperCase()} ${L.de} ${T(e.astre||'').toUpperCase()}</span>
+                ${isEN ? 'in' : 'en'} ${signGlyphs[e.signe]||""} <strong>${T(e.signe)}</strong>${sarosBadge}
             </div>
             ${sarosTheme}
         </div>`;
@@ -752,17 +762,17 @@ const renderPassagesAngles = (list, houseNum) => {
         `<div class="timeline-item angle-passage-item" style="border-left-color:${ac.border}">
             <div class="date-box">${a.debut} ➔ ${a.fin}</div>
             <div class="event-text">
-                ${g(a.planete)} <strong>${a.planete}</strong>
-                <span class="conj-badge">Conjonction</span>
+                ${g(a.planete)} <strong>${T(a.planete)}</strong>
+                <span class="conj-badge">${isEN ? 'Conjunction' : 'Conjonction'}</span>
                 <span class="angle-key-badge" style="color:${ac.text};background:${ac.bg};border-color:${ac.border}">${a.angleKey}</span>
                 <span class="angle-full-name">${a.angleName}</span>
-                <span style="font-size:0.82rem;color:#94a3b8;">en ${signGlyphs[a.signe]||""} ${a.signe}</span>
+                <span style="font-size:0.82rem;color:#94a3b8;">${isEN ? 'in' : 'en'} ${signGlyphs[a.signe]||""} ${T(a.signe)}</span>
             </div>
         </div>`
     ).join("");
     const angleFullNames = { "ASC":"Ascendant","IC":"Imum Coeli","DSC":"Descendant","MC":"Milieu du Ciel" };
     const anPos   = natalAnglePos[angleFullNames[angleKey]];
-    const posInfo = anPos ? ` — ${signGlyphs[anPos.sign]||""} ${anPos.sign} ${((anPos.deg??0) % 30).toFixed(1)}°` : "";
+    const posInfo = anPos ? ` — ${signGlyphs[anPos.sign]||""} ${T(anPos.sign)} ${((anPos.deg??0) % 30).toFixed(1)}°` : "";
     return `<div class="section-title angle-title">⊕ ${L.passagesAngle} ${angleKey}${posInfo}</div>${html}`;
 };
 
@@ -796,7 +806,7 @@ const renderAspectsMondiaux = (list) => {
     const subLL = ll.length ? `<div class="mondial-sub">Cycles</div>${llHTML}` : "";
     const subRL = rl.length ? `<div class="mondial-sub activation-sub">Activations</div>${rlHTML}` : "";
 
-    return `<div class="section-title mondial-title">⊛ Aspects du Ciel en Transit</div>${subLL}${subRL}`;
+    return `<div class="section-title mondial-title">⊛ ${L.aspectsMond}</div>${subLL}${subRL}`;
 };
 
 const maisons = items.filter(it => it.maison >= 1 && it.maison <= 12).sort((a,b) => a.maison - b.maison);
@@ -1016,7 +1026,7 @@ const renderFenetresStellairesTrans = (list) => {
             </div>
         </div>`;
     }).join("");
-    return `<div class="section-title" style="color:#5d4037">★ Fenêtres Stellaires — Transits sur zones stellaires natales</div>${html}`;
+    return `<div class="section-title" style="color:#5d4037">★ ${L.fenetreStellaire}</div>${html}`;
 };
 
 const renderDeclinaisons = (list) => {
@@ -1040,7 +1050,7 @@ const renderDeclinaisons = (list) => {
             <div class="event-text" style="font-size:0.9rem">${txt}</div>
         </div>`;
     }).join("");
-    return `<div class="section-title" style="color:#1F3864">📐 Déclinaisons — Parallèles, Contre-Parallèles &amp; OOB en Transit</div>${html}`;
+    return `<div class="section-title" style="color:#1F3864">📐 ${L.declinaisons}</div>${html}`;
 };
 
 const renderEclipseNataleResonance = (list) => {
@@ -1048,12 +1058,12 @@ const renderEclipseNataleResonance = (list) => {
     const html = list.map(txt =>
         `<div class="timeline-item eclipse-item" style="border-left-color:#7c2d12;background:#fff0e6">
             <div class="event-text"><span class="eclipse-icon" style="color:#7c2d12">⚡</span>
-                <span class="eclipse-badge" style="color:#7c2d12;background:#fde8d8;border-color:#7c2d12">RÉSONANCE ÉCLIPSE NATALE</span>
+                <span class="eclipse-badge" style="color:#7c2d12;background:#fde8d8;border-color:#7c2d12">${L.resonBadge}</span>
                 ${txt}
             </div>
         </div>`
     ).join("");
-    return `<div class="section-title" style="color:#7c2d12">⚡ Résonances Écliptiques Natales</div>${html}`;
+    return `<div class="section-title" style="color:#7c2d12">⚡ ${L.resonanceEcl}</div>${html}`;
 };
 
 const renderProgressions = (num) => {
@@ -1062,7 +1072,7 @@ const renderProgressions = (num) => {
     const html = progHere.map(p =>
         `<div class="timeline-item" style="border-left-color:#2E5FA3;background:#eef2fb">
             <div class="date-box" style="color:#2E5FA3">${dateEntreeStr} ➔ ${dateSortieStr}</div>
-            <div class="event-text">${glyphs[p.name]||"🔮"} <strong style="color:#1F3864">${p.name}</strong> prog. traverse ${signGlyphs[p.sign]||""} <strong>${p.sign}</strong> à ${p.deg}°${p.retro ? ' <span style="color:#ef4444">℞</span>' : ''}</div>
+            <div class="event-text">${glyphs[p.name]||"🔮"} <strong style="color:#1F3864">${T(p.name)}</strong> ${isEN ? 'prog. transits through' : 'prog. traverse'} ${signGlyphs[p.sign]||""} <strong>${T(p.sign)}</strong> ${isEN ? 'at' : 'à'} ${p.deg}°${p.retro ? ' <span style="color:#ef4444">℞</span>' : ''}</div>
         </div>`
     ).join("");
     return `<div class="section-title" style="color:#2E5FA3">🔮 ${L.planProgPresence}</div>${html}`;
@@ -1073,7 +1083,7 @@ const renderProgressionAspects = (num) => {
     if (!aspHere.length) return "";
     const html = aspHere.map(a =>
         `<div class="timeline-item" style="border-left-color:#1F3864;background:#eef2fb">
-            <div class="event-text">${glyphs[a.pProg]||"🔮"} <strong style="color:#1F3864">${a.pProg} prog.</strong> ${a.aspect} ${glyphs[a.pNat]||""} <strong>${a.pNat}</strong> natal (${a.exactitude}°)</div>
+            <div class="event-text">${glyphs[a.pProg]||"🔮"} <strong style="color:#1F3864">${T(a.pProg)} prog.</strong> ${T(a.aspect)} ${glyphs[a.pNat]||""} <strong>${T(a.pNat)}</strong> ${isEN ? 'natal' : 'natal'} (${a.exactitude}°)</div>
         </div>`
     ).join("");
     return `<div class="section-title" style="color:#1F3864">🎯 ${L.aspectsProg}</div>${html}`;
@@ -1084,7 +1094,7 @@ const renderHouseBlock = (m) => {
     const segs = houseSegments[num] || m.structure_natale || [];
 
     const segHTML = segs.map(s =>
-        `<div class="structure-item">${signGlyphs[s.signe]||""} ${s.signe} (${((s.degre_debut??0)).toFixed(1)}°)</div>`
+        `<div class="structure-item">${signGlyphs[s.signe]||""} ${T(s.signe)} (${((s.degre_debut??0)).toFixed(1)}°)</div>`
     ).join("");
 
     const natalHere = planetsByHouse[num] || [];
@@ -1096,14 +1106,14 @@ const renderHouseBlock = (m) => {
         }).join("");
         return `<div class="${cls}">
             <span class="natal-glyph">${glyphs[p.name]||""}</span>
-            <span class="natal-name">${p.name}</span>
-            <span class="natal-pos">${p.deg}° ${p.sign}</span>
+            <span class="natal-name">${T(p.name)}</span>
+            <span class="natal-pos">${p.deg}° ${T(p.sign)}</span>
         </div>${starsTags}`;
     }).join("");
 
     const cuspStarsHTML = (etoileCuspNatH.filter(ec => (ec.maison || ec.house) === num)).map(ec => {
         const prec = (ec.precision || '').includes('forte') ? '★★' : '★';
-        return `<span class="natal-star-item">${prec} ${ec.etoile} (Cuspide)</span>`;
+        return `<span class="natal-star-item">${prec} ${ec.etoile} ${isEN ? '(Cusp)' : '(Cuspide)'}</span>`;
     }).join("");
     const allNatalHTML = natalHTML + cuspStarsHTML;
 
@@ -1118,7 +1128,7 @@ const renderHouseBlock = (m) => {
 
     const extraBadges = [
         angleBadge,
-        m.passages_angles?.length   ? `<span class="extra-badge angle-cnt-badge">⊕ ${m.passages_angles.length} passage${m.passages_angles.length>1?"s":""}</span>` : "",
+        m.passages_angles?.length   ? `<span class="extra-badge angle-cnt-badge">⊕ ${m.passages_angles.length} ${isEN ? 'transit' : 'passage'}${m.passages_angles.length>1?"s":""}</span>` : "",
         m.translations_lumiere?.length ? `<span class="extra-badge tl-badge2">⟿ ${m.translations_lumiere.length}</span>` : "",
         m.profection                    ? `<span class="extra-badge prof-badge2">✶</span>` : "",
         m.ingress?.length               ? `<span class="extra-badge ing-badge2">➤ ${m.ingress.length}</span>` : "",
@@ -1126,7 +1136,7 @@ const renderHouseBlock = (m) => {
         receptionsR.some(r=>r.maisA===num||r.maisB===num) ? `<span class="extra-badge recep-badge2">↔</span>` : "",
         m.stations_retro?.length    ? `<span class="extra-badge retro-badge">${m.stations_retro.length} station${m.stations_retro.length>1?"s":""}</span>` : "",
         m.fenetre_stellaire?.length   ? `<span class="extra-badge" style="color:#5d4037;border-color:#ffb300;background:#fff8e1">★ ${m.fenetre_stellaire.length}</span>` : "",
-        m.eclipse_natal_active?.length ? `<span class="extra-badge" style="color:#7c2d12;border-color:#7c2d12">⚡ Écl.Nat</span>` : "",
+        m.eclipse_natal_active?.length ? `<span class="extra-badge" style="color:#7c2d12;border-color:#7c2d12">⚡ ${isEN ? 'Nat.Ecl' : 'Écl.Nat'}</span>` : "",
         m.lunaisons?.length         ? `<span class="extra-badge lunai-badge2">${m.lunaisons.length} lunaison${m.lunaisons.length>1?"s":""}</span>` : "",
         m.eclipses?.length          ? `<span class="extra-badge ecl-badge">⚠ ${m.eclipses.length} éclipse${m.eclipses.length>1?"s":""}</span>` : ""
     ].filter(Boolean).join("");
@@ -1202,8 +1212,8 @@ if (dispositorTreeH?.finalDispositors?.length > 0 || accidentalDignityH.length >
         }).join('');
         natalAdvancedHTML += `<div class="section-title" style="color:#1e40af;margin-top:14px;margin-bottom:8px">${L.forcePlan}</div>
             <table style="width:100%;border-collapse:collapse;font-size:0.9rem;margin-bottom:10px">
-            <tr style="background:${tc.bg};color:white"><th style="padding:7px 12px;text-align:left">${L.planete}</th><th style="padding:7px 12px;text-align:center">${L.score}</th><th style="padding:7px 12px;text-align:left">${L.detail}</th></tr>
-            ${topRows}</table>`;
+            <thead><tr style="background:${tc.bg};color:white"><th style="padding:7px 12px;text-align:left">${L.planete}</th><th style="padding:7px 12px;text-align:center">${L.score}</th><th style="padding:7px 12px;text-align:left">${L.detail}</th></tr></thead><tbody>
+            ${topRows}</tbody></table>`;
     }
     if (hayzPlanetsH.length > 0) {
         natalAdvancedHTML += `<div class="section-title" style="color:#2E5FA3;margin-top:14px;margin-bottom:8px">✦ Hayz</div>` +
@@ -1221,7 +1231,7 @@ if (dispositorTreeH?.finalDispositors?.length > 0 || accidentalDignityH.length >
         natalAdvancedHTML += `<div class="section-title" style="color:#2E5FA3;margin-top:14px;margin-bottom:8px">⏸ ${L.planStation}</div>`;
         stationaryPlanetsH.forEach(sp => {
             natalAdvancedHTML += `<div style="padding:5px 12px;margin:3px 0;background:#eef2fb;border-left:3px solid #2E5FA3;border-radius:4px;font-size:0.88rem">
-                <strong>${sp.planet}</strong> — ${sp.direction} ${L.en} ${sp.sign} (M${sp.house}) — ${L.vitesse} ${sp.speed}°/${isEN?'day':'jour'} (${L.seuil} ${sp.threshold}°/${isEN?'day':'jour'}). ${L.energieConc}</div>`;
+                <strong>${T(sp.planet)}</strong> — ${T(sp.direction)} ${L.en} ${T(sp.sign)} (M${sp.house}) — ${L.vitesse} ${sp.speed}°/${isEN?'day':'jour'} (${L.seuil} ${sp.threshold}°/${isEN?'day':'jour'}). ${L.energieConc}</div>`;
         });
     }
     natalAdvancedHTML += `</div></div>`;
@@ -1241,7 +1251,7 @@ if (chartShapeH.shape || interceptedSignsH.length > 0 || natalStatsH.almutem_fig
         if (natalStatsH.sect) _csRows.push({icon:'☀', label:'Sect', value:natalStatsH.sect, bg:'#fdf2f8', border:'#db2777', color:'#831843'});
         chartShapeHTML += `<table style="width:100%;border-collapse:collapse;margin-bottom:16px">${_csRows.map(r =>
             `<tr><td style="padding:10px 14px;background:${r.bg};border-left:4px solid ${r.border};border-bottom:3px solid white;border-radius:4px;width:50%"><span style="font-size:1.05em">${r.icon}</span> <strong style="color:${r.color}">${r.label}</strong></td><td style="padding:10px 14px;background:${r.bg};border-bottom:3px solid white;font-weight:700;color:${r.color};font-size:1.05em">${glyphs[r.value]||''} ${r.value}</td></tr>`
-        ).join('')}</table>`;
+        ).join('')}</tbody></table>`;
     }
     if (chartShapeH.shape) {
         chartShapeHTML += `<div style="padding:14px 18px;background:#f0f9ff;border-left:4px solid #0284c7;border-radius:6px;margin-bottom:12px">
@@ -1293,14 +1303,14 @@ const _renderHeatmap = (hd, bgColor, badgeBg, badgeTxt) => {
     const _grFR = {daily:"pour cette journée",weekly:"par jour sur la semaine",monthly:"par semaine sur le mois",annual:"par mois sur l'année"};
     const _grEN = {daily:"for this day",weekly:"per day over the week",monthly:"per week over the month",annual:"per month over the year"};
     const _pedagDT = isEN
-        ? `<strong>💡 How to read this heatmap?</strong><br>This heat map synthesizes the <strong>density of astrological activations</strong> per house ${_grEN[_gr]}. Each cell is a weighted score combining: <strong>planetary weight</strong> (Pluto ×5, Neptune/Uranus/Saturn ×4…), <strong>aspect type</strong> (Conjunction ×1.3, Square/Opposition ×1.2, Trine ×0.8, Sextile ×0.7), <strong>angular house bonus</strong> (Houses 1/4/7/10 ×1.2, cadent ×0.85), and <strong>time-lord amplification</strong> (Annual Lord ×1.5, Firdaria ×1.3). Long transits are <em>distributed</em> over their full duration, repeat passages are reduced (×0.8), and eclipses are capped at 2 per cell. The <strong style="color:#991b1b">Tension</strong> column sums hard aspects (□ ☍ ☌ ⚻), while <strong style="color:#1e40af">Support</strong> sums soft aspects (△ ⚹). <strong>Score</strong> normalizes each house on a 0–100 scale.`
-        : `<strong>💡 Comment lire cette heatmap ?</strong><br>Cette carte thermique synthétise la <strong>densité d'activations astrologiques</strong> par maison ${_grFR[_gr]}. Chaque cellule est un score pondéré combinant : <strong>poids planétaire</strong> (Pluton ×5, Neptune/Uranus/Saturne ×4…), <strong>type d'aspect</strong> (Conjonction ×1.3, Carré/Opposition ×1.2, Trigone ×0.8, Sextile ×0.7), <strong>bonus maisons angulaires</strong> (M1/4/7/10 ×1.2, cadentes ×0.85), et <strong>amplification temporelle</strong> (Seigneur de l'année ×1.5, Firdaria ×1.3). Les transits longs sont <em>distribués</em> sur toute leur durée, les passages multiples (rétrogradation) sont réduits (×0.8), et les éclipses sont plafonnées à 2 par cellule. La colonne <strong style="color:#991b1b">Tension</strong> totalise les aspects durs (□ ☍ ☌ ⚻), tandis que <strong style="color:#1e40af">Support</strong> totalise les aspects doux (△ ⚹). <strong>Score</strong> normalise chaque maison sur une échelle 0-100.`;
+        ? `<strong>💡 How to read this heatmap?</strong><br>This heat map synthesizes the <strong>density of astrological activations</strong> per house ${_grEN[_gr]}. Each cell is a weighted score combining: <strong>planetary weight</strong> (Pluto ×5, Neptune/Uranus/Saturn ×4…), <strong>aspect type</strong> (Conjunction ×1.3, Square/Opposition ×1.2, Trine ×0.8, Sextile ×0.7), <strong>angular house bonus</strong> (Houses 1/4/7/10 ×1.2, cadent ×0.85), and <strong>time-lord amplification</strong> (Firdaria ×1.3). Long transits are <em>distributed</em> over their full duration, repeat passages are reduced (×0.8), and eclipses are capped at 2 per cell. The <strong style="color:#991b1b">Tension</strong> column sums hard aspects (□ ☍ ☌ ⚻), while <strong style="color:#1e40af">Support</strong> sums soft aspects (△ ⚹). <strong>Score</strong> normalizes each house on a 0–100 scale.`
+        : `<strong>💡 Comment lire cette heatmap ?</strong><br>Cette carte thermique synthétise la <strong>densité d'activations astrologiques</strong> par maison ${_grFR[_gr]}. Chaque cellule est un score pondéré combinant : <strong>poids planétaire</strong> (Pluton ×5, Neptune/Uranus/Saturne ×4…), <strong>type d'aspect</strong> (Conjonction ×1.3, Carré/Opposition ×1.2, Trigone ×0.8, Sextile ×0.7), <strong>bonus maisons angulaires</strong> (M1/4/7/10 ×1.2, cadentes ×0.85), et <strong>amplification temporelle</strong> (Firdaria ×1.3). Les transits longs sont <em>distribués</em> sur toute leur durée, les passages multiples (rétrogradation) sont réduits (×0.8), et les éclipses sont plafonnées à 2 par cellule. La colonne <strong style="color:#991b1b">Tension</strong> totalise les aspects durs (□ ☍ ☌ ⚻), tandis que <strong style="color:#1e40af">Support</strong> totalise les aspects doux (△ ⚹). <strong>Score</strong> normalise chaque maison sur une échelle 0-100.`;
     h += `<div style="background:#f0f7ff;border:1px solid #d0daf0;border-radius:8px;padding:14px 18px;margin:0 0 16px;font-size:0.84rem;color:#334155;line-height:1.55">${_pedagDT}</div>`;
-    h += `<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:0.72rem;text-align:center"><tr style="background:${bgColor};color:white"><th style="padding:4px 4px;text-align:left">${isEN ? 'House' : 'Maison'}</th>`;
+    h += `<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:0.72rem;text-align:center"><thead><tr style="background:${bgColor};color:white"><th style="padding:4px 4px;text-align:left">${isEN ? 'House' : 'Maison'}</th>`;
     labels.forEach(l => { h += `<th style="padding:4px 2px">${l}</th>`; });
     const tenT = hd.tensionTotals || [];
     const supT = hd.supportTotals || [];
-    h += `<th style="padding:4px 4px">${isEN ? 'Tension' : 'Tension'}</th><th style="padding:4px 4px">${isEN ? 'Support' : 'Support'}</th><th style="padding:4px 4px">Total</th><th style="padding:4px 4px">Score</th></tr>`;
+    h += `<th style="padding:4px 4px">${isEN ? 'Tension' : 'Tension'}</th><th style="padding:4px 4px">${isEN ? 'Support' : 'Support'}</th><th style="padding:4px 4px">Total</th><th style="padding:4px 4px">Score</th></tr></thead><tbody>`;
     grid.forEach((row, i) => {
         const total = row.reduce((a, b) => a + b, 0);
         const nVal = norm[i] !== undefined ? norm[i] : 0;
@@ -1314,11 +1324,11 @@ const _renderHeatmap = (hd, bgColor, badgeBg, badgeTxt) => {
         h += `<td style="padding:3px 4px;background:${tBg};color:${total / maxI >= 0.5 ? '#fff' : '#1e3a8a'};font-weight:700">${Math.round(total)}</td>`;
         h += `<td style="padding:3px 4px;background:${_nBg(nVal)};color:${_nTc(nVal)};font-weight:700">${nVal}/100</td></tr>`;
     });
-    h += `</table></div>`;
+    h += `</tbody></table></div>`;
     if (top3.length > 0) h += `<div style="margin-top:10px;font-size:0.82rem;color:#1e3a8a;font-weight:600">🏆 ${isEN ? 'Most activated houses: ' : 'Maisons les plus sollicitées : '}${top3.map(m => 'M' + m).join(', ')}</div>`;
     h += `<div style="display:flex;flex-wrap:wrap;gap:10px;margin-top:10px;font-size:0.78rem;color:#64748b;align-items:center"><span>${isEN ? 'Legend:' : 'Légende :'}</span><span style="background:#f8fafc;padding:2px 8px;border:1px solid #e2e8f0;border-radius:3px">${isEN ? 'Calm' : 'Calme'}</span><span style="background:#dbeafe;padding:2px 8px;border-radius:3px;color:#1e3a8a">${isEN ? 'Low' : 'Faible'}</span><span style="background:#93c5fd;padding:2px 8px;border-radius:3px;color:#1e3a8a">${isEN ? 'Moderate' : 'Modéré'}</span><span style="background:#3b82f6;padding:2px 8px;border-radius:3px;color:white">${isEN ? 'Strong' : 'Fort'}</span><span style="background:#1e40af;padding:2px 8px;border-radius:3px;color:white">${isEN ? 'Intense' : 'Intense'}</span><span style="margin-left:8px">|</span><span style="background:#fef2f2;padding:2px 8px;border-radius:3px;color:#991b1b">${isEN ? 'Tension' : 'Tension'}</span><span style="background:#eff6ff;padding:2px 8px;border-radius:3px;color:#1e40af">${isEN ? 'Support' : 'Support'}</span></div>`;
     h += `</div></div>`;
-    if (hd.eventSignatures && hd.eventSignatures.length > 0) {
+    if (false /* SIG_HIDDEN */ && hd.eventSignatures && hd.eventSignatures.length > 0) {
         const _sB = {high:'#fef2f2',medium:'#fffbeb',low:'#f0fdf4'};
         const _sR = {high:'#fca5a5',medium:'#fcd34d',low:'#86efac'};
         const _sT = {high:'#991b1b',medium:'#92400e',low:'#166534'};
@@ -1580,6 +1590,14 @@ const html = `<!DOCTYPE html>
         .empty{font-style:italic;color:#cbd5e1;padding:8px 4px;font-size:0.9rem}
         .prev-toc a { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
         @media print{
+  /* PDF-HARDEN-v1 */
+  thead { display: table-header-group; }
+  tfoot { display: table-footer-group; }
+  tr, img, svg, .keep-together { break-inside: avoid; page-break-inside: avoid; }
+  h1, h2, h3, h4, h5, h6, .section-title, .subsection-title, .sub-direction { break-after: avoid; page-break-after: avoid; }
+  table { page-break-inside: auto; }
+  html, body { height: auto !important; }
+
             body{padding:0;background:white}
             .report-container{box-shadow:none;padding:20px}
             .main-header { padding: 35px 25px; margin-bottom: 30px; }
@@ -1673,7 +1691,7 @@ __PREV_TOC_PLACEHOLDER__
         html += '</div>';
         return html;
     })()}
-    ${eclipseNatalH ? `<div id="prev-eclipse" style="background:linear-gradient(135deg,#fff0e6,#fff8f5);border:2px solid #7c2d12;border-radius:10px;padding:14px 18px;margin:0 0 20px;"><div style="color:#7c2d12;font-weight:700;font-size:1.05em;margin-bottom:6px">⚡ ${L.neeSousEcl}</div><div>${L.eclipse} <strong>${eclipseNatalH.type}</strong> ${L.de} <strong>${eclipseNatalH.astre}</strong> ${L.en} <strong>${eclipseNatalH.sign}</strong> — ${L.maison} <strong>${eclipseNatalH.house}</strong> (${((eclipseNatalH.degree??0)%30).toFixed(1)}°). ${L.eclNatDesc}${eclipseNatalH.house} ${L.eclNatDesc2}</div></div>` : ""}
+    ${eclipseNatalH ? `<div id="prev-eclipse" style="background:linear-gradient(135deg,#fff0e6,#fff8f5);border:2px solid #7c2d12;border-radius:10px;padding:14px 18px;margin:0 0 20px;"><div style="color:#7c2d12;font-weight:700;font-size:1.05em;margin-bottom:6px">⚡ ${L.neeSousEcl}</div><div>${L.eclipse} <strong>${T(eclipseNatalH.type)}</strong> ${L.de} <strong>${T(eclipseNatalH.astre)}</strong> ${L.en} <strong>${T(eclipseNatalH.sign)}</strong> — ${L.maison} <strong>${eclipseNatalH.house}</strong> (${((eclipseNatalH.degree??0)%30).toFixed(1)}°). ${L.eclNatDesc}${eclipseNatalH.house} ${L.eclNatDesc2}</div></div>` : ""}
     ${(etoileMatchesNatH.length || etoileCuspNatH.length) ? `<div id="prev-stellar" style="background:#fff8e1;border:1px solid #ffb300;border-radius:8px;padding:10px 16px;margin:0 0 16px;color:#5d4037">★ ${L.themeStellair} ${[...new Set([...etoileMatchesNatH.map(e=>e.etoile),...etoileCuspNatH.map(e=>e.etoile)])].join(' · ')} ${L.voirSection}</div>` : ""}
     ${"" /* Parans Brady — SUPPRIMÉ du rapport Prévisions (déjà présent dans le DHN) */}
     ${_primaryDirections && _primaryDirections.length > 0 ? (() => {
@@ -1682,7 +1700,7 @@ __PREV_TOC_PLACEHOLDER__
             const bg = i % 2 === 0 ? '#faf5ff' : '#ffffff';
             const orbCol = dp.orbYears <= 0.3 ? '#991b1b' : dp.orbYears <= 0.7 ? '#b45309' : '#4b5563';
             const orbBold = dp.orbYears <= 0.5 ? 'font-weight:700' : '';
-            return `<tr style="background:${bg}"><td style="padding:7px 12px;font-weight:600">${glyphs[dp.promissor]||''}  ${dp.promissor}</td><td style="padding:7px 12px;text-align:center;font-size:1.1em">${aspGlyph[dp.aspect]||dp.aspect}</td><td style="padding:7px 12px;font-weight:600">${glyphs[dp.significator]||''} ${dp.significator}</td><td style="padding:7px 12px;text-align:center;font-size:0.85em;color:#6b7280">${dp.direction}</td><td style="padding:7px 12px;text-align:center">${dp.exactAge.toFixed(1)} ans</td><td style="padding:7px 12px;text-align:center;color:${orbCol};${orbBold}">${dp.orbYears.toFixed(2)} an${dp.orbYears >= 2 ? 's' : ''}</td><td style="padding:7px 12px;text-align:center;font-size:0.85em">M${dp.promHouse||'?'} → M${dp.sigHouse||'?'}</td></tr>`;
+            return `<tr style="background:${bg}"><td style="padding:7px 12px;font-weight:600">${glyphs[dp.promissor]||''}  ${T(dp.promissor)}</td><td style="padding:7px 12px;text-align:center;font-size:1.1em">${aspGlyph[dp.aspect]||T(dp.aspect)}</td><td style="padding:7px 12px;font-weight:600">${glyphs[dp.significator]||''} ${T(dp.significator)}</td><td style="padding:7px 12px;text-align:center;font-size:0.85em;color:#6b7280">${dp.direction}</td><td style="padding:7px 12px;text-align:center">${dp.exactAge.toFixed(1)} ${isEN ? 'yrs' : 'ans'}</td><td style="padding:7px 12px;text-align:center;color:${orbCol};${orbBold}">${dp.orbYears.toFixed(2)} ${isEN ? 'yr' : 'an'}${dp.orbYears >= 2 ? 's' : ''}</td><td style="padding:7px 12px;text-align:center;font-size:0.85em">M${dp.promHouse||'?'} → M${dp.sigHouse||'?'}</td></tr>`;
         }).join('');
         return `<div id="prev-dirs-primaires" class="house-block" style="page-break-before:always;margin-bottom:30px">
             <div class="house-banner" style="background:linear-gradient(135deg,#4a1d96,#7c3aed)">
@@ -1694,9 +1712,9 @@ __PREV_TOC_PLACEHOLDER__
                     ${L.dpWarning}
                 </div>
                 <table style="width:100%;border-collapse:collapse;font-size:0.9rem">
-                    <tr style="background:linear-gradient(135deg,#4a1d96,#7c3aed);color:white"><th style="padding:8px 12px;text-align:left">${L.promisseur}</th><th style="padding:8px 12px;text-align:center">${L.aspect}</th><th style="padding:8px 12px;text-align:left">${L.significateur}</th><th style="padding:8px 12px;text-align:center">${L.type}</th><th style="padding:8px 12px;text-align:center">${L.ageExact}</th><th style="padding:8px 12px;text-align:center">${L.orbe}</th><th style="padding:8px 12px;text-align:center">${L.maisons_pl}</th></tr>
+                    <thead><tr style="background:linear-gradient(135deg,#4a1d96,#7c3aed);color:white"><th style="padding:8px 12px;text-align:left">${L.promisseur}</th><th style="padding:8px 12px;text-align:center">${L.aspect}</th><th style="padding:8px 12px;text-align:left">${L.significateur}</th><th style="padding:8px 12px;text-align:center">${L.type}</th><th style="padding:8px 12px;text-align:center">${L.ageExact}</th><th style="padding:8px 12px;text-align:center">${L.orbe}</th><th style="padding:8px 12px;text-align:center">${L.maisons_pl}</th></tr></thead><tbody>
                     ${dpRows}
-                </table>
+                </tbody></table>
                 ${firdariaActive ? `<div style="margin-top:16px;padding:12px 16px;background:#faf5ff;border:1px solid #c4b5fd;border-radius:8px;font-size:0.88rem;line-height:1.55;color:#5b21b6;text-align:left;hyphens:none">${L.dpFirdBridge}</div>` : ''}
             </div>
         </div>`;
@@ -1713,7 +1731,7 @@ __PREV_TOC_PLACEHOLDER__
             const gDir = glyphs[row.directed] || '';
             const gTgt = glyphs[row.target] || '';
             const noteCell = row.note ? escSA(row.note) : '—';
-            return `<tr style="background:${bg}"><td style="padding:7px 10px;font-weight:600">${gDir} ${escSA(row.directed)}<div style="font-size:0.72rem;color:#9a3412;font-weight:500">${escSA(row.dirSign)} · M${row.dirHouse}</div></td><td style="padding:7px 10px;text-align:center;font-size:1.05em">${aspGlyphSA[row.aspect] || row.aspect}</td><td style="padding:7px 10px;font-weight:600">${gTgt} ${escSA(row.target)}</td><td style="padding:7px 10px;text-align:center;font-weight:600">M${row.targetHouse}</td><td style="padding:7px 10px;text-align:center;font-weight:600">${orbDisp}</td><td style="padding:7px 10px;font-size:0.82rem;color:#57534e">${noteCell}</td></tr>`;
+            return `<tr style="background:${bg}"><td style="padding:7px 10px;font-weight:600">${gDir} ${escSA(T(row.directed))}<div style="font-size:0.72rem;color:#9a3412;font-weight:500">${escSA(T(row.dirSign))} · M${row.dirHouse}</div></td><td style="padding:7px 10px;text-align:center;font-size:1.05em">${aspGlyphSA[row.aspect] || T(row.aspect)}</td><td style="padding:7px 10px;font-weight:600">${gTgt} ${escSA(T(row.target))}</td><td style="padding:7px 10px;text-align:center;font-weight:600">M${row.targetHouse}</td><td style="padding:7px 10px;text-align:center;font-weight:600">${orbDisp}</td><td style="padding:7px 10px;font-size:0.82rem;color:#57534e">${noteCell}</td></tr>`;
         }).join('');
         return `<div id="prev-arcs-solaires" class="house-block" style="page-break-before:always;break-before:page;margin-bottom:30px">
             <div class="house-banner" style="background:linear-gradient(135deg,#9a3412,#ea580c)">
@@ -1723,9 +1741,9 @@ __PREV_TOC_PLACEHOLDER__
             <div class="house-content">
                 <div style="background:#fff7ed;border:1px solid #fdba74;border-radius:8px;padding:10px 14px;margin-bottom:12px;color:#7c2d12;font-size:0.88rem;line-height:1.5">${L.saIntro}</div>
                 <table style="width:100%;border-collapse:collapse;font-size:0.88rem">
-                    <tr style="background:linear-gradient(135deg,#9a3412,#ea580c);color:white"><th style="padding:8px 10px;text-align:left">${L.saDirected}</th><th style="padding:8px 10px;text-align:center">${L.aspect}</th><th style="padding:8px 10px;text-align:left">${L.saTarget}</th><th style="padding:8px 10px;text-align:center">${L.saHouseTgt}</th><th style="padding:8px 10px;text-align:center">${L.saOrb}</th><th style="padding:8px 10px;text-align:left">${L.saNote}</th></tr>
+                    <thead><tr style="background:linear-gradient(135deg,#9a3412,#ea580c);color:white"><th style="padding:8px 10px;text-align:left">${L.saDirected}</th><th style="padding:8px 10px;text-align:center">${L.aspect}</th><th style="padding:8px 10px;text-align:left">${L.saTarget}</th><th style="padding:8px 10px;text-align:center">${L.saHouseTgt}</th><th style="padding:8px 10px;text-align:center">${L.saOrb}</th><th style="padding:8px 10px;text-align:left">${L.saNote}</th></tr></thead><tbody>
                     ${saRows}
-                </table>
+                </tbody></table>
             </div>
         </div>`;
     })() : ''}
@@ -1753,7 +1771,7 @@ __PREV_TOC_PLACEHOLDER__
         const _progAspNoSA = (progressionsRaw.aspects || []).filter(a => typeof a !== 'string' || a.indexOf('ARC SOLAIRE') === -1);
         const progAspectsHTML = _progAspNoSA.length > 0
             ? `<div class="section-title" style="color:#2E5FA3;margin-top:18px;page-break-before:always">🔮 ${L.aspEvtProg}</div>` +
-              _progAspNoSA.map(a => { const txt = typeof a === 'string' ? a : `${a.pProg || '?'} en ${a.aspect || '?'} à ${a.pNat || '?'} natal (M${a.maisonNat || '?'}) — orbe ${a.exactitude || '?'}°`; return `<div class="timeline-item" style="border-left-color:#2E5FA3;background:#eef2fb"><div class="event-text" style="font-size:0.9rem">${txt}</div></div>`; }).join('')
+              _progAspNoSA.map(a => { const txt = typeof a === 'string' ? a : `${T(a.pProg || '?')} ${isEN ? 'in' : 'en'} ${T(a.aspect || '?')} ${isEN ? 'to' : 'à'} ${T(a.pNat || '?')} natal (M${a.maisonNat || '?'}) — ${isEN ? 'orb' : 'orbe'} ${a.exactitude || '?'}°`; return `<div class="timeline-item" style="border-left-color:#2E5FA3;background:#eef2fb"><div class="event-text" style="font-size:0.9rem">${txt}</div></div>`; }).join('')
             : '';
         return `<div id="prev-progressions" class="house-block" style="margin-bottom:45px">
             <div class="house-banner" style="background:${tc.bg}">
@@ -1762,9 +1780,9 @@ __PREV_TOC_PLACEHOLDER__
             </div>
             <div class="house-content">
                 <table style="width:100%;border-collapse:collapse;font-size:0.9rem;margin-bottom:10px">
-                    <tr style="background:${tc.bg};color:white"><th style="padding:8px 14px;text-align:left">${L.planete}</th><th style="padding:8px 14px;text-align:left">${L.position}</th><th style="padding:8px 14px;text-align:center">${L.signe}</th><th style="padding:8px 14px;text-align:center">${L.maison}</th><th style="padding:8px 14px;text-align:center">${L.retro}</th></tr>
+                    <thead><tr style="background:${tc.bg};color:white"><th style="padding:8px 14px;text-align:left">${L.planete}</th><th style="padding:8px 14px;text-align:left">${L.position}</th><th style="padding:8px 14px;text-align:center">${L.signe}</th><th style="padding:8px 14px;text-align:center">${L.maison}</th><th style="padding:8px 14px;text-align:center">${L.retro}</th></tr></thead><tbody>
                     ${progPlanetsHTML}
-                </table>
+                </tbody></table>
                 ${progAspectsHTML}
             </div>
         </div>`;
