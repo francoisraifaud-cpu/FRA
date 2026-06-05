@@ -225,6 +225,14 @@ let html = `<!DOCTYPE html>
     .fiabilite-badge.medium { color: #f59e0b; border-color: #f59e0b; }
     .fiabilite-badge.low { color: #ef4444; border-color: #ef4444; }
     @media print {
+  /* PDF-HARDEN-v1 */
+  thead { display: table-header-group; }
+  tfoot { display: table-footer-group; }
+  tr, img, svg, .keep-together { break-inside: avoid; page-break-inside: avoid; }
+  h1, h2, h3, h4, h5, h6, .section-title, .subsection-title, .sub-direction { break-after: avoid; page-break-after: avoid; }
+  table { page-break-inside: auto; }
+  html, body { height: auto !important; }
+
         @page { size: A4 portrait; margin: 10mm 12mm 18mm; @bottom-center { content: counter(page) " / " counter(pages); font-size: 9pt; color: #888; } }
         body { padding: 0; background: white; font-size: 12pt; color: #000; }
         .syn-doc-toc { page-break-after: avoid; break-after: avoid; }
@@ -312,15 +320,6 @@ html += `<div id="syn-doc-fiche" style="page-break-after:always;margin-bottom:20
 <h2 class="section-title">${isEN ? 'Synastry Summary Card' : 'Fiche Synastrie'}</h2>
 <div style="display:flex;gap:16px;margin-top:15px">
 <div style="flex:1;display:flex;flex-direction:column;gap:12px">
-<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:14px">
-    <div style="display:flex;gap:10px;justify-content:center">
-        <div style="flex:1;text-align:center"><div style="font-weight:600;font-size:0.8em;color:#0369a1;margin-bottom:4px">${isEN ? 'Fluidity' : 'Fluidité'}</div><div style="font-size:2.1em;font-weight:700;color:${_sc2}">${globalScore}<span style="font-size:0.4em;color:#94a3b8">/100</span></div></div>
-        <div style="width:1px;background:#cbd5e1"></div>
-        <div style="flex:1;text-align:center"><div style="font-weight:600;font-size:0.8em;color:#7e22ce;margin-bottom:4px">${isEN ? 'Intensity' : 'Intensité'}</div><div style="font-size:2.1em;font-weight:700;color:#7c3aed">${typeof _gsd2.intensity === 'number' ? _gsd2.intensity : '—'}<span style="font-size:0.4em;color:#94a3b8">/100</span></div></div>
-    </div>
-    ${_gsd2.qualitative_band ? `<div style="font-size:0.82em;font-weight:600;color:${_gsd2.qualitative_band.color || '#374151'};margin-top:8px;text-align:center">${isEN ? (_gsd2.qualitative_band.band_en || _gsd2.qualitative_band.band) : _gsd2.qualitative_band.band}</div>` : ''}
-    <div style="font-size:0.68em;color:#94a3b8;font-style:italic;margin-top:6px;text-align:center;line-height:1.45">${isEN ? 'Two descriptive indices, not a verdict score: Fluidity = natural ease, Intensity = energetic charge.' : 'Deux indices descriptifs, pas une note-verdict : Fluidité = aisance naturelle, Intensité = charge énergétique.'}</div>
-</div>
 <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:12px">
     <div style="font-weight:600;font-size:0.82em;color:#1F3864;margin-bottom:2px">${isEN ? 'Top 5 Strongest Aspects' : 'Top 5 Aspects les plus forts'}</div>
     <div style="font-size:0.7em;color:#64748b;font-style:italic;margin-bottom:6px">${isEN ? '(Raw geometric score : orb + nature, before structural weighting)' : '(Score brut géométrique : orbe + nature, avant pondération structurelle)'}</div>
@@ -341,14 +340,6 @@ html += `<div id="syn-doc-fiche" style="page-break-after:always;margin-bottom:20
 <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:12px">
     <div style="font-weight:600;font-size:0.82em;color:#1F3864;margin-bottom:6px">${isEN ? 'Top 3 Most Activated Houses' : 'Top 3 Maisons les plus activées'}</div>
     ${_top3Houses.length > 0 ? _top3Houses.map(h => `<div style="font-size:0.85em;padding:2px 0;border-bottom:1px solid #f1f5f9"><strong>M${h.house}</strong> — ${h.total} act. <span style="font-size:0.8em;color:${h.polarite === 'support' ? '#059669' : h.polarite === 'tension' ? '#dc2626' : '#d97706'}">${h.polarite === 'support' ? '↑ Support' : h.polarite === 'tension' ? '↓ Tension' : '≈ Mixte'}</span></div>`).join('') : '<div style="font-size:0.82em;color:#94a3b8;font-style:italic">—</div>'}
-</div>
-<div style="background:#f0fdf4;border:1px solid #86efac;border-radius:10px;padding:12px">
-    <div style="font-weight:600;font-size:0.82em;color:#166534;margin-bottom:6px">✦ ${isEN ? 'Key Strengths' : 'Forces Clés'}</div>
-    ${_sumForces.slice(0, 3).map(f => `<div style="font-size:0.82em;color:#166534;padding:1px 0">• ${f}</div>`).join('') || '<div style="font-size:0.82em;color:#94a3b8;font-style:italic">—</div>'}
-</div>
-<div style="background:#fef2f2;border:1px solid #fca5a5;border-radius:10px;padding:12px">
-    <div style="font-weight:600;font-size:0.82em;color:#991b1b;margin-bottom:6px">⚡ ${isEN ? 'Key Challenges' : 'Défis Clés'}</div>
-    ${_sumDefis.slice(0, 3).map(d => `<div style="font-size:0.82em;color:#991b1b;padding:1px 0">• ${d}</div>`).join('') || '<div style="font-size:0.82em;color:#94a3b8;font-style:italic">—</div>'}
 </div>
 </div>
 </div>
@@ -411,8 +402,8 @@ if (globalScore > 0) {
 
     const execLines = [];
     const _dsObj = input.dual_score || {};
-    const _dsProfil = isEN ? (_dsObj.profil_en || _dsObj.profil) : _dsObj.profil;
-    if (_dsProfil) execLines.push(`${isEN ? 'Relational profile' : 'Profil relationnel'} : <strong>${_dsProfil}</strong>`);
+    // v7.3.0 — « Profil relationnel » (dual_score Fluidité/Intensité) retiré : doublon des
+    // indices 1-2 du Tableau de bord. Fluidité/Intensité ne vivent plus que dans le dashboard.
     if (almuten.almuten) execLines.push(`${isEN ? 'Relationship governor' : 'Gouverneur de la relation'} : <strong>${almuten.almuten}</strong> (${isEN ? 'combined score' : 'score combiné'} ${almuten.almuten_score})`);
     if (m7cross.ruler_a && m7cross.ruler_b) execLines.push(`${isEN ? 'M7 rulers cross' : 'Maîtres M7 croisés'} : ${m7cross.ruler_a} (${prenomA}) / ${m7cross.ruler_b} (${prenomB}) — ${m7cross.quality === 'favorable' ? (isEN ? '✓ Favorable' : '✓ Favorable') : m7cross.quality === 'challenging' ? (isEN ? '⚠ Challenging' : '⚠ Difficile') : (isEN ? '≈ Mixed' : '≈ Mixte')}`);
     if (sigAsp.length > 0) execLines.push(`${isEN ? 'Signature aspects' : 'Aspects signatures'} : ${sigAsp.length} (${isEN ? 'natal patterns echoing in synastry' : 'schémas nataux résonant en synastrie'})`);
@@ -423,8 +414,8 @@ if (globalScore > 0) {
     if (penCount > 0) execLines.push(`${isEN ? 'Penalties' : 'Pénalités'} : ${penCount} (${_penSum0.total_malus || 0} pts) — ${isEN ? 'friction areas to anticipate' : 'zones de friction à anticiper'}`);
     const bonCount = (_bonSum0.items || []).length;
     if (bonCount > 0) execLines.push(`${isEN ? 'Bonuses' : 'Bonus'} : ${bonCount} (+${_bonSum0.total_bonus || 0} pts) — ${isEN ? 'functional resonance strengths' : 'forces de résonance fonctionnelle'}`);
-    const _viabCorr = (_dsObj.viability_correction);
-    if (_viabCorr) execLines.push(`${isEN ? 'Viability correction' : 'Correctif de viabilité'} : <strong>${_viabCorr.correction} pts</strong> (${isEN ? 'intensity/fluidity imbalance' : 'déséquilibre intensité/fluidité'}, ${isEN ? 'raw score' : 'score brut'} ${_viabCorr.score_brut})`);
+    // v7.3.0 — « Correctif de viabilité » retiré du Résumé : il s'exprimait en points d'un
+    // score global qui n'est plus affiché (« score brut 63 » illisible pour le lecteur).
 
     if (execLines.length > 0) {
         html += `<div style="margin:12px 0;padding:14px 18px;background:#f0f4ff;border:1px solid #c7d2fe;border-radius:10px;font-size:0.92em;line-height:1.6">
@@ -483,6 +474,12 @@ if (globalScore > 0) {
     const _barStyle = () => `display:flex;align-items:center;gap:8px;margin:4px 0`;
     const _barInner = (pct, color) => `<div style="flex:1;background:#e5e7eb;border-radius:4px;height:10px;overflow:hidden"><div style="width:${pct}%;height:100%;background:${color};border-radius:4px;transition:width 0.5s"></div></div><span style="font-size:0.85em;font-weight:600;color:#374151;min-width:36px;text-align:right">${pct}%</span>`;
 
+    html += `<div style="page-break-before:always"></div>
+        <div id="syn-doc-annexe-scoring" style="margin:0 0 10px">
+            <div style="font-family:'Playfair Display',Georgia,serif;font-weight:700;font-size:1.05em;color:#1F3864">${isEN ? 'Appendix — Scoring breakdown' : 'Annexe — Détail du scoring'}</div>
+            <div style="font-size:0.78em;color:#94a3b8;font-style:italic;margin-top:2px">${isEN ? 'Breakdown of the astrological index families behind the compatibility analysis (4 pillars, penalties, bonuses). Audit section — distinct from the Dashboard above.' : 'Décomposition des familles d\'indices astrologiques derrière l\'analyse de compatibilité (4 piliers, pénalités, bonus). Section d\'audit — distincte du Tableau de bord ci-dessus.'}</div>
+        </div>`;
+
     html += `<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:0 0 20px">`;
 
     html += `<div style="background:#f8fafc;border:1px solid #cbd5e1;border-radius:8px;padding:10px 12px">
@@ -492,7 +489,7 @@ if (globalScore > 0) {
     </div>`;
 
     html += `<div style="background:#f8fafc;border:1px solid #cbd5e1;border-radius:8px;padding:10px 12px">
-        <div style="font-weight:600;font-size:0.85em;color:#1e3a5f;margin-bottom:4px">${isEN ? 'P2 — Karmic Depth' : 'P2 — Profondeur Karmique'} <span style="color:#94a3b8;font-weight:400">(${_p2.total || 0}/30)</span></div>
+        <div style="font-weight:600;font-size:0.85em;color:#1e3a5f;margin-bottom:4px">${isEN ? 'P2 — Subtle & esoteric links' : 'P2 — Liens subtils & ésotériques'} <span style="color:#94a3b8;font-weight:400">(${_p2.total || 0}/30)</span></div>
         <div style="${_barStyle()}">${_barInner(_pct2, "#7c3aed")}</div>
         <div style="display:flex;flex-wrap:wrap;gap:4px 12px;font-size:0.78em;color:#374151;margin-top:4px">
         <span>🌙 ${_p2.nodal_karmique || 0} nod. [q.${_p2.nodal_qual_score || 0}]</span>
@@ -597,14 +594,14 @@ html += `<div class="stat-card"><div class="stat-card-header">Antiscia</div><div
 html += `</div>`;
 
 html += `<table style="margin-top:20px">
-    <tr><th>${isEN ? 'Metric' : 'Métrique'}</th><th style="text-align:center">${prenomB} &#8594; ${prenomA}</th><th style="text-align:center">${prenomA} &#8594; ${prenomB}</th><th style="text-align:center">Total</th></tr>
+    <thead><tr><th>${isEN ? 'Metric' : 'Métrique'}</th><th style="text-align:center">${prenomB} &#8594; ${prenomA}</th><th style="text-align:center">${prenomA} &#8594; ${prenomB}</th><th style="text-align:center">Total</th></tr></thead><tbody>
     <tr><td>Aspects Tier 1 (${isEN ? 'major' : 'majeurs'})</td><td style="text-align:center">${interAspectsTier1BtoA.length}</td><td style="text-align:center">${interAspectsTier1AtoB.length}</td><td style="text-align:center;font-weight:700">${_t1.length}</td></tr>
     <tr><td style="color:#7c3aed">&#8627; ${isEN ? 'Fusions' : 'Fusions'} (&#9737;)</td><td style="text-align:center;color:#7c3aed">${_countFusion(interAspectsTier1BtoA)}</td><td style="text-align:center;color:#7c3aed">${_countFusion(interAspectsTier1AtoB)}</td><td style="text-align:center;color:#7c3aed;font-weight:700">${_countFusion(_t1)}</td></tr>
     <tr><td style="color:#166534">&#8627; ${isEN ? 'Harmonic' : 'Harmoniques'} (&#9651; &#9737;)</td><td style="text-align:center;color:#166534">${_countHarmonique(interAspectsTier1BtoA)}</td><td style="text-align:center;color:#166534">${_countHarmonique(interAspectsTier1AtoB)}</td><td style="text-align:center;color:#166534;font-weight:700">${_countHarmonique(_t1)}</td></tr>
     <tr><td style="color:#991b1b">&#8627; ${isEN ? 'Tense' : 'Tendus'} (&#9633; &#9741;)</td><td style="text-align:center;color:#991b1b">${_countTendu(interAspectsTier1BtoA)}</td><td style="text-align:center;color:#991b1b">${_countTendu(interAspectsTier1AtoB)}</td><td style="text-align:center;color:#991b1b;font-weight:700">${_countTendu(_t1)}</td></tr>
     <tr><td style="color:#92400e">&#8627; ${isEN ? 'Adjustments' : 'Ajustements'} (&#9740;)</td><td style="text-align:center;color:#92400e">${_countAjustement(interAspectsTier1BtoA)}</td><td style="text-align:center;color:#92400e">${_countAjustement(interAspectsTier1AtoB)}</td><td style="text-align:center;color:#92400e;font-weight:700">${_countAjustement(_t1)}</td></tr>
     <tr><td>Aspects Tier 2 (Lots / ${isEN ? 'Asteroids' : 'Astéroïdes'})</td><td style="text-align:center">${interAspectsTier2BtoA.length}</td><td style="text-align:center">${interAspectsTier2AtoB.length}</td><td style="text-align:center;font-weight:700">${interAspectsTier2BtoA.length + interAspectsTier2AtoB.length}</td></tr>
-</table>`;
+</tbody></table>`;
 }
 
 // ── TOP MAISONS (trié par activation T+S, cohérent avec la section T/S) ──
@@ -723,22 +720,22 @@ if (topActBinA.length > 0 || topActAinB.length > 0) {
         return { label: isEN ? 'Low' : 'Faible', color: '#d97706', bg: '#fef3c7' };
     };
 
-    html += `<div class="card card-a" style="margin-bottom:16px"><h4>${prenomB} → ${prenomA}</h4><table class="score-table"><tr><th>M</th><th style="color:#991b1b">${isEN ? 'Tension' : 'Tension'}</th><th style="color:#1e40af">Support</th><th>Total</th><th>${isEN ? 'Polarity' : 'Polarité'}</th><th>${isEN ? 'Reliability' : 'Fiabilité'}</th></tr>`;
+    html += `<div class="card card-a" style="margin-bottom:16px"><h4>${prenomB} → ${prenomA}</h4><table class="score-table"><thead><tr><th>M</th><th style="color:#991b1b">${isEN ? 'Tension' : 'Tension'}</th><th style="color:#1e40af">Support</th><th>Total</th><th>${isEN ? 'Polarity' : 'Polarité'}</th><th>${isEN ? 'Reliability' : 'Fiabilité'}</th></tr></thead><tbody>`;
     for (const t of relevantActBinA) {
         const polBadge = t.polarite === 'support' ? '<span style="color:#059669;font-weight:bold;white-space:nowrap">↑ Support</span>' : t.polarite === 'tension' ? '<span style="color:#dc2626;font-weight:bold;white-space:nowrap">↓ Tension</span>' : '<span style="color:#d97706;font-weight:bold;white-space:nowrap">≈ Mixte</span>';
         const rel = getReliability(t.house, overlayBinA_data);
         const relBadge = `<span style="display:inline-block;background:${rel.bg};color:${rel.color};padding:1px 6px;border-radius:4px;font-size:0.78em;font-weight:600;white-space:nowrap">${rel.label}</span>`;
         html += `<tr><td><strong>M${t.house}</strong></td><td style="color:#991b1b">${t.tension}</td><td style="color:#1e40af">${t.support}</td><td><strong>${t.total}</strong></td><td>${polBadge}</td><td>${relBadge}</td></tr>`;
     }
-    html += `</table></div>`;
-    html += `<div class="card card-b" style="margin-bottom:16px"><h4>${prenomA} → ${prenomB}</h4><table class="score-table"><tr><th>M</th><th style="color:#991b1b">${isEN ? 'Tension' : 'Tension'}</th><th style="color:#1e40af">Support</th><th>Total</th><th>${isEN ? 'Polarity' : 'Polarité'}</th><th>${isEN ? 'Reliability' : 'Fiabilité'}</th></tr>`;
+    html += `</tbody></table></div>`;
+    html += `<div class="card card-b" style="margin-bottom:16px"><h4>${prenomA} → ${prenomB}</h4><table class="score-table"><thead><tr><th>M</th><th style="color:#991b1b">${isEN ? 'Tension' : 'Tension'}</th><th style="color:#1e40af">Support</th><th>Total</th><th>${isEN ? 'Polarity' : 'Polarité'}</th><th>${isEN ? 'Reliability' : 'Fiabilité'}</th></tr></thead><tbody>`;
     for (const t of relevantActAinB) {
         const polBadge = t.polarite === 'support' ? '<span style="color:#059669;font-weight:bold;white-space:nowrap">↑ Support</span>' : t.polarite === 'tension' ? '<span style="color:#dc2626;font-weight:bold;white-space:nowrap">↓ Tension</span>' : '<span style="color:#d97706;font-weight:bold;white-space:nowrap">≈ Mixte</span>';
         const rel = getReliability(t.house, overlayAinB_data);
         const relBadge = `<span style="display:inline-block;background:${rel.bg};color:${rel.color};padding:1px 6px;border-radius:4px;font-size:0.78em;font-weight:600;white-space:nowrap">${rel.label}</span>`;
         html += `<tr><td><strong>M${t.house}</strong></td><td style="color:#991b1b">${t.tension}</td><td style="color:#1e40af">${t.support}</td><td><strong>${t.total}</strong></td><td>${polBadge}</td><td>${relBadge}</td></tr>`;
     }
-    html += `</table></div>`;
+    html += `</tbody></table></div>`;
 }
 }
 
@@ -785,14 +782,19 @@ if (bwPlanetsA.length > 0 && bwPlanetsB.length > 0) {
         "Vertex":"⊹","Anti-Vertex":"⊹","Nœud moyen":"☊","Nœud vrai":"☊"
     };
     const signGlyphs = ["♈","♉","♊","♋","♌","♍","♎","♏","♐","♑","♒","♓"];
-    const signColors = ["#dc2626","#65a30d","#0ea5e9","#6366f1","#dc2626","#65a30d","#0ea5e9","#6366f1","#dc2626","#65a30d","#0ea5e9","#6366f1"];
+    // Identité graphique alignée sur la roue du THEME
+    const ELEM_COLOR = ["#dc2626","#65a30d","#0ea5e9","#6366f1"];  // Feu, Terre, Air, Eau
+    const signElem = i => ELEM_COLOR[i % 4];
+    const NAVY = "#1F3864", NAVY2 = "#2E5FA3", TICK = "#c2cbe0";
+    const GLYPH_FONT = "'Noto Sans Symbols 2','Segoe UI Symbol','Apple Symbols','Symbola','Arial Unicode MS',serif";
+    // Couleurs propres à chaque thème (A = extérieur, B = intérieur)
     const COLOR_A = "#2E5FA3", COLOR_B = "#c2410c";
 
     const CX = 400, CY = 400;
-    const R_OUT = 372, R_SG = 350, R_SI = 325;
-    const R_PA = 296, R_PB = 232;
-    const R_HN = 195, R_HI = 168, R_AS = 155;
-    const R_GLYPH = 15;
+    const R_OUT = 376, R_SO = 372, R_SG = 351, R_SI = 330;
+    const R_PA = 302, R_PB = 248;                 // anneaux des deux thèmes
+    const R_HN = 198, R_HI = 170, R_AS = 158;
+    const R_GLYPH = 13;
 
     const ascObjA = bwPlanetsA.find(p => p.name === "Ascendant");
     const ascDeg = ascObjA ? ascObjA.fullDeg : (bwCuspsA[0]?.degree || 0);
@@ -800,30 +802,37 @@ if (bwPlanetsA.length > 0 && bwPlanetsB.length > 0) {
     const e2s = d => ((180 - (d - ascDeg)) % 360 + 360) % 360;
     const d2r = d => d * Math.PI / 180;
     const pol = (a, r) => ({ x: CX + r * Math.cos(d2r(a)), y: CY + r * Math.sin(d2r(a)) });
-    const aDiff = (a, b) => Math.abs(((a - b + 540) % 360) - 180);
+    const angDiff = (a, b) => { let d = ((a - b) % 360 + 360) % 360; return d > 180 ? d - 360 : d; };
+    const norm360 = a => ((a % 360) + 360) % 360;
 
     let svg = [];
-    svg.push(`<defs><radialGradient id="hg" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="#fff"/><stop offset="100%" stop-color="#f4f6fa"/></radialGradient></defs>`);
-    svg.push(`<circle cx="${CX}" cy="${CY}" r="${R_OUT+8}" fill="white" stroke="#c0c0cc" stroke-width="1.5"/>`);
+    svg.push(`<defs><radialGradient id="hgSyn" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="#ffffff"/><stop offset="100%" stop-color="#f4f6fa"/></radialGradient></defs>`);
+    svg.push(`<circle cx="${CX}" cy="${CY}" r="${R_OUT}" fill="white" stroke="${NAVY}" stroke-width="1.4"/>`);
 
+    // Couronne des signes : wash élément discret (cohérent avec la roue du THEME)
     for (let i = 0; i < 12; i++) {
-        for (let d = 0; d < 3; d++) {
-            const eclS = i*30+d*10, eclE = i*30+(d+1)*10;
-            const a1 = e2s(eclS), a2 = e2s(eclE);
-            const o1 = pol(a1,R_OUT), o2 = pol(a2,R_OUT), i1 = pol(a1,R_SI), i2 = pol(a2,R_SI);
-            svg.push(`<path d="M${i1.x.toFixed(1)},${i1.y.toFixed(1)} L${o1.x.toFixed(1)},${o1.y.toFixed(1)} A${R_OUT},${R_OUT} 0 0,0 ${o2.x.toFixed(1)},${o2.y.toFixed(1)} L${i2.x.toFixed(1)},${i2.y.toFixed(1)} A${R_SI},${R_SI} 0 0,1 ${i1.x.toFixed(1)},${i1.y.toFixed(1)} Z" fill="${signColors[i]}" stroke="#fff" stroke-width="0.5"/>`);
-            if (d>0) svg.push(`<line x1="${i1.x.toFixed(1)}" y1="${i1.y.toFixed(1)}" x2="${o1.x.toFixed(1)}" y2="${o1.y.toFixed(1)}" stroke="#fff" stroke-width="0.8" stroke-dasharray="3,3" opacity="0.6"/>`);
-        }
-        const sb = e2s(i*30), b1 = pol(sb,R_SI), b2 = pol(sb,R_OUT);
-        svg.push(`<line x1="${b1.x.toFixed(1)}" y1="${b1.y.toFixed(1)}" x2="${b2.x.toFixed(1)}" y2="${b2.y.toFixed(1)}" stroke="#fff" stroke-width="1.5"/>`);
+        const a1 = e2s(i*30), a2 = e2s((i+1)*30);
+        const o1 = pol(a1,R_SO), o2 = pol(a2,R_SO), i1 = pol(a1,R_SI), i2 = pol(a2,R_SI);
+        const col = signElem(i);
+        svg.push(`<path d="M${i1.x.toFixed(2)},${i1.y.toFixed(2)} L${o1.x.toFixed(2)},${o1.y.toFixed(2)} A${R_SO},${R_SO} 0 0,0 ${o2.x.toFixed(2)},${o2.y.toFixed(2)} L${i2.x.toFixed(2)},${i2.y.toFixed(2)} A${R_SI},${R_SI} 0 0,1 ${i1.x.toFixed(2)},${i1.y.toFixed(2)} Z" fill="${col}" fill-opacity="0.13" stroke="none"/>`);
+        const sb = e2s(i*30), b1 = pol(sb,R_SI), b2 = pol(sb,R_SO);
+        svg.push(`<line x1="${b1.x.toFixed(2)}" y1="${b1.y.toFixed(2)}" x2="${b2.x.toFixed(2)}" y2="${b2.y.toFixed(2)}" stroke="${NAVY2}" stroke-width="1" opacity="0.55"/>`);
         const gp = pol(e2s(i*30+15), R_SG);
-        svg.push(`<text x="${gp.x.toFixed(1)}" y="${gp.y.toFixed(1)}" font-size="22" text-anchor="middle" dominant-baseline="central" fill="#fff" font-family="serif" font-weight="bold">${signGlyphs[i]}</text>`);
+        svg.push(`<text x="${gp.x.toFixed(2)}" y="${gp.y.toFixed(2)}" font-size="22" text-anchor="middle" dominant-baseline="central" fill="${col}" font-family="${GLYPH_FONT}" font-weight="bold">${signGlyphs[i]}</text>`);
     }
 
-    svg.push(`<circle cx="${CX}" cy="${CY}" r="${R_SI}" fill="white" stroke="#707080" stroke-width="1.8"/>`);
-    const R_MID = (R_PA + R_PB) / 2 + 6;
-    svg.push(`<circle cx="${CX}" cy="${CY}" r="${R_MID}" fill="none" stroke="#d0d0d8" stroke-width="0.8" stroke-dasharray="4,4"/>`);
-    svg.push(`<circle cx="${CX}" cy="${CY}" r="${R_HI}" fill="url(#hg)" stroke="#909090" stroke-width="1.2"/>`);
+    // Graduations 5° / 10° vers l'EXTÉRIEUR (dans la bande du signe)
+    for (let deg = 0; deg < 360; deg++) {
+        if (deg % 5 !== 0 || deg % 30 === 0) continue;
+        const isTen = (deg % 10 === 0);
+        const len = isTen ? 12 : 7;
+        const ta = e2s(deg), t1 = pol(ta, R_SI), t2 = pol(ta, R_SI + len);
+        svg.push(`<line x1="${t1.x.toFixed(2)}" y1="${t1.y.toFixed(2)}" x2="${t2.x.toFixed(2)}" y2="${t2.y.toFixed(2)}" stroke="${isTen ? NAVY2 : "#8c99b8"}" stroke-width="${isTen ? 1.4 : 0.9}" opacity="${isTen ? 0.9 : 0.7}"/>`);
+    }
+
+    svg.push(`<circle cx="${CX}" cy="${CY}" r="${R_SI}" fill="none" stroke="${NAVY2}" stroke-width="1.4"/>`);
+    svg.push(`<circle cx="${CX}" cy="${CY}" r="${(R_PA + R_PB) / 2}" fill="none" stroke="#d0d6e4" stroke-width="0.7" stroke-dasharray="3,4"/>`);
+    svg.push(`<circle cx="${CX}" cy="${CY}" r="${R_HI}" fill="url(#hgSyn)" stroke="#b9c2d6" stroke-width="1"/>`);
 
     const axMap = {0:"AC",3:"IC",6:"DC",9:"MC"};
     if (bwCuspsA.length >= 12) {
@@ -831,22 +840,29 @@ if (bwPlanetsA.length > 0 && bwPlanetsB.length > 0) {
             const cEcl = bwCuspsA[i].degree, svgAng = e2s(cEcl);
             const isAxis = [0,3,6,9].includes(i);
             const pOut = pol(svgAng,R_SI), pIn = pol(svgAng,R_HI);
-            svg.push(`<line x1="${pOut.x.toFixed(1)}" y1="${pOut.y.toFixed(1)}" x2="${pIn.x.toFixed(1)}" y2="${pIn.y.toFixed(1)}" stroke="${isAxis?'#1a237e':'#b0b0c8'}" stroke-width="${isAxis?2.8:0.9}" ${isAxis?'':'stroke-dasharray="4,4"'}/>`);
+            svg.push(`<line x1="${pOut.x.toFixed(2)}" y1="${pOut.y.toFixed(2)}" x2="${pIn.x.toFixed(2)}" y2="${pIn.y.toFixed(2)}" stroke="${isAxis ? NAVY : "#c2cbe0"}" stroke-width="${isAxis ? 2.6 : 0.8}" ${isAxis ? "" : 'stroke-dasharray="4,4"'}/>`);
             const nxEcl = bwCuspsA[(i+1)%12].degree, span = (nxEcl - cEcl + 360)%360;
             const midEcl = (cEcl + span/2 + 360)%360, nPos = pol(e2s(midEcl), R_HN);
-            svg.push(`<text x="${nPos.x.toFixed(1)}" y="${nPos.y.toFixed(1)}" font-size="24" text-anchor="middle" dominant-baseline="central" fill="#1F3864" font-weight="900" font-family="Arial,sans-serif">${i+1}</text>`);
+            svg.push(`<text x="${nPos.x.toFixed(2)}" y="${nPos.y.toFixed(2)}" font-size="20" text-anchor="middle" dominant-baseline="central" fill="#9aa6c0" font-weight="700" font-family="'Source Sans 3',Arial,sans-serif">${i+1}</text>`);
             if (isAxis) {
-                const axP = pol(svgAng, R_OUT+24);
-                svg.push(`<text x="${axP.x.toFixed(1)}" y="${axP.y.toFixed(1)}" font-size="18" text-anchor="middle" dominant-baseline="central" fill="#1a237e" font-weight="900" font-family="Arial,sans-serif">${axMap[i]}</text>`);
+                const axPos = pol(svgAng, R_OUT + 24);
+                const _ad = ((cEcl % 360) + 360) % 360, _adeg = _ad % 30;
+                const _add = Math.floor(_adeg); let _amm = Math.round((_adeg - _add) * 60), _addl = _add; if (_amm === 60) { _amm = 0; _addl += 1; }
+                svg.push(`<text x="${axPos.x.toFixed(2)}" y="${(axPos.y - 8).toFixed(2)}" font-size="16" text-anchor="middle" dominant-baseline="central" fill="${NAVY}" font-weight="900" font-family="'Source Sans 3',Arial,sans-serif">${axMap[i]}</text>`);
+                svg.push(`<text x="${axPos.x.toFixed(2)}" y="${(axPos.y + 8).toFixed(2)}" font-size="9.5" text-anchor="middle" dominant-baseline="central" fill="${NAVY2}" font-weight="700" font-family="'Source Sans 3',Arial,sans-serif">${_addl}°${String(_amm).padStart(2,"0")}'</text>`);
             }
         }
     }
 
     const aspDef = { "Conjonction":{col:"#9900dd",w:2.0,op:0.85,z:5}, "Opposition":{col:"#cc0000",w:1.8,op:0.8,z:4}, "Carré":{col:"#ee4400",w:1.5,op:0.75,z:3}, "Trigone":{col:"#1155cc",w:1.2,op:0.65,z:2}, "Sextile":{col:"#009944",w:0.9,op:0.55,z:1} };
+    // Trame d'aspects = corps « aspectants » classiques uniquement (planètes + luminaires + Chiron),
+    // côté A ET côté B → centre lisible (mêmes critères que la roue du THEME).
+    const ASPECT_BODIES = new Set(["Soleil","Lune","Mercure","Vénus","Mars","Jupiter","Saturne","Uranus","Neptune","Pluton","Chiron"]);
     const posMapA = {}, posMapB = {};
     bwPlanetsA.forEach(p => { if (p.name) posMapA[p.name] = p.fullDeg; });
     bwPlanetsB.forEach(p => { if (p.name) posMapB[p.name] = p.fullDeg; });
-    const bwAspects = [...interAspectsTier1BtoA, ...interAspectsTier1AtoB].filter(a => aspDef[a.aspect]);
+    const bwAspects = [...interAspectsTier1BtoA, ...interAspectsTier1AtoB]
+        .filter(a => aspDef[a.aspect] && ASPECT_BODIES.has(a.planete_source) && ASPECT_BODIES.has(a.planete_cible));
     bwAspects.sort((a,b) => (aspDef[a.aspect]?.z||0)-(aspDef[b.aspect]?.z||0));
     bwAspects.forEach(asp => {
         const st = aspDef[asp.aspect];
@@ -858,42 +874,90 @@ if (bwPlanetsA.length > 0 && bwPlanetsB.length > 0) {
     });
 
     const skipPl = ["Descendant","Imum Coeli","Ascendant","Milieu du Ciel"];
-    function placePlanets(planets, baseR, color, label) {
-        const valid = planets.filter(p => p.name && !skipPl.includes(p.name)).map(p => ({...p, displayA: ((p.fullDeg%360)+360)%360}));
-        valid.sort((a,b) => a.displayA - b.displayA);
-        const LAYERS = [baseR, baseR-24, baseR-44];
-        const GAP = 5.5;
-        const placed = [];
-        let svgL = "", svgB = "", svgG = "";
-        valid.forEach(p => {
-            let assigned = false;
-            for (let ly = 0; ly < LAYERS.length && !assigned; ly++) {
-                if (!placed.filter(q=>q.ly===ly).some(q=>aDiff(p.displayA,q.a)<GAP)) {
-                    p.radius = LAYERS[ly]; p.ly = ly;
-                    placed.push({a:p.displayA,ly});
-                    assigned = true;
-                }
-            }
-            if (!assigned) { p.radius = LAYERS[LAYERS.length-1]; p.ly = LAYERS.length-1; placed.push({a:p.displayA,ly:LAYERS.length-1}); }
-            const svgAng = e2s(p.displayA), pos = pol(svgAng, p.radius);
-            const glyph = pGlyphs[p.name] || p.name.charAt(0);
-            const rimP = pol(svgAng, R_SI - 1);
-            svgL += `<line x1="${rimP.x.toFixed(1)}" y1="${rimP.y.toFixed(1)}" x2="${pos.x.toFixed(1)}" y2="${pos.y.toFixed(1)}" stroke="${color}" stroke-width="0.5" opacity="0.4"/>`;
-            svgB += `<circle cx="${pos.x.toFixed(1)}" cy="${pos.y.toFixed(1)}" r="${R_GLYPH}" fill="white" fill-opacity="0.95" stroke="${color}" stroke-width="1"/>`;
-            const isMV = (glyph === "♀" || glyph === "♂");
-            svgG += `<text x="${pos.x.toFixed(1)}" y="${pos.y.toFixed(1)}" font-size="26" text-anchor="middle" dominant-baseline="central" fill="${color}" ${isMV?`stroke="${color}" stroke-width="1.0"`:'stroke="none"'} font-weight="bold" font-family="'Noto Sans Symbols 2','Segoe UI Symbol','Apple Symbols','Symbola',serif">${glyph}</text>`;
-            if (p.retro) svgG += `<text x="${(pos.x+10).toFixed(1)}" y="${(pos.y+10).toFixed(1)}" font-size="10" fill="#cc0000" font-weight="900" text-anchor="middle" dominant-baseline="central" font-family="Arial,sans-serif">R</text>`;
-        });
-        return svgL + svgB + svgG;
-    }
+    const isLotName = nm => /^Lot /.test(nm);   // lots hermétiques exclus de la bi-roue (décision design)
 
-    svg.push(placePlanets(bwPlanetsA, R_PA, COLOR_A, prenomA));
-    svg.push(placePlanets(bwPlanetsB, R_PB, COLOR_B, prenomB));
+    // Éventail angulaire à ORDRE ZODIACAL GARANTI (identique à la roue du THEME).
+    const fanPlace = (arr, baseR, minGap) => {
+        arr.forEach(p => { p.trueA = norm360(p.fullDeg); p.displayA = p.trueA; p.radius = baseR; });
+        const n = arr.length; if (n === 0) return;
+        arr.sort((a, b) => a.trueA - b.trueA);
+        if (n === 1 || n * minGap >= 350) return;
+        let cut = 0, maxGap = -1;
+        for (let i = 0; i < n; i++) { const g = norm360(arr[(i + 1) % n].trueA - arr[i].trueA); if (g > maxGap) { maxGap = g; cut = (i + 1) % n; } }
+        const order = []; for (let k = 0; k < n; k++) order.push(arr[(cut + k) % n]);
+        const lin = [0]; for (let k = 1; k < n; k++) lin[k] = lin[k - 1] + norm360(order[k].trueA - order[k - 1].trueA);
+        const orig = lin.slice();
+        for (let k = 1; k < n; k++) if (lin[k] < lin[k - 1] + minGap) lin[k] = lin[k - 1] + minGap;
+        let shift = 0; for (let k = 0; k < n; k++) shift += lin[k] - orig[k]; shift /= n;
+        const span = lin[n - 1] - lin[0]; if (360 - span >= minGap) for (let k = 0; k < n; k++) lin[k] -= shift;
+        const base = order[0].trueA; order.forEach((p, k) => { p.displayA = norm360(base + lin[k]); });
+    };
+
+    let svgLines = "", svgGlyphs = "";
+    // Tick au degré réel + rappel UNIQUEMENT si le glyphe est décalé (façon Luna / THEME).
+    const drawPointer = (p, glyphR, col, lw) => {
+        const trueS = e2s(p.trueA);
+        const t1 = pol(trueS, R_SI), t2 = pol(trueS, R_SI - 7);
+        svgLines += `<line x1="${t1.x.toFixed(1)}" y1="${t1.y.toFixed(1)}" x2="${t2.x.toFixed(1)}" y2="${t2.y.toFixed(1)}" stroke="${col}" stroke-width="${lw}" opacity="0.8"/>`;
+        const off = Math.abs(angDiff(p.displayA, p.trueA));
+        if (off > 0.3) {
+            const g = pol(e2s(p.displayA), glyphR);
+            svgLines += `<line x1="${t2.x.toFixed(1)}" y1="${t2.y.toFixed(1)}" x2="${g.x.toFixed(1)}" y2="${g.y.toFixed(1)}" stroke="${col}" stroke-width="0.8" opacity="0.6"/>`;
+        }
+    };
+
+    const buildRing = (planets, baseR, color) => {
+        const arr = planets
+            .filter(p => p.name && !skipPl.includes(p.name) && !isLotName(p.name))
+            .map(p => ({ name: p.name, fullDeg: p.fullDeg, norm: ((p.fullDeg % 30) + 30) % 30, retro: !!p.retro }));
+        fanPlace(arr, baseR, 6.5);
+        arr.forEach(p => {
+            const svgA = e2s(p.displayA), pos = pol(svgA, p.radius);
+            const glyph = pGlyphs[p.name] || "?";
+            drawPointer(p, p.radius + R_GLYPH, color, 1.0);
+            const isMV = (glyph === "♀" || glyph === "♂");
+            const extra = isMV ? `stroke-width="2.6"` : `stroke-width="2.3"`;
+            svgGlyphs += `<text x="${pos.x.toFixed(1)}" y="${pos.y.toFixed(1)}" font-size="18" text-anchor="middle" dominant-baseline="central" fill="${color}" stroke="#ffffff" ${extra} paint-order="stroke" font-weight="bold" font-family="${GLYPH_FONT}">${glyph}</text>`;
+            const _dd = Math.floor(p.norm); let _mm = Math.round((p.norm - _dd) * 60), _ddl = _dd; if (_mm === 60) { _mm = 0; _ddl = _dd + 1; }
+            const degTxt = `${_ddl}°${String(_mm).padStart(2, "0")}'${p.retro ? " ℞" : ""}`;
+            const lbl = pol(svgA, p.radius - R_GLYPH - 6);
+            svgGlyphs += `<text x="${lbl.x.toFixed(1)}" y="${lbl.y.toFixed(1)}" font-size="7.5" text-anchor="middle" dominant-baseline="central" fill="${p.retro ? "#b23030" : color}" stroke="#ffffff" stroke-width="2.0" paint-order="stroke" font-weight="700" font-family="'Source Sans 3','Segoe UI Symbol','Noto Sans Symbols 2',sans-serif" letter-spacing="-0.3">${degTxt}</text>`;
+        });
+    };
+    buildRing(bwPlanetsA, R_PA, COLOR_A);
+    buildRing(bwPlanetsB, R_PB, COLOR_B);
+    svg.push(svgLines);
+    svg.push(svgGlyphs);
+
+    // ── Étoiles fixes : nom seul, RADIALEMENT à l'extérieur, color-codées par personne (A / B) ──
+    const ANGLE_HOSTS = ["Ascendant","Descendant","Milieu du Ciel","Imum Coeli"];
+    const drawStars = (matches, posMap, color) => {
+        const hosts = {};
+        (matches || []).forEach(em => {
+            const host = em.planete;
+            if (posMap[host] === undefined) return;
+            (hosts[host] = hosts[host] || []).push(isEN ? (em.etoile_en || em.etoile) : em.etoile);
+        });
+        Object.entries(hosts).forEach(([host, stars]) => {
+            const svgA = e2s(posMap[host]);
+            const nrm = ((svgA % 360) + 360) % 360;
+            const flip = (nrm > 90 && nrm < 270);
+            const rot = flip ? nrm + 180 : nrm;
+            const anchor = flip ? "end" : "start";
+            const base = ANGLE_HOSTS.includes(host) ? R_OUT + 50 : R_OUT + 11;
+            const a0 = pol(svgA, R_OUT + 1), a1 = pol(svgA, base - 2);
+            svg.push(`<line x1="${a0.x.toFixed(1)}" y1="${a0.y.toFixed(1)}" x2="${a1.x.toFixed(1)}" y2="${a1.y.toFixed(1)}" stroke="${color}" stroke-width="0.6" opacity="0.55"/>`);
+            const tp = pol(svgA, base);
+            svg.push(`<text x="${tp.x.toFixed(1)}" y="${tp.y.toFixed(1)}" transform="rotate(${rot.toFixed(1)} ${tp.x.toFixed(1)} ${tp.y.toFixed(1)})" text-anchor="${anchor}" dominant-baseline="central" font-size="8.5" fill="${color}" font-style="italic" font-weight="600" font-family="'Source Sans 3',Arial,sans-serif">${stars.join(" · ")}</text>`);
+        });
+    };
+    drawStars(input.etoile_matches_a, posMapA, COLOR_A);
+    drawStars(input.etoile_matches_b, posMapB, COLOR_B);
 
     svg.push(`<circle cx="${CX}" cy="${CY}" r="7" fill="#1a237e" stroke="white" stroke-width="2"/>`);
     svg.push(`<circle cx="${CX}" cy="${CY}" r="2.5" fill="white"/>`);
 
-    const biWheelSVG = `<svg viewBox="-20 -20 840 840" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:850px;height:auto;display:block;margin:auto;">${svg.join('')}</svg>`;
+    const biWheelSVG = `<svg viewBox="-90 -90 980 980" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:880px;height:auto;display:block;margin:auto;">${svg.join('')}</svg>`;
 
     html += `<div style="text-align:center;margin:10px 0">
         <div style="display:flex;justify-content:center;gap:30px;margin-bottom:10px">
@@ -909,49 +973,40 @@ if (bwPlanetsA.length > 0 && bwPlanetsB.length > 0) {
 html += `<div class="page-break" id="syn-doc-symbols-legend">
     <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:15px;margin-top:20px;text-align:left;font-size:1.05em;border-top:1px solid #eee;padding-top:20px;">
         <div><h2 class="section-title" style="margin:0 0 15px 0!important">${isEN ? 'Planets and Objects' : 'Planètes et Objets'}</h2>
-            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><span style="font-size:1.4em;width:25px;text-align:center;font-weight:bold">☉</span> ${isEN ? 'Sun' : 'Soleil'}</div>
-            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><span style="font-size:1.4em;width:25px;text-align:center;font-weight:bold">☽</span> ${isEN ? 'Moon' : 'Lune'}</div>
-            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><span style="font-size:1.4em;width:25px;text-align:center;font-weight:bold">☿</span> ${isEN ? 'Mercury' : 'Mercure'}</div>
-            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><span style="font-size:1.4em;width:25px;text-align:center;font-weight:bold;-webkit-text-stroke:1px #1F3864">♀</span> ${isEN ? 'Venus' : 'Vénus'}</div>
-            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><span style="font-size:1.4em;width:25px;text-align:center;font-weight:bold;-webkit-text-stroke:1px #1F3864">♂</span> Mars</div>
-            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><span style="font-size:1.4em;width:25px;text-align:center;font-weight:bold">♃</span> Jupiter</div>
-            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><span style="font-size:1.4em;width:25px;text-align:center;font-weight:bold">♄</span> ${isEN ? 'Saturn' : 'Saturne'}</div>
-            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><span style="font-size:1.4em;width:25px;text-align:center;font-weight:bold">♅</span> Uranus</div>
-            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><span style="font-size:1.4em;width:25px;text-align:center;font-weight:bold">♆</span> Neptune</div>
-            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><span style="font-size:1.4em;width:25px;text-align:center;font-weight:bold">♇</span> ${isEN ? 'Pluto' : 'Pluton'}</div>
-            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><span style="font-size:1.4em;width:25px;text-align:center;font-weight:bold">⚷</span> Chiron</div>
-            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><span style="font-size:1.4em;width:25px;text-align:center;font-weight:bold">☊</span> ${isEN ? 'North Node' : 'Nœud Nord'}</div>
-            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><span style="font-size:1.4em;width:25px;text-align:center;font-weight:bold">⊕</span> ${isEN ? 'Part of Fortune' : 'Part de Fortune'}</div>
-            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><span style="font-size:1.4em;width:25px;text-align:center;font-weight:bold">⊗</span> ${isEN ? 'Lot of Spirit' : 'Lot de l\'Esprit'}</div>
-            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><span style="font-size:1.4em;width:25px;text-align:center;font-weight:bold">⊖</span> ${isEN ? 'Lot of Necessity' : 'Lot de Nécessité'}</div>
-            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><span style="font-size:1.4em;width:25px;text-align:center;font-weight:bold">♡</span> ${isEN ? 'Lot of Eros' : 'Lot d\'Éros'}</div>
-            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><span style="font-size:1.4em;width:25px;text-align:center;font-weight:bold">⚔</span> ${isEN ? 'Lot of Courage' : 'Lot de Courage'}</div>
-            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><span style="font-size:1.4em;width:25px;text-align:center;font-weight:bold">⚖</span> ${isEN ? 'Lot of Nemesis' : 'Lot de Némésis'}</div>
-            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><span style="font-size:1.4em;width:25px;text-align:center;font-weight:bold">⬡</span> ${isEN ? 'Lot of Basis' : 'Lot de Basis'}</div>
-            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><span style="font-size:1.4em;width:25px;text-align:center;font-weight:bold">△</span> ${isEN ? 'Lot of Exaltation' : 'Lot d\'Exaltation'}</div>
-            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><span style="font-size:1.4em;width:25px;text-align:center;font-weight:bold">☿̦</span> ${isEN ? 'Lot of Daemon' : 'Lot du Daemon'}</div>
-            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><span style="font-size:1.4em;width:25px;text-align:center;font-weight:bold">⚜</span> ${isEN ? 'Lot of Victory' : 'Lot de Victoire'}</div>
-            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><span style="font-size:1.4em;width:25px;text-align:center;font-weight:bold">⚑</span> ${isEN ? 'Lot of Father' : 'Lot du Père'}</div>
-            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><span style="font-size:1.4em;width:25px;text-align:center;font-weight:bold">⚘</span> ${isEN ? 'Lot of Mother' : 'Lot de la Mère'}</div>
-            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><span style="font-size:1.4em;width:25px;text-align:center;font-weight:bold">⚕</span> ${isEN ? 'Lot of Illness' : 'Lot de Maladie'}</div>
-            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><span style="font-size:1.4em;width:25px;text-align:center;font-weight:bold">♥</span> ${isEN ? 'Lot of Marriage' : 'Lot du Mariage'}</div>
-            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><span style="font-size:1.4em;width:25px;text-align:center;font-weight:bold">✦</span> ${isEN ? 'Lot of Children' : 'Lot des Enfants'}</div>
-            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><span style="font-size:1.4em;width:25px;text-align:center;font-weight:bold">✢</span> ${isEN ? 'Lot of Travel' : 'Lot de Voyage'}</div>
-            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><span style="font-size:1.4em;width:25px;text-align:center;font-weight:bold">⊹</span> Vertex</div>
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><span style="font-size:1.4em;width:25px;text-align:center;font-weight:bold;color:#1F3864">☉</span> ${isEN ? 'Sun' : 'Soleil'}</div>
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><span style="font-size:1.4em;width:25px;text-align:center;font-weight:bold;color:#1F3864">☽</span> ${isEN ? 'Moon' : 'Lune'}</div>
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><span style="font-size:1.4em;width:25px;text-align:center;font-weight:bold;color:#1F3864">☿</span> ${isEN ? 'Mercury' : 'Mercure'}</div>
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><span style="font-size:1.4em;width:25px;text-align:center;font-weight:bold;color:#1F3864;-webkit-text-stroke:1px #1F3864">♀</span> ${isEN ? 'Venus' : 'Vénus'}</div>
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><span style="font-size:1.4em;width:25px;text-align:center;font-weight:bold;color:#1F3864;-webkit-text-stroke:1px #1F3864">♂</span> Mars</div>
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><span style="font-size:1.4em;width:25px;text-align:center;font-weight:bold;color:#1F3864">♃</span> Jupiter</div>
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><span style="font-size:1.4em;width:25px;text-align:center;font-weight:bold;color:#1F3864">♄</span> ${isEN ? 'Saturn' : 'Saturne'}</div>
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><span style="font-size:1.4em;width:25px;text-align:center;font-weight:bold;color:#1F3864">♅</span> Uranus</div>
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><span style="font-size:1.4em;width:25px;text-align:center;font-weight:bold;color:#1F3864">♆</span> Neptune</div>
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><span style="font-size:1.4em;width:25px;text-align:center;font-weight:bold;color:#1F3864">♇</span> ${isEN ? 'Pluto' : 'Pluton'}</div>
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><span style="font-size:1.4em;width:25px;text-align:center;font-weight:bold;color:#1F3864">⚷</span> Chiron</div>
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><span style="font-size:1.4em;width:25px;text-align:center;font-weight:bold;color:#1F3864">☊</span> ${isEN ? 'North Node' : 'Nœud Nord'}</div>
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><span style="font-size:1.4em;width:25px;text-align:center;font-weight:bold;color:#1F3864">☋</span> ${isEN ? 'South Node' : 'Nœud Sud'}</div>
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><span style="font-size:1.4em;width:25px;text-align:center;font-weight:bold;color:#1F3864">⚸</span> Lilith</div>
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><span style="font-size:1.4em;width:25px;text-align:center;font-weight:bold;color:#1F3864">⚳</span> ${isEN ? 'Ceres' : 'Cérès'}</div>
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><span style="font-size:1.4em;width:25px;text-align:center;font-weight:bold;color:#1F3864">⚴</span> Pallas</div>
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><span style="font-size:1.4em;width:25px;text-align:center;font-weight:bold;color:#1F3864">⚵</span> ${isEN ? 'Juno' : 'Junon'}</div>
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><span style="font-size:1.4em;width:25px;text-align:center;font-weight:bold;color:#1F3864">⚶</span> Vesta</div>
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><span style="font-size:1.4em;width:25px;text-align:center;font-weight:bold;color:#1F3864">⊹</span> Vertex</div>
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><span style="font-size:1.4em;width:25px;text-align:center;font-weight:bold;color:#1F3864">⊕</span> ${isEN ? 'Part of Fortune' : 'Part de Fortune'}</div>
         </div>
         <div><h2 class="section-title" style="margin:0 0 15px 0!important">${isEN ? 'Zodiac Signs' : 'Signes du Zodiaque'}</h2>
-            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><span style="font-size:1.4em;width:25px;text-align:center;color:#1F3864">♈</span> ${isEN ? 'Aries' : 'Bélier'} — <small>${isEN ? 'Fire / Cardinal' : 'Feu / Cardinal'}</small></div>
-            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><span style="font-size:1.4em;width:25px;text-align:center;color:#2E5FA3">♉</span> ${isEN ? 'Taurus' : 'Taureau'} — <small>${isEN ? 'Earth / Fixed' : 'Terre / Fixe'}</small></div>
-            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><span style="font-size:1.4em;width:25px;text-align:center;color:#1F3864">♊</span> ${isEN ? 'Gemini' : 'Gémeaux'} — <small>${isEN ? 'Air / Mutable' : 'Air / Mutable'}</small></div>
-            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><span style="font-size:1.4em;width:25px;text-align:center;color:#2E5FA3">♋</span> Cancer — <small>${isEN ? 'Water / Cardinal' : 'Eau / Cardinal'}</small></div>
-            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><span style="font-size:1.4em;width:25px;text-align:center;color:#1F3864">♌</span> ${isEN ? 'Leo' : 'Lion'} — <small>${isEN ? 'Fire / Fixed' : 'Feu / Fixe'}</small></div>
-            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><span style="font-size:1.4em;width:25px;text-align:center;color:#2E5FA3">♍</span> ${isEN ? 'Virgo' : 'Vierge'} — <small>${isEN ? 'Earth / Mutable' : 'Terre / Mutable'}</small></div>
-            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><span style="font-size:1.4em;width:25px;text-align:center;color:#1F3864">♎</span> ${isEN ? 'Libra' : 'Balance'} — <small>${isEN ? 'Air / Cardinal' : 'Air / Cardinal'}</small></div>
-            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><span style="font-size:1.4em;width:25px;text-align:center;color:#2E5FA3">♏</span> ${isEN ? 'Scorpio' : 'Scorpion'} — <small>${isEN ? 'Water / Fixed' : 'Eau / Fixe'}</small></div>
-            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><span style="font-size:1.4em;width:25px;text-align:center;color:#1F3864">♐</span> ${isEN ? 'Sagittarius' : 'Sagittaire'} — <small>${isEN ? 'Fire / Mutable' : 'Feu / Mutable'}</small></div>
-            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><span style="font-size:1.4em;width:25px;text-align:center;color:#2E5FA3">♑</span> ${isEN ? 'Capricorn' : 'Capricorne'} — <small>${isEN ? 'Earth / Cardinal' : 'Terre / Cardinal'}</small></div>
-            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><span style="font-size:1.4em;width:25px;text-align:center;color:#1F3864">♒</span> ${isEN ? 'Aquarius' : 'Verseau'} — <small>${isEN ? 'Air / Fixed' : 'Air / Fixe'}</small></div>
-            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><span style="font-size:1.4em;width:25px;text-align:center;color:#2E5FA3">♓</span> ${isEN ? 'Pisces' : 'Poissons'} — <small>${isEN ? 'Water / Mutable' : 'Eau / Mutable'}</small></div>
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><span style="font-size:1.4em;width:25px;text-align:center;font-weight:bold;font-family:'Noto Sans Symbols 2','Segoe UI Symbol','Apple Symbols','Symbola','Arial Unicode MS',sans-serif;color:#1F3864">♈</span> ${isEN ? 'Aries' : 'Bélier'} — <small>${isEN ? 'Fire / Cardinal' : 'Feu / Cardinal'}</small></div>
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><span style="font-size:1.4em;width:25px;text-align:center;font-weight:bold;font-family:'Noto Sans Symbols 2','Segoe UI Symbol','Apple Symbols','Symbola','Arial Unicode MS',sans-serif;color:#2E5FA3">♉</span> ${isEN ? 'Taurus' : 'Taureau'} — <small>${isEN ? 'Earth / Fixed' : 'Terre / Fixe'}</small></div>
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><span style="font-size:1.4em;width:25px;text-align:center;font-weight:bold;font-family:'Noto Sans Symbols 2','Segoe UI Symbol','Apple Symbols','Symbola','Arial Unicode MS',sans-serif;color:#1F3864">♊</span> ${isEN ? 'Gemini' : 'Gémeaux'} — <small>${isEN ? 'Air / Mutable' : 'Air / Mutable'}</small></div>
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><span style="font-size:1.4em;width:25px;text-align:center;font-weight:bold;font-family:'Noto Sans Symbols 2','Segoe UI Symbol','Apple Symbols','Symbola','Arial Unicode MS',sans-serif;color:#2E5FA3">♋</span> Cancer — <small>${isEN ? 'Water / Cardinal' : 'Eau / Cardinal'}</small></div>
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><span style="font-size:1.4em;width:25px;text-align:center;font-weight:bold;font-family:'Noto Sans Symbols 2','Segoe UI Symbol','Apple Symbols','Symbola','Arial Unicode MS',sans-serif;color:#1F3864">♌</span> ${isEN ? 'Leo' : 'Lion'} — <small>${isEN ? 'Fire / Fixed' : 'Feu / Fixe'}</small></div>
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><span style="font-size:1.4em;width:25px;text-align:center;font-weight:bold;font-family:'Noto Sans Symbols 2','Segoe UI Symbol','Apple Symbols','Symbola','Arial Unicode MS',sans-serif;color:#2E5FA3">♍</span> ${isEN ? 'Virgo' : 'Vierge'} — <small>${isEN ? 'Earth / Mutable' : 'Terre / Mutable'}</small></div>
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><span style="font-size:1.4em;width:25px;text-align:center;font-weight:bold;font-family:'Noto Sans Symbols 2','Segoe UI Symbol','Apple Symbols','Symbola','Arial Unicode MS',sans-serif;color:#1F3864">♎</span> ${isEN ? 'Libra' : 'Balance'} — <small>${isEN ? 'Air / Cardinal' : 'Air / Cardinal'}</small></div>
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><span style="font-size:1.4em;width:25px;text-align:center;font-weight:bold;font-family:'Noto Sans Symbols 2','Segoe UI Symbol','Apple Symbols','Symbola','Arial Unicode MS',sans-serif;color:#2E5FA3">♏</span> ${isEN ? 'Scorpio' : 'Scorpion'} — <small>${isEN ? 'Water / Fixed' : 'Eau / Fixe'}</small></div>
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><span style="font-size:1.4em;width:25px;text-align:center;font-weight:bold;font-family:'Noto Sans Symbols 2','Segoe UI Symbol','Apple Symbols','Symbola','Arial Unicode MS',sans-serif;color:#1F3864">♐</span> ${isEN ? 'Sagittarius' : 'Sagittaire'} — <small>${isEN ? 'Fire / Mutable' : 'Feu / Mutable'}</small></div>
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><span style="font-size:1.4em;width:25px;text-align:center;font-weight:bold;font-family:'Noto Sans Symbols 2','Segoe UI Symbol','Apple Symbols','Symbola','Arial Unicode MS',sans-serif;color:#2E5FA3">♑</span> ${isEN ? 'Capricorn' : 'Capricorne'} — <small>${isEN ? 'Earth / Cardinal' : 'Terre / Cardinal'}</small></div>
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><span style="font-size:1.4em;width:25px;text-align:center;font-weight:bold;font-family:'Noto Sans Symbols 2','Segoe UI Symbol','Apple Symbols','Symbola','Arial Unicode MS',sans-serif;color:#1F3864">♒</span> ${isEN ? 'Aquarius' : 'Verseau'} — <small>${isEN ? 'Air / Fixed' : 'Air / Fixe'}</small></div>
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><span style="font-size:1.4em;width:25px;text-align:center;font-weight:bold;font-family:'Noto Sans Symbols 2','Segoe UI Symbol','Apple Symbols','Symbola','Arial Unicode MS',sans-serif;color:#2E5FA3">♓</span> ${isEN ? 'Pisces' : 'Poissons'} — <small>${isEN ? 'Water / Mutable' : 'Eau / Mutable'}</small></div>
         </div>
         <div><h2 class="section-title" style="margin:0 0 15px 0!important">${isEN ? 'Houses and Bi-Wheel' : 'Maisons et Bi-Roue'}</h2>
             <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><strong>AC</strong> : ${isEN ? 'Ascendant (House 1)' : 'Ascendant (Maison 1)'}</div>
@@ -963,7 +1018,7 @@ html += `<div class="page-break" id="syn-doc-symbols-legend">
                 <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><span style="display:inline-block;width:16px;height:16px;border-radius:50%;background:#c2410c"></span> <strong style="color:#c2410c">${prenomB}</strong> — ${isEN ? 'inner ring' : 'anneau intérieur'}</div>
             </div>
             <div style="margin-top:15px;font-style:italic;color:#64748b;font-size:0.9em;line-height:1.4;white-space:normal;">
-                ${isEN ? 'Houses are based on '+prenomA+"'s natal chart. Aspect lines connect inter-chart contacts. Depth variations separate stelliums visually." : 'Maisons basées sur le thème de '+prenomA+'. Les lignes d\'aspects connectent les contacts inter-cartes. Profondeur variable = séparation visuelle des stelliums.'}
+                ${isEN ? 'Houses are based on '+prenomA+"'s natal chart. Aspect lines connect inter-chart contacts. Italic names outside the wheel = fixed stars conjunct each person's points (colour-coded)." : 'Maisons basées sur le thème de '+prenomA+'. Les lignes d\'aspects connectent les contacts inter-cartes. Les noms en italique hors de la roue = étoiles fixes conjointes aux points de chaque personne (couleur par personne).'}
             </div>
         </div>
     </div>
@@ -988,12 +1043,12 @@ interAspectsTier1BtoA.forEach(a => {
 html += `<h2 class="section-title page-break" id="syn-doc-matrice">${isEN ? 'Synastry Aspect Matrix' : 'Matrice des Aspects Synastriques'}</h2>`;
 html += `<p class="decl-intro">${isEN ? 'Cross-reference matrix: rows = '+prenomA+', columns = '+prenomB+'. Cell color = aspect nature.' : 'Matrice croisée : lignes = '+prenomA+', colonnes = '+prenomB+'. Couleur = nature de l\'aspect.'}</p>`;
 
-html += `<table style="font-size:10px;text-align:center;border-collapse:collapse"><tr><th style="background:#1F3864;color:white;font-size:9px;padding:3px 4px">${prenomA} ↓ \\ ${prenomB} →</th>`;
+html += `<table style="font-size:10px;text-align:center;border-collapse:collapse"><thead><tr><th style="background:#1F3864;color:white;font-size:9px;padding:3px 4px">${prenomA} ↓ \\ ${prenomB} →</th>`;
 matrixPlanets.forEach(pB => {
     const g = matrixGlyphs[pB] || pB.charAt(0);
     html += `<th style="text-align:center;padding:2px;font-size:12px;background:#c2410c;color:white;writing-mode:vertical-lr;transform:rotate(180deg);height:50px">${g}</th>`;
 });
-html += `</tr>`;
+html += `</tr></thead><tbody>`;
 matrixPlanets.forEach(pA => {
     const gA = matrixGlyphs[pA] || pA.charAt(0);
     html += `<tr><th style="text-align:center;padding:3px 6px;font-size:12px;background:#2E5FA3;color:white;white-space:nowrap">${gA}</th>`;
@@ -1009,7 +1064,7 @@ matrixPlanets.forEach(pA => {
     });
     html += `</tr>`;
 });
-html += `</table>`;
+html += `</tbody></table>`;
 html += `<div style="display:flex;gap:12px;justify-content:center;margin:8px 0;font-size:0.8em;flex-wrap:wrap">`;
 Object.entries(matAspSym).forEach(([name, sym]) => { html += `<span>${sym} ${name}</span> `; });
 html += `</div>`;
@@ -1073,19 +1128,19 @@ const relColor = elementCompat.element_relation === "harmonie" ? "#166534"
 html += `<p class="decl-intro" style="border-left-color:${relColor}">${escH(isEN ? (elementCompat.summary_en || elementCompat.summary_fr || '') : (elementCompat.summary_fr || ''))}</p>`;
 
 const moData = elementCompat.modes || {};
-html += `<table><tr><th>${isEN ? 'Modality' : 'Mode'}</th><th style="text-align:center">${prenomA}</th><th style="text-align:center">${prenomB}</th><th style="text-align:center">Total</th></tr>`;
+html += `<table><thead><tr><th>${isEN ? 'Modality' : 'Mode'}</th><th style="text-align:center">${prenomA}</th><th style="text-align:center">${prenomB}</th><th style="text-align:center">Total</th></tr></thead><tbody>`;
 const modeLabels = isEN ? { "Cardinal": "Cardinal", "Fixe": "Fixed", "Mutable": "Mutable" } : { "Cardinal": "Cardinal", "Fixe": "Fixe", "Mutable": "Mutable" };
 for (const mo of ["Cardinal", "Fixe", "Mutable"]) {
     const d = moData[mo] || { a: 0, b: 0, total: 0 };
     html += `<tr><td><strong>${modeLabels[mo] || mo}</strong></td><td style="text-align:center">${d.a}</td><td style="text-align:center">${d.b}</td><td style="text-align:center;font-weight:bold">${d.total}</td></tr>`;
 }
-html += `</table>`;
+html += `</tbody></table>`;
 
 // ── RÉCEPTIONS MUTUELLES CROISÉES ──
 if (crossReceptions.length > 0) {
     html += `<h2 class="section-title page-break">${isEN ? 'Cross Mutual Receptions' : 'Réceptions Mutuelles Croisées'}</h2>`;
     html += `<p class="decl-intro">${isEN ? 'When a planet of one chart occupies the dignity (domicile or exaltation) of a planet of the other chart, and vice versa, a privileged cooperation link is formed.' : 'Quand une planète d\'un thème occupe la dignité (domicile ou exaltation) d\'une planète de l\'autre thème, et vice versa, un lien privilégié de coopération naturelle se crée.'}</p>`;
-    html += `<table><tr><th>${prenomA}</th><th>${isEN ? 'Sign' : 'Signe'}</th><th style="text-align:center">Type</th><th>${prenomB}</th><th>${isEN ? 'Sign' : 'Signe'}</th><th style="text-align:center">Score</th></tr>`;
+    html += `<table><thead><tr><th>${prenomA}</th><th>${isEN ? 'Sign' : 'Signe'}</th><th style="text-align:center">Type</th><th>${prenomB}</th><th>${isEN ? 'Sign' : 'Signe'}</th><th style="text-align:center">Score</th></tr></thead><tbody>`;
     crossReceptions.forEach(r => {
         const typeBadge = r.type.includes('exaltation') ? '<span style="color:#7c3aed;font-weight:bold">Exalt.</span>'
             : r.type.includes('mixte') ? `<span style="color:#b45309;font-weight:bold">${isEN ? 'Mixed' : 'Mixte'}</span>`
@@ -1094,32 +1149,32 @@ if (crossReceptions.length > 0) {
             <td style="text-align:center">${typeBadge} &#8644;</td>
             <td><strong>${escH(r.planete_b)}</strong></td><td>${escH(r.signe_b)}</td><td style="text-align:center;font-weight:700">${r.score || '—'}</td></tr>`;
     });
-    html += `</table>`;
+    html += `</tbody></table>`;
 }
 
 // ── ASPECTS SIGNATURES (natal → synastrie) ──
 if (sigAsp.length > 0) {
     html += `<h2 class="section-title page-break">${isEN ? 'Signature Aspects' : 'Aspects Signatures'}</h2>`;
     html += `<p class="decl-intro">${isEN ? 'Aspects already present in at least one natal chart AND replicated in synastry. These patterns are amplified by pre-existing resonance. The score below is a weighted signature score (raw geometric score + structural weighting : house mastery, angular contact, double whammy).' : 'Aspects déjà présents dans au moins un thème natal ET répliqués en synastrie. Ces schémas sont amplifiés par une résonance préexistante. Le score ci-dessous est un score pondéré signature (score brut géométrique + pondération structurelle : maîtrise de maison, contact angulaire, double whammy).'}</p>`;
-    html += `<table class="score-table"><tr><th>${isEN ? 'Pair' : 'Paire'}</th><th>Aspect</th><th>Nature</th><th>${isEN ? 'Orb' : 'Orbe'}</th><th>${isEN ? 'Weighted Signature Score' : 'Score Pondéré Signature'}</th></tr>`;
+    html += `<table class="score-table"><thead><tr><th>${isEN ? 'Pair' : 'Paire'}</th><th>Aspect</th><th>Nature</th><th>${isEN ? 'Orb' : 'Orbe'}</th><th>${isEN ? 'Weighted Signature Score' : 'Score Pondéré Signature'}</th></tr></thead><tbody>`;
     for (const s of sigAsp.slice(0, 12)) {
         const natColor = s.nature === 'harmonie' ? '#166534' : s.nature === 'tension' ? '#991b1b' : s.nature === 'fusion' ? '#7c3aed' : '#374151';
         html += `<tr><td><strong>${escH(s.pair)}</strong></td><td>${escH(s.aspect)}</td><td style="color:${natColor};font-weight:bold">${escH(s.nature)}</td><td>${s.orbe}°</td><td>${s.score}</td></tr>`;
     }
-    html += `</table>`;
+    html += `</tbody></table>`;
 }
 
 // ── DOUBLE WHAMMIES ──
 if (doubleWhammies.length > 0) {
     html += `<h2 class="section-title">${isEN ? 'Double Whammies' : 'Double Whammies (Aspects Réciproques)'}</h2>`;
     html += `<p class="decl-intro">${isEN ? 'When two planets form aspects in BOTH directions (A→B and B→A), the dynamic is amplified — the relationship "owns" this energy pattern.' : 'Quand deux planètes forment des aspects dans les DEUX directions (A→B et B→A), la dynamique est amplifiée — la relation « possède » ce schéma énergétique.'}</p>`;
-    html += `<table><tr><th>${isEN ? 'Pair' : 'Paire'}</th><th>Aspects</th><th>${isEN ? 'Natures' : 'Natures'}</th><th>${isEN ? 'Ct' : 'Nb'}</th></tr>`;
+    html += `<table><thead><tr><th>${isEN ? 'Pair' : 'Paire'}</th><th>Aspects</th><th>${isEN ? 'Natures' : 'Natures'}</th><th>${isEN ? 'Ct' : 'Nb'}</th></tr></thead><tbody>`;
     doubleWhammies.slice(0, 15).forEach(dw => {
         const natColors = dw.natures.map(n => n === 'harmonie' ? `<span style="color:#166534">${isEN ? 'harmony' : 'harmonie'}</span>` : n === 'tension' ? `<span style="color:#991b1b">${isEN ? 'tension' : 'tension'}</span>` : n === 'fusion' ? `<span style="color:#7c3aed">${isEN ? 'fusion' : 'fusion'}</span>` : `<span>${escH(n)}</span>`).join(', ');
         const aspList = dw.aspects.map(a => `${escH(a.aspect)} (${a.orbe}°)`).join(', ');
         html += `<tr><td><strong>${escH(dw.pair)}</strong></td><td style="font-size:0.85em">${aspList}</td><td>${natColors}</td><td style="text-align:center">${dw.count}</td></tr>`;
     });
-    html += `</table>`;
+    html += `</tbody></table>`;
 }
 
 // ── MAÎTRES DES MAISONS CLÉS — ANALYSE CROISÉE ──
@@ -1140,17 +1195,17 @@ if (m7cross.ruler_a && m7cross.ruler_b) {
     html += `</div>`;
     html += `<div style="text-align:center;margin:8px 0"><span style="font-size:1.1em;font-weight:700;color:${qualColor}">${qualLabel}</span> — ${m7cross.cross_aspects?.length || 0} ${isEN ? 'cross-chart aspects' : 'aspects croisés'}</div>`;
     if (m7cross.cross_aspects?.length > 0) {
-        html += `<table class="score-table"><tr><th>Source</th><th>Aspect</th><th>${isEN ? 'Target' : 'Cible'}</th><th>Nature</th><th>${isEN ? 'Orb' : 'Orbe'}</th></tr>`;
+        html += `<table class="score-table"><thead><tr><th>Source</th><th>Aspect</th><th>${isEN ? 'Target' : 'Cible'}</th><th>Nature</th><th>${isEN ? 'Orb' : 'Orbe'}</th></tr></thead><tbody>`;
         for (const ca of m7cross.cross_aspects.slice(0, 6)) {
             const natColor = ca.nature === 'harmonie' ? '#166534' : ca.nature === 'tension' ? '#991b1b' : '#7c3aed';
             html += `<tr><td><strong>${escH(ca.source)}</strong></td><td>${escH(ca.aspect)}</td><td><strong>${escH(ca.cible)}</strong></td><td style="color:${natColor};font-weight:bold">${escH(ca.nature)}</td><td>${ca.orbe}°</td></tr>`;
         }
-        html += `</table>`;
+        html += `</tbody></table>`;
     }
 
     if (Array.isArray(keyHouseRulers) && keyHouseRulers.length > 0) {
         html += `<h3 style="color:#1F3864;font-size:1em;margin:18px 0 6px;font-family:'Playfair Display',serif">${isEN ? '◆ Other Principal Houses of the Typology' : '◆ Autres Maisons Principales de la Typologie'}</h3>`;
-        html += `<table class="score-table"><tr><th>${isEN ? 'House' : 'Maison'}</th><th>${isEN ? 'Sign / Ruler' : 'Signe / Maître'} (${prenomA})</th><th>${isEN ? 'Sign / Ruler' : 'Signe / Maître'} (${prenomB})</th><th>${isEN ? 'Cross overlay' : 'Overlay croisé'}</th><th>${isEN ? 'Cross aspects' : 'Aspects croisés'}</th><th>${isEN ? 'Quality' : 'Qualité'}</th></tr>`;
+        html += `<table class="score-table"><thead><tr><th>${isEN ? 'House' : 'Maison'}</th><th>${isEN ? 'Sign / Ruler' : 'Signe / Maître'} (${prenomA})</th><th>${isEN ? 'Sign / Ruler' : 'Signe / Maître'} (${prenomB})</th><th>${isEN ? 'Cross overlay' : 'Overlay croisé'}</th><th>${isEN ? 'Cross aspects' : 'Aspects croisés'}</th><th>${isEN ? 'Quality' : 'Qualité'}</th></tr></thead><tbody>`;
         for (const e of keyHouseRulers) {
             const eqColor = e.quality === 'favorable' ? '#059669' : e.quality === 'challenging' ? '#dc2626' : '#d97706';
             const eqLabel = e.quality === 'favorable' ? (isEN ? 'Favorable' : 'Favorable') : e.quality === 'challenging' ? (isEN ? 'Challenging' : 'Difficile') : (isEN ? 'Mixed' : 'Mixte');
@@ -1168,7 +1223,7 @@ if (m7cross.ruler_a && m7cross.ruler_b) {
             html += `<td style="color:${eqColor};font-weight:600">${eqLabel}</td>`;
             html += `</tr>`;
         }
-        html += `</table>`;
+        html += `</tbody></table>`;
     }
 
     const _principales = (typoConfig.principales || []).slice().sort((a, b) => a - b);
@@ -1191,12 +1246,12 @@ if (almuten.almuten) {
     }
     html += `</div>`;
     if (almuten.top5?.length > 1) {
-        html += `<table class="score-table"><colgroup><col style="width:5%"><col style="width:16%"><col style="width:13%"><col style="width:13%"><col style="width:16%"><col style="width:13%"><col style="width:13%"></colgroup><tr><th>#</th><th>${isEN ? 'Planet' : 'Planète'}</th><th>${isEN ? 'Combined' : 'Combiné'}</th><th>${isEN ? 'Essential' : 'Essentiel'}</th><th>${isEN ? 'Accidental' : 'Accidentel'}</th><th>${prenomA}</th><th>${prenomB}</th></tr>`;
+        html += `<table class="score-table"><colgroup><col style="width:5%"><col style="width:16%"><col style="width:13%"><col style="width:13%"><col style="width:16%"><col style="width:13%"><col style="width:13%"></colgroup><thead><tr><th>#</th><th>${isEN ? 'Planet' : 'Planète'}</th><th>${isEN ? 'Combined' : 'Combiné'}</th><th>${isEN ? 'Essential' : 'Essentiel'}</th><th>${isEN ? 'Accidental' : 'Accidentel'}</th><th>${prenomA}</th><th>${prenomB}</th></tr></thead><tbody>`;
         almuten.top5.forEach((t, i) => {
             const bold = i === 0 ? 'font-weight:700;color:#1F3864' : '';
             html += `<tr><td>${i + 1}</td><td style="${bold}">${escH(t.planet)}</td><td style="${bold}">${t.combined_score}</td><td>${t.essential || 0}</td><td>${t.accidental || 0}</td><td>${t.score_a || 0}</td><td>${t.score_b || 0}</td></tr>`;
         });
-        html += `</table>`;
+        html += `</tbody></table>`;
     }
 }
 
@@ -1207,12 +1262,12 @@ if (cuspAspBtoA.length > 0 || cuspAspAtoB.length > 0) {
     const renderCuspTable = (data, label, dirClass) => {
         if (data.length === 0) return;
         html += `<div class="card ${dirClass === 'dir-a' ? 'card-a' : 'card-b'}" style="margin-bottom:12px"><h3 class="sub-direction ${dirClass}">${label}</h3>`;
-        html += `<table class="score-table"><tr><th>${isEN ? 'Planet' : 'Planète'}</th><th>Aspect</th><th>${isEN ? 'Cusp' : 'Cuspide'}</th><th>Nature</th><th>${isEN ? 'Orb' : 'Orbe'}</th></tr>`;
+        html += `<table class="score-table"><thead><tr><th>${isEN ? 'Planet' : 'Planète'}</th><th>Aspect</th><th>${isEN ? 'Cusp' : 'Cuspide'}</th><th>Nature</th><th>${isEN ? 'Orb' : 'Orbe'}</th></tr></thead><tbody>`;
         for (const ca of data.slice(0, 20)) {
             const natColor = ca.nature === 'harmonie' ? '#166534' : ca.nature === 'tension' ? '#991b1b' : '#7c3aed';
             html += `<tr><td style="white-space:nowrap"><strong>${escH(ca.planete)}</strong></td><td style="white-space:nowrap">${escH(ca.aspect)}</td><td>M${ca.maison_cuspide}</td><td style="color:${natColor};font-weight:bold;white-space:nowrap">${escH(ca.nature)}</td><td>${ca.orbe}°</td></tr>`;
         }
-        html += `</table></div>`;
+        html += `</tbody></table></div>`;
     };
     renderCuspTable(cuspAspBtoA, `${prenomB} → cuspides ${prenomA}`, 'dir-a');
     renderCuspTable(cuspAspAtoB, `${prenomA} → cuspides ${prenomB}`, 'dir-b');
@@ -1254,7 +1309,7 @@ const HOUSE_DESC_EN = {
 const HOUSE_DESC = isEN ? HOUSE_DESC_EN : HOUSE_DESC_FR;
 
 function renderOverlayTable(overlay, houseRulers) {
-    let s = `<table><tr><th>${isEN ? 'House' : 'Maison'}</th><th>${isEN ? 'Cusp' : 'Cuspide'}</th><th>${isEN ? 'Planet' : 'Planète'}</th><th>${isEN ? 'Degree' : 'Degré'}</th><th>${isEN ? 'Sign' : 'Signe'}</th><th>Tier</th><th>${isEN ? 'Dignity' : 'Dignité'}</th><th style="text-align:center">R</th><th style="text-align:center">${isEN ? 'Key' : 'Clé'}</th></tr>`;
+    let s = `<table><thead><tr><th>${isEN ? 'House' : 'Maison'}</th><th>${isEN ? 'Cusp' : 'Cuspide'}</th><th>${isEN ? 'Planet' : 'Planète'}</th><th>${isEN ? 'Degree' : 'Degré'}</th><th>${isEN ? 'Sign' : 'Signe'}</th><th>Tier</th><th>${isEN ? 'Dignity' : 'Dignité'}</th><th style="text-align:center">R</th><th style="text-align:center">${isEN ? 'Key' : 'Clé'}</th></tr></thead><tbody>`;
     for (let h = 1; h <= 12; h++) {
         const entries = overlay[h] || [];
         const ruler = houseRulers[h] || {};
@@ -1282,7 +1337,7 @@ function renderOverlayTable(overlay, houseRulers) {
             </tr>`;
         });
     }
-    s += `</table>`;
+    s += `</tbody></table>`;
     return s;
 }
 
@@ -1309,12 +1364,12 @@ interAspectsTier1AtoB.forEach(a => {
 html += `<h2 class="section-title page-break">${isEN ? 'Aspect Grid (Cross-Table)' : 'Grille des Aspects (Tableau Croisé)'}</h2>`;
 html += `<p class="decl-intro">${isEN ? 'Visual cross-reference of inter-chart aspects. Row = '+prenomB+', Column = '+prenomA+'.' : 'Tableau croisé visuel des inter-aspects. Ligne = '+prenomB+', Colonne = '+prenomA+'.'}</p>`;
 
-html += `<table style="font-size:0.85em;text-align:center"><tr><th style="background:#1F3864;color:white;font-size:0.8em">${prenomB} ↓ \\ ${prenomA} →</th>`;
+html += `<table style="font-size:0.85em;text-align:center"><thead><tr><th style="background:#1F3864;color:white;font-size:0.8em">${prenomB} ↓ \\ ${prenomA} →</th>`;
 GRID_PLANETS.forEach(pA => {
     const g = GRID_GLYPHS[pA] || pA.charAt(0);
     html += `<th style="text-align:center;padding:4px 2px;font-size:1.1em;background:#2E5FA3;color:white">${g}</th>`;
 });
-html += `</tr>`;
+html += `</tr></thead><tbody>`;
 
 GRID_PLANETS.forEach(pB => {
     const gB = GRID_GLYPHS[pB] || pB.charAt(0);
@@ -1333,7 +1388,7 @@ GRID_PLANETS.forEach(pB => {
     });
     html += `</tr>`;
 });
-html += `</table>`;
+html += `</tbody></table>`;
 html += `<div style="display:flex;gap:14px;justify-content:center;margin:10px 0;font-size:0.85em;color:#64748b;flex-wrap:wrap">`;
 Object.entries(GRID_ASP_SYM).forEach(([name, sym]) => {
     const col = ASPECT_COLORS[name] || '#475569';
@@ -1436,7 +1491,7 @@ if (allNodal.length > 0) {
     const NODAL_MAX = 20;
     const nodalDisplay = allNodal.slice(0, NODAL_MAX);
     const nodalMore = allNodal.length - nodalDisplay.length;
-    html += `<table><colgroup><col style="width:14%"><col style="width:12%"><col style="width:8%"><col style="width:14%"><col style="width:12%"><col style="width:8%"><col style="width:8%"><col style="width:14%"></colgroup><tr><th>${isEN ? 'Node' : 'N&#339;ud'}</th><th>${isEN ? 'Pers.' : 'Pers.'}</th><th style="text-align:center">Asp.</th><th>${isEN ? 'Planet' : 'Planète'}</th><th>Pers.</th><th style="text-align:center">${isEN ? 'Orb' : 'Orbe'}</th><th style="text-align:center">Sc.</th><th style="text-align:center">${isEN ? 'Karmic' : 'Karmique'}</th></tr>`;
+    html += `<table><colgroup><col style="width:14%"><col style="width:12%"><col style="width:8%"><col style="width:14%"><col style="width:12%"><col style="width:8%"><col style="width:8%"><col style="width:14%"></colgroup><thead><tr><th>${isEN ? 'Node' : 'N&#339;ud'}</th><th>${isEN ? 'Pers.' : 'Pers.'}</th><th style="text-align:center">Asp.</th><th>${isEN ? 'Planet' : 'Planète'}</th><th>Pers.</th><th style="text-align:center">${isEN ? 'Orb' : 'Orbe'}</th><th style="text-align:center">Sc.</th><th style="text-align:center">${isEN ? 'Karmic' : 'Karmique'}</th></tr></thead><tbody>`;
     nodalDisplay.forEach(nc => {
         html += `<tr style="${nc.karmique ? 'background:rgba(254,242,242,0.5);border-left:3px solid #dc2626' : ''}">
             <td><strong>${escH(nc.noeud)}</strong></td>
@@ -1449,7 +1504,7 @@ if (allNodal.length > 0) {
             <td style="text-align:center">${nc.karmique ? '<span style="background:#dc2626;color:white;font-size:0.7em;padding:1px 5px;border-radius:3px;font-weight:700">' + (isEN ? 'KARM.' : 'KARM.') + '</span>' : '<span style="color:#94a3b8">—</span>'}</td>
         </tr>`;
     });
-    html += `</table>`;
+    html += `</tbody></table>`;
     if (nodalMore > 0) html += `<p style="color:#64748b;font-size:0.88em;font-style:italic;text-align:center">…${isEN ? 'and' : 'et'} ${nodalMore} ${isEN ? 'more contacts' : 'contacts supplémentaires'}</p>`;
 }
 
@@ -1458,7 +1513,7 @@ if (composite.planetes && composite.planetes.length > 0) {
     html += `<h2 class="section-title page-break">${isEN ? 'Composite Chart (Midpoints)' : 'Thème Composite (mi-points)'}<span class="fiabilite-badge">${isEN ? '✓ High reliability' : '✓ Fiabilité élevée'}</span></h2>`;
     html += `<p class="decl-intro">${isEN ? 'The composite chart calculates the midpoint of each pair of homologous planets. It represents the "relational entity" — what the relationship creates beyond the two individuals.' : 'Le thème composite calcule le mi-point de chaque paire de planètes homologues. Il représente « l\'entité relationnelle » — ce que la relation crée au-delà des deux individus.'}</p>`;
 
-    html += `<table><tr><th>${isEN ? 'Planet' : 'Planète'}</th><th style="text-align:center">${isEN ? 'Degree' : 'Degré'}</th><th>${isEN ? 'Sign' : 'Signe'}</th><th style="text-align:center">${isEN ? 'House' : 'Maison'}</th><th style="text-align:center">${isEN ? 'Decl.' : 'Décl.'}</th><th>${isEN ? 'Dignity' : 'Dignité'}</th></tr>`;
+    html += `<table><thead><tr><th>${isEN ? 'Planet' : 'Planète'}</th><th style="text-align:center">${isEN ? 'Degree' : 'Degré'}</th><th>${isEN ? 'Sign' : 'Signe'}</th><th style="text-align:center">${isEN ? 'House' : 'Maison'}</th><th style="text-align:center">${isEN ? 'Decl.' : 'Décl.'}</th><th>${isEN ? 'Dignity' : 'Dignité'}</th></tr></thead><tbody>`;
     composite.planetes.forEach(p => {
         html += `<tr>
             <td><strong>${escH(p.planete)}</strong></td>
@@ -1469,7 +1524,7 @@ if (composite.planetes && composite.planetes.length > 0) {
             <td>${escH(p.dignite || '—')}</td>
         </tr>`;
     });
-    html += `</table>`;
+    html += `</tbody></table>`;
 
     if (composite.part_de_fortune) {
         const pf = composite.part_de_fortune;
@@ -1478,7 +1533,7 @@ if (composite.planetes && composite.planetes.length > 0) {
 
     if (composite.aspects && composite.aspects.length > 0) {
         html += `<div class="subsection-title">${isEN ? 'Composite Internal Aspects' : 'Aspects internes du composite'}</div>`;
-        html += `<table><tr><th>${isEN ? 'Planet 1' : 'Planète 1'}</th><th style="text-align:center">Aspect</th><th>${isEN ? 'Planet 2' : 'Planète 2'}</th><th style="text-align:center">${isEN ? 'Orb' : 'Orbe'}</th><th>Nature</th></tr>`;
+        html += `<table><thead><tr><th>${isEN ? 'Planet 1' : 'Planète 1'}</th><th style="text-align:center">Aspect</th><th>${isEN ? 'Planet 2' : 'Planète 2'}</th><th style="text-align:center">${isEN ? 'Orb' : 'Orbe'}</th><th>Nature</th></tr></thead><tbody>`;
         composite.aspects.slice(0, 20).forEach(a => {
             const aspColor = ASPECT_COLORS[a.aspect] || '#475569';
             const natInfoC = NATURE_LABELS[a.nature] || { color: "#1e40af", bg: "#dbeafe", label: a.nature || "?", tag: "tag-fusion" };
@@ -1490,12 +1545,12 @@ if (composite.planetes && composite.planetes.length > 0) {
                 <td><span class="tag ${natInfoC.tag}">${natInfoC.label}</span></td>
             </tr>`;
         });
-        html += `</table>`;
+        html += `</tbody></table>`;
     }
 
     if (composite.houses && composite.houses.length > 0) {
         html += `<div class="subsection-title">${isEN ? 'Composite House Cusps' : 'Cuspides composites'}</div>`;
-        html += `<table style="max-width:500px"><tr><th>${isEN ? 'House' : 'Maison'}</th><th style="text-align:center">${isEN ? 'Degree' : 'Degré'}</th><th>${isEN ? 'Sign' : 'Signe'}</th></tr>`;
+        html += `<table style="max-width:500px"><thead><tr><th>${isEN ? 'House' : 'Maison'}</th><th style="text-align:center">${isEN ? 'Degree' : 'Degré'}</th><th>${isEN ? 'Sign' : 'Signe'}</th></tr></thead><tbody>`;
         const SIGNES_LIST = isEN ? ["Aries","Taurus","Gemini","Cancer","Leo","Virgo","Libra","Scorpio","Sagittarius","Capricorn","Aquarius","Pisces"] : ["Bélier","Taureau","Gémeaux","Cancer","Lion","Vierge","Balance","Scorpion","Sagittaire","Capricorne","Verseau","Poissons"];
         composite.houses.forEach(h => {
             const sIdx = Math.floor((h.degree || 0) / 30);
@@ -1508,7 +1563,7 @@ if (composite.planetes && composite.planetes.length > 0) {
                 <td>${signName}</td>
             </tr>`;
         });
-        html += `</table>`;
+        html += `</tbody></table>`;
     }
 }
 
@@ -1521,21 +1576,21 @@ if (davison && davison.planetes && davison.planetes.length > 0) {
         html += `<p style="font-weight:600;color:#1F3864;margin:10px 0">${isEN ? 'Davison Date' : 'Date Davison'} : ${escH(davison.meta.date_davison)} · ${isEN ? 'Place' : 'Lieu'} : ${escH(davison.meta.lieu_davison || '?')}</p>`;
     }
 
-    html += `<table><tr><th>${isEN ? 'Planet' : 'Planète'}</th><th style="text-align:center">${isEN ? 'Degree' : 'Degré'}</th><th>${isEN ? 'Sign' : 'Signe'}</th><th style="text-align:center">${isEN ? 'House' : 'Maison'}</th><th>${isEN ? 'Dignity' : 'Dignité'}</th></tr>`;
+    html += `<table><thead><tr><th>${isEN ? 'Planet' : 'Planète'}</th><th style="text-align:center">${isEN ? 'Degree' : 'Degré'}</th><th>${isEN ? 'Sign' : 'Signe'}</th><th style="text-align:center">${isEN ? 'House' : 'Maison'}</th><th>${isEN ? 'Dignity' : 'Dignité'}</th></tr></thead><tbody>`;
     davison.planetes.forEach(p => {
         html += `<tr><td><strong>${escH(p.planete)}</strong></td><td style="text-align:center">${p.normDegre}°</td><td>${escH(p.signe)}</td><td style="text-align:center;font-weight:bold;color:#1F3864">M${p.maison || '?'}</td><td>${escH(p.dignite || '—')}</td></tr>`;
     });
-    html += `</table>`;
+    html += `</tbody></table>`;
 
     if (davison.aspects && davison.aspects.length > 0) {
         html += `<div class="subsection-title">${isEN ? 'Davison Internal Aspects' : 'Aspects internes du Davison'}</div>`;
-        html += `<table><tr><th>${isEN ? 'Planet 1' : 'Planète 1'}</th><th style="text-align:center">Aspect</th><th>${isEN ? 'Planet 2' : 'Planète 2'}</th><th style="text-align:center">${isEN ? 'Orb' : 'Orbe'}</th><th>Nature</th></tr>`;
+        html += `<table><thead><tr><th>${isEN ? 'Planet 1' : 'Planète 1'}</th><th style="text-align:center">Aspect</th><th>${isEN ? 'Planet 2' : 'Planète 2'}</th><th style="text-align:center">${isEN ? 'Orb' : 'Orbe'}</th><th>Nature</th></tr></thead><tbody>`;
         davison.aspects.slice(0, 20).forEach(a => {
             const aspColor = ASPECT_COLORS[a.aspect] || '#475569';
             const natInfoD = NATURE_LABELS[a.nature] || { color: "#1e40af", bg: "#dbeafe", label: a.nature || "?", tag: "tag-fusion" };
             html += `<tr><td><strong>${escH(a.planete_1)}</strong></td><td style="color:${aspColor};font-weight:700">${escH(a.aspect)}</td><td><strong>${escH(a.planete_2)}</strong></td><td style="text-align:center">${a.orbe}°</td><td><span class="tag ${natInfoD.tag}">${natInfoD.label}</span></td></tr>`;
         });
-        html += `</table>`;
+        html += `</tbody></table>`;
     }
 
     if (davison.configurations && davison.configurations.length > 0) {
@@ -1628,7 +1683,7 @@ if (configurationsA.length > 0 || configurationsB.length > 0) {
             let s = `<h3 class="sub-direction ${colorCls}">${escH(persLabel)}</h3>`;
             const sorted = [...declPla].sort((a, b) => Math.abs(b.declinaison) - Math.abs(a.declinaison));
             s += `<div class="decl-table-wrap"><table><colgroup><col style="width:14%"><col style="width:11%"><col style="width:8%"><col style="width:20%"><col style="width:47%"></colgroup>
-                <tr><th>${isEN ? 'Planet' : 'Planète'}</th><th style="text-align:center">${isEN ? 'Decl.' : 'Décl.'}</th><th style="text-align:center">${isEN ? 'Hem.' : 'Hém.'}</th><th>${isEN ? 'Status' : 'Statut'}</th><th>${isEN ? 'Decl. Aspects' : 'Asp. Décl.'}</th></tr>`;
+                <thead><tr><th>${isEN ? 'Planet' : 'Planète'}</th><th style="text-align:center">${isEN ? 'Decl.' : 'Décl.'}</th><th style="text-align:center">${isEN ? 'Hem.' : 'Hém.'}</th><th>${isEN ? 'Status' : 'Statut'}</th><th>${isEN ? 'Decl. Aspects' : 'Asp. Décl.'}</th></tr></thead><tbody>`;
             sorted.forEach(p => {
                 const name = p.planete;
                 const decl = p.declinaison;
@@ -1658,7 +1713,7 @@ if (configurationsA.length > 0 || configurationsB.length > 0) {
                     <td style="font-size:0.85em">${paraCell}</td>
                 </tr>`;
             });
-            s += `</table></div>`;
+            s += `</tbody></table></div>`;
             return s;
         }
         html += renderDeclTable(declPlaA, `${prenomA} ${nomA}`, 'dir-a');
@@ -1670,7 +1725,7 @@ if (configurationsA.length > 0 || configurationsB.length > 0) {
                 ${isEN ? 'Two planets from the same hemisphere (N/N or S/S) within 1° (or 1.5° if Luminary). Their energy fusion is deep and permanent, operating below the level of everyday awareness.' : 'Deux planètes du même hémisphère (N/N ou S/S) à moins de 1° (ou 1.5° si Luminaire) d\'écart en déclinaison. Leur fusion d\'énergie est profonde et permanente, opérant en dessous du niveau de la conscience quotidienne.'}
             </p>`;
             html += `<table><colgroup><col style="width:12%"><col style="width:12%"><col style="width:11%"><col style="width:8%"><col style="width:12%"><col style="width:12%"><col style="width:11%"><col style="width:7%"><col style="width:15%"></colgroup>
-                <tr><th>P1</th><th style="text-align:center">${isEN ? 'Decl.1' : 'Décl.1'}</th><th>${isEN ? 'Pers.' : 'Pers.'}</th><th style="text-align:center">${isEN ? 'Hem.' : 'Hém.'}</th><th>P2</th><th style="text-align:center">${isEN ? 'Decl.2' : 'Décl.2'}</th><th>Pers.</th><th style="text-align:center">${isEN ? 'Orb' : 'Orbe'}</th><th>Note</th></tr>`;
+                <thead><tr><th>P1</th><th style="text-align:center">${isEN ? 'Decl.1' : 'Décl.1'}</th><th>${isEN ? 'Pers.' : 'Pers.'}</th><th style="text-align:center">${isEN ? 'Hem.' : 'Hém.'}</th><th>P2</th><th style="text-align:center">${isEN ? 'Decl.2' : 'Décl.2'}</th><th>Pers.</th><th style="text-align:center">${isEN ? 'Orb' : 'Orbe'}</th><th>Note</th></tr></thead><tbody>`;
             parSyn.forEach(p => {
                 const lumRow = p.hasLuminaire ? ' style="background:#eef2fb;"' : '';
                 const lumNote = p.hasLuminaire
@@ -1688,7 +1743,7 @@ if (configurationsA.length > 0 || configurationsB.length > 0) {
                     <td>${lumNote}</td>
                 </tr>`;
             });
-            html += `</table>`;
+            html += `</tbody></table>`;
         }
 
         if (ctrSyn.length > 0) {
@@ -1697,7 +1752,7 @@ if (configurationsA.length > 0 || configurationsB.length > 0) {
                 ${isEN ? 'Two planets from opposite hemispheres (N/S) with close absolute values within 1° (or 1.5° if Luminary). This equatorial tension is often more lasting and intimate than a longitude opposition.' : 'Deux planètes d\'hémisphères opposés (N/S) avec des valeurs absolues proches à moins de 1° (ou 1.5° si Luminaire). Cette tension équatoriale est souvent plus durable et plus intime qu\'une opposition en longitude.'}
             </p>`;
             html += `<table><colgroup><col style="width:13%"><col style="width:13%"><col style="width:12%"><col style="width:13%"><col style="width:13%"><col style="width:12%"><col style="width:8%"><col style="width:16%"></colgroup>
-                <tr><th>P1</th><th style="text-align:center">${isEN ? 'Decl.1' : 'Décl.1'}</th><th>Pers.</th><th>P2</th><th style="text-align:center">${isEN ? 'Decl.2' : 'Décl.2'}</th><th>Pers.</th><th style="text-align:center">${isEN ? 'Orb' : 'Orbe'}</th><th>Note</th></tr>`;
+                <thead><tr><th>P1</th><th style="text-align:center">${isEN ? 'Decl.1' : 'Décl.1'}</th><th>Pers.</th><th>P2</th><th style="text-align:center">${isEN ? 'Decl.2' : 'Décl.2'}</th><th>Pers.</th><th style="text-align:center">${isEN ? 'Orb' : 'Orbe'}</th><th>Note</th></tr></thead><tbody>`;
             ctrSyn.forEach(p => {
                 const lumRow = p.hasLuminaire ? ' style="background:#e8f0fe;"' : '';
                 const lumNote = p.hasLuminaire
@@ -1714,7 +1769,7 @@ if (configurationsA.length > 0 || configurationsB.length > 0) {
                     <td>${lumNote}</td>
                 </tr>`;
             });
-            html += `</table>`;
+            html += `</tbody></table>`;
         }
 
         if (oobSyn.length > 0) {
@@ -1734,7 +1789,7 @@ if (configurationsA.length > 0 || configurationsB.length > 0) {
 if (antiscia.length > 0) {
     html += `<h2 class="section-title page-break">${isEN ? 'Antiscia & Contra-Antiscia' : 'Antiscia et Contra-Antiscia Inter-Cartes'}</h2>`;
     html += `<p class="decl-intro">${isEN ? 'Hidden connections: antiscia mirror the Cancer/Capricorn axis, contra-antiscia the Aries/Libra axis. These act as subtle, fate-like bonds between charts.' : 'Liens secrets : les antiscia sont le miroir de l\'axe Cancer/Capricorne, les contra-antiscia l\'axe Bélier/Balance. Liens subtils à caractère fatidique.'}</p>`;
-    html += `<table><colgroup><col style="width:14%"><col style="width:13%"><col style="width:16%"><col style="width:14%"><col style="width:13%"><col style="width:8%"><col style="width:14%"></colgroup><tr><th>P1</th><th>Pers.</th><th style="text-align:center">Type</th><th>P2</th><th>Pers.</th><th style="text-align:center">${isEN ? 'Orb' : 'Orbe'}</th><th>${isEN ? 'Mirror' : 'Miroir'}</th></tr>`;
+    html += `<table><colgroup><col style="width:14%"><col style="width:13%"><col style="width:16%"><col style="width:14%"><col style="width:13%"><col style="width:8%"><col style="width:14%"></colgroup><thead><tr><th>P1</th><th>Pers.</th><th style="text-align:center">Type</th><th>P2</th><th>Pers.</th><th style="text-align:center">${isEN ? 'Orb' : 'Orbe'}</th><th>${isEN ? 'Mirror' : 'Miroir'}</th></tr></thead><tbody>`;
     antiscia.forEach(a => {
         const isContra = a.type === "Contra-antiscia";
         const typeStyle = isContra ? "color:#1F3864;font-weight:bold" : "color:#2E5FA3;font-weight:bold";
@@ -1744,7 +1799,7 @@ if (antiscia.length > 0) {
             <td><strong>${escH(a.p2)}</strong></td><td>${escH(a.personne2)}</td>
             <td style="text-align:center">${a.orbe}°</td><td>${escH(a.signe_miroir || '')}</td></tr>`;
     });
-    html += `</table>`;
+    html += `</tbody></table>`;
 }
 
 // ── P3: DIGNITÉ ACCIDENTELLE (LILLY) ──
@@ -1754,7 +1809,7 @@ if (accDignityA.length > 0 || accDignityB.length > 0) {
 
     function renderDignityTable(dignities, persName, colorClass) {
         let s = `<h3 class="sub-direction ${colorClass}">${escH(persName)}</h3>`;
-        s += `<table><tr><th>${isEN ? 'Planet' : 'Planète'}</th><th style="text-align:center">Score</th><th style="text-align:center">Ess.</th><th style="text-align:center">Acc.</th><th>${isEN ? 'Details' : 'Détail'}</th></tr>`;
+        s += `<table><thead><tr><th>${isEN ? 'Planet' : 'Planète'}</th><th style="text-align:center">Score</th><th style="text-align:center">Ess.</th><th style="text-align:center">Acc.</th><th>${isEN ? 'Details' : 'Détail'}</th></tr></thead><tbody>`;
         dignities.forEach(d => {
             const color = d.score >= 15 ? '#166534' : d.score >= 8 ? '#1e40af' : d.score >= 0 ? '#475569' : '#991b1b';
             const ess = d.essential_score != null ? d.essential_score : '—';
@@ -1765,7 +1820,7 @@ if (accDignityA.length > 0 || accDignityB.length > 0) {
                 <td style="text-align:center;font-weight:600">${acc}</td>
                 <td style="font-size:0.85em;color:#64748b">${(d.details || []).join(' · ')}</td></tr>`;
         });
-        s += `</table>`;
+        s += `</tbody></table>`;
         return s;
     }
     if (accDignityA.length > 0) html += renderDignityTable(accDignityA, `${prenomA} ${nomA}`, 'dir-a');
@@ -1792,14 +1847,14 @@ if (interceptionsA.length > 0 || interceptionsB.length > 0) {
     html += `<h2 class="section-title">${isEN ? 'Sign Interceptions' : 'Interceptions de Signes'}</h2>`;
     html += `<p class="decl-intro">${isEN ? 'A sign intercepted in a house is entirely contained within it without touching any cusp — its energy is blocked and requires conscious effort to express.' : 'Un signe intercepté dans une maison y est entièrement contenu sans toucher aucune cuspide — son énergie est bloquée et demande un effort conscient d\'expression.'}</p>`;
     if (interceptionsA.length > 0) {
-        html += `<h3 style="color:#1F3864">${prenomA}</h3><table><tr><th>${isEN ? 'House' : 'Maison'}</th><th>${isEN ? 'Intercepted Sign' : 'Signe intercepté'}</th></tr>`;
+        html += `<h3 style="color:#1F3864">${prenomA}</h3><table><thead><tr><th>${isEN ? 'House' : 'Maison'}</th><th>${isEN ? 'Intercepted Sign' : 'Signe intercepté'}</th></tr></thead><tbody>`;
         interceptionsA.forEach(i => { html += `<tr><td>M${i.maison}</td><td>${escH(i.signe)}</td></tr>`; });
-        html += `</table>`;
+        html += `</tbody></table>`;
     }
     if (interceptionsB.length > 0) {
-        html += `<h3 style="color:#c2410c">${prenomB}</h3><table><tr><th>${isEN ? 'House' : 'Maison'}</th><th>${isEN ? 'Intercepted Sign' : 'Signe intercepté'}</th></tr>`;
+        html += `<h3 style="color:#c2410c">${prenomB}</h3><table><thead><tr><th>${isEN ? 'House' : 'Maison'}</th><th>${isEN ? 'Intercepted Sign' : 'Signe intercepté'}</th></tr></thead><tbody>`;
         interceptionsB.forEach(i => { html += `<tr><td>M${i.maison}</td><td>${escH(i.signe)}</td></tr>`; });
-        html += `</table>`;
+        html += `</tbody></table>`;
     }
 }
 
@@ -1830,14 +1885,14 @@ if (hayz.length > 0) {
 if (fixedStarBridges.length > 0) {
     html += `<h2 class="section-title page-break">${isEN ? 'Fixed Star Bridges' : 'Ponts Stellaires — Étoiles Fixes Inter-Cartes'}</h2>`;
     html += `<p style="color:#5d4037;font-style:italic;margin:0 0 15px;padding:12px 16px;background:#fff8e1;border-radius:8px;border-left:4px solid #ffb300;font-size:0.95em;">${isEN ? 'When a planet of each person conjuncts the same fixed star, a deep stellar resonance connects the two charts — a fated link beyond planetary aspects.' : 'Quand une planète de chaque personne est en conjonction avec la même étoile fixe, une résonance stellaire profonde connecte les deux thèmes — un lien fatidique au-delà des aspects planétaires.'}</p>`;
-    html += `<table><colgroup><col style="width:5%"><col style="width:18%"><col style="width:15%"><col style="width:7%"><col style="width:8%"><col style="width:15%"><col style="width:7%"><col style="width:8%"></colgroup><tr><th style="text-align:center">&#9733;</th><th>${isEN ? 'Star' : 'Étoile'}</th><th>${prenomA}</th><th style="text-align:center">M.</th><th style="text-align:center">${isEN ? 'Orb' : 'Orbe'}</th><th>${prenomB}</th><th style="text-align:center">M.</th><th style="text-align:center">${isEN ? 'Orb' : 'Orbe'}</th></tr>`;
+    html += `<table><colgroup><col style="width:5%"><col style="width:18%"><col style="width:15%"><col style="width:7%"><col style="width:8%"><col style="width:15%"><col style="width:7%"><col style="width:8%"></colgroup><thead><tr><th style="text-align:center">&#9733;</th><th>${isEN ? 'Star' : 'Étoile'}</th><th>${prenomA}</th><th style="text-align:center">M.</th><th style="text-align:center">${isEN ? 'Orb' : 'Orbe'}</th><th>${prenomB}</th><th style="text-align:center">M.</th><th style="text-align:center">${isEN ? 'Orb' : 'Orbe'}</th></tr></thead><tbody>`;
     fixedStarBridges.forEach(b => {
         html += `<tr><td style="text-align:center;color:#b45309;font-size:1.3em">&#9733;</td>
             <td><strong>${escH(b.etoile)}</strong></td>
             <td>${escH(b.planete_a)}</td><td style="text-align:center">M${b.maison_a}</td><td style="text-align:center">${b.orbe_a}°</td>
             <td>${escH(b.planete_b)}</td><td style="text-align:center">M${b.maison_b}</td><td style="text-align:center">${b.orbe_b}°</td></tr>`;
     });
-    html += `</table>`;
+    html += `</tbody></table>`;
 }
 
 // ── ÉTOILES FIXES NATALES (par personne) — Harmonisé avec N8N Theme Repport ──
@@ -1853,7 +1908,7 @@ if (etoileMatchesA.length > 0 || etoileMatchesB.length > 0 || etoileCuspMatchesA
 
         if (etoiles.length > 0) {
             s += `<div class="subsection-title">${isEN ? 'Natal Planet / Fixed Star Conjunctions' : 'Conjonctions Planètes Natales / Étoiles Fixes'}</div>`;
-            s += `<table><tr><th>${isEN ? 'Natal Planet' : 'Planète Natale'}</th><th>${isEN ? 'Fixed Star' : 'Étoile Fixe'}</th><th>${isEN ? 'House' : 'Maison'}</th><th>${isEN ? 'Sign' : 'Signe'}</th><th>${isEN ? 'Orb' : 'Orbe'}</th><th>${isEN ? 'Precision' : 'Précision'}</th></tr>`;
+            s += `<table><thead><tr><th>${isEN ? 'Natal Planet' : 'Planète Natale'}</th><th>${isEN ? 'Fixed Star' : 'Étoile Fixe'}</th><th>${isEN ? 'House' : 'Maison'}</th><th>${isEN ? 'Sign' : 'Signe'}</th><th>${isEN ? 'Orb' : 'Orbe'}</th><th>${isEN ? 'Precision' : 'Précision'}</th></tr></thead><tbody>`;
             etoiles.forEach(em => {
                 const precColor = (em.precision || '').includes("forte") ? "#5d4037" : "#b8860b";
                 const precSymbol = (em.precision || '').includes("forte") ? "★★" : "★";
@@ -1870,13 +1925,13 @@ if (etoileMatchesA.length > 0 || etoileMatchesB.length > 0 || etoileCuspMatchesA
                     s += `<tr style="background:#fffbeb"><td colspan="6" style="font-style:italic;color:#5d4037;font-size:0.88em;padding:6px 12px 10px">${escH(em.desc)}</td></tr>`;
                 }
             });
-            s += `</table>`;
+            s += `</tbody></table>`;
         }
 
         if (etoilesCusp.length > 0) {
             s += `<div class="subsection-title">${isEN ? 'Fixed Stars on the 4 Angles (H1 ASC · H4 IC · H7 DSC · H10 MC)' : 'Étoiles Fixes sur les 4 Angles (M1 ASC · M4 IC · M7 DSC · M10 MC)'}</div>`;
             s += `<p style="margin:0 0 10px;font-size:0.9em;color:#64748b;font-style:italic">${isEN ? 'A fixed star on an angle tints the fundamental identity of this chart pillar.' : 'Une étoile fixe sur un angle teinte l\'identité fondamentale de ce pilier du thème.'}</p>`;
-            s += `<table><tr><th>Angle</th><th>${isEN ? 'Fixed Star' : 'Étoile Fixe'}</th><th>${isEN ? 'Cusp Sign' : 'Signe Cuspide'}</th><th>${isEN ? 'Orb' : 'Orbe'}</th><th>${isEN ? 'Precision' : 'Précision'}</th></tr>`;
+            s += `<table><thead><tr><th>Angle</th><th>${isEN ? 'Fixed Star' : 'Étoile Fixe'}</th><th>${isEN ? 'Cusp Sign' : 'Signe Cuspide'}</th><th>${isEN ? 'Orb' : 'Orbe'}</th><th>${isEN ? 'Precision' : 'Précision'}</th></tr></thead><tbody>`;
             etoilesCusp.forEach(ec => {
                 const precColor = (ec.precision || '').includes("forte") ? "#5d4037" : "#b8860b";
                 const precSymbol = (ec.precision || '').includes("forte") ? "★★" : "★";
@@ -1891,13 +1946,13 @@ if (etoileMatchesA.length > 0 || etoileMatchesB.length > 0 || etoileCuspMatchesA
                     s += `<tr style="background:#fffbeb"><td colspan="5" style="font-style:italic;color:#5d4037;font-size:0.88em;padding:6px 12px 10px">${escH(ec.desc)}</td></tr>`;
                 }
             });
-            s += `</table>`;
+            s += `</tbody></table>`;
         }
 
         if (parans.length > 0) {
             s += `<div class="subsection-title">${isEN ? 'Parans — Fixed Stars Co-Angularity (Brady Method)' : 'Parans — Co-angularité d\'Étoiles Fixes (méthode Brady)'}</div>`;
             s += `<p style="margin:0 0 10px;font-size:0.9em;color:#64748b;font-style:italic">${isEN ? 'A paran forms when a fixed star and a planet are simultaneously on a cardinal angle. The planet angle indicates the life phase: Rising = youth, Culmination = prime, Setting = maturity, IC = private legacy.' : 'Un paran se forme quand une étoile fixe et une planète se trouvent simultanément sur un angle cardinal. L\'angle planète indique la phase de vie : Lever = jeunesse, Culmination = maturité, Coucher = récolte, Anti-culmination = héritage intime.'}</p>`;
-            s += `<table><tr><th>${isEN ? 'Fixed Star' : 'Étoile Fixe'}</th><th>${isEN ? 'Archetype' : 'Archétype'}</th><th>${isEN ? 'Star Angle' : 'Angle Étoile'}</th><th>${isEN ? 'Planet' : 'Planète'}</th><th>${isEN ? 'Planet Angle' : 'Angle Planète'}</th><th style="text-align:center">${isEN ? 'Orb' : 'Orbe'}</th><th>${isEN ? 'Brady Interpretation' : 'Interprétation Brady'}</th></tr>`;
+            s += `<table><thead><tr><th>${isEN ? 'Fixed Star' : 'Étoile Fixe'}</th><th>${isEN ? 'Archetype' : 'Archétype'}</th><th>${isEN ? 'Star Angle' : 'Angle Étoile'}</th><th>${isEN ? 'Planet' : 'Planète'}</th><th>${isEN ? 'Planet Angle' : 'Angle Planète'}</th><th style="text-align:center">${isEN ? 'Orb' : 'Orbe'}</th><th>${isEN ? 'Brady Interpretation' : 'Interprétation Brady'}</th></tr></thead><tbody>`;
             parans.forEach(pr => {
                 const orbColor = pr.orb <= 0.5 ? "#5d4037" : pr.orb <= 1.0 ? "#b8860b" : "#94a3b8";
                 const archetype = pr.star_archetype || '';
@@ -1916,7 +1971,7 @@ if (etoileMatchesA.length > 0 || etoileMatchesB.length > 0 || etoileCuspMatchesA
                     s += `<tr><td colspan="7" style="font-size:0.82em;color:#78350f;padding:2px 12px 6px;border-bottom:1px solid #fde68a;">⏳ ${escH(phase)}</td></tr>`;
                 }
             });
-            s += `</table>`;
+            s += `</tbody></table>`;
         }
 
         if (etoiles.length === 0 && etoilesCusp.length === 0 && parans.length === 0) {
@@ -1935,14 +1990,14 @@ if (midpoints.length > 0) {
     const _midFiabLbl = midpoints.length >= 5 ? (isEN ? '✓ High reliability' : '✓ Fiabilité élevée') : (isEN ? '⚠ Medium reliability' : '⚠ Fiabilité moyenne');
     html += `<h2 class="section-title page-break">${isEN ? 'Relational Midpoints (Ebertin)' : 'Midpoints Relationnels (Ebertin)'}<span class="fiabilite-badge${_midFiabCls}">${_midFiabLbl}</span></h2>`;
     html += `<p class="decl-intro">${isEN ? 'When a planet activates the midpoint between two key planets of both charts, a powerful relational axis is triggered. The "Theme" column indicates the Ebertin meaning of that midpoint axis.' : 'Quand une planète active le mi-point entre deux planètes clés des deux thèmes, un axe relationnel puissant est déclenché. La colonne « Thème » indique la signification Ebertin de cet axe.'}</p>`;
-    html += `<table><colgroup><col style="width:18%"><col style="width:8%"><col style="width:10%"><col style="width:12%"><col style="width:10%"><col style="width:7%"><col style="width:35%"></colgroup><tr><th>${isEN ? 'Midpoint' : 'Mi-point'}</th><th style="text-align:center">Deg.</th><th>${isEN ? 'Sign' : 'Signe'}</th><th>${isEN ? 'Activated by' : 'Activé par'}</th><th>Pers.</th><th style="text-align:center">${isEN ? 'Orb' : 'Orbe'}</th><th>${isEN ? 'Theme' : 'Thème'}</th></tr>`;
+    html += `<table><colgroup><col style="width:18%"><col style="width:8%"><col style="width:10%"><col style="width:12%"><col style="width:10%"><col style="width:7%"><col style="width:35%"></colgroup><thead><tr><th>${isEN ? 'Midpoint' : 'Mi-point'}</th><th style="text-align:center">Deg.</th><th>${isEN ? 'Sign' : 'Signe'}</th><th>${isEN ? 'Activated by' : 'Activé par'}</th><th>Pers.</th><th style="text-align:center">${isEN ? 'Orb' : 'Orbe'}</th><th>${isEN ? 'Theme' : 'Thème'}</th></tr></thead><tbody>`;
     midpoints.slice(0, 20).forEach(m => {
         const homBadge = m.is_homonyme ? ' <span style="display:inline-block;background:#fef3c7;color:#92400e;padding:0 4px;border-radius:3px;font-size:0.72em;font-weight:600;">HOM</span>' : '';
         html += `<tr><td style="font-size:0.88em">${escH(m.midpoint_of)}${homBadge}</td><td style="text-align:center;font-size:0.88em">${((m.degre_midpoint || 0) % 30).toFixed(1)}°</td><td style="font-size:0.88em">${escH(m.signe_midpoint)}</td>
             <td><strong>${escH(m.activated_by)}</strong></td><td style="font-size:0.85em">${escH(m.activated_personne)}</td><td style="text-align:center">${m.orbe}°</td>
             <td style="font-size:0.82em;color:#4a5568">${escH(m.theme || '—')}${m.keywords ? `<br><span style="font-size:0.75em;color:#94a3b8">${escH(m.keywords)}</span>` : ''}</td></tr>`;
     });
-    html += `</table>`;
+    html += `</tbody></table>`;
 }
 
 // ── PLANETARY PICTURES (Convergences mod 90°) ──
@@ -1951,14 +2006,14 @@ if (planetaryPictures.length > 0) {
     if (topPP.length > 0) {
         html += `<h3 class="subsection-title page-break">${isEN ? 'Planetary Pictures — Ebertin Convergences (90° Modulus)' : 'Planetary Pictures — Convergences Ebertin (Modulus 90°)'}</h3>`;
         html += `<p class="decl-intro">${isEN ? 'When multiple midpoints converge at the same degree (mod 90°), a "planetary picture" forms — an axis of intense relational sensitivity.' : 'Quand plusieurs midpoints convergent au même degré (mod 90°), une « planetary picture » se forme — un axe de sensibilité relationnelle intense.'}</p>`;
-        html += `<table><colgroup><col style="width:15%"><col style="width:8%"><col style="width:77%"></colgroup><tr><th style="text-align:center">${isEN ? 'Deg. 90°' : 'Deg. 90°'}</th><th style="text-align:center">Nb</th><th>${isEN ? 'Converging Midpoints' : 'Midpoints Convergents'}</th></tr>`;
+        html += `<table><colgroup><col style="width:15%"><col style="width:8%"><col style="width:77%"></colgroup><thead><tr><th style="text-align:center">${isEN ? 'Deg. 90°' : 'Deg. 90°'}</th><th style="text-align:center">Nb</th><th>${isEN ? 'Converging Midpoints' : 'Midpoints Convergents'}</th></tr></thead><tbody>`;
         topPP.forEach(pp => {
             const mids = pp.midpoints.map(m => `<span style="display:inline-block;background:#e8f0fe;padding:1px 4px;border-radius:3px;margin:1px;font-size:0.8em">${escH(m.pair_key || m.midpoint_of)}</span>`).join(' ');
             const countColor = pp.count >= 4 ? '#991b1b' : pp.count >= 3 ? '#b45309' : '#2563eb';
             html += `<tr><td style="text-align:center;font-weight:700">${pp.degre90}° <span style="color:#94a3b8;font-weight:400">(${escH(pp.signe || '')})</span></td>
                 <td style="text-align:center;font-weight:700;color:${countColor}">${pp.count}</td><td>${mids}</td></tr>`;
         });
-        html += `</table>`;
+        html += `</tbody></table>`;
     }
 }
 
@@ -1966,10 +2021,10 @@ if (planetaryPictures.length > 0) {
 if (crossParanBridges.length > 0) {
     html += `<h3 class="subsection-title">${isEN ? 'Cross-Chart Paran Bridges (Brady)' : 'Ponts Paran Croisés (Brady)'}</h3>`;
     html += `<p class="decl-intro">${isEN ? 'A cross-paran bridge forms when a fixed star is simultaneously in paran with a planet of each person — a deep stellar bond linking both charts through co-angularity.' : 'Un pont paran croisé se forme quand une étoile fixe est simultanément en paran avec une planète de chaque personne — un lien stellaire profond reliant les deux thèmes par co-angularité.'}</p>`;
-    html += `<table><tr><th>${isEN ? 'Fixed Star' : 'Étoile Fixe'}</th><th>${isEN ? 'Archetype' : 'Archétype'}</th>
+    html += `<table><thead><tr><th>${isEN ? 'Fixed Star' : 'Étoile Fixe'}</th><th>${isEN ? 'Archetype' : 'Archétype'}</th>
         <th>${escH(prenomA)} ${escH(nomA)}</th><th>${isEN ? 'Angle' : 'Angle'}</th>
         <th>${escH(prenomB)} ${escH(nomB)}</th><th>${isEN ? 'Angle' : 'Angle'}</th>
-        <th style="text-align:center">${isEN ? 'Avg Orb' : 'Orbe moy.'}</th></tr>`;
+        <th style="text-align:center">${isEN ? 'Avg Orb' : 'Orbe moy.'}</th></tr></thead><tbody>`;
     crossParanBridges.slice(0, 12).forEach(b => {
         html += `<tr style="background:#fffbeb">
             <td><strong style="color:#5d4037">★ ${escH(b.etoile)}</strong></td>
@@ -1979,21 +2034,21 @@ if (crossParanBridges.length > 0) {
             <td style="text-align:center;font-weight:600">${b.orbe_moyen}°</td></tr>
         <tr><td colspan="7" style="font-style:italic;font-size:0.85em;color:#666;padding:4px 12px;border-bottom:1px solid #e5e7eb">${escH(b.star_theme || '')}</td></tr>`;
     });
-    html += `</table>`;
+    html += `</tbody></table>`;
 }
 
 // ── VERTEX / ANTI-VERTEX ──
 if (vertexContacts.length > 0) {
     html += `<h2 class="section-title">${isEN ? 'Vertex / Anti-Vertex Contacts' : 'Contacts Vertex / Anti-Vertex'}<span class="fiabilite-badge">${isEN ? '⚡ Computed' : '⚡ Calculé'}</span></h2>`;
     html += `<p class="decl-intro">${isEN ? 'The Vertex is a fateful point — conjunctions from another chart indicate destined encounters and transformative relationships.' : 'Le Vertex est un point fatidique — les conjonctions depuis un autre thème signalent des rencontres destinées et des relations transformatrices.'}</p>`;
-    html += `<table><tr><th>${isEN ? 'Planet' : 'Planète'}</th><th>${isEN ? 'Person' : 'Personne'}</th><th style="text-align:center">&#9737;</th><th>Point</th><th>${isEN ? 'Person' : 'Personne'}</th><th style="text-align:center">${isEN ? 'Orb' : 'Orbe'}</th></tr>`;
+    html += `<table><thead><tr><th>${isEN ? 'Planet' : 'Planète'}</th><th>${isEN ? 'Person' : 'Personne'}</th><th style="text-align:center">&#9737;</th><th>Point</th><th>${isEN ? 'Person' : 'Personne'}</th><th style="text-align:center">${isEN ? 'Orb' : 'Orbe'}</th></tr></thead><tbody>`;
     vertexContacts.forEach(v => {
         html += `<tr><td><strong>${escH(v.planete)}</strong></td><td>${escH(v.personne_planete)}</td>
             <td style="text-align:center;color:#7c3aed;font-weight:700">&#9737;</td>
             <td><strong>${escH(v.point)}</strong></td><td>${escH(v.personne_vertex)}</td>
             <td style="text-align:center">${v.orbe}°</td></tr>`;
     });
-    html += `</table>`;
+    html += `</tbody></table>`;
 }
 
 // ── PROFIL DE SENSIBILITÉ CROISÉ ──
@@ -2011,13 +2066,13 @@ if (crossSensitivity.length > 0) {
 if (crossSabian.length > 0) {
     html += `<h2 class="section-title">${isEN ? 'Cross Sabian Symbols' : 'Symboles Sabéens Croisés'}</h2>`;
     html += `<p class="decl-intro">${isEN ? 'Symbolic images for key planetary degrees — they add an archetypal layer to the synastry reading.' : 'Images symboliques des degrés planétaires clés — elles ajoutent une couche archétypale à la lecture synastrique.'}</p>`;
-    html += `<table><tr><th>${isEN ? 'Planet' : 'Planète'}</th><th>${isEN ? 'Person' : 'Personne'}</th><th style="text-align:center">${isEN ? 'Degree' : 'Degré'}</th><th>${isEN ? 'Sign' : 'Signe'}</th><th>${isEN ? 'Sabian Symbol' : 'Symbole Sabéen'}</th></tr>`;
+    html += `<table><thead><tr><th>${isEN ? 'Planet' : 'Planète'}</th><th>${isEN ? 'Person' : 'Personne'}</th><th style="text-align:center">${isEN ? 'Degree' : 'Degré'}</th><th>${isEN ? 'Sign' : 'Signe'}</th><th>${isEN ? 'Sabian Symbol' : 'Symbole Sabéen'}</th></tr></thead><tbody>`;
     crossSabian.forEach(s => {
         html += `<tr><td><strong>${escH(s.planete)}</strong></td><td>${escH(s.personne)}</td>
             <td style="text-align:center">${s.sabian_deg || s.degre || '?'}°</td><td>${escH(s.signe || '')}</td>
             <td style="font-size:0.9em;font-style:italic;color:#475569">${escH(s.symbole || s.keynote || '—')}</td></tr>`;
     });
-    html += `</table>`;
+    html += `</tbody></table>`;
 }
 
 // (Statistiques Récapitulatives déplacées en haut du rapport)

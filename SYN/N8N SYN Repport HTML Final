@@ -319,7 +319,7 @@ sortedA.forEach(([houseNum, data]) => {
                         <div style="font-size:15.5px;font-weight:400;color:#8ab4f8;margin-top:3px;letter-spacing:0.4px;">${esc(hMeta.domaines)}</div>
                     </td>
                 </tr>
-            </table>
+            </tbody></table>
         </div>
         <div style="background:#fafbff;padding:10px 20px;border-bottom:1px solid #eaecf5;">
             <span style="display:inline-block;background:#e8f0fe;color:#1F3864;font-size:15.5px;font-weight:600;padding:4px 13px;border-radius:20px;margin:2px 3px;">${isEN ? 'Cusp' : 'Cuspide'} : ${esc(cuspSign)}</span>
@@ -391,7 +391,7 @@ sortedB.forEach(([houseNum, data]) => {
                         <div style="font-size:15.5px;font-weight:400;color:#fcd5b5;margin-top:3px;letter-spacing:0.4px;">${esc(hMeta.domaines)}</div>
                     </td>
                 </tr>
-            </table>
+            </tbody></table>
         </div>
         <div style="background:#fffaf5;padding:10px 20px;border-bottom:1px solid #f5e8df;">
             <span style="display:inline-block;background:#fef3c7;color:#92400e;font-size:15.5px;font-weight:600;padding:4px 13px;border-radius:20px;margin:2px 3px;">${isEN ? 'Cusp' : 'Cuspide'} : ${esc(cuspSign)}</span>
@@ -612,6 +612,14 @@ const html = `<!DOCTYPE html>
     @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Symbols+2&display=swap');
     .syn-final-toc a, .syn-final-toc h2 { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     @media print {
+  /* PDF-HARDEN-v1 */
+  thead { display: table-header-group; }
+  tfoot { display: table-footer-group; }
+  tr, img, svg, .keep-together { break-inside: avoid; page-break-inside: avoid; }
+  h1, h2, h3, h4, h5, h6, .section-title, .subsection-title, .sub-direction { break-after: avoid; page-break-after: avoid; }
+  table { page-break-inside: auto; }
+  html, body { height: auto !important; }
+
         .syn-final-toc { page-break-after: avoid; break-after: avoid; }
         .syn-final-toc-pagebreak { page-break-after: always !important; break-after: page !important; }
         .house-section { page-break-after: always; break-after: page; }

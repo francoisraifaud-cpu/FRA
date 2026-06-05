@@ -5779,7 +5779,7 @@ function computeGlobalHIScore(houseHIBinA, houseHIAinB, typoConf, langue, direct
             ratio_blocking: +ratioBlocking.toFixed(2),
             ratio_transformative: +ratioTransformative.toFixed(2)
         },
-        version: "v6.8.0"
+        version: "v6.9.0"
     };
 }
 
@@ -7071,7 +7071,21 @@ function computeHouseScoreHI(houseNum, overlay, interAspects, sourcePlanets, tar
     const isAngular = (houseNum === 1 || houseNum === 4 || houseNum === 7 || houseNum === 10);
 
     let H_acc = 0;     // accumulateur harmonie (signé), sera projeté sur [0..100]
-    let I_acc = 0;     // accumulateur intensité (cumulé), sera projeté sur [0..100]
+    // v7.1.0 — DÉROGE AU GEL v6.8.0 (clause Q51-2, GO astrologue 2026-06-05) :
+    // refonte de l'INTENSITÉ par maison UNIQUEMENT (Fluidité/Harmonie inchangée).
+    // L'intensité n'est plus un cumul brut saturant (ancien I_acc / 80, qui
+    // plafonnait ~10 maisons/12 à 100) mais :
+    //   1. agrégée PAR planète-source puis CAPÉE → la densité de contacts
+    //      DISTINCTS prime sur le volume d'aspects d'une seule planète à orbe
+    //      large (lecture astrologique : une maison est intense si plusieurs
+    //      planètes du partenaire s'y posent et s'y connectent, pas si une
+    //      seule planète multiplie les aspects à 8° d'orbe) ;
+    //   2. amplificateur d'aspects ramené ×1.5 → ×1.0 (rééquilibre occupation
+    //      vs aspects, l'occupation étant astrologiquement plus fondamentale) ;
+    //   3. projetée via une courbe asymptotique douce (cf. intensityProjection).
+    // Justification + variantes : SITE/scripts/SYN-DIAGNOSTIC-INTENSITE-SATURATION-2026-06-05.md
+    const I_bySource = {};            // intensité brute agrégée par planète-source
+    const I_CAP_PER_SOURCE = 28;      // plafond d'intensité par planète-source
     const classCounts = { fluid: 0, tension_blocking: 0, fusion_neutral: 0, transformative: 0, karmic: 0, destabilizing: 0 };
     const contributors = [];
 
@@ -7095,9 +7109,10 @@ function computeHouseScoreHI(houseNum, overlay, interAspects, sourcePlanets, tar
             : 0;
 
         const weight = pWeight * tierFactor * dignFactor * retroFactor;
-        H_acc += baseHByPlanet * weight;
-        I_acc += weight * 12;        // intensité d'occupation : 12 pts max par planète tier-1
-        contributors.push({ src: "overlay", planete: pName, contribH: +(baseHByPlanet * weight).toFixed(2), contribI: +(weight * 12).toFixed(2) });
+        H_acc += baseHByPlanet * weight;                       // Fluidité : inchangé
+        const occI = weight * 12;    // intensité d'occupation : 12 pts max par planète tier-1
+        I_bySource[pName] = (I_bySource[pName] || 0) + occI;   // v7.1.0 : agrégé par source (capé plus bas)
+        contributors.push({ src: "overlay", planete: pName, contribH: +(baseHByPlanet * weight).toFixed(2), contribI: +occI.toFixed(2) });
     }
 
     // --- 2. Inter-aspects entre planètes in-house et planètes natales du natif
@@ -7109,9 +7124,10 @@ function computeHouseScoreHI(houseNum, overlay, interAspects, sourcePlanets, tar
             if (aspHouse !== houseNum) continue;
             const r = computeAspectScoreHI(asp);
             classCounts[r.class] = (classCounts[r.class] || 0) + 1;
-            H_acc += r.harmony * weight;
-            I_acc += r.intensity * weight * 1.5;     // facteur d'amplification de l'intensité
-            contributors.push({ src: "aspect", planete: asp.planete_source + "→" + asp.planete_cible, asp: asp.name || asp.aspect, class: r.class, contribH: +r.harmony.toFixed(2), contribI: +r.intensity.toFixed(2) });
+            H_acc += r.harmony * weight;             // Fluidité : inchangé
+            const aspI = r.intensity * weight;       // v7.1.0 : amplificateur ×1.5 retiré (×1.0)
+            I_bySource[asp.planete_source] = (I_bySource[asp.planete_source] || 0) + aspI;
+            contributors.push({ src: "aspect", planete: asp.planete_source + "→" + asp.planete_cible, asp: asp.name || asp.aspect, class: r.class, contribH: +r.harmony.toFixed(2), contribI: +aspI.toFixed(2) });
         }
     };
     processAspectsHI(interAspects, 1.0);
@@ -7131,9 +7147,10 @@ function computeHouseScoreHI(houseNum, overlay, interAspects, sourcePlanets, tar
             orbe: ca.orbe
         });
         classCounts[r.class] = (classCounts[r.class] || 0) + 1;
-        H_acc += r.harmony * angularBoost;
-        I_acc += r.intensity * angularBoost * 1.3;
-        contributors.push({ src: "cusp", planete: ca.planete, asp: ca.aspect, class: r.class, contribH: +(r.harmony * angularBoost).toFixed(2), contribI: +(r.intensity * angularBoost).toFixed(2) });
+        H_acc += r.harmony * angularBoost;           // Fluidité : inchangé
+        const cuspI = r.intensity * angularBoost * 1.3;
+        I_bySource[ca.planete] = (I_bySource[ca.planete] || 0) + cuspI;   // v7.1.0 : agrégé par source
+        contributors.push({ src: "cusp", planete: ca.planete, asp: ca.aspect, class: r.class, contribH: +(r.harmony * angularBoost).toFixed(2), contribI: +cuspI.toFixed(2) });
     }
 
     // --- 4. Maître de la maison + dignité
@@ -7167,9 +7184,23 @@ function computeHouseScoreHI(houseNum, overlay, interAspects, sourcePlanets, tar
     const typoH_bonus = isPrincipale ? +1.5 : isSecondaire ? +0.5 : 0;
     const Hm = harmonyProjection(H_acc + typoH_bonus);
 
-    // I_acc projection : ~80 pts d'accumulation = saturation
-    // Cap inférieur 0, cap supérieur 100, courbe linéaire.
-    const intensityProjection = (i) => Math.max(0, Math.min(100, Math.round((i / 80) * 100)));
+    // v7.1.0 — agrégation finale de l'intensité (déroge au gel v6.8.0) :
+    // chaque planète-source est plafonnée à I_CAP_PER_SOURCE AVANT la somme,
+    // de sorte qu'une planète à orbe large multipliant les aspects ne sature
+    // pas la maison à elle seule. La densité de planètes-source DISTINCTES
+    // charge la maison, conformément à la lecture astrologique de l'intensité.
+    let I_acc = 0;
+    let I_sources_capped = 0;
+    for (const k in I_bySource) {
+        const capped = Math.min(I_bySource[k], I_CAP_PER_SOURCE);
+        I_acc += capped;
+        if (I_bySource[k] > I_CAP_PER_SOURCE) I_sources_capped++;
+    }
+    // Projection asymptotique douce (K = 60) : 0 → 0, ~28 (1 source pleine) → 37,
+    // ~56 (2) → 61, ~84 (3) → 75, ~112 (4) → 84, ~168 (6) → 94. Jamais
+    // d'écrasement brutal à 100 ; le sommet 90-100 reste réservé aux maisons où
+    // 4+ planètes-source distinctes sont fortement contactées.
+    const intensityProjection = (i) => Math.max(0, Math.min(100, Math.round(100 * (1 - Math.exp(-i / 60)))));
     const Im = intensityProjection(I_acc);
 
     // --- 7. Signature dominante (pour Gemini)
@@ -7196,6 +7227,7 @@ function computeHouseScoreHI(houseNum, overlay, interAspects, sourcePlanets, tar
         class_counts: classCounts,
         H_acc: +H_acc.toFixed(2),
         I_acc: +I_acc.toFixed(2),
+        i_sources_capped: I_sources_capped,
         is_principale: isPrincipale,
         is_secondaire: isSecondaire,
         is_angular: isAngular,
@@ -7471,7 +7503,7 @@ globalScoreResult.qualitative_band_v6 = _globalHI.qualitative_band_v6;
 globalScoreResult.dominant_signature_global = _globalHI.dominant_signature_global;
 globalScoreResult.detail_v6 = _globalHI.detail_v6;
 globalScoreResult.class_counts_global = _globalHI.class_counts;
-globalScoreResult.version = "v6.8.0";
+globalScoreResult.version = "v6.9.0";   // v6.9.0 — déroge au gel v6.8.0 : refonte intensité par maison (Q51-2, GO astrologue 2026-06-05)
 // v7.0.0-β.3 — la narration évolue ; le scoring reste figé v6.8.0.
 //   • β.1 : +7 paires planétaires fréquentes (Lune-Pluton, Ascendant-Lune, Lune-Uranus,
 //     Ascendant-Soleil, MC-Soleil, Jupiter-Soleil, Ascendant-Descendant) + lexique
@@ -7505,7 +7537,7 @@ globalScoreDetail = {
     class_counts_global: _globalHI.class_counts,
     dominant_signature_global: _globalHI.dominant_signature_global,
     score_v5: globalScoreResult.score_v5,
-    version: "v6.8.0",
+    version: "v6.9.0",
     narrative_version: "v7.0.2"
 };
 
@@ -9551,10 +9583,15 @@ const relationshipDashboard = (() => {
     // 3. Durabilité (= longevityIndex /15)
     const durabiliteScore = clamp((Number(_li.score) || 0) / 15 * 100);
     // 4. Karmique (quantité de contact nodal + direction)
-    const nq = Number(_p2.nodal_qual_score) || 0;            // 0..5
-    const ev = Number(_bd.nodes_evolutive) || 0;             // NN (croissance)
-    const rep = Number(_bd.nodes_repetitive) || 0;           // NS (déjà-vu)
-    const karmiqueScore = clamp(nq / 5 * 60 + Math.min(40, (ev + rep) * 8));
+    const nq = Number(_p2.nodal_qual_score) || 0;            // qualité nodale pondérée (~0..12, pas un compte)
+    const ev = Number(_bd.nodes_evolutive) || 0;             // NN (croissance) — sous-score longévité pondéré
+    const rep = Number(_bd.nodes_repetitive) || 0;           // NS (déjà-vu) — sous-score longévité pondéré
+    // v7.2.0 — dé-saturation : nq, ev et rep sont des sous-scores PONDÉRÉS (pas de simples
+    // comptes). L'ancienne formule (nq/5*60 + min(40,(ev+rep)*8)) saturait quasi tous les
+    // couples à 100 (ex. nq=9.63, ev+rep=25 → 155 → clamp 100). Courbe asymptotique douce
+    // (miroir du correctif Intensité v6.9.0) : discrimine de nouveau sans plafond brutal.
+    const _karmAcc = Math.min(12, nq) * 5 + (ev + rep) * 1.4;
+    const karmiqueScore = clamp(100 * (1 - Math.exp(-_karmAcc / 60)));
     const karmDir = (ev > rep + 0.5) ? { fr: "Évolutif (croissance)", en: "Evolutionary (growth)" }
         : (rep > ev + 0.5) ? { fr: "Répétitif (déjà-vu)", en: "Repetitive (déjà-vu)" }
         : { fr: "Équilibré", en: "Balanced" };
@@ -9571,7 +9608,7 @@ const relationshipDashboard = (() => {
 
     return {
         scale: 100,
-        version: "v7.1.0",
+        version: "v7.2.0",
         title: { fr: "Tableau de bord relationnel", en: "Relationship Dashboard" },
         intro: {
             fr: "Huit indices descriptifs notés de 0 à 100 : des repères pour comprendre la relation, pas des notes de réussite.",
