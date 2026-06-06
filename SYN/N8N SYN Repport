@@ -918,8 +918,10 @@ if (bwPlanetsA.length > 0 && bwPlanetsB.length > 0) {
             const glyph = pGlyphs[p.name] || "?";
             drawPointer(p, p.radius + R_GLYPH, color, 1.0);
             const isMV = (glyph === "♀" || glyph === "♂");
+            // ♀/♂ ont un œil plus petit dans Noto Sans Symbols 2 → on remonte leur corps pour égaliser la taille visuelle.
+            const fsz = isMV ? 21 : 18;
             const extra = isMV ? `stroke-width="2.6"` : `stroke-width="2.3"`;
-            svgGlyphs += `<text x="${pos.x.toFixed(1)}" y="${pos.y.toFixed(1)}" font-size="18" text-anchor="middle" dominant-baseline="central" fill="${color}" stroke="#ffffff" ${extra} paint-order="stroke" font-weight="bold" font-family="${GLYPH_FONT}">${glyph}</text>`;
+            svgGlyphs += `<text x="${pos.x.toFixed(1)}" y="${pos.y.toFixed(1)}" font-size="${fsz}" text-anchor="middle" dominant-baseline="central" fill="${color}" stroke="#ffffff" ${extra} paint-order="stroke" font-weight="bold" font-family="${GLYPH_FONT}">${glyph}</text>`;
             const _dd = Math.floor(p.norm); let _mm = Math.round((p.norm - _dd) * 60), _ddl = _dd; if (_mm === 60) { _mm = 0; _ddl = _dd + 1; }
             const degTxt = `${_ddl}°${String(_mm).padStart(2, "0")}'${p.retro ? " ℞" : ""}`;
             const lbl = pol(svgA, p.radius - R_GLYPH - 6);
