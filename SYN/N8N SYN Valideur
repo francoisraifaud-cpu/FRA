@@ -1,5 +1,5 @@
 // ══════════════════════════════════════════════════════════════════════
-// VALIDATEUR POST-LLM — SYNASTRIE v4.1 (noeud silencieux)
+// VALIDATEUR POST-LLM — SYNASTRIE v4.2 (noeud silencieux)
 // ══════════════════════════════════════════════════════════════════════
 // Vérifie la cohérence des textes LLM synastrie avec les données
 // calculées. Output JSON consultable dans les logs n8n.
@@ -7,6 +7,10 @@
 // Entrée : sortie de "Reassemble SYN" ou "3. Reassemble Trad SYN"
 // Référence : "5. Calcul SYN" + "Enrichissement A/B"
 //
+// v4.2: contrôle "polarité nodale" (nodal_polarity_error) — détecte l'inversion
+//       Nœud Nord/Sud entre deux planètes (swap avéré, appariement clause-à-clause,
+//       vérité = conjonctions Nœud↔planète du Super noeud Syn). Précision haute :
+//       ne lève que sur un croisement complet, jamais sur une opposition légitime.
 // v4.1: fix faux positif dignity_error — le rattachement dignité→planète
 //       privilégie la planète qui PRÉCÈDE le terme de dignité (grammaire FR/EN),
 //       au lieu de la plus proche en distance absolue (cf. isDignityForThisPlanet).
@@ -39,6 +43,11 @@ if (!synData?.meta) {
 if (!synData?.meta) synData = tryLoad(() => $('5. Calcul SYN').first()?.json);
 if (!synData?.meta) synData = tryLoad(() => $('Calcul SYN').first()?.json);
 if (!synData) synData = {};
+
+// Source de vérité des aspects pour la polarité nodale (conjonctions Nœud↔planète).
+// synData transmis ne contient souvent que les aspects "minor" : on lit en priorité
+// le Super noeud (inter_aspects_all_*), avec repli sur tout tableau d'aspects dispo.
+let _aspectSource = tryLoad(() => $('Super noeud Syn').first()?.json) || {};
 
 const meta = synData.meta || {};
 const persoA = meta.personne_a || {};
@@ -695,6 +704,93 @@ function validateDignityText(text, perspective, sectionLabel) {
     return warnings;
 }
 
+// ── 6b. POLARITÉ NODALE (nodal_polarity_error) ──
+// Vérité : conjonctions Nœud↔planète (le pôle qui "définit" le contact).
+// Une planète conjointe au Nœud Nord est aussi en opposition au Nœud Sud : on ne
+// lève donc JAMAIS sur une mention isolée, seulement sur un SWAP avéré (deux planètes
+// dont les nœuds cités sont croisés vs la vérité), apparié clause par clause.
+
+function _nodalType(name) {
+    const n = (name || "").toLowerCase();
+    if (/n(?:œ|oe)ud\s*nord|north node|rahu/.test(n)) return "Nord";
+    if (/n(?:œ|oe)ud\s*sud|south node|ketu/.test(n)) return "Sud";
+    return null;
+}
+
+function buildConjNodeMap() {
+    const arrays = [];
+    const push = (a) => { if (Array.isArray(a)) arrays.push(a); };
+    push(_aspectSource.inter_aspects_all_b_to_a);
+    push(_aspectSource.inter_aspects_all_a_to_b);
+    ["inter_aspects_all_b_to_a", "inter_aspects_all_a_to_b",
+     "inter_aspects_tier1_b_to_a", "inter_aspects_tier2_b_to_a",
+     "inter_aspects_tier1_a_to_b", "inter_aspects_tier2_a_to_b",
+     "inter_aspects_minor_b_to_a", "inter_aspects_minor_a_to_b"].forEach(k => push(synData[k]));
+    const map = {};
+    for (const arr of arrays) {
+        for (const a of arr) {
+            if (!/conjonction|conjunction/i.test(a.aspect || a.type || "")) continue;
+            const src = a.planete_source || a.from, cib = a.planete_cible || a.to;
+            const ts = _nodalType(src), tc = _nodalType(cib);
+            let planet = null, type = null;
+            if (ts && CORE_PLANETS.includes(cib)) { planet = cib; type = ts; }
+            else if (tc && CORE_PLANETS.includes(src)) { planet = src; type = tc; }
+            if (planet && type) { if (!map[planet]) map[planet] = new Set(); map[planet].add(type); }
+        }
+    }
+    const clean = {};
+    Object.keys(map).forEach(p => { if (map[p].size === 1) clean[p] = [...map[p]][0]; });
+    return clean;
+}
+const conjNodeOf = buildConjNodeMap();
+
+const _NODE_N_RE = /n(?:œ|oe)ud\s*nord/;
+const _NODE_S_RE = /n(?:œ|oe)ud\s*sud/;
+function splitClausesNodal(sentence) {
+    return sentence.split(/\btandis que\b|\balors que\b|\bcependant\b|;|\bmais\b|\bpuis\b|\s+et\s+/i)
+        .filter(c => c.trim().length > 2);
+}
+function pairNodalClause(lc) {
+    const hasN = _NODE_N_RE.test(lc), hasS = _NODE_S_RE.test(lc);
+    if (hasN === hasS) return null;                 // 0 ou 2 types → ambigu
+    const node = hasN ? "Nord" : "Sud";
+    const planets = Object.keys(conjNodeOf).filter(p => lc.includes(p.toLowerCase()));
+    if (planets.length !== 1) return null;          // 0 ou ≥2 planètes → ambigu
+    return { planet: planets[0], node };
+}
+function validateNodalPolarity(text, sectionLabel) {
+    const warnings = [];
+    if (!text || Object.keys(conjNodeOf).length < 2) return warnings;
+    for (const sentence of splitSentences(text)) {
+        const lc = sentence.toLowerCase();
+        if (!/n(?:œ|oe)ud/.test(lc)) continue;
+        if (isCompositeContext(lc)) continue;
+        const pairings = {};
+        for (const clause of splitClausesNodal(lc)) {
+            const pr = pairNodalClause(clause);
+            if (!pr) continue;
+            if (pairings[pr.planet] && pairings[pr.planet] !== pr.node) pairings[pr.planet] = "_AMBIG";
+            else if (!pairings[pr.planet]) pairings[pr.planet] = pr.node;
+        }
+        const planets = Object.keys(pairings).filter(p => pairings[p] !== "_AMBIG");
+        for (let i = 0; i < planets.length; i++) {
+            for (let j = i + 1; j < planets.length; j++) {
+                const p1 = planets[i], p2 = planets[j];
+                if (conjNodeOf[p1] && conjNodeOf[p2] && conjNodeOf[p1] !== conjNodeOf[p2]
+                    && pairings[p1] === conjNodeOf[p2] && pairings[p2] === conjNodeOf[p1]) {
+                    warnings.push({
+                        type: "nodal_polarity_error",
+                        planetA: p1, saidNode: pairings[p1], expectedNode: conjNodeOf[p1],
+                        planetB: p2, saidNodeB: pairings[p2], expectedNodeB: conjNodeOf[p2],
+                        section: sectionLabel, excerpt: sentence.replace(/\s+/g, " ").substring(0, 170)
+                    });
+                }
+            }
+        }
+    }
+    return warnings;
+}
+
 // ── 7. EXÉCUTION ──
 
 const results = {
@@ -727,9 +823,10 @@ function runValidation(text, perspective, houseNum, label) {
     const predictW = validatePredictiveVocabulary(text, label);
     const swapW = validatePersonSwap(text, perspective, label);
     const dignityW = validateDignityText(text, perspective, label);
+    const nodalW = validateNodalPolarity(text, label);
 
-    const total = signW.length + houseW.length + overlayW.length + predictW.length + swapW.length + dignityW.length;
-    return { signW, houseW, overlayW, predictW, swapW, dignityW, total };
+    const total = signW.length + houseW.length + overlayW.length + predictW.length + swapW.length + dignityW.length + nodalW.length;
+    return { signW, houseW, overlayW, predictW, swapW, dignityW, nodalW, total };
 }
 
 const perspA = reassembled.perspective_a || {};
@@ -776,9 +873,10 @@ if (synthTxt) {
     const predictW = validatePredictiveVocabulary(synthTxt, label);
     const swapW = validatePersonSwap(synthTxt, "synthese", label);
     const dignityW = validateDignityText(synthTxt, "synthese", label);
-    const total = signW.length + houseW.length + overlayW.length + predictW.length + swapW.length + dignityW.length;
+    const nodalW = validateNodalPolarity(synthTxt, label);
+    const total = signW.length + houseW.length + overlayW.length + predictW.length + swapW.length + dignityW.length + nodalW.length;
     if (total > 0) {
-        results.synthese = { signW, houseW, overlayW, predictW, swapW, dignityW, total };
+        results.synthese = { signW, houseW, overlayW, predictW, swapW, dignityW, nodalW, total };
         results.totalWarnings += total;
     }
 }
