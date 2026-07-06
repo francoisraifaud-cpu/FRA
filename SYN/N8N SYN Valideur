@@ -1,5 +1,5 @@
 // ══════════════════════════════════════════════════════════════════════
-// VALIDATEUR POST-LLM — SYNASTRIE v4.0 (noeud silencieux)
+// VALIDATEUR POST-LLM — SYNASTRIE v4.1 (noeud silencieux)
 // ══════════════════════════════════════════════════════════════════════
 // Vérifie la cohérence des textes LLM synastrie avec les données
 // calculées. Output JSON consultable dans les logs n8n.
@@ -7,6 +7,9 @@
 // Entrée : sortie de "Reassemble SYN" ou "3. Reassemble Trad SYN"
 // Référence : "5. Calcul SYN" + "Enrichissement A/B"
 //
+// v4.1: fix faux positif dignity_error — le rattachement dignité→planète
+//       privilégie la planète qui PRÉCÈDE le terme de dignité (grammaire FR/EN),
+//       au lieu de la plus proche en distance absolue (cf. isDignityForThisPlanet).
 // v4.0: fix parser possessifs grammaticaux — 3 sous-bugs corrigés :
 //       1. synthese: "ton/ta/tes" résout vers A (pas B)
 //       2. possessifs parenthétiques: "tes besoins (Jupiter en Bélier)"
@@ -306,14 +309,31 @@ function isDignityForThisPlanet(lc, planetLc, dignityTerm) {
     const planetIdx = lc.indexOf(planetLc);
     const dignityIdx = lc.indexOf(dignityTerm);
     if (planetIdx === -1 || dignityIdx === -1) return true;
-    const distance = Math.abs(dignityIdx - planetIdx);
+    // v4.1 : une dignité se rapporte à la planète qui la PRÉCÈDE le plus près
+    // ("le Soleil ... dans son domicile en Lion", "sa Vénus en exil"), et non à la
+    // plus proche en distance absolue — qui pouvait être une planète SUIVANTE
+    // ("...domicile en Lion, et ton Jupiter" → domicile attribué à tort à Jupiter).
+    // À défaut de planète avant le terme (dignité en tête), on prend la plus proche après.
+    const WINDOW = 60;
+    let ownerBefore = null, distBefore = Infinity;
+    let ownerAfter = null, distAfter = Infinity;
     for (const other of CORE_PLANETS) {
         const otherLc = other.toLowerCase();
-        if (otherLc === planetLc) continue;
-        const otherIdx = lc.indexOf(otherLc);
-        if (otherIdx !== -1 && Math.abs(dignityIdx - otherIdx) < distance) return false;
+        let from = 0, idx;
+        while ((idx = lc.indexOf(otherLc, from)) !== -1) {
+            if (idx < dignityIdx) {
+                const d = dignityIdx - idx;
+                if (d < distBefore) { distBefore = d; ownerBefore = otherLc; }
+            } else if (idx > dignityIdx) {
+                const d = idx - dignityIdx;
+                if (d < distAfter) { distAfter = d; ownerAfter = otherLc; }
+            }
+            from = idx + otherLc.length;
+        }
     }
-    return true;
+    const owner = (ownerBefore && distBefore <= WINDOW) ? ownerBefore : (ownerAfter || ownerBefore);
+    if (!owner) return true;
+    return owner === planetLc;
 }
 
 function resolveEffectivePerson(lc, nameLc, mentionsA, mentionsB, perspective) {
