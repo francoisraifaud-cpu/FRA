@@ -7,6 +7,8 @@
 
 > **Doc rafraîchie 2026-07-07** : reconstruction du **socle structurel** (§§ 1–10 ci-dessous). Ce socle avait disparu du fichier, qui ne conservait plus que l'annexe moteur/bench DTC (§§ 27–35, désormais regroupée en « **Partie II** »). Socle recalé sur les **94 nœuds PROD réels**. **Source de vérité = workflow live n8n** ; le moteur `Super noeud1` correspond au fichier `FRA/PREV/N8N Prev` (MDSE + bloc DTC injecté). Snapshot canonique : `FRA/_workflow-backups-prod/2026-07-07/PREV-PROD.json` (branche `backup/workflows-prod-2026-07-07`), régénérable via `SITE/scripts/n8n-export-prod-workflows.mjs`.
 
+> **⚠ Preprod ≠ iso PROD — run batch depuis Cursor** : un run lancé en **batch depuis Cursor** (POST webhook preprod, hors site) finit en `status=error` / `finished=false` (~40-60 s) car **aucun ID (order/Stripe/client) n'est mappé** — c'est **NORMAL, pas un bug**. Les nœuds moteur (calculs + `Super noeud1` → heatmap + prompts) s'exécutent **AVANT** l'erreur → leur sortie est dans `resultData.runData`. LLM **souvent coupés** en preprod (tests gratuits) ; bout-en-bout incluant les LLM = **PROD**. Détail gravé : `.cursor/rules/n8n-preprod-batch-runs.mdc`.
+
 ---
 
 # PARTIE I — ARCHITECTURE DU WORKFLOW

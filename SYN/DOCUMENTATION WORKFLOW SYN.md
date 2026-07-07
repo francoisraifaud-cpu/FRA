@@ -6,6 +6,8 @@
 
 > **Doc rafraîchie 2026-07-07** (inventaire workflow) : §1 réécrite sur les **107 nœuds PROD réels** ; **validateur v4.2** (polarité nodale, §6) ; garde-fou **POLARITÉ NODALE** du traducteur (§5) ; nouvelle chaîne de **livraison site Vercel Blob + email** (§ 10bis). **Source de vérité = workflow live n8n** ; les fichiers `FRA/SYN/N8N SYN *` sont des fragments de déploiement/référence (pas toujours ISO au live). Snapshot canonique : `FRA/_workflow-backups-prod/2026-07-07/SYN-PROD.json` (branche `backup/workflows-prod-2026-07-07`), régénérable via `SITE/scripts/n8n-export-prod-workflows.mjs`.
 
+> **⚠ Preprod ≠ iso PROD — run batch depuis Cursor** : un run lancé en **batch depuis Cursor** (POST webhook preprod, hors site) finit en `status=error` / `finished=false` (~40-60 s) car **aucun ID (order/Stripe/client) n'est mappé** — c'est **NORMAL, pas un bug**. Les nœuds moteur (scoring + narration → prompts) s'exécutent **AVANT** l'erreur → leur sortie est dans `resultData.runData`. LLM **souvent coupés** en preprod (tests gratuits) ; bout-en-bout incluant les LLM = **PROD**. Détail gravé : `.cursor/rules/n8n-preprod-batch-runs.mdc`.
+
 **Architecture binaire scoring / narration** (depuis 2026-05-06) :
 
 - **Moteur de scoring v6.8.0** — gelé. Aucune modification des coefficients, pivots, seuils de bandes ou algorithmes de pondération sans réouverture explicite (clauses Q51 du gel, voir § 17.1). L'historique complet des sprints v3.x → v5.0.0 → v6.x est conservé tel quel ci-dessous (§§ 3 à 16) pour traçabilité.

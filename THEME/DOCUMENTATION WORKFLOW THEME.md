@@ -7,6 +7,8 @@
 
 > **Doc rafraîchie 2026-07-07** : §1 réécrite sur les **85 nœuds PROD réels** ; §6 = **deux** validateurs (`Theme Logs` legacy + `Assemble Récit + Validateur` actif) ; §7 = **pipeline récit** + garde-fou **POLARITÉ NODALE** ; nouvelles sections **Figures / Signature Céleste** et **Livraison site**. **Source de vérité = workflow live n8n** ; les fichiers `FRA/THEME/N8N Theme *` sont des fragments (pas toujours ISO). Snapshot canonique : `FRA/_workflow-backups-prod/2026-07-07/THEME-PROD.json` (branche `backup/workflows-prod-2026-07-07`), régénérable via `SITE/scripts/n8n-export-prod-workflows.mjs`.
 
+> **⚠ Preprod ≠ iso PROD — run batch depuis Cursor** : un run lancé en **batch depuis Cursor** (POST webhook preprod, hors site) finit en `status=error` / `finished=false` (~40-60 s) car **aucun ID (order/Stripe/client) n'est mappé** — c'est **NORMAL, pas un bug**. Les nœuds moteur (calculs + prompts) s'exécutent **AVANT** l'erreur → leur sortie est dans `resultData.runData`. LLM **souvent coupés** en preprod (tests gratuits) ; bout-en-bout incluant les LLM = **PROD**. Détail gravé : `.cursor/rules/n8n-preprod-batch-runs.mdc`.
+
 ---
 
 ## 1. VUE D'ENSEMBLE
