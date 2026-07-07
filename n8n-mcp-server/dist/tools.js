@@ -42,6 +42,13 @@ export const ExecuteWorkflowSchema = z.object({
         .optional()
         .describe("Données d’entrée injectées dans le workflow"),
 });
+export const UpdateWorkflowSchema = z.object({
+    id: z.string().describe("ID du workflow à mettre à jour"),
+    workflow: z
+        .object({})
+        .passthrough()
+        .describe("Objet workflow complet (name, nodes, connections, settings...) tel que retourné par n8n_get_workflow, avec tes modifications appliquées."),
+});
 /**
  * Définitions des outils exposés au client MCP.
  */
@@ -113,6 +120,24 @@ export const toolDefinitions = [
             required: ["id"],
         },
     },
+    {
+        name: "n8n_update_workflow",
+        description: "Mettre à jour un workflow n8n via PUT /api/v1/workflows/:id. Passe l'objet workflow complet (récupéré via n8n_get_workflow) avec tes modifications. Le serveur ne renvoie que les champs autorisés par l'API publique (name, nodes, connections, settings, staticData).",
+        inputSchema: {
+            type: "object",
+            properties: {
+                id: {
+                    type: "string",
+                    description: "ID du workflow à mettre à jour.",
+                },
+                workflow: {
+                    type: "object",
+                    description: "Objet workflow complet (name, nodes, connections, settings...) avec les modifications appliquées.",
+                },
+            },
+            required: ["id", "workflow"],
+        },
+    },
 ];
 /**
  * Implémentations des outils.
@@ -175,6 +200,39 @@ export async function handleExecuteWorkflow(args) {
     const json = await runRes.json();
     return JSON.stringify(json, null, 2);
 }
+export async function handleUpdateWorkflow(args) {
+    const { id, workflow } = UpdateWorkflowSchema.parse(args);
+    // L'API publique n8n (PUT /workflows/:id) n'accepte qu'un sous-ensemble de champs.
+    // Tout champ en lecture seule (id, active, createdAt, tags, versionId...) provoque une 400.
+    const allowed = ["name", "nodes", "connections", "staticData"];
+    const body = {};
+    for (const key of allowed) {
+        if (typeof workflow[key] !== "undefined") {
+            body[key] = workflow[key];
+        }
+    }
+    // settings : l'API publique n'accepte qu'un sous-ensemble de clés.
+    const ALLOWED_SETTINGS = ["saveExecutionProgress", "saveManualExecutions", "saveDataErrorExecution", "saveDataSuccessExecution", "executionTimeout", "errorWorkflow", "timezone", "executionOrder"];
+    const cleanSettings = {};
+    const src = workflow.settings || {};
+    for (const k of ALLOWED_SETTINGS) {
+        if (typeof src[k] !== "undefined")
+            cleanSettings[k] = src[k];
+    }
+    body.settings = cleanSettings;
+    if (typeof body.name === "undefined") {
+        throw new Error("Le champ 'name' est requis dans l'objet workflow pour un PUT.");
+    }
+    const res = await n8nFetch(`/api/v1/workflows/${encodeURIComponent(id)}`, {
+        method: "PUT",
+        body: JSON.stringify(body),
+    });
+    const text = await res.text();
+    if (!res.ok) {
+        throw new Error(`Échec PUT workflow ${id} (status ${res.status}): ${text}`);
+    }
+    return text;
+}
 export async function handleTool(name, args) {
     switch (name) {
         case "n8n_list_workflows":
@@ -183,6 +241,8 @@ export async function handleTool(name, args) {
             return handleGetWorkflow(args);
         case "n8n_execute_workflow":
             return handleExecuteWorkflow(args);
+        case "n8n_update_workflow":
+            return handleUpdateWorkflow(args);
         default:
             throw new Error(`Outil inconnu: ${name}`);
     }

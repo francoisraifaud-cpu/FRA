@@ -54,6 +54,12 @@ let progressionsRaw = null, eclipsesProgRaw = null;
 // le Super noeud1 bascule automatiquement sur le calcul JS legacy conservé en
 // fallback (lignes 6126-6211 de `FRA/PREV/N8N Prev`).
 let primaryDirsApiRaw = null;
+// [DP MUNDANE 2026-07-06] Frame directions primaires : mundane Placidus semi-arc
+// (all-to-all), validees contre Morinus. ACTIF par defaut (bascule 2026-07-06).
+// n8n Cloud n'alimente pas process.env -> le defaut doit porter le mode voulu en
+// PROD ; l'override local DTC_DP_MUNDANE=0 permet de revenir en zodiacal (A/B, bench).
+// PROD-safe (garde typeof process).
+const _DTC_DP_FRAME = (typeof process !== "undefined" && process.env && process.env.DTC_DP_MUNDANE === "0") ? "zodiacal" : "mundane";
 try {
     const _prep = $("2. Préparation dynamique1").first()?.json;
     const _vars = $("Extract Variables").first()?.json;
@@ -65,7 +71,7 @@ try {
                 method: "POST",
                 url: "http://46.225.174.155:8000/directions/primary",
                 headers: { "Content-Type": "application/json" },
-                body: { birth: _birth, target_year: _annee, mode: "rigoureux", dp_orb_yr: 1.0 },
+                body: { birth: _birth, target_year: _annee, mode: "rigoureux", dp_orb_yr: 1.0, frame: _DTC_DP_FRAME },
                 json: true,
                 timeout: 15000,
             });

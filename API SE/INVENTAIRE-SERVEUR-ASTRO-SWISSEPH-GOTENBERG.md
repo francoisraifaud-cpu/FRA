@@ -176,6 +176,8 @@ services:
     ports:
       - "3000:3000"
     mem_limit: "1536m"
+    volumes:
+      - ./fontconfig/local.conf:/etc/fonts/local.conf:ro
     logging:
       driver: json-file
       options:
@@ -186,6 +188,34 @@ services:
       - "--chromium-disable-javascript=false"
       - "--chromium-allow-list=.*"
 ```
+
+### 6.1bis Polices — alias fontconfig (2026-06-14)
+
+**Problème résolu** : dans les rapports (carte du ciel THEME/PREV/SYN, rapports
+données/technique/récit), les **signes du zodiaque** (U+2648–2653) ressortaient en
+**pastilles emoji colorées** dans les PDF Gotenberg, alors qu'ils s'affichaient en
+glyphes astrologiques **trait fin** dans les navigateurs (Windows → Segoe UI Symbol).
+
+**Cause** : les CSS demandent des familles absentes du conteneur Linux
+(`Segoe UI Symbol`, `Apple Symbols`, `Symbola`, `Arial Unicode MS`, et
+`Noto Sans Symbols 2` avec espace = nom Google Fonts). Chromium retombait sur
+`Noto Sans Symbols2` / `Noto Sans`, qui rendent ces points de code en **présentation
+emoji**.
+
+**Correctif** : [`fontconfig/local.conf`](./fontconfig/local.conf) (monté sur
+`/etc/fonts/local.conf`) prepend `Noto Sans Symbols` (trait fin, déjà présent dans
+l'image) **avant** `Noto Sans Symbols2` pour toutes ces familles. Aucun ajout de
+police, aucune modification des workflows n8n. Vérification :
+
+```bash
+docker exec astro-gotenberg-1 fc-match "Segoe UI Symbol"
+# -> NotoSansSymbols-Regular.ttf: "Noto Sans Symbols" "Regular"
+```
+
+> Note : les polices de **texte** `Playfair Display` (titres) et `Source Sans 3` (corps)
+> ne sont pas installées dans le conteneur et retombent sur `Noto Sans`. Non corrigé ici
+> (hors périmètre du bug pictogrammes) — à installer si l'on veut un rendu typographique
+> PDF strictement identique au navigateur.
 
 ### 6.2 Conteneur observé
 

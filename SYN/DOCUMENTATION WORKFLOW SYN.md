@@ -1,19 +1,23 @@
 # DOCUMENTATION WORKFLOW — SYNASTRIE
 
-**Version courante** : moteur scoring **v6.8.0 (gelé, 2026-05-06)** + narration **v7.0.0 (GA, 2026-05-06)** — voir § 17.
-**Plateforme** : n8n Cloud (workflow ID `4mjgklWWwjCF8fze`, alias `SYN — PROD`)
+**Version courante** : moteur scoring **v6.8.0 (gelé, 2026-05-06)** + narration **v7.0.0 (GA, 2026-05-06)** + **tableau de bord client v7.4.0** + **affichage encart synthèse v7.4.1** (2026-07-04) — voir §§ 17 et **18**.
+**Plateforme** : n8n Cloud — workflow **SYN — PROD** (`xfenvGOyoYB6GyZH`), préprod **`eshtbInOYSd3Cz3Z`**
 **Auteur** : François Raifaud
 
 **Architecture binaire scoring / narration** (depuis 2026-05-06) :
 
 - **Moteur de scoring v6.8.0** — gelé. Aucune modification des coefficients, pivots, seuils de bandes ou algorithmes de pondération sans réouverture explicite (clauses Q51 du gel, voir § 17.1). L'historique complet des sprints v3.x → v5.0.0 → v6.x est conservé tel quel ci-dessous (§§ 3 à 16) pour traçabilité.
 - **Narration v7.0.0** — itère librement sur le `synthPrompt`, le lexique typologique, la structure des prompts et la valorisation des marqueurs, sans toucher à un seul coefficient de scoring. Champ `narrative_version` distinct de `version` (qui reste `6.8.0`).
+- **Tableau de bord client v7.4.0** (2026-07-04) — objet `relationship_dashboard` (8 axes + intro/note/descriptions FR/EN). Couche **présentation client** : libellés descriptifs recadrés (pas de promesse de réussite). Déployé sur Super noeud Syn PREPROD/PROD/Connect. Voir § 18.
+- **Affichage encart synthèse v7.4.1** (2026-07-04) — remplacement de l'ancien encart « NOTE GLOBALE D'HARMONIE XX/100 » par le **libellé de bande qualitative** + **description curée** (`qualitative_band.desc`). Voir § 18.4.
 
 **Bench de référence post-arbitrages** (2026-05-06) :
 
 | Cohorte | Métrique | Valeur |
 |---|---|---|
 | 79 cas (v6.8.0 super.ndjson) | Cohérence tolérante Q46+Q52 | **96.2 %** |
+| 79 cas (cohorte fiabilité axes, 2026-07-04) | Concordance rang axes vs issue documentée (Amour) | Voir § 18.5 — **Durabilité / Valeurs** prédictifs ; **Mental / Intensité** faibles ou inversés |
+| 79 cas (fragilité bandes, 2026-07-04) | Libellé stable si Δ Harmonie ≤ 3 pts | **71 %** robustes ; **29 %** « sur le fil » (marge médiane **5,5 pts**) |
 | 30 cas réels stratifiés sur 8 typologies + 5 témoins (v7.0.0-β.2 stratifié) | **Cohérence tolérante Q46+Q52+Q53** | **100 %** (30/30) |
 | 30 cas | Incohérences sévères (≥ 2 bandes) | **0** |
 | 5 témoins absurdes | Sentinelles violées | **0/5** |
@@ -25,7 +29,7 @@
 - Drapeaux structurels : 0
 - Audit qualitatif manuel sur 7 cas critiques : 7/7 cohérents avec la réalité historique
 
-Détails complets : § 17 (v6.0 → v7.0.0 GA), `SITE/scripts/SYN-V7-CHANTIER.md`, `SITE/scripts/syn-bench-coherence-narrative-v7.0.0-beta2-rapport.md`. Synthèse publique : fiche produit `/rapports/syn` (section « Validation et fiabilité »).
+Détails complets : § 17 (v6.0 → v7.0.0 GA), **§ 18 (tableau de bord 8 axes + audit fiabilité 2026-07-04)**, `SITE/scripts/SYN-V7-CHANTIER.md`, `SITE/scripts/syn-bench-coherence-narrative-v7.0.0-beta2-rapport.md`. Synthèse publique : fiche produit `/rapports/syn` (section « Validation et fiabilité »).
 
 ---
 
@@ -857,7 +861,7 @@ Rapport HTML/PDF (v3.0) — visualisation exhaustive de toutes les données calc
 
 ## 8. RAPPORT HTML TECHNIQUE (`N8N SYN Repport HTML Tech`)
 
-Rapport narratif destiné aux **astrologues professionnels** :
+Rapport **Essentiel** destiné aux **astrologues professionnels** :
 
 - **12 cartouches de maisons** (6 perspective A + 6 perspective B), triées par score décroissant
 - Chaque cartouche contient :
@@ -869,7 +873,10 @@ Rapport narratif destiné aux **astrologues professionnels** :
   - Bandeau « Impact de X sur Y »
   - Description contextuelle synastrie
   - **Texte LLM BRUT** (non vulgarisé) — termes techniques conservés
+- **Tableau de bord relationnel** (8 axes) — section dédiée avec **libellé de bande qualitative** au-dessus des barres (§ 18.3)
+- **Interprétation des 8 axes** (LLM Gemini, chaîne `SYN Axes · …`) — section séparée si activée
 - **Synthèse relationnelle** globale (texte LLM brut)
+- **Encart rose de synthèse** (v7.4.1) — en tête du **dernier chapitre** (« En résumé et conseils », ch. 11) : libellé de bande (police repère, identique au tableau de bord) + description curée. **Plus de note chiffrée** « NOTE GLOBALE D'HARMONIE » (§ 18.4)
 
 ### Couleurs des perspectives
 - **Perspective A** (Impact de B sur A) : bleu `#2E5FA3` / badges `#dbeafe`
@@ -879,10 +886,12 @@ Rapport narratif destiné aux **astrologues professionnels** :
 
 ## 9. RAPPORT HTML FINAL (`N8N SYN Repport HTML Final`)
 
-Rapport narratif destiné au **client final** :
+Rapport **Expert** destiné au **client final** :
 
 - Structure identique au rapport Tech (mêmes cartouches, mêmes badges)
-- **Seule différence** : texte LLM vulgarisé par le Traducteur
+- **Seule différence narrative** : texte LLM vulgarisé par le Traducteur
+- **Tableau de bord relationnel** (8 axes) + **libellé de bande** — identique Essentiel (§ 18.3)
+- **Encart rose de synthèse** (v7.4.1) — en tête du **dernier chapitre de synthèse** (« Synthèse Relationnelle », ch. 03) : libellé + description (§ 18.4)
 - Couleurs des badges harmonisées avec le Theme : `#e8f0fe` / `#1F3864` (perspective A), `#fef3c7` / `#92400e` (perspective B)
 - Mention « Aucune planète majeure en overlay » si aucun tier 1–2 dans une maison
 - Pas de Score ni de badges Principale/Secondaire (contrairement au rapport Tech)
@@ -1074,13 +1083,13 @@ Les trois workflows partagent désormais un socle de modulations astrologiques c
 | `GLOBAL SYN` | ~3000+ | Workflow n8n complet (orchestration de tous les nœuds) |
 | `N8N SYN Extract Variables` | — | Extraction des variables depuis email Gmail |
 | `N8N SYN PREPARE DATA` | — | Pipeline de préparation des données natales A et B |
-| `N8N SYN` | ~6200 | **Super Nœud Central** : calculs synastrie + scoring v4.0.0 (4 piliers + dual score + correctif viabilité + modulations harmonisées + besieged + Jones + importance structurelle + pénalités étendues) + prompts compressés + rôles + Ebertin v2 + Brady v2 + **préparation des 13 slots LLM** |
+| `N8N SYN` | ~10200 | **Super Nœud Central** : calculs synastrie + scoring v6.8.0 + `relationship_dashboard` v7.4.0 + bandes qualitatives v6 + prompts |
 | `N8N SYN LLM` | ~950 | 13 agents LLM + Reassemble — prompts reçus via `$('Super noeud Syn')` |
 | `N8N SYN Trad LLM` | — | Pipeline de vulgarisation |
 | `N8N SYN Valideur` | ~710 | Validation post-LLM v4.0 (composite guard, EN, dignités complètes, overlay synthèse, possessifs grammaticaux) |
 | `N8N SYN Repport` | ~2100 | Rapport Données Techniques HTML — score v4.0.0, dual score, correctif viabilité, nouvelles métriques P1-P4, pénalités enrichies |
-| `N8N SYN Repport HTML Tech` | ~500 | Rapport Technique narratif + score v4.0.0 avec pénalités étendues (sign_friction, structural_void, combust) |
-| `N8N SYN Repport HTML Final` | ~485 | Rapport Final narratif (vulgarisé) + score global + forces/défis incluant réception, cazimi, sign_friction |
+| `N8N SYN Repport HTML Tech` | ~1580 | Rapport **Essentiel** narratif + tableau de bord 8 axes + encart synthèse v7.4.1 (`_harmonyVerdict`) |
+| `N8N SYN Repport HTML Final` | ~2190 | Rapport **Expert** narratif (vulgarisé) + tableau de bord + encart synthèse v7.4.1 |
 | `N8N SYN Chaine Repport` | 108 | Chaîne export Données Techniques |
 | `N8N SYN Chaine Repport HTML Tech` | 163 | Chaîne export Rapport Technique |
 | `N8N SYN Chaine Repport HTML Final` | 181 | Chaîne export Rapport Final |
@@ -1344,6 +1353,12 @@ Si un bench textuel automatique (LLM-Judge) est lancé hors n8n pour évaluer la
 | `SITE/scripts/syn-bench-coherence-narrative-v7.0.0-beta2-rapport.md` | Rapport non-régression β.2 |
 | `SITE/scripts/_run-bench-stratifie-beta2.mjs` | Wrapper bench (charge `.env.local` + fixe ONLY/MANIFEST/OUT_NDJSON) |
 | `SITE/scripts/syn-bench-llm-generate-v7.mjs` | Squelette LLM-Judge phase 2 (génération seule via Gemini direct API) |
+| `SITE/scripts/syn-deploy-verdict.mjs` | Déploiement encart synthèse v7.4.1 (patch `_harmonyVerdict` in-place) |
+| `SITE/scripts/syn-verdict-mockup.mjs` | Maquette forme Expert/Essentiel sans LLM |
+| `SITE/scripts/_enprat/syn-dashboard/validate-axes-vs-outcome.mjs` | Audit discriminant 8 axes vs issue documentée |
+| `SITE/scripts/_enprat/syn-dashboard/band-fragility.mjs` | Audit fragilité libellé de bande |
+
+> Tableau de bord, libellés et audit fiabilité : voir **§ 18**.
 
 ### 17.11 Plan freeze GA — checklist (clos)
 
@@ -1352,3 +1367,236 @@ Si un bench textuel automatique (LLM-Judge) est lancé hors n8n pour évaluer la
 3. ✅ Renommage `narrative_version` `v7.0.0-beta.3` → **`v7.0.0`** (GA)
 4. ✅ Mise à jour finale `SYN-V7-CHANTIER.md` (statut clos)
 5. ✅ Verrouillage moteur `v6.8.0` + narration `v7.0.0` GA — état présent
+
+---
+
+## 18. TABLEAU DE BORD 8 AXES, LIBELLÉS QUALITATIFS & AUDIT FIABILITÉ (2026-07-04)
+
+Cette section documente le chantier **présentation client** (libellés, encarts, cadrage honnête) et l'**audit empirique** de la valeur prédictive des 8 axes — distinct du gel scoring v6.8.0 (§ 17). Aucun coefficient de scoring n'a été modifié ; seuls les textes client, l'objet `relationship_dashboard` et le rendu HTML des rapports ont évolué.
+
+### 18.1 Objectif produit
+
+- Offrir **8 indices descriptifs** (0–100) + **une tonalité d'ensemble** (bande qualitative) pour aider le client à **comprendre la matière astrologique du lien**, sans promettre la réussite de la relation.
+- Remplacer l'ancien encart « **NOTE GLOBALE D'HARMONIE — XX/100** » (trompeur : le chiffre n'est pas prédictif de l'issue réelle) par une **phrase qualitative déterministe** curée par typologie.
+- Valider empiriquement **quels axes** (le cas échéant) discriminent une issue documentée sur une cohorte de couples célèbres.
+
+**Verdict commercial (2026-07-04)** : le moteur est **livrable en l'état** avec le cadrage descriptif v7.4.x. Les axes ne prédisent pas fidèlement la « réussite » du couple ; ils décrivent la texture astrologique. Le cadrage textuel protège contre la sur-interprétation.
+
+### 18.2 Tableau de bord relationnel — `relationship_dashboard` v7.4.0
+
+**Source unique** : nœud `Super noeud Syn` (`FRA/SYN/N8N SYN`), objet `relationship_dashboard` (champ `version: "v7.4.0"`).
+
+**Structure** :
+
+| Groupe | Axes (clé interne) | Libellé FR | Base de calcul (résumé) |
+|---|---|---|---|
+| **Le Lien** | `fluidite` | Fluidité | Harmonie globale v6 (= score affiché « Harmonie ») |
+| | `intensite` | Intensité | Charge énergétique interne (I) — **jamais seule au client comme pronostic** |
+| | `durabilite` | Durabilité | Saturne + Nœuds + structure temporelle |
+| | `karmique` | Karmique | Nœuds lunaires, direction évolutive vs répétitive |
+| **Les Domaines** | `mental` | Connexion mentale | Mercure + Maisons 3/9 (+ V3 : contacts Mercure↔planètes lentes) |
+| | `securite` | Sécurité émotionnelle | Lune + Maison 4 (+ V3 : contacts Lune↔planètes lentes) |
+| | `valeurs` | Alignement des valeurs | Vénus + Maison 2 (+ V3 : contacts Vénus↔planètes lentes) |
+| | `resonance` | Résonance publique | Maisons 10 + 11 |
+
+Chaque métrique expose : `score`, `label` (bande locale 0–100), `desc` / `desc_en`, `name` / `name_en`, `icon`.
+
+**Textes recadrés (2026-07-04)** — `intro`, `note`, et les 8 `desc` / `desc_en` :
+
+- **Intro** : « Huit indices pour comprendre la matière première de votre lien — des repères de lecture, pas des notes de réussite. »
+- **Note** : insiste sur **Durabilité** et **Alignement des valeurs** comme indices les plus révélateurs de la durée ; rappelle que maturité et travail des deux personnes comptent plus que les chiffres.
+- **Descriptions par axe** : ton accessible grand public ; nuance explicite sur Intensité et Connexion mentale (« ni bon ni mauvais présage », « seul, dit peu de la durée »).
+
+**Où c'est affiché** :
+
+| Surface | Renderer |
+|---|---|
+| Rapport **Expert** (PDF/HTML) | `N8N SYN Repport HTML Final` → `buildSynDashboard()` |
+| Rapport **Essentiel** | `N8N SYN Repport HTML Tech` → `buildSynDashboard()` |
+| Site SPIKKA (fiche client, Connect dashboard) | `SITE/lib/syn-dashboard-html.ts` — lit le même objet moteur, **pas de redéploiement Vercel** si seul le moteur n8n change |
+
+**Déploiement Super noeud** :
+
+```bash
+cd SITE
+npx dotenv -e .env.local -- node scripts/syn-deploy-supernode.mjs --dry   # plan
+npx dotenv -e .env.local -- node scripts/syn-deploy-supernode.mjs           # PREPROD par défaut
+SYN_WORKFLOW_ID=xfenvGOyoYB6GyZH npx dotenv -e .env.local -- node scripts/syn-deploy-supernode.mjs  # PROD
+```
+
+Cibles déployées (2026-07-04) : **SYN PREPROD** (`eshtbInOYSd3Cz3Z`), **SYN PROD** (`xfenvGOyoYB6GyZH`), **Connect** (`PL0qVLmYGFWorB2g` — Super noeud Syn partagé).
+
+### 18.3 Libellé de bande qualitative — mécanique et affichage
+
+**Calcul** : `computeQualitativeBandV6(H, I, signature, typoConf)` dans `N8N SYN`.
+
+- **H** = `harmony_global` (Harmonie affichée au client après bascule UI v6 — **identique** au score du cartouche et à l'axe Fluidité).
+- **I** = `intensity_global` (**interne** — sert au choix de bande et au steering LLM, pas affiché seul au client).
+- **Seuils** (registres engagement / partner / proximity — H haut = bon) :
+
+```
+H≥80 & I≥55 → bande 1   |  H≥75 & I<55 → 2  |  H≥62 → 3
+H≥45 & I≥60 → 4         |  H≥45 → 5
+H≥30 & I≥55 → 6         |  H≥30 → 7  |  sinon → 8
+```
+
+- **Registre** (`_BAND_VOCABULARY`) selon typologie :
+
+| Registre | Typologies | Ex. bande 4 FR |
+|---|---|---|
+| `engagement` | Amour, Parent/Enfant | Relation intense et transformative |
+| `partner` | Business, Mentorat, Fratrie, Famille | Synergie intense et transformative |
+| `proximity` | Ami, Colocataire | Lien intense, parfois inconfortable |
+| `adversity` | Rivalité (sémantique inversée) | Émulation puissante |
+
+Chaque bande expose : `{ band, band_en, desc, desc_en, color }` — **phrases fixes écrites à la main** (audit Q57), **pas** de texte procédural recombiné (cf. anciens « points forts » Connect retirés).
+
+**Deux emplacements d'affichage** (même source `global_score_detail.qualitative_band`) :
+
+1. **Au-dessus des 8 axes** — `buildSynDashboard()` : ligne `qbLine` en petites capitales interlettrées (`font-size:11px; letter-spacing:2.5px; text-transform:uppercase`).
+2. **Encart rose de synthèse** — `_harmonyVerdict()` v7.4.1 (§ 18.4).
+
+**Cohérence garantie** : le libellé et le chiffre Harmonie viennent de la **même** `harmony_global` (lignes « bascule UI » du Super noeud : `globalScoreResult.score = _globalHI.harmony` ; `qualitative_band = qualitative_band_v6`).
+
+### 18.4 Encart rose de synthèse — v7.4.1 (2026-07-04)
+
+**Historique** :
+
+| Version | Rendu |
+|---|---|
+| ≤ v7.3 | « NOTE GLOBALE D'HARMONIE — **56/100** — Relation intense… » |
+| v7.4.0 (rejeté) | Kicker « La tonalité d'ensemble du lien » + libellé gras + desc — **agencement non demandé** |
+| **v7.4.1 (actuel)** | **Libellé de bande** (police repère, = tableau de bord) + **description** (italique mantra, forme existante) |
+
+**Rendu actuel** (FR, exemple bande 6 Amour) :
+
+```
+LIEN INTENSE ET EXIGEANT
+Charge émotionnelle élevée et frictions marquées. La dynamique demande un travail
+conscient des deux partenaires pour se stabiliser et se sublimer.
+```
+
+- Plus de score `/100`. Plus de kicker « La tonalité d'ensemble du lien ».
+- Le texte LLM ne doit **pas** ré-émettre une ligne d'harmonie : `_cleanSynRaw()` la supprime ; l'encart est **100 % déterministe** (`_harmonyVerdict()`).
+
+**Emplacements** :
+
+| Rapport | Nœud n8n | Chapitre | Fonction |
+|---|---|---|---|
+| **Expert** | `Générateur de rapport final1` (`N8N SYN Repport HTML Final`) | Dernier chapitre synthèse (ex. **03 · Synthèse Relationnelle**) | `_harmonyVerdict()` en tête du corps |
+| **Essentiel** | `6. Génération HTML3` (`N8N SYN Repport HTML Tech`) | Dernier chapitre (ex. **11 · En résumé et conseils**) | idem |
+
+**Déploiement chirurgical** (remplace **uniquement** la fonction `_harmonyVerdict()` in-place — préserve le reste du code live, critique car PREPROD et PROD divergent de ~13k caractères sur le générateur Expert) :
+
+```bash
+cd SITE
+npx dotenv -e .env.local -- node scripts/syn-deploy-verdict.mjs --dry
+npx dotenv -e .env.local -- node scripts/syn-deploy-verdict.mjs                    # PREPROD
+SYN_WF=xfenvGOyoYB6GyZH npx dotenv -e .env.local -- node scripts/syn-deploy-verdict.mjs  # PROD
+```
+
+**État déploiement (2026-07-04)** : v7.4.1 **confirmée conforme** sur PREPROD et PROD (verify post-PUT). Backups : `SITE/scripts/syn-supernode-backups/WF-*-pre-verdict-*.json`.
+
+**SPIKKA Connect** : workflow `ESPACE CLIENT SPIKKA CONNECT - SYN - PROD` (`PL0qVLmYGFWorB2g`) = **data-only** (Super noeud → payload Connect). **Pas de nœud renderer** → l'encart rose n'existe pas côté Connect ; seul le libellé au-dessus des 8 axes s'affiche via le site.
+
+**Maquette forme (sans LLM)** :
+
+```bash
+node scripts/syn-verdict-mockup.mjs
+# → SITE/scripts/_enprat/out/verdict-mockup.html
+```
+
+Extrait verbatim : `buildSynDashboard()`, `_harmonyVerdict()`, `<style>` SPIKKA du rapport déployé.
+
+### 18.5 Audit fiabilisation — axes vs issue documentée
+
+**Contexte** : mesurer si les 8 axes (et dérivés) **classent correctement** des couples dont l'issue est documentée (`expected_verdict` : echec / tendu / moyen / fort), sur une cohorte élargie à partir du bench existant (`syn-bench-volume-fiabilite-manifest.json`, **95 couples**, natal + faits historiques).
+
+**Données** : `SITE/scripts/syn-bench-volume-fiabilite-super.ndjson` (79 couples exploitables avec `global_score` + dashboard complet après run PREPROD déterministe, LLM désactivés).
+
+**Scripts** :
+
+| Script | Rôle |
+|---|---|
+| `SITE/scripts/_enprat/syn-dashboard/validate-axes-vs-outcome.mjs` | Concordance de rang (AUC/Kendall) : pour chaque paire de couples à issue différente, l'ordre de la métrique respecte-t-il l'ordre de l'issue ? 0,5 = hasard ; >0,5 = discriminant ; <0,5 = **inversé** |
+| `SITE/scripts/_enprat/syn-dashboard/band-fragility.mjs` | Fragilité du **libellé** : plus petite variation d'Harmonie (I figée) qui ferait changer de bande 1–8 |
+
+**Usage** :
+
+```bash
+cd SITE
+node scripts/_enprat/syn-dashboard/validate-axes-vs-outcome.mjs
+node scripts/_enprat/syn-dashboard/validate-axes-vs-outcome.mjs scripts/syn-bench-volume-fiabilite-super.ndjson
+node scripts/_enprat/syn-dashboard/band-fragility.mjs
+```
+
+#### Résultats clés — pouvoir discriminant (typologie **Amour**, n≈40)
+
+| Métrique | Concordance | Lecture |
+|---|---|---|
+| **Durabilité** | **~0,65+** | Meilleur prédicteur simple |
+| **Valeurs** (V3) | **~0,60+** | Fort |
+| **socle** (= moyenne Durabilité + Valeurs) | **~0,86** | Composite recommandé pour lecture « solidité » |
+| **Fluidité / global_score** | ~0,55 | Faible, proche du hasard |
+| **Intensité** | **< 0,50** | **Anti-prédictif** (score élevé ↔ issue mauvaise) |
+| **Mental** (V3) | **< 0,50** | **Anti-prédictif** en contexte amoureux |
+| **pronostic** (= Durabilité + Valeurs + Résonance + Fluidité) | intermédiaire | Moins bon que `socle` seul |
+
+**Interprétation** :
+
+- Les axes décrivent bien **certaines facettes** (structure temporelle, valeurs) mais **pas** la « réussite globale » du couple.
+- **Intensité** et **Connexion mentale** élevées peuvent coexister avec une relation difficile (ex. couples fusionnels / intellectuels mais instables) — d'où le recadrage textuel v7.4.0.
+- L'audit **ne remet pas en cause** le gel scoring v6.8.0 : il informe le **cadrage produit**, pas une refonte de coefficients.
+
+#### Résultats clés — fragilité du libellé de bande (n=79)
+
+| Marge Δ Harmonie | Part des couples | Signification |
+|---|---|---|
+| ≤ 2 pts | 22 % | Très fragile (heure de naissance imprécise → bande adjacente) |
+| ≤ 3 pts | **29 %** | Sur le fil |
+| > 5 pts | **51 %** | Robuste |
+| **Médiane** | **5,5 pts** | — |
+
+**Atténuation produit** : un basculement de bande = passage entre **descriptions voisines** (ex. « Compatibilité solide » ↔ « Relation contrastée »), pas entre « alchimie exceptionnelle » et « lien-chantier ». Le passage v7.4.1 (descriptif sans chiffre) **absorbe** cette incertitude mieux qu'un score `/100` affiché.
+
+**Validation mécanique** : sur les 79 couples, le niveau recalculé `(H, I) → bande 1–8` **reproduit exactement** la bande stockée — pas de divergence entre calcul et affichage.
+
+### 18.6 Impact LLM (rapport Essentiel — interprétation des 8 axes)
+
+Le nœud `SYN Axes · Fiche & Prompt` (`SITE/scripts/n8n-syn-axes/fiche-prompt.js`) lit les **noms et descriptions** des axes depuis `relationship_dashboard`. Les nouvelles `desc` v7.4.0 **orientent** le ton Gemini (ex. « haute intensité ≠ garantie de durée »). Pas de changement de structure prompt ; impact **modéré** et souhaitable.
+
+Chaîne déployée via `SITE/scripts/syn-deploy-axes-llm.mjs` (PREPROD par défaut). **Ne pas confondre** avec `syn-deploy-verdict.mjs` (encart seul, sans toucher la chaîne LLM).
+
+### 18.7 Fichiers et outils — référentiel v7.4.x
+
+| Fichier / script | Rôle |
+|---|---|
+| `FRA/SYN/N8N SYN` | Super noeud : `relationship_dashboard` v7.4.0 + `_BAND_VOCABULARY` + calcul `(H,I)` |
+| `FRA/SYN/N8N SYN Repport HTML Final` | Rapport **Expert** : `buildSynDashboard` + `_harmonyVerdict` v7.4.1 |
+| `FRA/SYN/N8N SYN Repport HTML Tech` | Rapport **Essentiel** : idem |
+| `SITE/lib/syn-dashboard-html.ts` | Rendu site (Connect, fiches) |
+| `SITE/scripts/syn-deploy-supernode.mjs` | Déploiement Super noeud |
+| `SITE/scripts/syn-deploy-verdict.mjs` | Déploiement encart v7.4.1 (patch in-place) |
+| `SITE/scripts/syn-verdict-mockup.mjs` | Maquette forme Expert + Essentiel sans LLM |
+| `SITE/scripts/_enprat/syn-dashboard/validate-axes-vs-outcome.mjs` | Audit discriminant axes vs issue |
+| `SITE/scripts/_enprat/syn-dashboard/band-fragility.mjs` | Audit fragilité libellé |
+| `SITE/scripts/syn-bench-volume-fiabilite-manifest.json` | Cohorte 95 couples (natal + verdict) |
+| `SITE/scripts/syn-bench-volume-fiabilite-super.ndjson` | Sortie bench super (79 cas exploitables) |
+
+### 18.8 Limites connues et règles de maintenance
+
+1. **Ne pas réintroduire** de score chiffré « note globale » dans l'encart — trompeur au regard de l'audit § 18.5.
+2. **Ne pas** générer de texte procédural type « points forts » par recombination de mots-clés — pattern Connect retiré (catastrophique en prod).
+3. Toute modification des **descriptions** de bande (`desc` / `desc_en`) = relecture **intégrale** des 33 phrases FR + 33 EN (4 registres × 8 bandes + indifférence astrale) avant déploiement.
+4. Déploiement générateur : **toujours** patch in-place (`syn-deploy-verdict.mjs`) ou rebase depuis le **code live** n8n — le fichier canonique local peut diverger du live (PREPROD ≠ PROD sur ~13k caractères au 2026-07-04).
+5. Sensibilité **Placidus** : Harmonie est pondérée à 65 % sur les maisons principales → l'heure de naissance influence le libellé ; ~29 % des couples sont à ≤3 pts d'un seuil de bande.
+6. Le gel scoring v6.8.0 (§ 17.1) **reste en vigueur** : pas de patch de coefficients motivé par l'audit axes sans clause Q51 explicite.
+
+**Checklist déploiement v7.4.x (clos 2026-07-04)** :
+
+- [x] Descriptions 8 axes + intro/note v7.4.0 dans `N8N SYN`
+- [x] Déployé Super noeud PREPROD + PROD + Connect
+- [x] Encart v7.4.1 Expert + Essentiel PREPROD + PROD
+- [x] Audit discriminant + fragilité documentés
+- [x] Maquette forme `verdict-mockup.html`
+- [ ] (optionnel) Run e2e rapport complet site → PDF pour validation visuelle finale utilisateur

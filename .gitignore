@@ -3,3 +3,5 @@ node_modules/
 # Backups timestampés (locaux, ne pas versionner)
 *.backup-*.json
 *.backup-*
+# Backups pré-édition locaux du Super noeud PREV (moteur, volumineux, régénérables)
+PREV/dp-report-backups/

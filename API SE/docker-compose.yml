@@ -4,6 +4,13 @@
 #
 # Port public attendu : 3000 (voir UFW + INVENTAIRE-SERVEUR-ASTRO-SWISSEPH-GOTENBERG.md).
 # Limites mémoire + rotation logs (Compose file format / plugin v2).
+#
+# Polices (2026-06-14) : ./fontconfig/local.conf est monté dans /etc/fonts/local.conf.
+# Il alias les familles symboles demandées par les CSS (Segoe UI Symbol, Apple Symbols,
+# Symbola, Arial Unicode MS, "Noto Sans Symbols 2") vers "Noto Sans Symbols" (trait fin)
+# AVANT "Noto Sans Symbols2" : sinon les signes du zodiaque (U+2648-2653) sont rendus en
+# présentation EMOJI colorée (laide) au lieu des glyphes astrologiques monochromes.
+# S'applique à TOUS les rapports (données/technique/récit) et workflows (THEME/PREV/SYN).
 
 services:
   gotenberg:
@@ -12,6 +19,8 @@ services:
     ports:
       - "3000:3000"
     mem_limit: "1536m"
+    volumes:
+      - ./fontconfig/local.conf:/etc/fonts/local.conf:ro
     logging:
       driver: json-file
       options:

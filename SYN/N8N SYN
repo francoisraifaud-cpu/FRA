@@ -7361,6 +7361,13 @@ globalScoreDetail = { ...globalScoreResult.detail, qualitative_band: globalScore
 // construction avec les notes affichées dans les cartouches. Le score v5.0.0
 // (globalScore) est conservé pour debug et continuité durant la transition.
 //
+// Neutralité typologique de l'axe mental (dashboard) : snapshot des maisons
+// AVANT compensation intra-axe. La compensation est typologie-dépendante
+// (Mentorat/Fratrie/Ami touchent M3/M9) ; le mental doit rester identique quelle
+// que soit la typologie → il lira les maisons III/IX BRUTES (houseHarmonyRaw).
+const houseHIBinA_raw = JSON.parse(JSON.stringify(houseHIBinA));
+const houseHIAinB_raw = JSON.parse(JSON.stringify(houseHIAinB));
+
 // v6.2.0 — Compensation intra-axe (recommandation astrologue) appliquée AVANT
 // le calcul du score global pour que la compensation se reflète à la fois
 // dans les cartouches (HTML) et dans le score global. Bidirectionnelle.
@@ -8629,22 +8636,74 @@ synthPrompt += `\n`;
 // ║  hiérarchie de priorité de développement.                             ║
 // ╚═══════════════════════════════════════════════════════════════════════╝
 
-// ── BLOC A — STRUCTURE NARRATIVE OBLIGATOIRE ───────────────────────────
+// ── BLOC A — STRUCTURE NARRATIVE OBLIGATOIRE (v8 — 7 chapitres adaptés à la typologie) ──
+// Le rapport final client est chapitré : le générateur récit transforme chaque
+// titre « ## n. … » en cartouche bleu marine. Les titres DOIVENT donc être
+// propres (client-facing, sans parenthèses ni jargon). Les libellés s'adaptent
+// à la typologie pour sortir du moule générique « amour ».
+const _CHAP_TITLES = {
+    "Amour": {
+        fr: ["Votre rencontre amoureuse", "L'attraction et l'alchimie", "Intimité, dialogue et émotions", "Les défis du couple", "L'engagement et l'avenir", "Le « nous » que vous créez", "En résumé et conseils pour votre couple"],
+        en: ["Your romantic encounter", "Attraction and chemistry", "Intimacy, dialogue and emotions", "The couple's challenges", "Commitment and the future", "The « we » you create", "In summary, and advice for your couple"]
+    },
+    "Business": {
+        fr: ["Votre association", "Vos forces complémentaires", "Communication et prise de décision", "Les zones de conflit", "La solidité dans la durée", "L'entreprise commune", "En résumé et conseils pour réussir ensemble"],
+        en: ["Your partnership", "Your complementary strengths", "Communication and decision-making", "Areas of conflict", "Long-term solidity", "The shared venture", "In summary, and advice to succeed together"]
+    },
+    "Parent / Enfant": {
+        fr: ["Votre lien parent-enfant", "L'attachement et la sécurité", "Autorité, autonomie et transmission", "Les frictions à apaiser", "Le fil karmique familial", "La famille que vous formez", "En résumé et conseils pour grandir ensemble"],
+        en: ["Your parent-child bond", "Attachment and security", "Authority, autonomy and transmission", "Frictions to soothe", "The family karmic thread", "The family you form", "In summary, and advice to grow together"]
+    },
+    "Fratrie": {
+        fr: ["Votre lien fraternel", "Vos complicités et affinités", "Le dialogue au quotidien", "Les rivalités à apaiser", "Le lien dans la durée", "Ce que votre fratrie construit", "En résumé et conseils pour votre lien"],
+        en: ["Your sibling bond", "Your shared affinities", "Everyday dialogue", "Rivalries to soothe", "The bond over time", "What your siblinghood builds", "In summary, and advice for your bond"]
+    },
+    "Ami": {
+        fr: ["Votre amitié", "La complicité et les affinités", "Le dialogue et les centres d'intérêt", "Les sources de friction", "La fidélité dans le temps", "Ce que votre amitié crée", "En résumé et conseils pour votre amitié"],
+        en: ["Your friendship", "Closeness and affinities", "Dialogue and shared interests", "Sources of friction", "Loyalty over time", "What your friendship creates", "In summary, and advice for your friendship"]
+    },
+    "Mentorat": {
+        fr: ["Votre relation de mentorat", "La transmission et l'inspiration", "Le dialogue pédagogique", "Les écueils à éviter", "La portée dans le temps", "Ce que cette relation fait grandir", "En résumé et conseils pour avancer"],
+        en: ["Your mentoring relationship", "Transmission and inspiration", "The pedagogical dialogue", "Pitfalls to avoid", "Impact over time", "What this relationship grows", "In summary, and advice to move forward"]
+    },
+    "Colocataire": {
+        fr: ["Votre cohabitation", "Ce qui facilite la vie commune", "La communication du quotidien", "Les frictions de l'espace partagé", "La tenue dans la durée", "L'équilibre du foyer commun", "En résumé et conseils pour bien cohabiter"],
+        en: ["Your cohabitation", "What eases shared living", "Everyday communication", "Frictions of shared space", "Holding up over time", "The balance of the shared home", "In summary, and advice to live well together"]
+    },
+    "Rivalité": {
+        fr: ["Votre rivalité", "Ce qui vous oppose", "La dynamique de confrontation", "Les points de bascule", "La rivalité dans la durée", "Ce que cette opposition révèle", "En résumé et conseils face à l'autre"],
+        en: ["Your rivalry", "What sets you apart", "The confrontation dynamic", "Tipping points", "Rivalry over time", "What this opposition reveals", "In summary, and advice facing the other"]
+    }
+};
+const _chapSet = _CHAP_TITLES[typologie] || _CHAP_TITLES["Amour"];
+const _chapList = isEN ? _chapSet.en : _chapSet.fr;
+const _chapLines = _chapList.map((tt) => `## ${tt}`).join("\n");
+
 synthPrompt += isEN
-  ? `## MANDATORY NARRATIVE STRUCTURE — output MUST contain these 5 sections, named and ordered :\n\n`
-    + `### 1. Nature of the bond (Typology)\n`
-    + `### 2. Interaction dynamics (Harmony / Tension)\n`
-    + `### 3. The cement of time (Longevity)\n`
-    + `### 4. The created entity (Composite)\n`
-    + `### 5. Final verdict + Qualitative band\n\n`
-    + `If a section has no significant content, write « Nothing salient at this layer. » — never skip the heading.\n\n`
-  : `## STRUCTURE NARRATIVE OBLIGATOIRE — la sortie DOIT contenir ces 5 sections, nommées et ordonnées :\n\n`
-    + `### 1. La nature du lien (Typologie)\n`
-    + `### 2. La dynamique d'interaction (Harmonie / Tension)\n`
-    + `### 3. Le ciment du temps (Longévité)\n`
-    + `### 4. L'entité créée (Composite)\n`
-    + `### 5. Verdict final + Bande qualitative\n\n`
-    + `Si une section n'a aucun contenu saillant, écris « Rien de saillant à ce niveau. » — ne saute jamais l'en-tête.\n\n`;
+  ? `## MANDATORY NARRATIVE STRUCTURE — the output MUST contain EXACTLY these 7 sections, named EXACTLY (verbatim) and in this order :\n\n`
+    + _chapLines + `\n\n`
+    + `WRITING RULES (this is a complete premium client report, NOT a teaser) :\n`
+    + `  • Output ONLY these 7 sections and NOTHING else : do NOT add an "Introduction", a "Conclusion", a preamble, a closing note, or any extra heading. Section 1 is the opening, section 7 is the closing.\n`
+    + `  • Use a level-2 markdown heading for each section title (e.g. "## ${_chapList[0]}"), with NO number prefix.\n`
+    + `  • Each section = 2 to 3 substantial paragraphs. Aim for depth : the rendered report should reach roughly 15-20 pages.\n`
+    + `  • Reuse the section titles VERBATIM — no added parentheses, codes, planet names or jargon in the titles.\n`
+    + `  • Vulgarise for an intelligent client who is NOT an astrologer : name a planet or house once, then immediately explain what it concretely means for THEIR relationship. Never leave raw technical jargon unexplained.\n`
+    + `  • Map the analytical layers onto the 7 sections : attraction/affinities → §2, daily dynamics (Mercury, Moon) → §3, frictions → §4, longevity (Saturn, nodes) → §5, composite « we » → §6.\n`
+    + `  • Section 7 MUST open with ONE plain line, no markdown emphasis : « Overall harmony score: XX/100 — <qualitative band> », then a clear synthesis AND 3 to 5 concrete, actionable tips tailored to "${typoConfig.label_en}".\n`
+    + `  • Do NOT bold inline numbers or metrics. Use bold for at most one key phrase per section.\n`
+    + `  • Always develop every section honestly — never write « Nothing salient ».\n\n`
+  : `## STRUCTURE NARRATIVE OBLIGATOIRE — la sortie DOIT contenir EXACTEMENT ces 7 sections, nommées EXACTEMENT (au mot près) et dans cet ordre :\n\n`
+    + _chapLines + `\n\n`
+    + `RÈGLES DE RÉDACTION (c'est un rapport client premium complet, PAS un teaser) :\n`
+    + `  • Ne produis QUE ces 7 sections et RIEN d'autre : n'ajoute AUCUNE « Introduction », « Conclusion », préambule, note de fin, ni aucun titre supplémentaire. La section 1 est l'ouverture, la section 7 la clôture.\n`
+    + `  • Utilise un titre markdown de niveau 2 pour chaque section (ex. « ## ${_chapList[0]} »), SANS préfixe numérique.\n`
+    + `  • Chaque section = 2 à 3 paragraphes substantiels. Vise la profondeur : le rendu doit atteindre ~15 à 20 pages.\n`
+    + `  • Reprends les titres de section À L'IDENTIQUE — aucune parenthèse, code, nom de planète ni jargon ajoutés dans les titres.\n`
+    + `  • Vulgarise pour un client intelligent qui n'est PAS astrologue : nomme une planète ou une maison une seule fois, puis explique aussitôt ce que ça veut dire concrètement pour LEUR relation. Ne laisse jamais un terme technique brut sans explication.\n`
+    + `  • Répartis les étages d'analyse sur les 7 sections : attraction/affinités → §2, dynamique quotidienne (Mercure, Lune) → §3, frictions → §4, longévité (Saturne, Nœuds) → §5, composite « nous » → §6.\n`
+    + `  • La section 7 DOIT commencer par UNE ligne simple, sans emphase markdown : « Note globale d'harmonie : XX/100 — <bande qualitative> », puis une synthèse claire ET 3 à 5 conseils concrets et actionnables adaptés à "${typoConfig.label_fr}".\n`
+    + `  • N'utilise PAS de gras sur les nombres ou les métriques en ligne. Réserve le gras à une phrase-clé par section au maximum.\n`
+    + `  • Développe honnêtement chaque section — n'écris jamais « Rien de saillant ».\n\n`;
 
 // ── BLOC D — PROFONDEUR TYPOLOGIQUE (Q54 priorité 1) ───────────────────
 synthPrompt += isEN
@@ -9595,28 +9654,272 @@ const relationshipDashboard = (() => {
     const karmDir = (ev > rep + 0.5) ? { fr: "Évolutif (croissance)", en: "Evolutionary (growth)" }
         : (rep > ev + 0.5) ? { fr: "Répétitif (déjà-vu)", en: "Repetitive (déjà-vu)" }
         : { fr: "Équilibré", en: "Balanced" };
-    // 5. Connexion mentale (Mercure↔Mercure + signe)
-    const mentalScore = clamp(50 + homo("mercure_mercure_soft", "mercure_mercure_hard") + signRel("Mercure"));
-    // 6. Sécurité émotionnelle (Lune↔Lune + signe + Maison IV)
+    // 5. Connexion mentale
+    // --- V1 (PROD, inchangé) : Mercure↔Mercure binaire (±25) + élément Mercure
+    const mentalV1 = clamp(50 + homo("mercure_mercure_soft", "mercure_mercure_hard") + signRel("Mercure"));
+    // --- V2 (flag DTC_SYN_MENTAL_V2) : réseau mental distribué.
+    // Doctrine sourcée (Teal L3265/L3272-73/L3932/L4019, Hand L7493, Rushman ; Brennan exclu) :
+    // la communication est un RÉSEAU autour de Mercure. Poids validés bench 2026-07-02 :
+    // Mercure↔Mercure = synchronie DIRECTE (poids max), Soleil↔Mercure fort, Lune/Mars/
+    // Vénus↔Mercure moyen ; aspects durs amortis ; + focales maisons III/IX (brutes) + plancher.
+    // Lecture seule : n'impacte QUE la tuile d'affichage, jamais le score global gelé.
+    // NB : scoring orbe-pondéré dédié (PAS computeAspectScoreHI, qui note une conjonction
+    // Soleil-Mercure à 0 en « fusion neutre » — non pertinent pour la connexion mentale).
+    // SÉMANTIQUE (2026-07-02) : ON par défaut. n8n Cloud bloque l'accès à process.env
+    // dans les nœuds Code → un flag "=== '1'" resterait à jamais OFF (V2 dormante).
+    // On active donc V2 par défaut et on garde le levier A/B LOCAL en posant "=== '0'".
+    const DTC_SYN_MENTAL_V2 = !(typeof process !== "undefined" && process.env && process.env.DTC_SYN_MENTAL_V2 === "0");
+    const _mentalNetworkAcc = () => {
+        // Une seule orientation (B→A) : elle contient déjà tous les aspects croisés
+        // physiques une seule fois. Combiner B→A et A→B double-compterait chaque contact.
+        // (= inter_aspects_all_b_to_a émis, cf. l.9793 → parité simulateur bit-à-bit.)
+        const asps = [
+            ...interAspectsTier1BtoA_enriched, ...interAspectsTier2BtoA_enriched
+        ];
+        // 5 majeurs ptolémaïques uniquement. Quinconce (ajustement) + demi-sextile
+        // écartés (2026-07-02) : signal faible/ambigu pour une connexion, et le
+        // quinconce classé "dur" n'injectait que du négatif parasite (cf. bench).
+        const SOFT = new Set(["Trigone", "Sextile", "Conjonction"]);
+        const HARD = new Set(["Carré", "Opposition"]);
+        // Poids reworkés + validés bench (2026-07-02, 15 personnalités publiques +
+        // entourage) : Mercure↔Mercure = signal de synchronie mentale le plus fort.
+        // Aspects DURS = friction mais engagement réel → pénalité AMORTIE (0.45 ;
+        // Mars 0.8 car combatif). Voir scripts/syn-bench-simulate-mental-v2.mjs.
+        const W = { "Mercure": 1.5, "Soleil": 0.9, "Lune": 0.7, "Mars": 0.6, "Vénus": 0.5 };
+        const HARD_DAMP = 0.45, HARD_DAMP_MARS = 0.8;
+        let acc = 0;
+        for (const a of asps) {
+            const s = a.planete_source, t = a.planete_cible;
+            if (s !== "Mercure" && t !== "Mercure") continue;
+            const other = (s === "Mercure") ? t : s;
+            if (!(other in W)) continue;                 // exclut Mercure↔lentes (→ axe karmique)
+            const isSoft = SOFT.has(a.aspect), isHard = HARD.has(a.aspect);
+            if (!isSoft && !isHard) continue;
+            const orbe = typeof a.orbe === "number" ? a.orbe : 5;
+            const orbeFactor = Math.max(0.15, 1 - Math.min(orbe, 8) / 8);
+            const w = W[other];
+            if (isSoft) {
+                acc += w * orbeFactor;                    // harmonie mentale
+            } else {
+                const damp = other === "Mars" ? HARD_DAMP_MARS : HARD_DAMP;
+                acc += -w * orbeFactor * damp;            // friction amortie
+            }
+        }
+        return acc;                                      // typiquement ~[-2..+2.5]
+    };
+    // Neutralité typologique : maisons III/IX lues AVANT compensation (snapshots
+    // houseHIBinA_raw / houseHIAinB_raw), donc mental identique quelle que soit la typo.
+    const houseHarmonyRaw = (h) => {
+        const a = houseHIBinA_raw[h] || houseHIBinA_raw[String(h)] || {};
+        const b = houseHIAinB_raw[h] || houseHIAinB_raw[String(h)] || {};
+        const vals = [a.harmony, b.harmony].filter((v) => typeof v === "number");
+        return vals.length ? vals.reduce((s, v) => s + v, 0) / vals.length : 50;
+    };
+    const computeMentalV2 = () => {
+        const AMP = 30, K = 1.5, BETA = 0.30, FLOOR = 45, FLOOR_ACC = 0.35;
+        const acc = _mentalNetworkAcc();
+        const net = AMP * Math.tanh(acc / K);                              // borné [-30, +30]
+        const maison = 0.6 * houseHarmonyRaw(3) + 0.4 * houseHarmonyRaw(9); // focales III/IX brutes, neutre 50
+        let v2 = 50 + net + BETA * (maison - 50) + signRel("Mercure");
+        // Réseau Mercure quasi-neutre → mental NEUTRE (plancher), pas négatif :
+        // absence de lien ≠ conflit. Un vrai aspect dur (net franchement négatif) passe.
+        if (Math.abs(acc) < FLOOR_ACC) v2 = Math.max(v2, FLOOR);
+        return clamp(v2);
+    };
+    // V2 calculé une fois ; le score final (V1/V2/V3) est assigné plus bas, après la
+    // définition du helper _domainOuterTerm (partagé avec Sécurité/Valeurs).
+    const mentalV2Val = computeMentalV2();
+
+    // ---- V2 « Domaines » : Sécurité (Lune) + Valeurs (Vénus) sur le MÊME modèle
+    // réseau que le mental (Mercure) : réseau planétaire autour d'une planète
+    // centrale + maison(s) focale(s) BRUTES (neutralité typologique) + plancher.
+    // Corrige l'angle mort V1 : l'aspect binaire ±25 planète↔même-planète ignore
+    // le réseau (ex : Lune↔Vénus trigone = grande sécurité mais 0 sans Lune↔Lune).
+    // Poids = points de départ doctrinaux ; calibration au bench déterministe final.
+    // SÉMANTIQUE (2026-07-02) : ON par défaut (cf. note DTC_SYN_MENTAL_V2). OFF local via "=== '0'".
+    const DTC_SYN_SECU_V2     = !(typeof process !== "undefined" && process.env && process.env.DTC_SYN_SECU_V2 === "0");
+    const DTC_SYN_VALEURS_V2  = !(typeof process !== "undefined" && process.env && process.env.DTC_SYN_VALEURS_V2 === "0");
+    const DTC_SYN_RESONANCE_V2 = !(typeof process !== "undefined" && process.env && process.env.DTC_SYN_RESONANCE_V2 === "0");
+    // V3 Sécurité / Mental / Valeurs (réseau planète centrale + planètes lentes + Jupiter).
+    // GO acté 2026-07-03 : runtime PREPROD prouvé (exec #9320 _dtcError AUCUN, valeurs V3 =
+    // prédictions bench offline, global_score isolé). Défaut ON via "!(=== '0')" — n8n
+    // n'expose pas process.env → ON en PROD ; OFF local pour A/B via DTC_SYN_*_V3=0.
+    // Miroir strict du pattern des flags V2 (DTC_SYN_MENTAL_V2 etc.).
+    const DTC_SYN_SECU_V3     = !(typeof process !== "undefined" && process.env && process.env.DTC_SYN_SECU_V3 === "0");
+    const DTC_SYN_MENTAL_V3   = !(typeof process !== "undefined" && process.env && process.env.DTC_SYN_MENTAL_V3 === "0");
+    const DTC_SYN_VALEURS_V3  = !(typeof process !== "undefined" && process.env && process.env.DTC_SYN_VALEURS_V3 === "0");
+    // Réseau générique autour d'une planète centrale (parité stricte avec _mentalNetworkAcc :
+    // même source d'aspects, mêmes classes SOFT/HARD, même orbeFactor, même amortissement dur).
+    const _domainNetworkAcc = (central, W, hardDampDefault, hardDampMars) => {
+        const asps = [
+            ...interAspectsTier1BtoA_enriched, ...interAspectsTier2BtoA_enriched
+        ];
+        // 5 majeurs ptolémaïques uniquement (quinconce + demi-sextile écartés, cf. mental).
+        const SOFT = new Set(["Trigone", "Sextile", "Conjonction"]);
+        const HARD = new Set(["Carré", "Opposition"]);
+        let acc = 0;
+        for (const a of asps) {
+            const s = a.planete_source, t = a.planete_cible;
+            if (s !== central && t !== central) continue;
+            const other = (s === central) ? t : s;
+            if (!(other in W)) continue;
+            const isSoft = SOFT.has(a.aspect), isHard = HARD.has(a.aspect);
+            if (!isSoft && !isHard) continue;
+            const orbe = typeof a.orbe === "number" ? a.orbe : 5;
+            const orbeFactor = Math.max(0.15, 1 - Math.min(orbe, 8) / 8);
+            const w = W[other];
+            if (isSoft) {
+                acc += w * orbeFactor;
+            } else {
+                const damp = (other === "Mars") ? hardDampMars : hardDampDefault;
+                acc += -w * orbeFactor * damp;
+            }
+        }
+        return acc;
+    };
+    const _computeDomainV2 = (central, W, houseFocals) => {
+        const AMP = 30, K = 1.5, BETA = 0.30, FLOOR = 45, FLOOR_ACC = 0.35;
+        const acc = _domainNetworkAcc(central, W, 0.45, 0.8);
+        const net = AMP * Math.tanh(acc / K);                          // borné [-30, +30]
+        let maison = 0, wsum = 0;
+        for (const hf of houseFocals) { maison += hf[1] * houseHarmonyRaw(hf[0]); wsum += hf[1]; }
+        maison = wsum ? maison / wsum : 50;                            // maisons BRUTES, neutre 50
+        let v2 = 50 + net + BETA * (maison - 50) + signRel(central);
+        if (Math.abs(acc) < FLOOR_ACC) v2 = Math.max(v2, FLOOR);       // réseau neutre → pas de conflit
+        return clamp(v2);
+    };
+
+    // 6. Sécurité émotionnelle (réseau Lune + Maison IV)
+    // V1 (PROD) : Lune↔Lune binaire ±25 + signe + Maison IV (50/50).
     const securiteAspect = 50 + homo("lune_lune_soft", "lune_lune_hard") + signRel("Lune");
-    const securiteScore = clamp(0.5 * houseHarmony(4) + 0.5 * securiteAspect);
-    // 7. Alignement des valeurs (Vénus↔Vénus + signe + Maison II)
+    const securiteV1 = clamp(0.5 * houseHarmony(4) + 0.5 * securiteAspect);
+    // V2 : réseau Lune (Lune=synchronie émotionnelle, Vénus=tendresse, Soleil=chaleur,
+    // Mars=passion/réactivité, Mercure=dialogue) + Maison IV brute + plancher.
+    const securiteV2 = _computeDomainV2("Lune",
+        { "Lune": 1.5, "Vénus": 1.0, "Soleil": 0.9, "Mars": 0.6, "Mercure": 0.5 }, [[4, 1]]);
+    // V3 : réseau Lune inner INCHANGÉ (tanh) + terme d'affliction/soutien des planètes
+    // lentes appliqué HORS tanh (modèle longevityIndex saturn_glue/burden). Corrige
+    // l'angle mort V2 : Lune↔{Saturne,Uranus,Neptune,Pluton,Jupiter} étaient exclues de W
+    // (invisibles), et un malus dur y serait dilué par la saturation tanh du réseau inner.
+    // Doctrine sourcée (Teal Lune-Pluton dur « remake the Moon individual », Teal Lune-Uranus
+    // « domestic instability… separations », Hand/Rushman Lune-Saturne socle/durée, Teal
+    // Lune-Jupiter « most generously ») : cf. BRIEFING-SYN-SECU-V3-2026-07-03.md.
+    // Poids = points /100 orbe-pondérés, cappés [-20,+12]. Conjonctions ASYMÉTRIQUES :
+    // Saturne/Jupiter = glue (+) ; Pluton/Uranus = fusion anti-refuge (−) ; Neptune neutre.
+    const _securiteOuterTerm = () => {
+        const asps = [...interAspectsTier1BtoA_enriched, ...interAspectsTier2BtoA_enriched];
+        const OUTER = new Set(["Saturne", "Uranus", "Neptune", "Pluton", "Jupiter"]);
+        const SOFT = new Set(["Trigone", "Sextile"]);
+        const HARD = new Set(["Carré", "Opposition"]);
+        const HARD_W = { "Uranus": 9, "Pluton": 9, "Neptune": 7, "Saturne": 6 };
+        const SOFT_W = { "Saturne": 8, "Jupiter": 6, "Neptune": 4, "Pluton": 4, "Uranus": 3 };
+        const CONJ_W = { "Jupiter": 6, "Saturne": 4, "Neptune": 0, "Uranus": -2, "Pluton": -3 };
+        let acc = 0;
+        for (const a of asps) {
+            const s = a.planete_source, t = a.planete_cible;
+            if (s !== "Lune" && t !== "Lune") continue;
+            const other = (s === "Lune") ? t : s;
+            if (!OUTER.has(other)) continue;
+            const orbe = typeof a.orbe === "number" ? a.orbe : 5;
+            const orbeFactor = Math.max(0.15, 1 - Math.min(orbe, 8) / 8);
+            if (SOFT.has(a.aspect)) acc += (SOFT_W[other] || 0) * orbeFactor;
+            else if (a.aspect === "Conjonction") acc += (CONJ_W[other] || 0) * orbeFactor;
+            else if (HARD.has(a.aspect)) acc -= (HARD_W[other] || 0) * orbeFactor;
+        }
+        return Math.max(-20, Math.min(12, acc));
+    };
+    // V3 = V2 (validé, plancher inclus) + terme d'affliction/soutien outer, clampé.
+    // Couche de correction ADDITIVE pure : périmètre V2 intact, pas de discontinuité
+    // de plancher (une couche « recompute » créait une falaise à |terme|=1). Une
+    // affliction outer réelle peut faire passer un réseau inner neutre plancherisé
+    // SOUS 45, ce qui est doctrinalement correct (un dur Lune-Pluton EST un conflit).
+    const securiteV3 = clamp(securiteV2 + _securiteOuterTerm());
+    const securiteScore = DTC_SYN_SECU_V3 ? securiteV3 : (DTC_SYN_SECU_V2 ? securiteV2 : securiteV1);
+
+    // Terme générique d'affliction/soutien des planètes lentes + Jupiter autour d'une
+    // planète centrale (même mécanique que _securiteOuterTerm, mais tables par axe).
+    // Utilisé par Mental V3 (Mercure) et Valeurs V3 (Vénus). SOFT=Trigone/Sextile (bonus),
+    // HARD=Carré/Opposition (malus), Conjonction traitée à part (polarité par planète).
+    // Orbe-pondéré, cappé [capLo,capHi]. Couche ADDITIVE sur le V2 validé de l'axe.
+    const _domainOuterTerm = (central, HARD_W, SOFT_W, CONJ_W, capLo, capHi) => {
+        const asps = [...interAspectsTier1BtoA_enriched, ...interAspectsTier2BtoA_enriched];
+        const OUTER = new Set(["Saturne", "Uranus", "Neptune", "Pluton", "Jupiter"]);
+        const SOFT = new Set(["Trigone", "Sextile"]);
+        const HARD = new Set(["Carré", "Opposition"]);
+        let acc = 0;
+        for (const a of asps) {
+            const s = a.planete_source, t = a.planete_cible;
+            if (s !== central && t !== central) continue;
+            const other = (s === central) ? t : s;
+            if (!OUTER.has(other)) continue;
+            const orbe = typeof a.orbe === "number" ? a.orbe : 5;
+            const orbeFactor = Math.max(0.15, 1 - Math.min(orbe, 8) / 8);
+            if (SOFT.has(a.aspect)) acc += (SOFT_W[other] || 0) * orbeFactor;
+            else if (a.aspect === "Conjonction") acc += (CONJ_W[other] || 0) * orbeFactor;
+            else if (HARD.has(a.aspect)) acc -= (HARD_W[other] || 0) * orbeFactor;
+        }
+        return Math.max(capLo, Math.min(capHi, acc));
+    };
+
+    // 5b. Mental V3 — même correctif systémique que Sécurité. Réseau Mercure inner
+    // INCHANGÉ ; on ajoute les contacts Mercure↔{Jupiter,Saturne,Uranus,Neptune,Pluton}
+    // (invisibles en V2, faussement renvoyés « → axe karmique » qui ne les capte pas).
+    // Doctrine : Mercure-Jupiter = vision partagée/humour/optimisme (+, contact le plus
+    // manquant) ; Mercure-Saturne dur = sentiment d'être jugé/bloqué mentalement (Hand) ;
+    // Mercure-Neptune dur = malentendu/confusion/flou chronique ; Mercure-Pluton dur =
+    // joutes de pouvoir mental/manipulation ; Mercure-Uranus = stimulant (soft) / erratique
+    // (hard). Conjonctions surtout positives pour l'esprit (stimulation/structure).
+    // Poids calibrés bench offline 2026-07-03 (mean Δ ≈ 0 = redistribution, PAS inflation) :
+    // HARD conservés (l'affliction mentale doit mordre), SOFT/CONJ trimmés pour éviter de
+    // regonfler un axe déjà haut. Jupiter reste le bénéfique dominant (vision partagée).
+    const mentalV3 = clamp(mentalV2Val + _domainOuterTerm("Mercure",
+        { "Saturne": 7, "Neptune": 7, "Pluton": 6, "Uranus": 5 },
+        { "Jupiter": 6, "Uranus": 4, "Saturne": 3, "Pluton": 3, "Neptune": 3 },
+        { "Jupiter": 5, "Uranus": 2, "Saturne": 1, "Neptune": 0, "Pluton": 0 },
+        -18, 12));
+    const mentalScore = DTC_SYN_MENTAL_V3 ? mentalV3 : (DTC_SYN_MENTAL_V2 ? mentalV2Val : mentalV1);
+
+    // 7. Alignement des valeurs (réseau Vénus + Maison II)
+    // V1 (PROD) : Vénus↔Vénus binaire ±25 + signe + Maison II (50/50).
     const valeursAspect = 50 + homo("venus_venus_soft", "venus_venus_hard") + signRel("Vénus");
-    const valeursScore = clamp(0.5 * houseHarmony(2) + 0.5 * valeursAspect);
+    const valeursV1 = clamp(0.5 * houseHarmony(2) + 0.5 * valeursAspect);
+    // V2 : réseau Vénus (Vénus=goûts communs, Soleil=valorisation, Lune=valeurs
+    // affectives, Mercure=goûts intellectuels, Mars=désir) + Maison II brute + plancher.
+    const valeursV2 = _computeDomainV2("Vénus",
+        { "Vénus": 1.5, "Soleil": 0.9, "Lune": 0.8, "Mercure": 0.6, "Mars": 0.5 }, [[2, 1]]);
+    // V3 — même correctif : réseau Vénus inner INCHANGÉ + contacts Vénus↔{Jupiter,Saturne,
+    // Uranus,Neptune,Pluton} (invisibles en V2). Doctrine : Vénus-Jupiter = joie/générosité/
+    // valeurs partagées (Teal « happy arrangements » — LE contact le plus manquant, +) ;
+    // Vénus-Saturne = loyauté/engagement (soft) vs froideur/dévalorisation (hard, MODÉRÉ car
+    // aussi liant/durable) ; Vénus-Pluton dur = obsession/possession/pouvoir sur les
+    // ressources ; Vénus-Neptune dur = illusion/désillusion ; Vénus-Uranus dur = instabilité.
+    // Poids calibrés bench offline 2026-07-03 (mean Δ ≈ 0). HARD conservés, SOFT/CONJ trimmés.
+    // Vénus-Jupiter reste fort (+) : c'est LE bénéfique « valeurs partagées » que V2 ignorait.
+    const valeursV3 = clamp(valeursV2 + _domainOuterTerm("Vénus",
+        { "Pluton": 8, "Saturne": 6, "Neptune": 6, "Uranus": 6 },
+        { "Jupiter": 7, "Saturne": 4, "Neptune": 4, "Pluton": 3, "Uranus": 2 },
+        { "Jupiter": 5, "Saturne": 2, "Neptune": 1, "Uranus": -1, "Pluton": -3 },
+        -18, 12));
+    const valeursScore = DTC_SYN_VALEURS_V3 ? valeursV3 : (DTC_SYN_VALEURS_V2 ? valeursV2 : valeursV1);
+
     // 8. Résonance publique (Maisons X + XI)
-    const resonanceScore = clamp((houseHarmony(10) + houseHarmony(11)) / 2);
+    // V1 (PROD) : moyenne des maisons X/XI compensées (typologie-dépendant).
+    const resonanceV1 = clamp((houseHarmony(10) + houseHarmony(11)) / 2);
+    // V2 : mêmes maisons mais BRUTES (neutralité typologique, cohérence groupe Domaines).
+    const resonanceV2 = clamp((houseHarmonyRaw(10) + houseHarmonyRaw(11)) / 2);
+    const resonanceScore = DTC_SYN_RESONANCE_V2 ? resonanceV2 : resonanceV1;
 
     return {
         scale: 100,
-        version: "v7.2.0",
+        version: "v7.4.0",
         title: { fr: "Tableau de bord relationnel", en: "Relationship Dashboard" },
         intro: {
-            fr: "Huit indices descriptifs notés de 0 à 100 : des repères pour comprendre la relation, pas des notes de réussite.",
-            en: "Eight descriptive indices scored from 0 to 100: landmarks to understand the relationship, not pass/fail grades."
+            fr: "Huit indices pour comprendre la matière première de votre lien — des repères de lecture, pas des notes de réussite.",
+            en: "Eight indices to understand the raw material of your bond — reading landmarks, not pass/fail grades."
         },
         note: {
-            fr: "Ces indices décrivent la matière première du lien, pas sa réussite. Un lien peu fluide mais intense est souvent un lien de croissance : la maturité et le travail des deux personnes comptent bien davantage que ces chiffres.",
-            en: "These indices describe the raw material of the bond, not its success. A bond low in fluidity but high in intensity is often a growth bond: the maturity and shared work of both people matter far more than these numbers."
+            fr: "Ces indices décrivent la matière première du lien, pas sa réussite. Les plus révélateurs de la durée sont souvent la Durabilité et l'Alignement des valeurs — davantage que l'Intensité ou la seule Connexion mentale. Au final, la maturité et le travail des deux personnes comptent bien plus que ces chiffres.",
+            en: "These indices describe the raw material of the bond, not its success. The most telling of longevity are often Durability and Shared Values — more than Intensity or Mental connection alone. Ultimately, the maturity and shared work of both people matter far more than these numbers."
         },
         groups: {
             lien: ["fluidite", "intensite", "durabilite", "karmique"],
@@ -9628,37 +9931,37 @@ const relationshipDashboard = (() => {
         },
         metrics: {
             fluidite: mk(fluiditeScore, bandQuality(fluiditeScore),
-                "Aisance naturelle et confort du lien au quotidien.",
-                "Natural ease and day-to-day comfort of the bond.",
+                "À quel point les échanges coulent sans effort au quotidien. Une aisance naturelle qui facilite la vie commune — sans garantir à elle seule la solidité du lien.",
+                "How effortlessly things flow between you day-to-day. A natural ease that smooths shared life — though ease alone doesn't make a bond solid.",
                 { name: "Fluidité", name_en: "Fluidity", icon: "🌊" }),
             intensite: mk(intensiteScore, bandIntensity(intensiteScore),
-                "Charge énergétique, passion et puissance transformatrice.",
-                "Energetic charge, passion and transformative power.",
+                "La charge et le magnétisme du lien, sa puissance émotionnelle. Ni bon ni mauvais présage en soi : une forte intensité peut souder autant qu'épuiser, selon la maturité de chacun.",
+                "The charge and magnetism of the bond, its emotional power. Neither a good nor a bad omen in itself: high intensity can bind as much as it can drain, depending on each partner's maturity.",
                 { name: "Intensité", name_en: "Intensity", icon: "🌋" }),
             durabilite: mk(durabiliteScore, bandQuality(durabiliteScore),
-                "Capacité du lien à tenir dans la durée (Saturne, structure, engagement).",
-                "Capacity of the bond to last over time (Saturn, structure, commitment).",
+                "L'aptitude du lien à tenir dans le temps : engagement, constance, capacité à traverser les épreuves. C'est souvent le meilleur indice de solidité d'une relation.",
+                "The bond's capacity to last: commitment, steadiness, and the ability to weather hardship. Often the strongest sign of a relationship's solidity.",
                 { name: "Durabilité", name_en: "Durability", icon: "🪨" }),
             karmique: mk(karmiqueScore, bandKarmic(karmiqueScore),
-                "Profondeur du fil karmique (Nœuds lunaires) et direction de la rencontre.",
-                "Depth of the karmic thread (lunar Nodes) and direction of the encounter.",
+                "La profondeur du fil « d'âme » et la tonalité de la rencontre : plutôt tournée vers la croissance, ou vers la répétition de schémas déjà connus.",
+                "The depth of the \"soul thread\" and the tone of the encounter: leaning toward growth, or toward replaying familiar patterns.",
                 { name: "Karmique", name_en: "Karmic", icon: "🧭",
                     direction: karmDir.fr, direction_en: karmDir.en }),
             mental: mk(mentalScore, bandQuality(mentalScore),
-                "Fluidité intellectuelle et qualité de la communication (Mercure).",
-                "Intellectual flow and quality of communication (Mercury).",
+                "Le plaisir de penser et d'échanger ensemble : dialogue, curiosité, compréhension mutuelle. Un vrai confort au quotidien — qui, seul, dit peu de la durée du lien.",
+                "The pleasure of thinking and talking together: dialogue, curiosity, mutual understanding. A real day-to-day comfort — which alone says little about how long the bond lasts.",
                 { name: "Connexion mentale", name_en: "Mental connection", icon: "🏎️" }),
             securite: mk(securiteScore, bandQuality(securiteScore),
-                "Sécurité affective, vulnérabilité et sentiment de refuge (Lunes, Maison IV).",
-                "Emotional safety, vulnerability and sense of refuge (Moons, House IV).",
+                "Le sentiment de confiance et de refuge : pouvoir baisser la garde et se sentir compris. Un besoin fondamental, dont l'intensité varie selon les moments de la vie.",
+                "The sense of trust and refuge: lowering your guard and feeling understood. A fundamental need whose strength shifts across life's seasons.",
                 { name: "Sécurité émotionnelle", name_en: "Emotional safety", icon: "🛡️" }),
             valeurs: mk(valeursScore, bandQuality(valeursScore),
-                "Alignement des valeurs, du goût et du rapport au matériel (Vénus, Maison II).",
-                "Alignment of values, taste and material outlook (Venus, House II).",
+                "Le partage des goûts, des priorités et du rapport à l'argent et au plaisir. Un socle discret mais puissant : les couples qui durent s'accordent souvent d'abord sur l'essentiel.",
+                "Shared tastes, priorities and outlook on money and pleasure. A quiet but powerful foundation: lasting couples often align first on what truly matters.",
                 { name: "Alignement des valeurs", name_en: "Shared values", icon: "🎨" }),
             resonance: mk(resonanceScore, bandQuality(resonanceScore),
-                "Rayonnement social du lien et capacité à bâtir ensemble (Maisons X, XI).",
-                "Social radiance of the bond and ability to build together (Houses X, XI).",
+                "Votre capacité à construire et à exister ensemble aux yeux du monde : projets communs, place du couple dans la vie sociale.",
+                "Your ability to build and exist together in the eyes of the world: shared projects and the couple's place in social life.",
                 { name: "Résonance publique", name_en: "Public resonance", icon: "🏛️" })
         }
     };
@@ -9783,7 +10086,12 @@ const _fullSynData = {
         top_activation_a_in_b: topHousesByActivationAinB,
         // v6.0.0 — double scoring (Harmony, Intensity), source de vérité côté UI
         houses_hi_b_in_a: houseHIBinA,
-        houses_hi_a_in_b: houseHIAinB
+        houses_hi_a_in_b: houseHIAinB,
+        // 2026-07-02 — snapshots BRUTS (pré-compensation typologique) : source exacte
+        // des focales V2 (mental III/IX, sécurité IV, valeurs II, résonance X/XI).
+        // Permet la parité bit-à-bit moteur == simulateur quelle que soit la typologie.
+        houses_hi_b_in_a_raw: houseHIBinA_raw,
+        houses_hi_a_in_b_raw: houseHIAinB_raw
     },
     prompts_a: maisonsResultA,
     prompts_b: maisonsResultB,
