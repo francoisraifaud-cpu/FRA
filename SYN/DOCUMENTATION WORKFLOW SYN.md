@@ -1,8 +1,10 @@
 # DOCUMENTATION WORKFLOW — SYNASTRIE
 
 **Version courante** : moteur scoring **v6.8.0 (gelé, 2026-05-06)** + narration **v7.0.0 (GA, 2026-05-06)** + **tableau de bord client v7.4.0** + **affichage encart synthèse v7.4.1** (2026-07-04) — voir §§ 17 et **18**.
-**Plateforme** : n8n Cloud — workflow **SYN — PROD** (`xfenvGOyoYB6GyZH`), préprod **`eshtbInOYSd3Cz3Z`**
+**Plateforme** : n8n Cloud — workflow **SYN — PROD** (`xfenvGOyoYB6GyZH`, actif), préprod **`eshtbInOYSd3Cz3Z`**
 **Auteur** : François Raifaud
+
+> **Doc rafraîchie 2026-07-07** (inventaire workflow) : §1 réécrite sur les **107 nœuds PROD réels** ; **validateur v4.2** (polarité nodale, §6) ; garde-fou **POLARITÉ NODALE** du traducteur (§5) ; nouvelle chaîne de **livraison site Vercel Blob + email** (§ 10bis). **Source de vérité = workflow live n8n** ; les fichiers `FRA/SYN/N8N SYN *` sont des fragments de déploiement/référence (pas toujours ISO au live). Snapshot canonique : `FRA/_workflow-backups-prod/2026-07-07/SYN-PROD.json` (branche `backup/workflows-prod-2026-07-07`), régénérable via `SITE/scripts/n8n-export-prod-workflows.mjs`.
 
 **Architecture binaire scoring / narration** (depuis 2026-05-06) :
 
@@ -42,23 +44,37 @@ Le workflow **SYN** produit l'analyse complète de la synastrie entre deux indiv
 - Un **score global de compatibilité** (0–100) et un **scoring par maison** pondéré par la grille typologique
 - Des **rapports HTML/PDF** : données techniques, rapport narratif technique, rapport narratif final (vulgarisé)
 
-### Architecture des nœuds
+### Architecture des nœuds (PROD — 107 nœuds, snapshot 2026-07-07)
 
-| Nœud | Fichier | Rôle |
+Le workflow PROD compte **107 nœuds**. Vue par couches (noms **n8n réels**) : double entrée (webhook site OU email Gmail), pipeline d'enrichissement dédoublé A/B + composite Davison, Super Nœud central, 13 agents LLM d'interprétation, pipeline récit (vulgarisation), validateur silencieux, chaîne « 8 axes » (tableau de bord), 3 rapports HTML→PDF, et chaîne de livraison site + email.
+
+| Couche | Nœuds n8n | Rôle |
 |---|---|---|
-| **Extract Variables SYN** | `N8N SYN Extract Variables` | Extraction des variables formulaire (2 personnes, typologie, langue, rôle) + déduction automatique des rôles pour typologies asymétriques |
-| **Prepare Data SYN** | `N8N SYN PREPARE DATA` | Géocodage + fuseaux + appels API Planètes/Maisons/Étoiles/Éclipses pour A et B + Enrichissements A/B + Davison |
-| **Super Nœud SYN** | `N8N SYN` | **NŒUD CENTRAL** — Overlays, inter-aspects, composite, Davison, scoring, prompt engineering, **préparation des 13 slots LLM** (tri par score, consignes Markdown, propagation `_meta` et `_synRef`) |
-| **LLM Interprétation** | `N8N SYN LLM` | 13 agents Gemini 3.1 Pro Preview (6 maisons A + 6 maisons B + synthèse) — données reçues via `Merge SYN Final1` |
-| **Reassemble SYN** | (dans `N8N SYN LLM`) | Reconstruction `perspective_a`, `perspective_b`, `synthese` — référence `$('Super noeud Syn')` |
-| **Traducteur / Vulgarisateur** | `N8N SYN Trad LLM` | Vulgarisation du texte technique pour le client final |
-| **Validateur** | `N8N SYN Valideur` | Validation silencieuse post-LLM (JSON) — détection d'incohérences |
-| **Rapport Données Techniques** | `N8N SYN Repport` | Rapport HTML complet : bi-roue SVG, tableaux, scoring, toutes couches |
-| **Rapport HTML Tech** | `N8N SYN Repport HTML Tech` | Rapport narratif technique (texte LLM brut + cartouches maisons) |
-| **Rapport HTML Final** | `N8N SYN Repport HTML Final` | Rapport narratif final (texte vulgarisé + cartouches maisons) |
-| **Chaîne Export DT** | `N8N SYN Chaine Repport` | Conversion PDF + nommage + upload Google Drive (Données Techniques) |
-| **Chaîne Export Tech** | `N8N SYN Chaine Repport HTML Tech` | Conversion PDF + nommage + upload Google Drive (Rapport Technique) |
-| **Chaîne Export Final** | `N8N SYN Chaine Repport HTML Final` | Conversion PDF + nommage + upload Google Drive (Rapport Final) |
+| **Entrée** | `Webhook`, `Gmail Trigger SYN`, `Get Full Message`, `Extract Variables SYN` | Double déclencheur (commande site OU email) → extraction des variables (2 personnes, typologie, langue, rôle) + déduction des rôles asymétriques |
+| **Enrichissement A / B** | `Vars A/B`, `Géocodage A/B`, `Get TZ A/B`, `Timezone A/B`, `Attente Nominatim B`, `Attente TimezoneDB A/B`, `Préparation A/B`, `Planètes A/B`, `Wait A/B`, `Maisons A/B`, `Éclipses A/B`, `Étoiles A/B`, `Merge A/B`, `Fusion A/B`, `Enrichissement A/B` | Géocodage + fuseau + API Swiss Eph (planètes/maisons/éclipses/étoiles) + enrichissement natal (copie du moteur THEME) pour chaque personne |
+| **Composite / Davison** | `Merge SYN Final`, `Merge Davison`, `Préparation Davison`, `Planètes Davison`, `Wait Davison`, `Maisons Davison` | Thème Davison (mi-temps / mi-espace) |
+| **Nœud central** | `Super noeud Syn` | Overlays, inter-aspects tier 1/2, composite, Davison, **scoring v6.8.0**, `relationship_dashboard` v7.4.0, prépa des 13 slots LLM (§3, §17, §18) |
+| **LLM interprétation** | `SYN A1`–`A6`, `SYN B1`–`B6`, `SYN Synthèse` (+ modèles `Gemini A…`/`Gemini B…`/`Gemini Synthèse`), `Merge A1`/`Merge B1`/`Merge Final`/`Merge SYN Final1`, `Reassemble SYN` | 13 agents Gemini 3.1 Pro (6 maisons A + 6 maisons B + synthèse) → reconstruction `perspective_a/b` + `synthese` (§4) |
+| **Récit / vulgarisation** | `1. Découpage SYN Trad`, `2. Traducteur SYN` (+ `Gemini Trad SYN`), `3. Reassemble Trad SYN` | Vulgarisation du texte technique — inclut le garde-fou **POLARITÉ NODALE** (§5) |
+| **Validateur** | `SYN Valideur` | Contrôle silencieux post-LLM **v4.2** (§6) |
+| **Tableau de bord 8 axes** | `SYN Axes · Fiche & Prompt`, `SYN Axes · Interprétation` (+ `SYN Axes · Gemini Model`), `SYN Axes · Merge & Validate`, `Prépare payload SYN dashboard`, `POST SYN dashboard` | Interprétation LLM des 8 axes + POST du `relationship_dashboard` vers le site (§18) |
+| **Rapports HTML** | `5. Générer Fichier HTML1` (données techniques), `6. Génération HTML3` (rapport technique), `Générateur de rapport final1` (rapport final) | Génération des 3 rapports HTML (§7–9) |
+| **Export PDF** | `Contrôle Données Complètes4/5`, `Prépare HTML pour Gotenberg4/5`, `Convert HTML to PDF1/2/3`, `Fix Nom & MIME PDF final/1/3`, `Upload Google Drive1/2/5` | Conversion Gotenberg HTML→PDF + nommage dynamique + archivage Google Drive (§10) |
+| **Livraison site & email** | `Prépare email 3 PDF`, `Envoi Email avec PDF1`, `SYN SITE 3 PDF tiers`, `SYN PUT Blob PDF`, `SYN merge Blob URL + meta`, `SYN POST site status`, `SYN POST delivered_email` | Upload des 3 PDF vers **Vercel Blob** + callbacks statut/livraison au site + envoi email (§ 10bis) |
+
+**Correspondance fichier repo `FRA/SYN/` ↔ nœud n8n** (fragments principaux) :
+
+| Fichier repo | Nœud n8n |
+|---|---|
+| `N8N SYN Extract Variables Webhook.js` | `Extract Variables SYN` |
+| `N8N SYN` | `Super noeud Syn` |
+| `N8N SYN Valideur` | `SYN Valideur` (v4.2) |
+| `N8N SYN Repport` | `5. Générer Fichier HTML1` (données techniques) |
+| `N8N SYN Repport HTML Tech` | `6. Génération HTML3` (rapport technique) |
+| `N8N SYN Repport HTML Final` | `Générateur de rapport final1` (rapport final) |
+| `N8N SYN Trad LLM` | `2. Traducteur SYN` (prompt — voir note §5) |
+
+> ⚠️ Les noms de fichiers repo ne correspondent plus 1:1 aux noms n8n. En cas de doute, se référer au snapshot PROD (source de vérité).
 
 ---
 
@@ -783,12 +799,12 @@ Le Super Nœud SYN :
 
 ---
 
-## 5. TRADUCTEUR LLM (`N8N SYN Trad LLM`)
+## 5. TRADUCTEUR LLM — PIPELINE RÉCIT (`1. Découpage SYN Trad` → `2. Traducteur SYN` → `3. Reassemble Trad SYN`)
 
-### Pipeline
-1. **Découpage** : split des réponses LLM en items individuels (par maison/perspective)
-2. **Traducteur SYN** : agent Gemini — vulgarisation (même longueur, suppression du jargon)
-3. **Reassemble Trad SYN** : réalignement des métadonnées avec les textes vulgarisés
+### Pipeline (noms n8n réels)
+1. **`1. Découpage SYN Trad`** : split des réponses LLM en items individuels (par maison/perspective)
+2. **`2. Traducteur SYN`** (agent Gemini `Gemini Trad SYN`) : vulgarisation (même longueur, suppression du jargon)
+3. **`3. Reassemble Trad SYN`** : réalignement des métadonnées avec les textes vulgarisés
 
 ### Règles de vulgarisation
 - **Termes SUPPRIMÉS** : Trigone, Carré, Opposition, Sextile, Quinconce, Cuspide, Décan, Terme, Triplicité, Orbe, Domicile, Exaltation, Exil, Chute, Pérégrin, Midpoint, Antiscia, Dignité, Cazimi, Combuste
@@ -796,19 +812,37 @@ Le Super Nœud SYN :
 - **Remplacement** : « Maison X » → signification en langage courant
 - **Contrainte** : 100% de la longueur et architecture conservées
 
+### Garde-fou POLARITÉ NODALE (anti-inversion)
+
+Une clause est injectée dans le `systemMessage` du nœud `2. Traducteur SYN` pour empêcher l'inversion Nœud Nord / Nœud Sud lors de la vulgarisation (constat d'un swap sur un rapport « essentiel »). Texte déployé :
+
+> **POLARITÉ NODALE (anti-inversion)** : tu n'intervertis JAMAIS le Nœud Nord et le Nœud Sud, ni les planètes/personnes qui leur sont associées. Nœud Nord = avenir, croissance, cap d'évolution ; Nœud Sud = passé, acquis, zone de confort. Si la source associe une planète précise à un nœud précis (ex. « Nœud Nord sur la Lune », « Nœud Sud sur Mercure »), tu conserves STRICTEMENT cet appariement ET sa polarité — jamais l'inverse.
+
+- **Déploiement live-based** (pas via le fichier repo) : script `SITE/scripts/deploy-nodal-guardrail.mjs` (idempotent, marqueur `POLARITÉ NODALE`, backup avant PUT). Harmonisé sur les trois workflows (SYN / PREV / THEME), sur le nœud vulgarisateur de chacun.
+- **Filet déterministe complémentaire** : le validateur `SYN Valideur` v4.2 lève `nodal_polarity_error` si le swap passe malgré le prompt (§6).
+
 ---
 
-## 6. VALIDATEUR SILENCIEUX (`N8N SYN Valideur` — v3.0)
+## 6. VALIDATEUR SILENCIEUX (`SYN Valideur` — v4.2)
+
+Nœud **Code** silencieux (n8n : `SYN Valideur`). Entrée : sortie de `Reassemble SYN` ou `3. Reassemble Trad SYN`. Source de vérité : `Super noeud Syn` (aspects/overlays) + `Enrichissement A/B` (cartes natales). Sortie JSON consultable dans les logs (ne bloque pas le flux).
 
 ### Validations effectuées
 1. **Cohérence signes nataux** : planète attribuée au mauvais signe (FR + EN), avec désambiguïsation prénoms / contexte overlay
 2. **Cohérence maisons natales** : planète attribuée à la mauvaise maison (patterns FR + EN)
-3. **Overlay vs texte** : vérification que les planètes décrites correspondent aux overlays réels — **activé aussi sur la synthèse** (v3.0)
+3. **Overlay vs texte** : vérification que les planètes décrites correspondent aux overlays réels — activé aussi sur la synthèse
 4. **Vocabulaire prédictif interdit** : détection de formulations fatalistes / temporelles
 5. **Inversion A/B** : détection de confusion entre les deux personnes sur les signes
-6. **Dignités complètes** : Domicile, Exaltation, Exil, Chute — vérification contre les cartes natales (v3.0, auparavant seul Domicile)
-7. **Garde contexte composite/Davison** : les phrases mentionnant explicitement "composite", "Davison", "thème de la relation" sont **exclues** de la validation signes/maisons nataux pour éviter les faux positifs (v3.0)
-8. **Support langue EN** : reconnaissance des signes en anglais (Aries, Taurus…) + patterns "in house X", "in rulership", "in detriment" (v3.0)
+6. **Dignités complètes** : Domicile, Exaltation, Exil, Chute — vérification contre les cartes natales
+7. **Garde contexte composite/Davison** : les phrases mentionnant "composite", "Davison", "thème de la relation" sont **exclues** de la validation signes/maisons nataux (anti-faux positifs)
+8. **Support langue EN** : signes anglais (Aries, Taurus…) + patterns "in house X", "in rulership", "in detriment"
+9. **Polarité nodale** (`nodal_polarity_error`, **v4.2**) : détecte l'**inversion Nœud Nord / Nœud Sud** entre deux planètes (swap avéré). Appariement clause-à-clause, vérité = conjonctions Nœud↔planète du `Super noeud Syn`. Haute précision : ne lève que sur un croisement complet, **jamais** sur une opposition légitime. Complète le garde-fou de prompt du traducteur (§5).
+
+### Historique des correctifs
+- **v4.2** (2026-07) : ajout du contrôle polarité nodale (`nodal_polarity_error`).
+- **v4.1** : fix faux positif `dignity_error` — le rattachement dignité→planète privilégie la planète qui **précède** le terme de dignité (grammaire FR/EN), au lieu de la plus proche en distance absolue (`isDignityForThisPlanet`).
+- **v4.0** : fix parser possessifs grammaticaux (synthèse « ton/ta/tes » → A ; possessifs et rôles parenthétiques) + `isCompositeContext` dans `validatePersonSwap`.
+- **v3.0** : contexte composite/Davison, signes EN, dignités complètes, overlay synthèse.
 
 ### Sortie
 ```json
@@ -817,14 +851,16 @@ Le Super Nœud SYN :
   "totalWarnings": 0,
   "subjects": "Prénom NOM et Prénom NOM",
   "typologie": "...",
-  "perspective_a": { "M1": { "signW": [], "houseW": [], "overlayW": [], ... } },
-  "perspective_b": { ... },
-  "synthese": { "signW": [], "houseW": [], "overlayW": [], "predictW": [], "swapW": [], "dignityW": [], "total": 0 },
-  "ref_counts": { ... },
+  "perspective_a": { "M1": { "signW": [], "houseW": [], "overlayW": [], "predictW": [], "swapW": [], "dignityW": [], "nodalW": [], "total": 0 } },
+  "perspective_b": { "...": "..." },
+  "synthese": { "signW": [], "houseW": [], "overlayW": [], "predictW": [], "swapW": [], "dignityW": [], "nodalW": [], "total": 0 },
+  "ref_counts": { "...": "..." },
   "summary": "...",
   "timestamp": "..."
 }
 ```
+
+Chaque warning porte un `type` (`sign_mismatch`, `house_mismatch`, `overlay_mismatch`, `predictive_language`, `person_swap`, `dignity_error`, `nodal_polarity_error`). Le champ `total` par bloc = somme des 7 familles de warnings.
 
 ---
 
@@ -916,6 +952,30 @@ Les trois chaînes d'export génèrent des noms de fichiers dynamiques :
 
 ### Pipeline d'export
 1. Contrôle `isComplete` → Préparation HTML (binaire) → Conversion Gotenberg (HTML→PDF) → Renommage + MIME → Upload Google Drive
+
+---
+
+## 10bis. LIVRAISON SITE & EMAIL
+
+Chaîne exécutée après génération des 3 PDF, lorsqu'une commande provient du **site** (déclencheur `Webhook`). Elle publie les fichiers sur le stockage Vercel et notifie le back-office du site.
+
+| Nœud n8n | Type | Rôle |
+|---|---|---|
+| `Prépare email 3 PDF` | code | Assemble le corps d'email + attache les 3 PDF |
+| `Envoi Email avec PDF1` | gmail | Envoi client (voie email) |
+| `SYN SITE 3 PDF tiers` | code | Prépare la liste des 3 PDF (données techniques / technique / final) + métadonnées commande |
+| `SYN PUT Blob PDF` | httpRequest | Upload de chaque PDF vers **Vercel Blob** (`https://blob.vercel-storage.com/syn/<orderId>/…`) |
+| `SYN merge Blob URL + meta` | code | Fusionne les URLs Blob obtenues avec les métadonnées de la commande |
+| `SYN POST site status` | httpRequest | Callback statut de commande → `https://site-rapports-astro.vercel.app/api/webhooks/n8n-order-status` |
+| `SYN POST delivered_email` | httpRequest | Callback « email livré » → même endpoint `n8n-order-status` |
+
+**Tableau de bord relationnel** : en parallèle, la chaîne `SYN Axes ·` produit l'objet `relationship_dashboard` (8 axes) et le POSTe au site :
+
+| Nœud | Endpoint |
+|---|---|
+| `POST SYN dashboard` | `https://site-rapports-astro.vercel.app/api/webhooks/n8n-syn-dashboard` |
+
+> Les commandes reçues **par email** (`Gmail Trigger SYN`) court-circuitent la publication Blob/site : le client reçoit directement les PDF par email (`Envoi Email avec PDF1`).
 
 ---
 
@@ -1073,6 +1133,8 @@ Les trois workflows partagent désormais un socle de modulations astrologiques c
                 ▼              ▼
          [Chaîne Final]   [Logs JSON]
 ```
+
+> Schéma volontairement simplifié. Il ne montre pas : la double entrée (`Webhook` site + `Gmail Trigger SYN`), la chaîne **8 axes** (`SYN Axes ·` → `POST SYN dashboard`), ni la **livraison site** (`SYN PUT Blob PDF` → `SYN POST site status` / `SYN POST delivered_email`). Voir §1 (inventaire par couche), §10bis (livraison) et §18 (dashboard).
 
 ---
 
