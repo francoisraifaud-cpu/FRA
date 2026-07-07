@@ -1,9 +1,11 @@
 # DOCUMENTATION WORKFLOW — THÈME ASTRAL NATAL
 
-**Version** : v8.3 (Sprints 8.2 + 8.3 — Calibrage `computeChartShape` + orbes Yod resserrés ; déployé 2026-05-03)
-**Plateforme** : n8n Cloud
+**Version** : moteur v8.3 (Sprints 8.2 + 8.3 — `computeChartShape` + orbes Yod) — **roue v3** (glyphes ♀/♂, étoiles zodiacales, pictogrammes de Lots) — narration **Gemini 3.1 Pro** — branche **Figures (Signature Céleste)**.
+**Plateforme** : n8n Cloud — workflow **THEME — PROD** (`TbLFaLOx1dLW9oNP`, actif), préprod **`JVdFEkeD6rnYBnKX`**
 **Auteur** : François Raifaud
 **Bench de référence** : 100 thèmes natals de personnalités (sources Astro-Databank / Astrothème, audit Rodden Rating AA/A/B). Détail complet : `SITE/scripts/THEME-FIABILITE-RAPPORT.md`. Synthèse publique : fiche produit `/rapports/theme` du site (section « Validation et fiabilité »).
+
+> **Doc rafraîchie 2026-07-07** : §1 réécrite sur les **85 nœuds PROD réels** ; §6 = **deux** validateurs (`Theme Logs` legacy + `Assemble Récit + Validateur` actif) ; §7 = **pipeline récit** + garde-fou **POLARITÉ NODALE** ; nouvelles sections **Figures / Signature Céleste** et **Livraison site**. **Source de vérité = workflow live n8n** ; les fichiers `FRA/THEME/N8N Theme *` sont des fragments (pas toujours ISO). Snapshot canonique : `FRA/_workflow-backups-prod/2026-07-07/THEME-PROD.json` (branche `backup/workflows-prod-2026-07-07`), régénérable via `SITE/scripts/n8n-export-prod-workflows.mjs`.
 
 ---
 
@@ -15,21 +17,34 @@ Le workflow **THEME** produit l'analyse complète du thème astral natal d'un in
 - Des **prompts structurés** pour un LLM (Gemini) qui rédige l'interprétation narrative maison par maison + synthèse globale
 - Des **rapports HTML/PDF** techniques et finaux
 
-### Architecture des nœuds
+### Architecture des nœuds (PROD — 85 nœuds, snapshot 2026-07-07)
 
-| Nœud | Fichier | Rôle |
+Vue par couches (noms **n8n réels**) : double entrée (webhook site OU email Gmail), géocodage/fuseau, API Swiss Eph + enrichissement, 12 agents LLM + synthèse, pipeline récit, branche **Figures**, 3 rapports HTML→PDF, livraison site + email.
+
+| Couche | Nœuds n8n | Rôle |
 |---|---|---|
-| **Extract Variables** | `N8N Theme Extract Variables` | Extraction des variables du formulaire (prénom, nom, date, lieu, genre, langue, consigne de rédaction) |
-| **Prepare Data** | `N8N Theme Prepare Data` | Préparation et appels API (positions planétaires, maisons, étoiles fixes) |
-| **PrepareLL** | `N8N Theme PrepareLL` | Préparation des données pour le LLM |
-| **Restructure Merge** | `N8N Theme Restructure Merge` | Fusion et restructuration des données API |
-| **Enrichissement Astrologique** | `N8N Theme` | **NŒUD CENTRAL** — Tous les calculs astrologiques + génération des prompts LLM. Ce code est également répliqué dans le workflow PREV (nœud `Enrichissement Astrologique` de `N8N Prev Prepare Data Transits`) |
-| **LLM Interprétation** | `N8N Theme LLM` | Appel Gemini 3.1 Pro Preview — interprétation brute (1 appel par maison + synthèse = 13 appels) |
-| **Traducteur / Vulgarisateur** | `N8N Theme Trad LLM` | Appel Gemini — vulgarisation du texte technique pour le client final |
-| **Validateur** | `N8N Theme Validateur` | Validation silencieuse post-LLM (JSON) — détection d'hallucinations |
-| **Rapport Données Techniques** | `N8N Theme Repport` | Génération du rapport HTML des données techniques (roue, tableaux, légendes) |
-| **Rapport HTML Tech** | `N8N Theme Repport HTML Tech` | Assemblage du rapport narratif technique (texte LLM brut + cartouches maisons) |
-| **Rapport HTML Final** | `N8N Theme Repport HTML Final` | Assemblage du rapport narratif final (texte vulgarisé + cartouches maisons) |
+| **Entrée** | `Webhook`, `Gmail Trigger`, `Get Full Message1`, `Extract Variables` | Double déclencheur (commande site OU email) → extraction des variables (prénom, nom, date, lieu, genre, langue, consigne) |
+| **Géocodage / fuseau** | `1. Géocodage2`, `IF - Ville trouvée ?1`, `Extraction Coordonnées1`, `Gestion Erreur (Ville introuvable)1`, `1b. Prepare Timezone1`, `2. Préparation dynamique1` | Ville → coordonnées + fuseau + préparation des paramètres |
+| **API + enrichissement** | `3a. Calcul Planètes1`, `3b. Calcul Maisons`, `3c. Étoiles Fixes`, `Download Eclipses 1`, `4. Fusion Données`, `Parse JSON Propre1`, `Enrichissement Astrologique`, `Merge`/`Merge3`/`Merge4`/`Merge5`/`Merge6`, `Wait 2s` | API Swiss Eph (planètes, maisons, étoiles fixes, éclipses) + **NŒUD CENTRAL** `Enrichissement Astrologique` (dignités, aspects, configurations, lots… §2) |
+| **LLM interprétation** | `Maison 1`–`Maison 12`, `Synthèse Globale1` (+ modèles `Google Gemini Model 3`…`13`, `Google Gemini Model Synthesis`, `Google Gemini Chat Model`/`1`) | 13 agents Gemini 3.1 Pro (12 maisons + synthèse globale) |
+| **Récit / vulgarisation** | `0. Gatekeeper (Attente)2`, `1. Découpage (Boucle)2`, `Merge1`, `2. Traducteur (1 par 1)` (+ `Google Gemini Chat Model6`) | Pipeline récit — inclut le garde-fou **POLARITÉ NODALE** (§7) |
+| **Signature Céleste / Figures** | `Figures · Fiche & Prompt`, `Figures · Interprétation` (+ `Figures · Gemini Model`), `Figures · Merge & Validate` | Interprétation des figures/configurations majeures en « monde fermé » (§7bis) |
+| **Validation** | `Theme Logs` (validateur silencieux legacy), `Assemble Récit + Validateur` (validateur récit actif) | Contrôles post-LLM (§6) |
+| **Rapports HTML** | `5. Générer Fichier HTML1` (données techniques + **roue v3**), `6. Génération HTML3` (rapport technique), `Générateur de rapport final1` (rapport final) | Génération des 3 rapports HTML (§3–5) |
+| **Export PDF** | `Contrôle Données Complètes4/5`, `Prépare HTML pour Gotenberg4/5`, `Convert HTML to PDF1/2/3`, `Fix Nom & MIME PDF final/1/3`, `Upload Google Drive1/2/5`, `Merge2` | Conversion Gotenberg HTML→PDF + nommage + archivage Google Drive |
+| **Livraison site & email** | `Prépare email 3 PDF1`, `Envoi Email avec PDF`, `THEME SITE 3 PDF tiers1`, `THEME PUT Blob PDF1`, `THEME merge Blob URL + meta1`, `THEME POST site status1`, `THEME POST delivered_email1`, `Merge10` | Upload des 3 PDF vers Vercel Blob + callbacks statut/livraison au site + email (§7ter) |
+
+**Correspondance fichier repo `FRA/THEME/` ↔ nœud n8n** (fragments principaux) :
+
+| Fichier repo | Nœud n8n |
+|---|---|
+| `N8N Theme` | `Enrichissement Astrologique` |
+| `N8N Theme Repport` | `5. Générer Fichier HTML1` (données techniques + roue) |
+| `N8N Theme Repport HTML Tech` | `6. Génération HTML3` |
+| `N8N Theme Repport HTML Final` | `Générateur de rapport final1` |
+| `N8N Theme Trad LLM` | `2. Traducteur (1 par 1)` (prompt — voir note §7, **archive**) |
+
+> ⚠️ Nœuds documentés jadis mais **inexistants / renommés** : `N8N Theme PrepareLL`, `N8N Theme Restructure Merge`, `N8N Theme LLM` (monolithique) → remplacés par la fusion `4. Fusion Données` + les 13 agents dédiés. Source de vérité = snapshot PROD.
 
 ---
 
@@ -282,11 +297,17 @@ Le workflow **THEME** produit l'analyse complète du thème astral natal d'un in
 
 ---
 
-## 3. RAPPORT DONNÉES TECHNIQUES (`N8N Theme Repport`)
+## 3. RAPPORT DONNÉES TECHNIQUES (`N8N Theme Repport` → nœud `5. Générer Fichier HTML1`)
+
+> **Roue v3 (2026-06/07)** — améliorations présentes dans le code des 3 générateurs HTML (`5. Générer Fichier HTML1`, `6. Génération HTML3`, `Générateur de rapport final1`) :
+> - **Égalisation glyphes ♀/♂** (`glyph-bold-fix` — œil plus petit dans Noto)
+> - **Étiquettes d'étoiles fixes** ancrées en longitude (`STAR_LON`) → ordre zodiacal garanti, anti-chevauchement sans permutation
+> - **Pictogrammes de Lots** (`pGlyphs`, 16 lots) dans la roue + légende dorée
+> - **Dedup Vertex** (display-only, exclu des analytiques) dans `Enrichissement Astrologique`
 
 Génère un rapport HTML/PDF de ~20 pages contenant :
 
-1. **Roue du thème astral** (SVG) — 12 maisons, planètes positionnées, lots, aspects majeurs
+1. **Roue du thème astral** (SVG) — 12 maisons, planètes positionnées, lots (pictogrammes), aspects majeurs
 2. **Légende complète** (planètes + lots + aspects) — sur 1 page
 3. **Positions planétaires** — tableau détaillé (signe, degré, maison, dignité, décan, terme, triplicité, rétrogradation, déclinaison)
 4. **Maisons** — tableau des 12 maisons (signe cuspide, degré, maître)
@@ -337,33 +358,38 @@ Rapport narratif destiné au **client final** :
 
 ---
 
-## 6. VALIDATEUR SILENCIEUX (`N8N Theme Validateur`)
+## 6. VALIDATION POST-LLM — DEUX NŒUDS
 
-Nœud de validation post-LLM qui produit un **JSON de logs** (pas de bandeaux visuels) :
+En PROD, la validation est assurée par **deux** nœuds distincts (et non un seul `N8N Theme Validateur`).
 
-### Validations effectuées :
-1. **`house_mismatch`** : vérification que le LLM ne place pas une planète dans une maison incorrecte (matching avec boundary pour éviter m1↔m11)
-2. **`sign_mismatch`** : vérification que le LLM ne place pas une planète natale dans un signe incorrect (limité aux mentions explicites "natal/natale")
-3. **`invented_aspect`** : détection d'aspects inexistants dans les données
+### 6a. `Theme Logs` — validateur silencieux legacy
+Nœud de logs post-LLM qui produit un **JSON** (pas de bandeaux visuels) :
+- **`house_mismatch`** : le LLM place une planète dans une maison incorrecte (matching avec boundary pour éviter m1↔m11)
+- **`sign_mismatch`** : planète natale dans un signe incorrect (mentions explicites "natal/natale")
+- **`invented_aspect`** : aspect inexistant dans les données
 
-### Mesures anti-faux-positifs :
-- `matchWithBoundary` : frontières de mots pour les numéros de maison
-- `TRANSIT_VERBS` : liste étendue de verbes/expressions de contexte transit exclus (traversée, formera, activera, cette année, en 2026, etc.)
-- Splitting par phrase avant analyse
+Anti-faux-positifs : `matchWithBoundary` (frontières de mots pour les numéros de maison), `TRANSIT_VERBS` (verbes de contexte transit exclus), splitting par phrase.
 
-### Sortie :
 ```json
-{
-  "warnings": [...],
-  "totalWarnings": 0,
-  "houseCount": 13,
-  "timestamp": "..."
-}
+{ "warnings": [], "totalWarnings": 0, "houseCount": 13, "timestamp": "..." }
 ```
+
+### 6b. `Assemble Récit + Validateur` — validateur récit actif
+Nœud **sur le chemin client** : assemble le récit vulgarisé et le contrôle contre des **catalogues fermés** (planètes / étoiles / signes autorisés du thème), pour empêcher l'invention d'objets absents des données. C'est le garde-fou effectif du texte livré.
+
+> À la différence de SYN (`SYN Valideur` v4.2 avec `nodal_polarity_error` déterministe), THEME n'a **pas** de validateur nodal déterministe ; l'anti-inversion nodale repose sur le prompt du traducteur (§7). *Piste d'harmonisation future.*
 
 ---
 
-## 7. TRADUCTEUR LLM (`N8N Theme Trad LLM`)
+## 7. TRADUCTEUR LLM — PIPELINE RÉCIT (`0. Gatekeeper` → `1. Découpage (Boucle)2` → `2. Traducteur (1 par 1)`)
+
+> Le fichier repo `N8N Theme Trad LLM` est désormais une **archive** : le prompt live diffère (récit d'écrivain-astrologue). Source de vérité = nœud n8n `2. Traducteur (1 par 1)`.
+
+### Pipeline (noms n8n réels)
+1. **`0. Gatekeeper (Attente)2`** : attend que toutes les interprétations LLM soient prêtes.
+2. **`1. Découpage (Boucle)2`** : découpe le texte en items (par maison) pour traduction unitaire.
+3. **`2. Traducteur (1 par 1)`** (agent Gemini `Google Gemini Chat Model6`, modèle `gemini-3.1-pro-preview`) : vulgarisation item par item.
+4. Réassemblage via `Assemble Récit + Validateur` (§6b).
 
 ### Rôle
 Réécriture du texte technique en récit fluide, poétique et intelligible.
@@ -379,6 +405,43 @@ Réécriture du texte technique en récit fluide, poétique et intelligible.
 - Exemples fournis au LLM : masculin (passionné, déterminé, porté) / féminin (passionnée, déterminée, portée)
 - Appliqué dans le **prompt user** (point 5 des règles) ET le **prompt system**
 - Résout le bug de genre féminin appliqué à un client masculin (hallucination LLM récurrente)
+
+### Garde-fou POLARITÉ NODALE (anti-inversion)
+Injecté dans le `systemMessage` du nœud `2. Traducteur (1 par 1)` (harmonisé SYN/PREV/THEME, déployé live via `SITE/scripts/deploy-nodal-guardrail.mjs`, marqueur `POLARITÉ NODALE`) :
+
+> **POLARITÉ NODALE (anti-inversion)** : tu n'intervertis JAMAIS le Nœud Nord et le Nœud Sud, ni les planètes qui leur sont associées. Nœud Nord = avenir / croissance ; Nœud Sud = passé / acquis. Si la source apparie une planète à un nœud précis (ex. « Nœud Nord sur la Lune »), tu conserves STRICTEMENT cet appariement et sa polarité.
+
+Présence **vérifiée dans le snapshot PROD 2026-07-07** (`2. Traducteur (1 par 1)`, `systemMessage`).
+
+---
+
+## 7bis. SIGNATURE CÉLESTE / FIGURES
+
+Branche dédiée à l'interprétation des **figures / configurations majeures** du thème (Grand Trigone, Cerf-volant, T-carré, Yod, etc.) en **« monde fermé »** (le LLM ne peut nommer que les figures réellement détectées) :
+
+| Nœud n8n | Rôle |
+|---|---|
+| `Figures · Fiche & Prompt` | Détecte les figures présentes + construit la fiche et le prompt (monde fermé) |
+| `Figures · Interprétation` (+ `Figures · Gemini Model`) | Interprétation LLM des figures détectées |
+| `Figures · Merge & Validate` | Fusion + validation (fallback statique si le LLM sort du périmètre) |
+
+Cette branche produit la section « Signature Céleste » du rapport.
+
+---
+
+## 7ter. LIVRAISON SITE & EMAIL
+
+Chaîne exécutée après génération des 3 PDF, lorsqu'une commande provient du **site** (déclencheur `Webhook`) :
+
+| Nœud n8n | Rôle / endpoint |
+|---|---|
+| `Prépare email 3 PDF1` + `Envoi Email avec PDF` | Email client (3 PDF) |
+| `THEME SITE 3 PDF tiers1` | Liste des 3 PDF + métadonnées commande |
+| `THEME PUT Blob PDF1` | Upload vers **Vercel Blob** (`https://blob.vercel-storage.com/theme/<orderId>/…`) |
+| `THEME merge Blob URL + meta1` | Fusionne URLs Blob + métadonnées |
+| `THEME POST site status1` / `THEME POST delivered_email1` | Callbacks → `https://site-rapports-astro.vercel.app/api/webhooks/n8n-order-status` |
+
+> Les commandes par email (`Gmail Trigger`) reçoivent les PDF directement, sans publication Blob.
 
 ---
 
