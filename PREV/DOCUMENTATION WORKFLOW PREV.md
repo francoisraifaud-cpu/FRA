@@ -1,4 +1,112 @@
 
+# DOCUMENTATION WORKFLOW — PRÉVISIONS (PREV)
+
+**Version courante** : moteur **MDSE legacy + DTC v18** (scoring prévisionnel, gelé) — narration **Gemini 3.1 Pro** — rapport technique **heatmap V4** — voir **Partie II (§§ 27–35)**.
+**Plateforme** : n8n Cloud — workflow **PREV — PROD** (`szL522DJiXkppyt1`, actif), préprod **`jKwmxAm3HvjpHC5U`**
+**Auteur** : François Raifaud
+
+> **Doc rafraîchie 2026-07-07** : reconstruction du **socle structurel** (§§ 1–10 ci-dessous). Ce socle avait disparu du fichier, qui ne conservait plus que l'annexe moteur/bench DTC (§§ 27–35, désormais regroupée en « **Partie II** »). Socle recalé sur les **94 nœuds PROD réels**. **Source de vérité = workflow live n8n** ; le moteur `Super noeud1` correspond au fichier `FRA/PREV/N8N Prev` (MDSE + bloc DTC injecté). Snapshot canonique : `FRA/_workflow-backups-prod/2026-07-07/PREV-PROD.json` (branche `backup/workflows-prod-2026-07-07`), régénérable via `SITE/scripts/n8n-export-prod-workflows.mjs`.
+
+---
+
+# PARTIE I — ARCHITECTURE DU WORKFLOW
+
+## 1. VUE D'ENSEMBLE
+
+Le workflow **PREV** produit les **prévisions astrologiques** d'une personne sur une période : calcul du thème natal + transits, progressions, éclipses, Lune et cycle Saros ; puis un moteur de scoring (**MDSE + DTC v18**) classe les **signatures événementielles** (mariage, carrière, etc.) ; un LLM les interprète maison par maison ; enfin génération de 3 rapports HTML/PDF et livraison site/email.
+
+### Architecture des nœuds (PROD — 94 nœuds, snapshot 2026-07-07)
+
+| Couche | Nœuds n8n | Rôle |
+|---|---|---|
+| **Entrée** | `Webhook`, `Gmail Trigger1`, `Get Full Message`, `Extract Variables` | Double déclencheur (commande site OU email) → extraction des variables (personne, période, langue) |
+| **Géocodage / fuseau** | `1. Géocodage2`, `IF - Ville trouvée ?1`, `Extraction Coordonnées1`, `Gestion Erreur (Ville introuvable)1`, `1b. Prepare Timezone1`, `2. Préparation dynamique1` | Ville → coordonnées + fuseau + préparation des paramètres de calcul |
+| **API natal + transits** | `3a. Calcul Planètes1`, `3b. Calcul Maisons`, `3c. Étoiles Fixes`, `Download Transits `, `Download Transits Progressés`, `Download Eclipses 1`, `Download Eclipses 2`, `Download Eclipses Progressées`, `Download Lune `, `Extract Transits1`, `Extract Transits Progressés`, `Extract Eclipses1`, `Extract Eclipses Progressées`, `Extract Lune1`, `Saros Enrichment`, `Enrichissement Astrologique`, `Merge 4 fichiers` (×5), `Merge8`, `Wait 2s1` | API Swiss Eph : natal, transits (+ progressés), éclipses (+ progressées), Lune, enrichissement Saros, puis fusion/enrichissement |
+| **Moteur** | `Super noeud1` | **NŒUD CENTRAL** — MDSE legacy + DTC v18 inline : 19 signatures MDSE → rerank DTC sur 14 codes → Top-5 (détail Partie II) |
+| **LLM interprétation** | `Maison 1`–`Maison 12`, `Synthèse` (+ modèles `Google Gemini Chat Model*`), `Merge`/`Merge1`/`Merge2`/`Merge3` | 12 agents Gemini 3.1 Pro (une par maison) + synthèse |
+| **Récit / vulgarisation** | `1. Découpage Prévisions`, `2. Traducteur Prévisions` (+ `Google Gemini Chat Model16`) | Vulgarisation — inclut le garde-fou **POLARITÉ NODALE** (§5) |
+| **Rapports HTML** | `Générateur HTML Prévisions3` (final), `Rapport Technique HTML v1` (+ **heatmap V4**), `Analyseur Technique v`, `Rapport HTML Sécurisé2`, `Prépare HTML → PDF` | Génération des rapports HTML |
+| **Export PDF** | `Contrôle Données Prévisions`, `Convert HTML to PDF`/`PDF2`/`Convert HTML → PDF`, `Fix Nom & MIME PDF final`/`final2`/`Prévisions`, `Upload Google Drive3`/`4`/`Upload Drive PDF Prévisions`, `Merge PDF`, `Merge 4 fichiers1`–`4` | Conversion Gotenberg HTML→PDF + nommage + archivage Google Drive |
+| **Livraison site & email** | `Prépare email 3 PDF`, `Envoi Email avec PDF1`, `PREV SITE 3 PDF tiers`, `PREV PUT Blob PDF`, `PREV merge Blob URL + meta`, `PREV POST site status`, `PREV POST delivered_email`, `Merge9` | Upload des 3 PDF vers Vercel Blob + callbacks statut/livraison au site + email (§9) |
+| **Logs** | `Prev Logs` | Journalisation silencieuse (JSON dans les logs n8n) |
+
+> ⚠️ Source de vérité = live n8n. Le moteur (`Super noeud1`) = fichier `FRA/PREV/N8N Prev`. Voir **Partie II §§ 27–29** pour l'architecture 3 couches et le pipeline de déploiement DTC.
+
+## 2. PIPELINE D'ENRICHISSEMENT ASTRONOMIQUE
+
+Calculé via le serveur privé Swiss Eph (voir doc `FRA/API SE`) puis recombiné par les nœuds `Merge 4 fichiers*` / `Merge8` avant l'entrée moteur :
+- **Natal** : planètes (`3a. Calcul Planètes1`), maisons (`3b. Calcul Maisons`), étoiles fixes (`3c. Étoiles Fixes`)
+- **Transits** de la période + **transits progressés**
+- **Éclipses** de la période + **éclipses progressées**, avec enrichissement **Saros** (`Saros Enrichment`)
+- **Lune** (`Download Lune`)
+- `Enrichissement Astrologique` : dignités, configurations, modulations (socle harmonisé THEME/SYN)
+
+## 3. MOTEUR DE SCORING (`Super noeud1`)
+
+Le `Super noeud1` (fichier `FRA/PREV/N8N Prev`, >29 000 lignes) superpose 3 couches :
+1. **MDSE legacy** — génère 19 signatures événementielles (scoring additif historique).
+2. **DTC v18 inline** — intercepte le `sigPayload`, filtre 5 codes legacy, **rerank** 14 codes par score doctrinal, re-trie → **Top-5**.
+3. **Post-DTC** — préparation du payload LLM (Top-5, dates, `principalDate ★`).
+
+> Détail complet (doctrine, déploiement ISO, KPI release baseline 150) : **Partie II §§ 27–31**. Matière première (manifests, méthodologie) : **§§ 32–33**.
+
+## 4. LLM INTERPRÉTATION
+
+- **12 agents `Maison 1`–`Maison 12`** + **`Synthèse`**, chacun relié à un modèle `Google Gemini Chat Model*`.
+- Modèle : **`models/gemini-3.1-pro-preview`**.
+- Chaque agent reçoit les signatures Top-5 pertinentes + le contexte natal/transit ; recombinaison via `Merge`/`Merge1`/`Merge2`/`Merge3`.
+
+## 5. RÉCIT / VULGARISATION — garde-fou POLARITÉ NODALE
+
+Pipeline : `1. Découpage Prévisions` → `2. Traducteur Prévisions` (agent Gemini `Google Gemini Chat Model16`).
+
+Le `systemMessage` du traducteur inclut le garde-fou **POLARITÉ NODALE** (harmonisé SYN/PREV/THEME, déployé live via `SITE/scripts/deploy-nodal-guardrail.mjs`, marqueur `POLARITÉ NODALE`, backup avant PUT) :
+
+> **POLARITÉ NODALE (anti-inversion)** : n'intervertis JAMAIS le Nœud Nord et le Nœud Sud, ni les planètes qui leur sont associées. Nœud Nord = avenir / évolution ; Nœud Sud = passé / acquis. Si la source apparie une planète à un nœud précis, conserve STRICTEMENT cet appariement et sa polarité — jamais l'inverse.
+
+Présence **vérifiée dans le snapshot PROD 2026-07-07** (`2. Traducteur Prévisions`, `systemMessage`).
+
+## 6. VALIDATION / LOGS (`Prev Logs`)
+
+PREV journalise via le nœud `Prev Logs` (sortie silencieuse dans les logs n8n). Contrairement à SYN (validateur `SYN Valideur` v4.2 déterministe), PREV **ne dispose pas encore** d'un validateur post-LLM équivalent ; l'anti-inversion nodale agit au niveau du prompt (§5). *Piste d'harmonisation future : porter un `nodal_polarity_error` déterministe vers PREV.*
+
+## 7. RAPPORTS HTML (dont heatmap V4)
+
+Trois rapports HTML :
+- **Rapport final** (`Générateur HTML Prévisions3`) — client, texte vulgarisé.
+- **Rapport technique** (`Rapport Technique HTML v1`) — inclut la **heatmap V4** (intensité des périodes) + `Analyseur Technique v`.
+- **Rapport sécurisé** (`Rapport HTML Sécurisé2`).
+
+## 8. EXPORT PDF
+
+Chaîne Gotenberg : `Contrôle Données Prévisions` → `Prépare HTML → PDF` → `Convert HTML → PDF` (Gotenberg) → `Fix Nom & MIME PDF Prévisions` → `Upload Drive PDF Prévisions` (+ chaînes parallèles `Convert HTML to PDF`/`PDF2` pour les variantes de rapport).
+
+## 9. LIVRAISON SITE & EMAIL
+
+| Nœud | Rôle / endpoint |
+|---|---|
+| `Prépare email 3 PDF` + `Envoi Email avec PDF1` | Email client (3 PDF) |
+| `PREV SITE 3 PDF tiers` | Liste des 3 PDF + métadonnées commande |
+| `PREV PUT Blob PDF` | Upload vers **Vercel Blob** (`https://blob.vercel-storage.com/prev/<orderId>/…`) |
+| `PREV merge Blob URL + meta` | Fusionne URLs Blob + métadonnées |
+| `PREV POST site status` / `PREV POST delivered_email` | Callbacks → `https://site-rapports-astro.vercel.app/api/webhooks/n8n-order-status` |
+
+> Les commandes par email (`Gmail Trigger1`) reçoivent les PDF directement, sans publication Blob.
+
+## 10. PARAMÈTRES
+
+| Paramètre | Description |
+|---|---|
+| `personne` | prénom, nom, date, heure, lieu, pays, genre, consigne_redaction |
+| période / fenêtre de prévision | intervalle analysé |
+| `langue` | Français / English |
+
+---
+
+# PARTIE II — MOTEUR DTC, BENCH & MANIFESTS
+
+> Sections **§§ 27–35** : moteur de scoring (MDSE + DTC v18), méthodologie ISO, KPI release baseline 150 PREPROD, matière première (manifests). **Conservées telles quelles** (référence R&D moteur) — source d'autorité sur le scoring. La numérotation reprend à 27 pour continuité historique (les §§ 11–26 d'origine ne sont pas conservées).
+
 ## 27. CHANGELOG — PHASE DTC v18 (Mai 2026) — Doctrine Topique Compositionnelle
 
 ### 27.1 Origine et Objectif
