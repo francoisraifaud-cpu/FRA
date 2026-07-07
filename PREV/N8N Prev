@@ -1108,14 +1108,23 @@ const detectNatalConfigurations = () => {
             }
         }
     }
+    // Harmonisation YOD sur le standard THEME/SYN (Hand / Hamaker-Zondag).
+    // PROD-safe : resserré par défaut ; DTC_YOD_LEGACY=1 restaure les orbes larges pour l'A/B local.
+    const _YOD_LEGACY = (typeof process !== "undefined" && process.env && process.env.DTC_YOD_LEGACY === "1") ? true : false;
+    const _YOD_SEXT = _YOD_LEGACY ? 6 : 3;
+    const _YOD_QUIN = _YOD_LEGACY ? 3 : 2;
+    const _YOD_NODES = new Set(["Nœud Nord","Nœud Sud"]);
     const seenY = new Set();
     for (let i=0;i<relevant.length;i++) for (let j=i+1;j<relevant.length;j++) {
         const p1=relevant[i],p2=relevant[j];
-        if (Math.abs(angDiff(natalDict[p1].deg,natalDict[p2].deg)-60)>6) continue;
+        if (!_YOD_LEGACY && (_YOD_NODES.has(p1) || _YOD_NODES.has(p2))) continue;
+        if (Math.abs(angDiff(natalDict[p1].deg,natalDict[p2].deg)-60)>_YOD_SEXT) continue;
         for (let k=0;k<relevant.length;k++) {
             if(k===i||k===j) continue;
-            const p3=relevant[k],d13=angDiff(natalDict[p1].deg,natalDict[p3].deg),d23=angDiff(natalDict[p2].deg,natalDict[p3].deg);
-            if (Math.abs(d13-150)<=3 && Math.abs(d23-150)<=3) {
+            const p3=relevant[k];
+            if (!_YOD_LEGACY && _YOD_NODES.has(p3)) continue;
+            const d13=angDiff(natalDict[p1].deg,natalDict[p3].deg),d23=angDiff(natalDict[p2].deg,natalDict[p3].deg);
+            if (Math.abs(d13-150)<=_YOD_QUIN && Math.abs(d23-150)<=_YOD_QUIN) {
                 const key=[p1,p2,p3].sort().join("|"); if(seenY.has(key))continue; seenY.add(key);
                 configs.push({ type:"Yod", planets:[p1,p2,p3], apex:p3, maisons:[natalDict[p1].house,natalDict[p2].house,natalDict[p3].house], label:`Yod natal : ${p1}(M${natalDict[p1].house}) sextile ${p2}(M${natalDict[p2].house}) — Apex ${p3}(M${natalDict[p3].house},${natalDict[p3].sign}). Configuration karmique : l'apex est sous injonction permanente. Transit sur l'apex = mission de vie.` });
             }
@@ -2440,6 +2449,26 @@ const getPrioriteFlags = (pNatal, pTransit = null) => {
     return flags.length > 0 ? flags.join(" | ") : null;
 };
 
+// ---- 3C Brady (flag DTC_HM_ANGBRADY) — angles = "prime importance" égale + dédup d'axe ----
+// Brady, The Eagle and the Lark (p.17) : les 4 angles ont une importance ÉGALE ("prime
+//   importance… their own meanings, as are the ascendant and the MC"). Une CONJONCTION à un
+//   angle crédite CET angle (pas l'opposition au point opposé) ; les AUTRES figures utilisent
+//   ASC/MC comme récepteur. Ici : (1) plancher d'importance angulaire (corrige MC=0, DESC=1,
+//   IC=1) ; (2) dédup d'axe en AFFICHAGE heatmap (drop opp ASC/MC = déjà compté conj DESC/IC ;
+//   DESC/IC ne gardent que les conjonctions). NATAL_IMPORTANCE est PREV-natif (hors bloc DTC
+//   injecté) → MDSE baseline 150 intact. ON par défaut PROD-safe ; rollback LOCAL : DTC_HM_ANGBRADY=0.
+const DTC_HM_ANGBRADY = !(typeof process !== "undefined" && process.env && process.env.DTC_HM_ANGBRADY === "0");
+const _ANGLES_SET = new Set(["Ascendant","Descendant","Milieu du Ciel","Imum Coeli"]);
+const _AXIS_ASC_MC = new Set(["Ascendant","Milieu du Ciel"]);
+const _AXIS_DESC_IC = new Set(["Descendant","Imum Coeli"]);
+// true => contact à ÉCARTER de l'affichage heatmap (règle Brady d'axe)
+const _bradyAxisDrop = (pN, asp) => {
+    if (!DTC_HM_ANGBRADY) return false;
+    if (_AXIS_ASC_MC.has(pN)) return asp === "Opposition";   // opp ASC/MC = conj DESC/IC (compté côté DESC/IC)
+    if (_AXIS_DESC_IC.has(pN)) return asp !== "Conjonction"; // DESC/IC : ne garder que les conjonctions
+    return false;
+};
+
 // ---- 7u-bis. NATAL_IMPORTANCE — Score pré-calculé par planète natale (v6) ----
 // Chaque planète natale reçoit un score d'importance structurelle.
 // Ce score est utilisé comme bonus additif dans computeTransitScore().
@@ -2473,6 +2502,8 @@ natalNames.forEach(pN => {
     if (stars.length > 0) {
         score += stars.some(em => ETOILES_ROYALES_SET.has(em.etoile)) ? 3 : 1;
     }
+    // 3C Brady : plancher angulaire — les 4 angles sont d'importance "prime" égale (corrige MC=0/DESC=1/IC=1).
+    if (DTC_HM_ANGBRADY && _ANGLES_SET.has(pN) && score < 5) score = 5;
     NATAL_IMPORTANCE[pN] = score;
 });
 
@@ -2605,6 +2636,7 @@ const maisonsResult = Array.from({length:12}, (_, i) => ({
     eclipse_natal_active_texte  : [],
     progressions_texte          : [],
     double_activation_texte     : [],
+    double_activation_b_texte   : [],
     declinaisons_texte          : [],
     revolution_solaire_texte    : [],
     revolution_lunaire_texte    : [],
@@ -4077,6 +4109,43 @@ eclipsesData.forEach(e => {
     });
 });
 
+// v7-C — points natals SENSIBILISÉS par une éclipse (conj OU opp, orbe 3°). Hand: "an eclipse
+// seems to be most effective when it either conjoins or opposes a natal planet". Sert à amplifier
+// le transit déclencheur qui repasse ce point (Rushman: "a transiting planet hitting an eclipse point").
+const _eclipsedNatalSet = new Set();
+const _ORBE_ECL_NATAL = 3.0;
+eclipsesData.forEach(e => {
+    const dayMatch = daysArray.find(d => d.date === e.date);
+    if (!dayMatch?.planetes) return;
+    const refDeg = e.astre === "Soleil" ? (dayMatch.planetes.Soleil?.fullDegree || 0) : (dayMatch.planetes.Lune?.fullDegree ?? 0);
+    Object.entries(natalDict).forEach(([name, n]) => {
+        if (n?.deg == null) return;
+        let d = Math.abs(refDeg - n.deg); if (d > 180) d = 360 - d;
+        if (d <= _ORBE_ECL_NATAL || Math.abs(d - 180) <= _ORBE_ECL_NATAL) _eclipsedNatalSet.add(name);
+    });
+});
+
+// ---- 1B (flag DTC_HM_ECLNAT) — éclipse conjointe/opposée à un point natal, scoring V3 SCALÉ ----
+// Brady, Predictive Astrology : la seule éclipse qui compte vraiment est celle CONJOINTE (ou
+//   opposée) à un point natal ; orbes conj 2,5° / opp 2°. Le +5/+4 plat V3 ne distingue pas un
+//   point majeur (Nœud imp 15) d'un point mineur. Ici : crédite la maison A du point natal, tension
+//   scalée par NATAL_IMPORTANCE ; additif, plafonné par _eclCapV3. ON par défaut ; rollback DTC_HM_ECLNAT=0.
+const DTC_HM_ECLNAT = !(typeof process !== "undefined" && process.env && process.env.DTC_HM_ECLNAT === "0");
+const _eclNatV3 = [];
+if (DTC_HM_ECLNAT) {
+    const _ORB_ECL_CONJ = 2.5, _ORB_ECL_OPP = 2.0;
+    eclipsesData.forEach(e => {
+        const dayMatch = daysArray.find(d => d.date === e.date);
+        if (!dayMatch?.planetes) return;
+        const refDeg = e.astre === "Soleil" ? (dayMatch.planetes.Soleil?.fullDegree || 0) : (dayMatch.planetes.Lune?.fullDegree ?? 0);
+        Object.entries(natalDict).forEach(([name, n]) => {
+            if (n?.deg == null || !(n.house >= 1 && n.house <= 12)) return;
+            let d = Math.abs(refDeg - n.deg); if (d > 180) d = 360 - d;
+            if (d <= _ORB_ECL_CONJ || Math.abs(d - 180) <= _ORB_ECL_OPP) _eclNatV3.push({ house: n.house, date: e.date, imp: (NATAL_IMPORTANCE[name] || 0) });
+        });
+    });
+}
+
 const computeHouseScore = (maisonNum) => {
     const m = maisonsResult[maisonNum - 1];
     if (!m) return 0;
@@ -4121,6 +4190,17 @@ const ASPECT_MULTIPLIER = {
 const TOP_TRANSIT_N = 5;
 
 const _natalStationarySet = new Set((natalStationaryPlanets || []).map(sp => sp.planet));
+
+// v7 — Nettoyage paradigme Placidus (BASCULÉ ON EN DUR 2026-07-04, neutralité M5 40/40 prouvée).
+// Retire du score de transit les facteurs hors périmètre Hand/Rushman/Brady/Teal :
+//   - almuten figuris (tradition médiévale, absent des 4 auteurs de transits)
+//   - seigneur de l'année (Lord of Year via profection = whole-sign, hors Placidus natif)
+//   - firdaria (time-lord perse/médiéval = climat de fond, sorti de la grille datée)
+// ON par défaut (VM n8n : `process` absent → true). Bypass d'urgence LOCAL : DTC_SCORE_V7=0.
+const DTC_SCORE_V7 = !(typeof process !== "undefined" && process.env && process.env.DTC_SCORE_V7 === "0");
+// v7-C — éclipses dans le score de transit (point natal éclipsé → transit déclencheur amplifié).
+// ON par défaut. Bypass d'urgence LOCAL : DTC_V7_ECL=0.
+const DTC_V7_ECL = !(typeof process !== "undefined" && process.env && process.env.DTC_V7_ECL === "0");
 const computeTransitScore = (pTransit, aspName, pNatal, nbWaves, peakOrb, signTransitAtPeak, hasRetroWave, maxOrbForAspect) => {
     const base = TRANSIT_POIDS[pTransit] ?? 1;
     const aspMult = ASPECT_MULTIPLIER[aspName] ?? 1;
@@ -4152,6 +4232,11 @@ const computeTransitScore = (pTransit, aspName, pNatal, nbWaves, peakOrb, signTr
     // v4.0 — Planète natale stationnaire : tout transit la touchant est amplifié
     if (_natalStationarySet.has(pNatal)) score += 2;
 
+    // v7-C — Planète natale ÉCLIPSÉE (conj/opp éclipse récente) : le transit qui la réactive est
+    // amplifié. Hand: "thus activated, the natal planet is more likely to signify a major event
+    // later when transited by another planet". Additif, jumeau du bonus stationnaire ci-dessus.
+    if (DTC_V7_ECL && _eclipsedNatalSet.has(pNatal)) score += 2;
+
     // v4.0 — Réception transit ↔ natal : transit en domicile du natal ou natal en domicile du transit
     if (signTransitAtPeak && nd) {
         const _transitInNatalDom = isInDomicileOf(pNatal, signTransitAtPeak);
@@ -4162,10 +4247,12 @@ const computeTransitScore = (pTransit, aspName, pNatal, nbWaves, peakOrb, signTr
 
     if (pTransit === chartRuler) score += 2;
     if (hasCoRuler && pTransit === chartRulerTrad) score += 1.5;
-    if (pTransit === almutemFiguris && pTransit !== chartRuler) score += 1.5;
-    if (profections?.annuelle?.seigneur === pTransit) score += 1;
+    // v7 : almuten figuris + seigneur de l'année (profection) — hors paradigme Placidus
+    if (!DTC_SCORE_V7 && pTransit === almutemFiguris && pTransit !== chartRuler) score += 1.5;
+    if (!DTC_SCORE_V7 && profections?.annuelle?.seigneur === pTransit) score += 1;
     if (natalChartShape?.singleton && (pTransit === natalChartShape.singleton || pNatal === natalChartShape.singleton)) score += 1.5;
-    if (firdariaActive) {
+    // v7 : firdaria (time-lord) — climat de fond, hors périmètre transits Placidus
+    if (!DTC_SCORE_V7 && firdariaActive) {
         if (pTransit === firdariaActive.major) score += 2;
         else if (pTransit === firdariaActive.sub) score += 1;
         if (pNatal === firdariaActive.major) score += 1;
@@ -4204,6 +4291,12 @@ const houseTransitScored = Array.from({length: 12}, () => []);
 const synthGroups = {};
 for (const p of slowPlanets) { const tl=transitsSuiviLent[p]; if(tl) tl.periods.forEach(per=>{if(per.maison>=1&&per.maison<=12) maisonsResult[per.maison-1].transits_lents_texte.push(per.texte);}); }
 
+// #5 (Option A, dual ciblé) : l'⚡ activation cardinale (double/triple) est aussi rendue sous la maison
+//   TRANSITÉE B au pic (en plus de la natale A), pour aligner le récit sur la carte (heatmap = B).
+//   Champ séparé double_activation_b_texte → la synthèse (agrège double_activation_texte A) reste sans doublon.
+//   PROD-safe (flag ON par défaut, bypass DTC_ASPECT_CARDINAL_B=0, aucun global Node). M5 neutre (narratif seul).
+const DTC_ASPECT_CARDINAL_B = !(typeof process !== "undefined" && process.env && process.env.DTC_ASPECT_CARDINAL_B === "0");
+
 Object.keys(aspectsSuiviLent).forEach(key => {
     const a = aspectsSuiviLent[key];
     const parts = key.replace("slow_","").split("|||");
@@ -4241,14 +4334,26 @@ Object.keys(aspectsSuiviLent).forEach(key => {
         houseTransitScored[a.natalHouse - 1].push({ key, score: transitScore, pTransit, aspName, pNatal: pNatalName, doubleActivation: scoreResult.doubleActivation, tripleActivation: scoreResult.tripleActivation, bestPeakDate, bestPeakOrb });
         if (scoreResult.tripleActivation) {
             const progInfo = progressedActivations[pNatalName];
-            const progDesc = progInfo ? progInfo.map(pa => `${pa.pProg} ${pa.aspName}`).join(" + ") : "";
-            const taTxt = `⚡⚡⚡ TRIPLE ACTIVATION sur ${pNatalName} natal (M${a.natalHouse}) : Transit ${pTransit} ${aspName} + ${progDesc} — score ×3 (${transitScore}). Convergence transit+progression+arc solaire = événement CARDINAL de la période.`;
+            const progDesc = progInfo ? progInfo.filter(pa => !String(pa.pProg||"").startsWith("Arc ")).map(pa => `${pa.pProg} ${pa.aspName}`).join(" + ") : "";
+            const taTxt = `⚡⚡⚡ TRIPLE ACTIVATION sur ${pNatalName} natal (M${a.natalHouse}) : Transit ${pTransit} ${aspName}${progDesc ? ` + ${progDesc}` : ""} — score ×3 (${transitScore}). Convergence de plusieurs couches prédictives = événement CARDINAL de la période.`;
             maisonsResult[a.natalHouse - 1].double_activation_texte.push(taTxt);
         } else if (scoreResult.doubleActivation) {
             const progInfo = progressedActivations[pNatalName];
-            const progDesc = progInfo ? progInfo.map(pa => `${pa.pProg} ${pa.aspName}`).join(" + ") : "";
-            const daTxt = `⚡⚡ DOUBLE ACTIVATION sur ${pNatalName} natal (M${a.natalHouse}) : Transit ${pTransit} ${aspName} + Progression ${progDesc} — score ×2 (${transitScore}). Convergence transit+progression = événement majeur structurant.`;
+            const progDesc = progInfo ? progInfo.filter(pa => !String(pa.pProg||"").startsWith("Arc ")).map(pa => `${pa.pProg} ${pa.aspName}`).join(" + ") : "";
+            const daTxt = `⚡⚡ DOUBLE ACTIVATION sur ${pNatalName} natal (M${a.natalHouse}) : Transit ${pTransit} ${aspName}${progDesc ? ` + Progression ${progDesc}` : ""} — score ×2 (${transitScore}). Convergence de couches prédictives = événement majeur structurant.`;
             maisonsResult[a.natalHouse - 1].double_activation_texte.push(daTxt);
+        }
+        // #5 (Option A) : miroir de l'activation cardinale sous la maison TRANSITÉE B au pic (≠ A).
+        //   Auto-documente A/B (transite cette maison = B ; domaine stimulé = M<A> natal). Champ séparé
+        //   → n'entre PAS dans la synthèse (L~13310 agrège double_activation_texte A) : aucun doublon.
+        if (DTC_ASPECT_CARDINAL_B && (scoreResult.tripleActivation || scoreResult.doubleActivation)) {
+            const _cardB = bestPeakWave.transitHouseAtPeak;
+            if (_cardB >= 1 && _cardB <= 12 && _cardB !== a.natalHouse) {
+                const _bTxt = scoreResult.tripleActivation
+                    ? `⚡⚡⚡ ACTIVATION CARDINALE ressentie ici — ${pTransit} transite cette maison au pic (${bestPeakDate}) et forme ${aspName} vers ${pNatalName} natal (domaine stimulé : M${a.natalHouse}). Événement CARDINAL de la période (score ×3, ${transitScore}).`
+                    : `⚡⚡ ACTIVATION MAJEURE ressentie ici — ${pTransit} transite cette maison et forme ${aspName} vers ${pNatalName} natal (domaine stimulé : M${a.natalHouse}). Événement majeur structurant (score ×2, ${transitScore}).`;
+                maisonsResult[_cardB - 1].double_activation_b_texte.push(_bTxt);
+            }
         }
     }
     a.waves.forEach((w, idx) => {
@@ -4392,36 +4497,36 @@ Object.keys(aspectsSuiviLent).forEach(key => {
 const cfg = {
     "Annuel": {
         sys: "Tu es un astrologue-stratège de haut niveau, spécialiste des grands cycles annuels et des orientations de vie à long terme. Ta vision est panoramique : tu analyses les courants profonds de l'année avec sagesse et profondeur. Ton ton est inspirant, structuré et bienveillant — tu ne banalises jamais un transit majeur. IMPORTANT : Ne commence JAMAIS ta réponse par une formule de salutation. Démarre directement par l'analyse. Tutoie systématiquement le consultant : utilise tu, ton, ta, tes.",
-        actif: (m) => `Analyse cette maison en 3 parties chronologiques (Printemps / Été / Automne-Hiver). Consacre la majeure partie de ton analyse aux événements de Niveau 1 et 2 (voir ÉCHELLE D'INTENSITÉ ci-dessus). Si des CONVERGENCES DE HAUTE INTENSITÉ, des ÉCLIPSES CONJONCTES, des FENÊTRES D'OMBRE ou des STATIONS SUR PLANÈTES NATALES sont mentionnées, traite-les comme événements pivots de premier ordre. Les ⚡ DOUBLE ACTIVATION sont les marqueurs absolus de l'année : structure ta narration autour d'eux. Intègre les CONFIGURATIONS NATALES ACTIVÉES et les DIGNITÉS COMPOSITES pour qualifier l'intensité. Reste concret et appliqué à la vie de la personne.`,
-        vide: (m) => `Cette maison est peu activée en ${anneeCible}. Rappelle les tendances de fond natal en 5 à 7 lignes.`,
+        actif: (m) => `Structure ta réponse avec ces titres ##, dans cet ordre EXACT et sans en ajouter d'autres : « ## Introduction » (2-3 phrases qui cadrent la dynamique de la maison sur l'année), puis les 4 saisons de l'année civile — « ## Hiver » (janvier→mars), « ## Printemps » (avril→juin), « ## Été » (juillet→septembre), « ## Automne » (octobre→décembre). Traite les 4 saisons dans cet ordre ; si une saison est calme, résume-la en 1-2 phrases plutôt que de l'étoffer artificiellement. Consacre la majeure partie de ton analyse aux événements de Niveau 1 et 2 (voir ÉCHELLE D'INTENSITÉ ci-dessus). Si des CONVERGENCES DE HAUTE INTENSITÉ, des ÉCLIPSES CONJONCTES, des FENÊTRES D'OMBRE ou des STATIONS SUR PLANÈTES NATALES sont mentionnées, traite-les comme événements pivots de premier ordre. Les ⚡ DOUBLE ACTIVATION sont les marqueurs absolus de l'année : structure ta narration autour d'eux. Intègre les CONFIGURATIONS NATALES ACTIVÉES et les DIGNITÉS COMPOSITES pour qualifier l'intensité. Reste concret et appliqué à la vie de la personne.`,
+        vide: (m) => `Commence par le titre « ## Introduction », puis en 5 à 7 lignes rappelle les tendances de fond natal de cette maison, peu activée en ${anneeCible}. N'ajoute aucun autre titre ##.`,
         sysSynth: "Tu es un astrologue-stratège de haut niveau. Tu tisses le récit global de l'année en reliant les événements majeurs entre eux. Ta vision est holistique : tu identifies les fils rouges qui traversent les secteurs de vie. Ton ton est inspirant, profond et bienveillant. IMPORTANT : Ne commence JAMAIS par une formule de salutation. Tutoie systématiquement le consultant.",
         consigneSynth: `Introduction sur la dynamique de l'année. Identifie les 2-3 grands chantiers de transformation en t'appuyant prioritairement sur les DOUBLE ACTIVATIONS et les ÉCLIPSES CONJONCTES comme accélérateurs de destin. Relie les maisons entre elles via les CONVERGENCES TEMPORELLES. Termine par le calendrier des temps forts (trimestre par trimestre) et un conseil central.`
     },
     "Mensuel": {
         sys: "Tu es un astrologue-planificateur expert, spécialiste du rythme mensuel. Tu identifies les fenêtres d'action et les temps de recul avec précision. Ton ton est concret, rythmé et actionnable — tu traduis les transits en jalons pratiques. IMPORTANT : Ne commence JAMAIS par une formule de salutation. Tutoie systématiquement le consultant.",
-        actif: (m) => `Analyse cette maison en 3 temps (jours 1–10 / 11–20 / 21–fin). Concentre-toi d'abord sur les événements de Niveau 1 et 2 (voir ÉCHELLE D'INTENSITÉ ci-dessus). Si des CONVERGENCES, ÉCLIPSES CONJONCTES ou STATIONS SUR DEGRÉ NATAL sont actives, signale leur date et portée. Appuie-toi sur les aspects des planètes rapides comme jalons concrets. Les ⚡ DOUBLE ACTIVATION sont les temps forts absolus du mois.`,
-        vide: (m) => `Cette maison est peu activée ce mois. 3 à 5 lignes sur la tendance de fond natal.`,
+        actif: (m) => `Structure ta réponse avec ces titres ##, dans cet ordre EXACT et sans en ajouter d'autres : « ## Introduction » (2-3 phrases qui cadrent la dynamique de la maison sur le mois), puis les 3 décades — « ## Jours 1–10 », « ## Jours 11–20 », « ## Jours 21–fin ». Si une décade est calme, résume-la en 1-2 phrases. Concentre-toi d'abord sur les événements de Niveau 1 et 2 (voir ÉCHELLE D'INTENSITÉ ci-dessus). Si des CONVERGENCES, ÉCLIPSES CONJONCTES ou STATIONS SUR DEGRÉ NATAL sont actives, signale leur date et portée. Appuie-toi sur les aspects des planètes rapides comme jalons concrets. Les ⚡ DOUBLE ACTIVATION sont les temps forts absolus du mois.`,
+        vide: (m) => `Commence par le titre « ## Introduction », puis en 3 à 5 lignes rappelle la tendance de fond natal de cette maison, peu activée ce mois. N'ajoute aucun autre titre ##.`,
         sysSynth: "Tu es un astrologue-planificateur expert. Tu rythmes le mois en identifiant les temps forts et les fenêtres d'opportunité. Ton ton est concret, rythmé et bienveillant. IMPORTANT : Ne commence JAMAIS par une formule de salutation. Tutoie systématiquement le consultant.",
         consigneSynth: `Introduction sur l'énergie dominante du mois. 2-3 thèmes majeurs centrés sur les événements de Niveau 1 et 2. Calendrier S1/S2/S3/S4. Conseil central.`
     },
     "Hebdomadaire": {
         sys: "Tu es un astrologue-coach expert, orienté vers l'action concrète et immédiate. Tu identifies les déclencheurs de la semaine et traduis les transits en décisions pratiques. Ton ton est direct, dynamique et motivant. IMPORTANT : Ne commence JAMAIS par une formule de salutation. Tutoie systématiquement le consultant.",
-        actif: (m) => `Analyse en 3 temps (Lun–Mar / Mer–Jeu / Ven–Dim). Priorise les événements de Niveau 1 et 2 (voir ÉCHELLE D'INTENSITÉ ci-dessus). Si une ÉCLIPSE CONJONCTE, une CONVERGENCE ou un ASPECT LUNE PRÉCIS est actif, mets-le en valeur comme déclencheur exact. Les ⚡ DOUBLE ACTIVATION sont les moments pivots de la semaine.`,
-        vide: (m) => `Cette maison est calme cette semaine. 2 à 3 lignes sur l'ambiance de fond natal.`,
+        actif: (m) => `Structure ta réponse avec ces titres ##, dans cet ordre EXACT et sans en ajouter d'autres : « ## Introduction » (2-3 phrases qui cadrent la dynamique de la maison sur la semaine), puis les 3 temps — « ## Lun–Mar », « ## Mer–Jeu », « ## Ven–Dim ». Si un temps est calme, résume-le en 1 phrase. Priorise les événements de Niveau 1 et 2 (voir ÉCHELLE D'INTENSITÉ ci-dessus). Si une ÉCLIPSE CONJONCTE, une CONVERGENCE ou un ASPECT LUNE PRÉCIS est actif, mets-le en valeur comme déclencheur exact. Les ⚡ DOUBLE ACTIVATION sont les moments pivots de la semaine.`,
+        vide: (m) => `Commence par le titre « ## Introduction », puis en 2 à 3 lignes rappelle l'ambiance de fond natal de cette maison, calme cette semaine. N'ajoute aucun autre titre ##.`,
         sysSynth: "Tu es un astrologue-coach expert. Tu synthétises la semaine avec dynamisme et précision. Ton ton est direct, concret et motivant. IMPORTANT : Ne commence JAMAIS par une formule de salutation. Tutoie systématiquement le consultant.",
         consigneSynth: `Intention de semaine. 2-3 temps forts avec jours clés centrés sur les événements prioritaires. Structure Début/Milieu/Fin. Conseil actionnable.`
     },
     "Journalier": {
         sys: "Tu es un astrologue-guide du quotidien. Tu captes l'énergie du jour et la traduis en intention claire et immédiatement applicable. Ton ton est bref, inspirant et pratique — chaque mot compte. IMPORTANT : Ne commence JAMAIS par une formule de salutation. Tutoie systématiquement le consultant.",
-        actif: (m) => `Pour M${m} :\n1. THÈMES DOMINANTS (2-3 phrases) — centrés sur les événements de plus haute intensité du jour\n2. DÉCLENCHEURS ACTIFS — aspects du jour, aspects Lune précis (heure si disponible)\nCONSEIL PRATIQUE. Maximum 12 lignes.`,
-        vide: (m) => `M${m} au repos. 2-3 lignes + mini-intention.`,
+        actif: (m) => `Pour M${m}, structure avec ces titres ##, dans cet ordre EXACT et sans en ajouter d'autres : « ## Introduction » (2-3 phrases sur l'énergie du jour pour cette maison, centrées sur les événements de plus haute intensité), « ## Déclencheurs » (aspects du jour, aspects Lune précis, heure si disponible), « ## Conseil » (pratique et actionnable). Maximum 12 lignes au total.`,
+        vide: (m) => `Commence par le titre « ## Introduction », puis 2-3 lignes + une mini-intention pour M${m}, au repos aujourd'hui. N'ajoute aucun autre titre ##.`,
         sysSynth: "Tu es un astrologue-guide du quotidien. Tu résumes l'énergie du jour en une synthèse inspirante et actionnable. Ton ton est bref et bienveillant. IMPORTANT : Ne commence JAMAIS par une formule de salutation. Tutoie systématiquement le consultant.",
         consigneSynth: `Phrase d'ouverture forte. ÉNERGIE DU JOUR (2-3 phrases centrées sur l'événement le plus intense). THÈMES CLÉS. CONSEIL CENTRAL.`
     }
 }[typeRapport] || {
     sys: "Tu es un astrologue de haut niveau. Ta vision est éclairante, structurée et bienveillante. IMPORTANT : Ne commence JAMAIS par une formule de salutation. Tutoie systématiquement le consultant.",
-    actif: (m) => `Analyse chronologique. Priorise les événements de Niveau 1 et 2 (voir ÉCHELLE D'INTENSITÉ). Intègre les événements rares (éclipses conjonctes, convergences). Reste concret.`,
-    vide: (m) => `Tendances de fond natal en 5 à 7 lignes.`,
+    actif: (m) => `Structure avec ces titres ## : « ## Introduction » (2-3 phrases de cadrage), puis une analyse chronologique en temps successifs, chacun sous son propre titre ##. Priorise les événements de Niveau 1 et 2 (voir ÉCHELLE D'INTENSITÉ). Intègre les événements rares (éclipses conjonctes, convergences). Reste concret.`,
+    vide: (m) => `Commence par le titre « ## Introduction », puis en 5 à 7 lignes rappelle les tendances de fond natal. N'ajoute aucun autre titre ##.`,
     sysSynth: "Tu es un astrologue de haut niveau. Ton inspirant et bienveillant. IMPORTANT : Ne commence JAMAIS par une formule de salutation. Tutoie systématiquement le consultant.",
     consigneSynth: `Introduction sur la dynamique de la période. 2-3 grands thèmes centrés sur les événements prioritaires. Conseil central.`
 };
@@ -4441,9 +4546,13 @@ cfg.sys = cfg.sys
 cfg.sysSynth = cfg.sysSynth
     .replace('Tutoie systématiquement le consultant : utilise tu, ton, ta, tes.', pronomInstr + genreAccord)
     .replace('Tutoie systématiquement le consultant.', pronomInstr + genreAccord);
-const markdownInstr = ' FORMATAGE : Utilise ## pour les titres de section et ### pour les sous-titres. Ne mets jamais de gras (**) autour des titres ## ou ###.';
+const markdownInstr = ' FORMATAGE (RÈGLE STRICTE DE STRUCTURE) : Le seul niveau de titre autorisé est ##. Réserve les titres ## aux grandes sections prévues par ta CONSIGNE DE RÉDACTION (par exemple « Introduction », puis les temps chronologiques ou rubriques qui y sont demandés). Emploie des intitulés COURTS et SOBRES : reprends l\'intitulé tel quel, sans suffixe descriptif ni deux-points explicatif (écris « ## Printemps », JAMAIS « ## Printemps : ... »). N\'ajoute AUCUN autre titre ## et n\'utilise JAMAIS de sous-titre ### : tout point secondaire reste intégré dans le corps du paragraphe. RELIEF VISUEL : dans chaque paragraphe, mets en **gras** 2 à 3 mots-clés forts (planètes, dates-clés, thèmes de vie) pour ancrer la lecture. Ne mets jamais de gras (**) autour des titres.';
 const dataFidelityInstr = ' FIDÉLITÉ AUX DONNÉES : utilise EXCLUSIVEMENT les données fournies dans le prompt. Ne déduis JAMAIS une position non fournie. Ne JAMAIS halluciner un aspect, un transit ou une maison.';
-const pyramidInstr = ' HIÉRARCHIE PRÉDICTIVE (6 couches, du sommet vers la base) : 1) Directions Primaires (tournants inévitables) > 2) Époque de vie (Firdaria) > 3) Climat annuel (Progressions, Arcs, RS) > 4) Activations majeures (Transits lourds, Éclipses) > 5) Déclencheurs (Mars, Lunaisons, rapides) > 6) Complémentaires. Un événement = convergence de MINIMUM 3 couches. Un transit isolé n\'est PAS un événement.';
+// #6 : ton DP adouci (P2-A). DP restent en couche 0 (priorité doctrinale conservée) mais on retire
+//   la posture déterministe absolue (« SUPRÊME / INÉVITABLE / RIEN DE MAJEUR / ABSOLUE / DOMINE »).
+//   PROD-safe (flag ON par défaut, bypass DTC_PROMPT_DP_SOFT=0, aucun global Node). M5 neutre (narratif seul).
+const DTC_PROMPT_DP_SOFT = !(typeof process !== "undefined" && process.env && process.env.DTC_PROMPT_DP_SOFT === "0");
+const pyramidInstr = ' HIÉRARCHIE PRÉDICTIVE (6 couches, du sommet vers la base) : 1) Directions Primaires (' + (DTC_PROMPT_DP_SOFT ? 'tournants structurants' : 'tournants inévitables') + ') > 2) Époque de vie (Firdaria) > 3) Climat annuel (Progressions, Arcs, RS) > 4) Activations majeures (Transits lourds, Éclipses) > 5) Déclencheurs (Mars, Lunaisons, rapides) > 6) Complémentaires. Un événement = convergence de MINIMUM 3 couches. Un transit isolé n\'est PAS un événement.';
 // Promesse natale (Rushman) — ancrage de fiabilité narrative (2026-06-04)
 const natalPromiseInstr = ' PROMESSE NATALE (Rushman) : un thème de l\'année ne se développe en fil conducteur QUE s\'il est porté par une promesse du thème NATAL (planète, maison, maître ou configuration de naissance concernés). Avant de projeter une dynamique sur l\'année, ancre-la explicitement dans le thème de naissance (formule du type « ce terrain est déjà inscrit dans ton ciel natal par … »). Si aucun significateur natal ne soutient le thème, traite-le comme une coloration passagère de transit, jamais comme un axe structurant de l\'année.';
 cfg.sys += markdownInstr + dataFidelityInstr + pyramidInstr + natalPromiseInstr;
@@ -4453,6 +4562,12 @@ cfg.sysSynth += markdownInstr + dataFidelityInstr + pyramidInstr + natalPromiseI
 // Trie les transits lents scorés par maison, détermine le Top N pour le prompt LLM.
 // Les transits hors Top N restent dans maisonsResult (exhaustivité HTML technique)
 // mais sont exclus du prompt_user pour éviter de noyer le LLM.
+// 3C Brady (DTC_HM_ANGBRADY) — dédup d'axe à la SOURCE : une conjonction à DESC/IC crédite SON point
+//   (M7/M4) ; l'opposition à ASC/MC (= même position) est écartée ; les non-conjonctions à DESC/IC
+//   passent par ASC/MC. Appliqué ici → cohérent pour le RÉCIT (topTransitsByHouse / filterSlowTransitLines,
+//   qui lisent houseTransitScored) ET pour la heatmap V3/V2. MDSE-safe : les eventSignatures et
+//   aspectsSuiviLent (feed baseline 150 DTC) n'utilisent PAS houseTransitScored.
+if (DTC_HM_ANGBRADY) { for (let _h = 0; _h < 12; _h++) houseTransitScored[_h] = houseTransitScored[_h].filter(e => !_bradyAxisDrop(e.pNatal, e.aspName)); }
 houseTransitScored.forEach(arr => arr.sort((a, b) => b.score - a.score));
 
 const topTransitsByHouse = {};
@@ -5200,6 +5315,43 @@ try {
     if (pMoon && pMoon.fullDegree != null) {
       _mdseProgMoonSign = pMoon.zodiac_sign?.name?.fr || pMoon.signe || signs[Math.floor(pMoon.fullDegree/30)%12];
       _mdseProgMoonHouse = findNatalHouse(pMoon.fullDegree);
+    }
+  }
+} catch(e) {}
+
+// --- Lune progressée : arc début→fin de période (narratif honnête, anti-hallu) ---
+// La Lune progressée avance ~1°/mois (~12°/an, ~2,5 ans/maison) : sur une période
+// annuelle elle peut changer de signe (voire franchir 1 cuspide). On calcule ses
+// bornes début/fin par appariement d'âge sur progressionsData (même méthode que le
+// case moteur prog_moon_sign_change_in_angular), pour ne JAMAIS l'attribuer
+// statiquement à une seule maison sur toute l'année.
+let _progMoonArc = null;
+try {
+  if (progressionsData.length > 0 && dateNaiss && !isNaN(dateNaiss) && _mdseProgMoonSign) {
+    const _ageStart = (dStart - dateNaiss) / (365.25 * 24 * 3600 * 1000);
+    const _ageEnd   = (dEnd   - dateNaiss) / (365.25 * 24 * 3600 * 1000);
+    let _pS = null, _pE = null, _bS = Infinity, _bE = Infinity;
+    progressionsData.forEach(prog => {
+      const lg = prog.planetes?.Lune?.fullDegree;
+      if (lg == null) return;
+      const dS = Math.abs(prog.age_annees - _ageStart);
+      const dE = Math.abs(prog.age_annees - _ageEnd);
+      if (dS < _bS) { _bS = dS; _pS = prog; }
+      if (dE < _bE) { _bE = dE; _pE = prog; }
+    });
+    if (_pS && _pE) {
+      const degS = _pS.planetes.Lune.fullDegree, degE = _pE.planetes.Lune.fullDegree;
+      const signStart = _pS.planetes.Lune.signe || signs[Math.floor(degS / 30) % 12];
+      const signEnd   = _pE.planetes.Lune.signe || signs[Math.floor(degE / 30) % 12];
+      const houseStart = findNatalHouse(degS);
+      const houseEnd   = findNatalHouse(degE);
+      _progMoonArc = {
+        signStart, houseStart, signEnd, houseEnd,
+        midSign: _mdseProgMoonSign, midHouse: _mdseProgMoonHouse,
+        crossesSign: signStart !== signEnd,
+        crossesHouse: houseStart !== houseEnd,
+        houses: [...new Set([houseStart, _mdseProgMoonHouse, houseEnd].filter(h => h >= 1 && h <= 12))]
+      };
     }
   }
 } catch(e) {}
@@ -6193,6 +6345,7 @@ try {
         promissor: promName, significator: sigName, aspect: h.aspect,
         direction: dir,
         exactAge: parseFloat(dirAge.toFixed(2)),
+        exactDate: (dateNaiss && !isNaN(dateNaiss) && Number.isFinite(dirAge)) ? new Date(dateNaiss.getTime() + dirAge * 365.25 * 86400000).toISOString().slice(0, 10) : null,
         orbYears: parseFloat(orbY.toFixed(2)),
         orbDeg:   parseFloat(orbD.toFixed(2)),
         promHouse, sigHouse,
@@ -6301,6 +6454,36 @@ try {
   }
   }
 } catch(e) {}
+
+// [DP MUNDANE 2026-07-06] Filtre priorité significateurs pour le prompt LLM + la heatmap.
+// Priorité = significateur luminaire/angle (= ancien set zodiacal) ; un couple
+// planète→planète ne remonte que si orbe ≤ 0.5 an. NO-OP en mode zodiacal (tous
+// les significateurs y sont déjà des luminaires/angles). Le rapport expert garde
+// la table complète (_mdsePrimaryDirections non filtré).
+const _DP_PRIO_SIGS = new Set(["Soleil","Lune","ASC","DSC","MC","IC"]);
+const _DP_ANGLES_ALL = new Set(["Ascendant","Descendant","Milieu du Ciel","Imum Coeli","ASC","DSC","MC","IC"]);
+const _DP_PROM_BASE = { "Descendant":"Ascendant", "Imum Coeli":"Milieu du Ciel", "Nœud Sud":"Nœud Nord" };
+const _DP_SIG_BASE  = { "DSC":"ASC", "IC":"MC", "Nœud Sud":"Nœud Nord" };
+const _DP_PRIO_CAP  = 6;
+const _dpFilterPrio = (arr) => {
+  if (!Array.isArray(arr)) return [];
+  // 1. Priorité : significateur luminaire/angle OU orbe ≤ 0.5 an (planète→planète serrée).
+  //    + exclusion angle→angle (géométrie triviale non événementielle).
+  const cand = arr.filter(d => d
+    && (_DP_PRIO_SIGS.has(d.significator) || (typeof d.orbYears === "number" && d.orbYears <= 0.5))
+    && !(_DP_ANGLES_ALL.has(d.promissor) && _DP_ANGLES_ALL.has(d.significator)));
+  // 2. Dédup axiale (ASC↔DSC, MC↔IC, Nœud N↔S mirroir) : un événement = une ligne, plus petit orbe gardé.
+  cand.sort((a, b) => (a.orbYears || 0) - (b.orbYears || 0));
+  const _seen = new Set(); const _out = [];
+  for (const d of cand) {
+    const pb = _DP_PROM_BASE[d.promissor] || d.promissor;
+    const sb = _DP_SIG_BASE[d.significator] || d.significator;
+    const k = pb + "|" + sb + "|" + (Math.round((d.exactAge || 0) * 10) / 10);
+    if (!_seen.has(k)) { _seen.add(k); _out.push(d); }
+  }
+  // 3. Cap top-N par orbe croissant.
+  return _out.slice(0, _DP_PRIO_CAP);
+};
 
 // ════════════════════════════════════════════════════════════════════════
 // Phase C-2 (2026-05-24) — Table doctrinale Directions Primaires
@@ -9241,7 +9424,7 @@ const _mdseEvalCondition = (cond, _sigCode) => {
         result.strength = Math.min(orbFactor + (pdHits.length - 1) * 0.1, 1.0);
         result.involvedPlanets = [...new Set(pdHits.flatMap(h => [h.planet, h.significator]))];
         result.involvedHouses = [...new Set(pdHits.map(h => h.house))];
-        result.detail = `DP: ${best.dir} ${best.aspect} ${best.significator} (orbe ${best.orb} an${best.orb>=2?"s":""})`;
+        result.detail = `DP: ${String(best.planet || best.dir || "").replace(/\s*\((?:converse|directe|direct)\)/gi, "")} ${best.aspect} ${best.significator} (orbe ${best.orb} an${best.orb>=2?"s":""})`;
         // v18.5 (Palier 1e) : calcul des dates exactes des DP à partir de exactAge
         // (âge précis en années depuis la naissance) clampé sur la plage d'analyse.
         try {
@@ -10891,7 +11074,7 @@ if (_mdsePrimaryDirHits.length > 0) {
       const boost = bestOrb <= 0.3 ? 0.25 : bestOrb <= 0.7 ? 0.18 : bestOrb <= 1.0 ? 0.12 : 0.06;
       sig.confidence = Math.min(93, Math.round(sig.confidence * (1 + boost + Math.min((dirHits.length-1)*0.04, 0.12))));
       sig.level = sig.confidence >= 55 ? "high" : sig.confidence >= 35 ? "medium" : "low";
-      if (!sig._dpConfirmed) sig._dpConfirmed = dirHits.map(h => `${h.dir} ${h.aspect} ${h.significator}`);
+      if (!sig._dpConfirmed) sig._dpConfirmed = dirHits.map(h => `${String(h.planet || h.dir || "").replace(/\s*\((?:converse|directe|direct)\)/gi, "")} ${h.aspect} ${h.significator}`);
       sig._dpDoctrinalApplied = doctrinalApplied;
       sig._pyramidLevel = 2;
     }
@@ -12477,7 +12660,7 @@ const charteEthiqueTech = {
 const noticeIntensite =
     `[ÉCHELLE D'INTENSITÉ — Structure ton analyse selon cette hiérarchie]\n` +
     `Les sections du prompt ci-dessous sont classées. Respecte cette pondération dans ta rédaction :\n` +
-    `- NIVEAU 1 — ABSOLUS (~60-70% de ton analyse) : ⚡⚡ TRIPLE ACTIVATION (transit+progression+arc solaire), ⚡ DOUBLE ACTIVATION, ÉCLIPSES CONJONCTES, RÉSONANCES ÉCLIPTIQUES NATALES. Ce sont les événements déterminants. Structure ton texte autour d'eux.\n` +
+    `- NIVEAU 1 — ABSOLUS (~60-70% de ton analyse) : ⚡⚡ TRIPLE ACTIVATION (convergence transit + progressions), ⚡ DOUBLE ACTIVATION, ÉCLIPSES CONJONCTES, RÉSONANCES ÉCLIPTIQUES NATALES. Ce sont les événements déterminants. Structure ton texte autour d'eux.\n` +
     `- NIVEAU 2 — FORTS (~20%) : FENÊTRES DE HAUTE INTENSITÉ (convergences), STATION SUR PLANÈTE NATALE, ÉTOILE ROYALE, CONFIGURATIONS NATALES ACTIVÉES. Un paragraphe développé pour chacun.\n` +
     `- NIVEAU 3 — STRUCTURANTS (~10%) : Transits lents classiques, PROGRESSIONS SECONDAIRES, INGRESS avec dignité, CYCLES DE VIE. Toile de fond contextuelle.\n` +
     `- NIVEAU 4 — NUANCES : MIDPOINTS, ANTISCIA, TRANSLATIONS DE LUMIÈRE, DEGRÉS CRITIQUES. Une phrase de contexte si présents, ne développe pas.\n` +
@@ -12697,9 +12880,75 @@ if (firdariaActive && firdariaActive.sub) {
     _fsLines.push(`♊ Déblocage d'interception : ${_fsIntercept.map(is => `${is.sign} en M${is.house}`).join(", ")} — la Firdaria ${_fsMaj}/${_fsSub} agit comme détonateur pour libérer ces énergies latentes dans les maisons où résident ou règnent les chronocrateurs.`);
   }
   if (_fsLines.length > 0) {
-    _firdSynergyBlock = `\n\n[🔗 FIRDARIA × SYNERGIE NATALE — Activation de talents et déclencheurs latents]\n${_fsLines.join("\n")}\n→ INSTRUCTION : intégrer cette synergie comme fil conducteur symbolique. Les thèmes touchés par les deux chronocrateurs doivent être lus comme un COUPLE FONCTIONNEL, pas isolément.`;
+    _firdSynergyBlock = `\n\n[🔗 FIRDARIA × SYNERGIE NATALE — Activation de talents et déclencheurs latents]\n${_fsLines.join("\n")}\n→ INSTRUCTION : intégrer cette synergie comme toile de fond symbolique (introduction du chapitre). Les thèmes touchés par les deux chronocrateurs se lisent comme un COUPLE FONCTIONNEL. ⛔ Cette synergie décrit un TRAIT DE NAISSANCE (aspect natal-natal) : ne JAMAIS l'employer pour causer ou justifier un transit daté précis d'une maison (INTERDIT : « parce que X coopère avec Y natal… »).`;
   }
 }
+
+// ── #3 : budget narratif aligné maison TRANSITÉE B (proxy cumul contact-dominant, transits lents) ──
+//    Corrige le biais stellium natal du token budget (audit P0-A). Réplique la partie (a) de la grille v3
+//    réduite au total/maison, dispo tôt via houseTransitScored + aspectsSuiviLent.waves.transitHouseAtPeak.
+//    Rapides / événements datés (indispo avant _rmHM) hors proxy → fidèle en annuel, proxy en mensuel/hebdo.
+//    PROD-safe (flag ON par défaut, bypass DTC_PROMPT_BUDGET_B=0, aucun process nu). NON branché tant que
+//    les seuils ne sont pas figés : _budgetB est calculé + exposé en shadow (calibrage), budget reste natal A.
+const DTC_PROMPT_BUDGET_B = !(typeof process !== "undefined" && process.env && process.env.DTC_PROMPT_BUDGET_B === "0");
+const _BUD_TOPN = 4;
+const _BUD_HMULT = {1:1.2,4:1.2,7:1.2,10:1.2,2:1,5:1,8:1,11:1,3:0.85,6:0.85,9:0.85,12:0.85}; // = _HOUSE_MULT (dupliqué, défini plus bas)
+const _budgetB = Array.from({length:12}, () => 0);
+if (typeof houseTransitScored !== "undefined" && typeof aspectsSuiviLent !== "undefined") {
+  const _budByH = Array.from({length:12}, () => []);
+  houseTransitScored.forEach(entries => (entries||[]).forEach(entry => {
+    const a = aspectsSuiviLent[entry.key];
+    if (!a || !Array.isArray(a.waves) || !a.waves.length) return;
+    const bestW = a.waves.reduce((b,w)=> parseFloat(w.minOrb)<=parseFloat(b.minOrb)?w:b);
+    const bH = bestW.transitHouseAtPeak;
+    if (bH>=1 && bH<=12) _budByH[bH-1].push(entry.score||0);
+  }));
+  _budByH.forEach((scores,i) => {
+    scores.sort((x,y)=>y-x);
+    let s=0; scores.forEach((v,r)=>{ if(r<_BUD_TOPN) s += v/(r+1); });
+    _budgetB[i] = s * (_BUD_HMULT[i+1]||1);
+  });
+}
+const _budgetBMax = Math.max(1, ..._budgetB);
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  NARRATIF DP + LUNE PROGRESSÉE (2026-07-06) — cadrage anti-hallucination
+//  • Périmètre : Annuel + Mensuel uniquement. Hebdo/Journalier = ces couches
+//    annuelles/pluriannuelles sont RETIRÉES du narratif (contresens temporel).
+//    (La heatmap n'est pas concernée : elle reste calculée pour tous les types.)
+//  • converse/directe : RETIRÉ du narratif LLM (non sourcé dans le corpus) ;
+//    conservé uniquement dans le rapport technique. On garde « tournant structurant ».
+//  • Restitution : DP / Lune prog. / progressions = à traiter dans « ## Introduction »
+//    uniquement (toile de fond), jamais datés sur les sous-sections chronologiques.
+// ═══════════════════════════════════════════════════════════════════════════
+const _narrDpLuneOn = (typeRapport === "Annuel" || typeRapport === "Mensuel");
+const _dpNarrLabel = (d) => {
+  const parts = [];
+  if (d.exactAge != null && !isNaN(d.exactAge)) parts.push(`exact à ${Number(d.exactAge).toFixed(1)} ans`);
+  if (d.orbYears != null && !isNaN(d.orbYears)) parts.push(`orbe ${Number(d.orbYears).toFixed(1)} an${d.orbYears >= 2 ? "s" : ""}`);
+  const meta = parts.length ? ` — ${parts.join(", ")}` : "";
+  return `${d.promissor} ${d.aspect} ${d.significator} (tournant structurant${meta})`;
+};
+// Maison d'impact d'une DP = maison du POINT TOUCHÉ (significateur). Pour un angle
+// significateur, la maison = sa cuspide (ASC→1, IC→4, DSC→7, MC→10). Fallback promisseur.
+const _DP_ANGLE_CUSP = { "ASC":1, "Ascendant":1, "DSC":7, "Descendant":7, "MC":10, "Milieu du Ciel":10, "IC":4, "Imum Coeli":4 };
+const _dpHouseOf = (d) => {
+  if (!d) return null;
+  if (_DP_ANGLE_CUSP[d.significator] != null) return _DP_ANGLE_CUSP[d.significator];
+  if (typeof d.sigHouse === "number" && d.sigHouse >= 1 && d.sigHouse <= 12) return d.sigHouse;
+  if (_DP_ANGLE_CUSP[d.promissor] != null) return _DP_ANGLE_CUSP[d.promissor];
+  return (typeof d.promHouse === "number" && d.promHouse >= 1 && d.promHouse <= 12) ? d.promHouse : null;
+};
+// Liste DP narrative = filtre prioritaire (exclut axe↔axe non-événementiel) ; vide hors Annuel/Mensuel.
+const _dpNarrList = _narrDpLuneOn ? _dpFilterPrio(_mdsePrimaryDirections) : [];
+const _progMoonArcPhrase = () => {
+  if (!_progMoonArc) return "";
+  const a = _progMoonArc;
+  if (typeRapport === "Mensuel" || (!a.crossesSign && !a.crossesHouse)) {
+    return `en ${a.midSign} (M${a.midHouse})`;
+  }
+  return `de ${a.signStart} (M${a.houseStart}) vers ${a.signEnd} (M${a.houseEnd}) au fil de la période`;
+};
 
 maisonsResult.forEach(m => {
     const hasLents   = m.transits_lents_texte.length>0 || m.aspects_lents_recus.length>0 || m.aspects_lents_envoyes.length>0;
@@ -12827,9 +13076,20 @@ maisonsResult.forEach(m => {
     // ═══════════════════════════════════════════════════════════════
     //  COUCHE 0 — TRAME DU DESTIN (Directions Primaires)
     // ═══════════════════════════════════════════════════════════════
-    if (_mdsePrimaryDirections.length > 0) {
-      const dpForHouse = _mdsePrimaryDirections.filter(d => d.sigHouse === m.maison || d.promHouse === m.maison);
-      if (dpForHouse.length > 0) prompt += `\n\n[🔱 DIRECTIONS PRIMAIRES — TRAME DU DESTIN (COUCHE SUPRÊME)]\n⚠ Les Directions Primaires sont la technique prédictive la plus puissante. Elles indiquent les TOURNANTS INÉVITABLES de l'existence (influence 1-3 ans). Rien de majeur ne se produit si les DP ne l'ont pas promis.\n${dpForHouse.map(d => `  ${d.label}`).join("\n")}\n→ INSTRUCTION : confirmer ou infirmer les transits et progressions ci-dessous à la lumière de ces directions. Si une DP est exacte (orbe < 0.5 an), elle PRIME sur toute autre technique.`;
+    // COUCHE 0 — Directions Primaires : filtre prioritaire + routage maison du significateur (angle→cuspide).
+    const dpForHouse = _dpNarrList.filter(d => _dpHouseOf(d) === m.maison);
+    const _dpAllowedSet = new Set(dpForHouse.map(d => `${d.promissor} ${d.aspect} ${d.significator}`));
+    if (_narrDpLuneOn && dpForHouse.length > 0) {
+      prompt += DTC_PROMPT_DP_SOFT
+        ? `\n\n[🔱 DIRECTIONS PRIMAIRES — TRAME DU DESTIN (COUCHE STRUCTURANTE PRIORITAIRE)]\n⚠ Les Directions Primaires sont l'une des techniques prédictives les plus puissantes. Elles indiquent les grands tournants structurants de l'existence (influence 1-3 ans) ; le plus souvent, un tournant majeur est annoncé par une DP. Elles visent le secteur de vie de CETTE maison.\n${dpForHouse.map(d => `  ${_dpNarrLabel(d)}`).join("\n")}\n→ INSTRUCTION : à présenter UNIQUEMENT dans « ## Introduction » comme la toile de fond structurante de la période pour ce secteur. Influence longue (1-3 ans) : JAMAIS un événement daté d'un jour/semaine/mois précis. Ne PAS répéter les DP dans les sous-sections chronologiques (elles restent centrées sur les transits datés).`
+        : `\n\n[🔱 DIRECTIONS PRIMAIRES — TRAME DU DESTIN (COUCHE SUPRÊME)]\n⚠ Les Directions Primaires indiquent les grands tournants structurants de l'existence (influence 1-3 ans). Elles visent le secteur de vie de CETTE maison.\n${dpForHouse.map(d => `  ${_dpNarrLabel(d)}`).join("\n")}\n→ INSTRUCTION : à présenter UNIQUEMENT dans « ## Introduction » comme la toile de fond structurante de la période. Influence longue (1-3 ans) : JAMAIS un événement daté précis. Ne PAS répéter les DP dans les sous-sections chronologiques.`;
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    //  COUCHE 0-bis — LUNE PROGRESSÉE (climat émotionnel de fond) — intro seulement
+    // ═══════════════════════════════════════════════════════════════
+    if (_narrDpLuneOn && _progMoonArc && _progMoonArc.houses.includes(m.maison)) {
+      prompt += `\n\n[🌙 LUNE PROGRESSÉE — CLIMAT ÉMOTIONNEL DE FOND]\nLa Lune progressée (déplacement lent ~1°/mois) évolue ${_progMoonArcPhrase()} et concerne ce secteur (M${m.maison}). Elle colore le CLIMAT INTÉRIEUR / émotionnel de la période — ce n'est pas un événement.\n→ INSTRUCTION : à évoquer UNIQUEMENT dans « ## Introduction » comme toile de fond psychologique ; JAMAIS comme un fait daté d'un jour/semaine.`;
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -12837,9 +13097,9 @@ maisonsResult.forEach(m => {
     // ═══════════════════════════════════════════════════════════════
     if (firdariaActive) prompt += `\n\n[🕰 FIRDARIA — CHRONOCRATEUR ACTIF (COUCHE ÉPOQUE)]\n${firdariaActive.label}\n→ Toutes les techniques ci-dessous sont lues à travers ce filtre.`;
     if (_firdSynergyBlock) prompt += _firdSynergyBlock;
-    if (_mdseBoundProfection) prompt += `\n\n[📜 BOUND PROFECTION (COUCHE ÉPOQUE — Termes égyptiens)]\n${_mdseBoundProfection.label}${_mdseBoundProfection.next ? `\n→ Prochain terme : ${_mdseBoundProfection.next.boundLord} en ${_mdseBoundProfection.next.sign}` : ""}`;
+    if (false /* WS_PLACIDUS_RETRAIT */ && _mdseBoundProfection) prompt += `\n\n[📜 BOUND PROFECTION (COUCHE ÉPOQUE — Termes égyptiens)]\n${_mdseBoundProfection.label}${_mdseBoundProfection.next ? `\n→ Prochain terme : ${_mdseBoundProfection.next.boundLord} en ${_mdseBoundProfection.next.sign}` : ""}`;
     if (_mdseReturnEvents.length > 0) prompt += `\n\n[🔄 RETOURS PLANÉTAIRES ACTIFS (COUCHE ÉPOQUE)]\n${_mdseReturnEvents.map(r => `  ${r.label}`).join("\n")}`;
-    if (_mdseZRPeakPeriod.sign) {
+    if (false /* WS_PLACIDUS_RETRAIT */ && _mdseZRPeakPeriod.sign) {
       let _zrCtx = `ZR Période L1 en ${_mdseZRPeakPeriod.sign}`;
       if (_mdseZRPeakPeriod.isPeak) _zrCtx += ` — ⚡ PIC (signe angulaire / Part de Fortune)`;
       else if (_mdseZRPeakPeriod.isLoosing) _zrCtx += ` — ⚠ RELÂCHEMENT (fin de période)`;
@@ -12855,17 +13115,37 @@ maisonsResult.forEach(m => {
     //  COUCHE 2 — CLIMAT ANNUEL (Arcs/Progressions/RS)
     // ═══════════════════════════════════════════════════════════════
     if (m.progressions_texte.length) {
-        const progSorted = [...m.progressions_texte].sort((a, b) => {
-            const wa = (a.match(/\[poids ([0-9.]+)\]/) || [])[1]; const wb = (b.match(/\[poids ([0-9.]+)\]/) || [])[1];
-            return (parseFloat(wb) || 0) - (parseFloat(wa) || 0);
-        });
-        const progCap = Math.min(progSorted.length, 10);
-        const progTrimmed = progSorted.slice(0, progCap);
-        if (progSorted.length > progCap) progTrimmed.push(`→ ${progSorted.length - progCap} progression(s) mineure(s) omise(s).`);
-        prompt += sec("🔮 PROGRESSIONS & ARCS SOLAIRES — Climat annuel (PRIORITÉ HAUTE : prépare l'événement)", progTrimmed);
+        // Arcs solaires retirés du narratif (dérivés du Soleil progressé ; conservés dans le rapport technique).
+        const _progNoArc = m.progressions_texte.filter(l => !/☀\s*ARC SOLAIRE/.test(l));
+        // Climat psychologique clé → intro : Soleil / Mercure / Vénus progressés → natal, orbe ≤ 1°.
+        const _isIntroClimate = (l) => {
+            if (!/PROGRESSION\s*→\s*NATAL\s*:\s*(Soleil|Mercure|Vénus)\s+progress/i.test(l)) return false;
+            const o = parseFloat((l.match(/orbe\s+([\d.]+)°/) || [])[1]);
+            return !isNaN(o) && o <= 1.0;
+        };
+        let _introClimate = [], _progRest = _progNoArc;
+        if (_narrDpLuneOn) {
+            _introClimate = _progNoArc.filter(_isIntroClimate);
+            _progRest = _progNoArc.filter(l => !_isIntroClimate(l));
+        }
+        if (_introClimate.length) {
+            prompt += `\n\n[🔮 PROGRESSIONS SECONDAIRES — CLIMAT PSYCHOLOGIQUE DE FOND]\n${_introClimate.join("\n")}\n→ INSTRUCTION : à intégrer UNIQUEMENT dans « ## Introduction » comme la manière dont tu vis INTÉRIEUREMENT la période sur ce domaine (maturation psychologique lente). NON daté ; ce n'est pas un événement d'un jour/semaine.`;
+        }
+        if (_progRest.length) {
+            const progSorted = [..._progRest].sort((a, b) => {
+                const wa = (a.match(/\[poids ([0-9.]+)\]/) || [])[1]; const wb = (b.match(/\[poids ([0-9.]+)\]/) || [])[1];
+                return (parseFloat(wb) || 0) - (parseFloat(wa) || 0);
+            });
+            const progCap = Math.min(progSorted.length, 10);
+            const progTrimmed = progSorted.slice(0, progCap);
+            if (progSorted.length > progCap) progTrimmed.push(`→ ${progSorted.length - progCap} progression(s) mineure(s) omise(s).`);
+            prompt += sec("🔮 PROGRESSIONS SECONDAIRES — Activations progressées (climat annuel)", progTrimmed);
+        }
     }
     if (m.double_activation_texte.length)
         prompt += sec("⚡ DOUBLE ACTIVATION (Transit + Progression) — Événements structurants de premier ordre", m.double_activation_texte);
+    if (m.double_activation_b_texte?.length)
+        prompt += sec("⚡ ACTIVATION CARDINALE — transit majeur DANS cette maison (domaine natal précisé)", m.double_activation_b_texte);
     if (m.revolution_solaire_texte?.length)
         prompt += sec("🌞 RÉVOLUTION SOLAIRE — Thème annuel (contexte climatique)", m.revolution_solaire_texte);
 
@@ -12995,9 +13275,10 @@ maisonsResult.forEach(m => {
             const eclRTagM = sig._eclipseReactivation?.length > 0 ? `\n  🌑 Éclipse réactivée : ${sig._eclipseReactivation.slice(0,2).join("; ")}` : "";
             const phaseTagM = sig._aspectPhase ? `\n  🎯 ${sig._aspectPhase === "applying" ? "En application" : "En séparation"}` : "";
             const pmAspTagM = sig._progAspects?.length > 0 ? `\n  🔮 Progressions : ${sig._progAspects.join("; ")}` : "";
-            const arcTagM = sig._arcAspects?.length > 0 ? `\n  ☀ Arcs solaires : ${sig._arcAspects.join("; ")}` : "";
+            const arcTagM = ""; // Arcs solaires retirés du narratif (conservés dans le rapport technique).
             const ageTagM = sig._ageMilestones?.length > 0 ? `\n  🎯 Jalon : ${sig._ageMilestones.join(", ")}` : "";
-            const dpTagM = sig._dpConfirmed?.length > 0 ? `\n  🏛️ Dir. primaire : ${sig._dpConfirmed.slice(0,2).join("; ")}` : "";
+            const _dpConfHere = Array.isArray(sig._dpConfirmed) ? sig._dpConfirmed.filter(s => _dpAllowedSet.has(s)) : [];
+            const dpTagM = _dpConfHere.length > 0 ? `\n  🏛️ Dir. primaire : ${_dpConfHere.slice(0,2).join("; ")}` : "";
             const firdTagM = sig._firdConfirmed ? `\n  ⏳ Chronocrateur : ${sig._firdConfirmed}` : "";
             const firdSyncTagM = sig._progMoonFirdSync ? `\n  🔗 ${sig._progMoonFirdSync}` : "";
             const firdSynTagM = sig._firdNatalSynergy ? `\n  ★ Synergie Firdaria : ${sig._firdNatalSynergy}` : "";
@@ -13016,19 +13297,26 @@ maisonsResult.forEach(m => {
         }
         prompt += `\n\n[🔍 SIGNATURES ÉVÉNEMENTIELLES — Thématiques détectées pour M${m.maison}]\n${sigLines.join("\n")}${mdseGuard}`;
     }
-    // E2 : Token budgeting dynamique — calibrage longueur selon densité de contenu
+    // E2 : Token budgeting dynamique — calibrage longueur selon densité de contenu.
+    //   #3 : base = intensité TRANSITÉE B (_budgetB, aligné carte cumul) sous DTC_PROMPT_BUDGET_B ;
+    //        sinon legacy natal A (houseScores). Seuils B relatifs /100 : LONG≥55, STD≥28, COURT≥10.
     const mScore = houseScores[m.maison - 1];
+    const _budB100 = DTC_PROMPT_BUDGET_B ? Math.round((_budgetB[m.maison - 1] || 0) / _budgetBMax * 100) : null;
+    const _isLong  = DTC_PROMPT_BUDGET_B ? _budB100 >= 55 : mScore >= 15;
+    const _isStd   = DTC_PROMPT_BUDGET_B ? _budB100 >= 28 : mScore >= 8;
+    const _isShort = DTC_PROMPT_BUDGET_B ? _budB100 >= 10 : mScore >= 3;
+    const _budLbl  = DTC_PROMPT_BUDGET_B ? `Intensité transitée ${_budB100}/100` : `Score intensité ${mScore.toFixed(1)}`;
     let tokenBudget = "";
     if (isEmpty) {
         tokenBudget = "";
-    } else if (mScore >= 15) {
-        tokenBudget = `\n[TOKEN BUDGET : LONG — Score intensité ${mScore.toFixed(1)}. Cette maison reçoit des activations majeures multiples. Développe en profondeur (30-50 lignes). Chaque transit de Niveau 1 et 2 mérite un paragraphe dédié.]`;
-    } else if (mScore >= 8) {
-        tokenBudget = `\n[TOKEN BUDGET : STANDARD — Score intensité ${mScore.toFixed(1)}. Développement normal (20-35 lignes). Priorise les 2-3 événements les plus intenses.]`;
-    } else if (mScore >= 3) {
-        tokenBudget = `\n[TOKEN BUDGET : COURT — Score intensité ${mScore.toFixed(1)}. Cette maison a une activité modérée. Synthétise (12-20 lignes). Évite de développer les transits mineurs.]`;
+    } else if (_isLong) {
+        tokenBudget = `\n[TOKEN BUDGET : LONG — ${_budLbl}. Cette maison reçoit des activations majeures multiples. Développe en profondeur (30-50 lignes). Chaque transit de Niveau 1 et 2 mérite un paragraphe dédié.]`;
+    } else if (_isStd) {
+        tokenBudget = `\n[TOKEN BUDGET : STANDARD — ${_budLbl}. Développement normal (20-35 lignes). Priorise les 2-3 événements les plus intenses.]`;
+    } else if (_isShort) {
+        tokenBudget = `\n[TOKEN BUDGET : COURT — ${_budLbl}. Cette maison a une activité modérée. Synthétise (12-20 lignes). Évite de développer les transits mineurs.]`;
     } else {
-        tokenBudget = `\n[TOKEN BUDGET : MINIMAL — Score intensité ${mScore.toFixed(1)}. Activité très faible. 5-10 lignes suffisent. Ne surinterprète pas des transits mineurs.]`;
+        tokenBudget = `\n[TOKEN BUDGET : MINIMAL — ${_budLbl}. Activité très faible. 5-10 lignes suffisent. Ne surinterprète pas des transits mineurs.]`;
     }
     const memoRappel = `\n\n[RAPPEL FINAL — POSITIONS NATALES : ${MEMO_PLANETS_PREV.map(n => { const nd = natalDict[n]; return nd ? `${n} M${nd.house}(${nd.sign})` : null; }).filter(Boolean).join(" | ")}]\n⛔ Vérifier chaque mention de maison/signe avant de rédiger.`;
     prompt += memoRappel;
@@ -13042,18 +13330,22 @@ maisonsResult.forEach(m => {
 4. STATIONS PLANÉTAIRES : Quand une station est signalée "dans l'orbe" d'un point natal, cela signifie que la planète stationne à PROXIMITÉ — PAS qu'elle stationne sur le degré exact. Reprendre le qualificatif d'orbe fourni.
 5. CONFIGURATIONS & MAISONS : Un stellium par SIGNE ne signifie PAS que toutes ses planètes sont dans la même MAISON. Toujours vérifier la résidence maison de chaque planète dans le MÉMO POSITIONS.
 6. INTERDICTION D'EXTRAPOLATION : Ne PAS combiner deux informations séparées pour créer un lien non explicitement fourni (ex : "station Uranus + Algol natale sur l'IC" ≠ "Algol est activée par Uranus" SAUF si une fenêtre stellaire le confirme).
-7. DATES PRÉCISES (📌) : Quand un transit, une progression ou un arc solaire porte le marqueur 📌, la DATE FOURNIE est astronomiquement exacte (orbe < 0.3°). Tu DOIS mentionner cette date explicitement. Ne JAMAIS inventer de dates — utiliser UNIQUEMENT les dates des pics fournies dans les données.
+7. DATES PRÉCISES (📌) : Quand un transit ou une progression porte le marqueur 📌, la DATE FOURNIE est astronomiquement exacte (orbe < 0.3°). Tu DOIS mentionner cette date explicitement. Ne JAMAIS inventer de dates — utiliser UNIQUEMENT les dates des pics fournies dans les données.
 8. POIDS & PRIORITÉ : Les aspects avec un [poids] élevé (> 0.8) sont plus fiables et discriminants que les aspects à poids faible (< 0.4). Prioriser les aspects à poids élevé dans la rédaction. Ne PAS donner la même importance à un aspect serré (poids 1.2) et à un aspect large (poids 0.3).
 9. MC / IC & ASPECTS NOMMÉS : Pour tout transit vers le Milieu du Ciel (M10), le Fond du Ciel / IC (M4) ou l'axe vertical, reprendre STRICTEMENT le nom d'aspect fourni dans les données (Conjonction / Opposition / Carré / etc.). « Face au sommet », « en miroir du point culminant », «exactement face au MC» = **opposition** au MC, PAS conjonction. INTERDIT d'écrire « conjonction au MC », « Uranus rejoint le MC », « fusion / union avec le MC » si les données indiquent opposition (ou autre). Ne pas utiliser « s'unir à » de façon floue pour entrelacer IC et MC sans nommer l'aspect exact. Si les dates 📌 ou le libellé technique placent le pic d'un Uranus–angle hors de la période du rapport ou comme pic déjà passé d'une autre année, ne pas en faire l'événement structurant de l'année courante — résiduel seulement si les données l'étayent. Même principe pour l'axe horizontal **Ascendant / Descendant** : « face à », « en miroir de l'autre », «au seuil du partenaire» ≠ conjonction à l'ASC si les données disent opposition (ou autre) ; ne pas renommer l'aspect.
 10. PYRAMIDE PRÉDICTIVE — HIÉRARCHIE DE LECTURE OBLIGATOIRE (6 couches, du sommet à la base) :
-   a) TRAME DU DESTIN — Directions Primaires (quand disponibles) = les tournants inévitables de l'existence (durée d'influence 1-3 ans). Rien de majeur n'arrive si les DP ne l'ont pas promis ;
-   b) ÉPOQUE DE VIE — Firdaria, Zodiacal Releasing, Bound Profections, Cycles de vie = le chronocrateur et le maître du temps. Colorent la période : quelle planète domine et quel domaine est activé ;
-   c) CLIMAT ANNUEL — Progressions secondaires, Arcs solaires, Révolution Solaire, Révolutions Lunaires, Profections annuelles = quelle année précise l'événement se produit. Le terrain progressé doit soutenir le transit ;
+   a) TRAME DU DESTIN — Directions Primaires (quand disponibles) = ${DTC_PROMPT_DP_SOFT ? "les grands tournants structurants de l'existence (durée d'influence 1-3 ans). Le plus souvent, un tournant majeur est annoncé par une DP" : "les tournants inévitables de l'existence (durée d'influence 1-3 ans). Rien de majeur n'arrive si les DP ne l'ont pas promis"} ;
+   b) ÉPOQUE DE VIE — Firdaria, Cycles de vie = le chronocrateur et le maître du temps. Colorent la période : quelle planète domine et quel domaine est activé ;
+   c) CLIMAT ANNUEL — Progressions secondaires, Révolution Solaire, Révolutions Lunaires, Profections annuelles = quelle année précise l'événement se produit. Le terrain progressé doit soutenir le transit ;
    d) ACTIVATIONS MAJEURES — Transits lourds (Pluton/Uranus/Neptune/Saturne/Jupiter), Éclipses sur points clés, Convergences, Double Activation = les aiguilles des minutes, réveillent les promesses des couches supérieures ;
    e) DÉCLENCHEURS — Mars, Lunaisons, transits rapides = le timing exact, le "jour J". L'allumette qui enflamme la poudre préparée par les couches a-d ;
    f) COMPLÉMENTAIRES — Déclinaisons, Midpoints, Antiscia, Degrés critiques, Cycles rétrogrades, Ingress = nuances de fond, une phrase suffit.
-   ➤ PRINCIPE FONDAMENTAL : Un transit isolé n'est PAS un événement. Un événement = convergence de MINIMUM 3 couches de cette pyramide. Toujours croiser les couches. Plus le nombre de couches concordantes est élevé, plus l'événement est probable et intense.`;
-    prompt += `\n\n[CONSIGNE DE RÉDACTION]\n${isEmpty ? cfg.vide(m.maison) : cfg.actif(m.maison)}${tokenBudget}`;
+   ➤ PRINCIPE FONDAMENTAL : Un transit isolé n'est PAS un événement. Un événement = convergence de MINIMUM 3 couches de cette pyramide. Toujours croiser les couches. Plus le nombre de couches concordantes est élevé, plus l'événement est probable et intense.
+11. TRANSIT ≠ NATAL, et ASPECT NATAL ≠ ÉVÉNEMENT : une planète EN TRANSIT n'est pas sa version DE NAISSANCE. Quand un transit aspecte une planète natale, ne lui attribue JAMAIS les aspects que la planète natale du même nom entretient dans le thème (ex. la Vénus qui transite et conjoint Mars natal n'est PAS la Vénus natale en trigone à ta Lune). Un aspect entre DEUX planètes/points NATALS (trigone natal Vénus–Lune, « synergie Firdaria », lignes « natif » / « résonne » du réseau natal) est un TRAIT DE NAISSANCE permanent, JAMAIS un événement de l'année : il est INTERDIT de l'employer comme cause ou justification d'un transit (INTERDIT : « parce que Vénus coopère avec ta Lune natale, cette station… »). La synergie Firdaria ne s'emploie que comme toile de fond générale, jamais pour expliquer un transit daté précis. Ne désigne une planète comme « natale » dans CE chapitre que si elle y est domiciliée (MÉMO POSITIONS) OU si un transit DATÉ la vise explicitement dans les données de cette maison.`;
+    const _introConfine = _narrDpLuneOn
+      ? ` IMPORTANT — TOILE DE FOND (placement) : les Directions Primaires, la Lune progressée et les progressions secondaires se traitent EXCLUSIVEMENT dans « ## Introduction » (cadre structurant et climat de fond de la période) ; ne PAS les répéter ni les dater dans les sous-sections chronologiques, qui restent centrées sur les transits datés. Ne présente JAMAIS une Direction Primaire ou la Lune progressée comme un événement d'un jour/semaine précis.`
+      : "";
+    prompt += `\n\n[CONSIGNE DE RÉDACTION]\n${isEmpty ? cfg.vide(m.maison) : cfg.actif(m.maison)}${_introConfine}${tokenBudget}`;
     finalOutput.push({ json:{ type:"maison", numero:m.maison, typeRapport, periode:periodeLabel, prompt_system:cfg.sys, prompt_user:prompt } });
 });
 
@@ -13154,11 +13446,21 @@ if (syzygiePrenatale) promptSynth += `\n\n[SYZYGIE PRÉNATALE — Amorce de la p
 // ═══════════════════════════════════════════════════════════════
 //  SYNTHÈSE — COUCHE 0 : TRAME DU DESTIN (Directions Primaires)
 // ═══════════════════════════════════════════════════════════════
-if (_mdsePrimaryDirections.length > 0) {
-  promptSynth += `\n\n[🔱 DIRECTIONS PRIMAIRES — TRAME DU DESTIN (COUCHE SUPRÊME)]`;
-  promptSynth += `\n⚠ Les Directions Primaires (DP) sont la technique prédictive LA PLUS PUISSANTE de l'astrologie traditionnelle et moderne. Elles indiquent les TOURNANTS INÉVITABLES de l'existence, avec une influence de 1 à 3 ans. RIEN DE MAJEUR ne se produit dans la vie du natif si les DP ne l'ont pas « promis ».`;
-  promptSynth += `\n\nDirections actives pour la période :\n${_mdsePrimaryDirections.map(d => `  ${d.label}`).join("\n")}`;
-  promptSynth += `\n\n→ INSTRUCTION HIÉRARCHIQUE ABSOLUE : les DP priment sur TOUTES les autres techniques. Si un transit lourd (Pluton, Uranus…) n'est PAS confirmé par une DP, son expression sera atténuée ou retardée. Si une DP est exacte (orbe < 0.5 an), son thème DOMINE la période.`;
+const _dpForPrompt = _narrDpLuneOn ? _dpFilterPrio(_mdsePrimaryDirections) : [];
+if (_dpForPrompt.length > 0) {
+  promptSynth += DTC_PROMPT_DP_SOFT ? `\n\n[🔱 DIRECTIONS PRIMAIRES — TRAME DU DESTIN (COUCHE STRUCTURANTE PRIORITAIRE)]` : `\n\n[🔱 DIRECTIONS PRIMAIRES — TRAME DU DESTIN (COUCHE SUPRÊME)]`;
+  promptSynth += DTC_PROMPT_DP_SOFT
+    ? `\n⚠ Les Directions Primaires (DP) sont l'une des techniques prédictives les plus puissantes de l'astrologie traditionnelle et moderne. Elles indiquent les grands tournants structurants de l'existence, avec une influence de 1 à 3 ans ; les tournants majeurs sont généralement annoncés par les DP.`
+    : `\n⚠ Les Directions Primaires (DP) sont la technique prédictive LA PLUS PUISSANTE de l'astrologie traditionnelle et moderne. Elles indiquent les TOURNANTS INÉVITABLES de l'existence, avec une influence de 1 à 3 ans. RIEN DE MAJEUR ne se produit dans la vie du natif si les DP ne l'ont pas « promis ».`;
+  promptSynth += `\n\nDirections actives pour la période :\n${_dpForPrompt.map(d => `  ${_dpNarrLabel(d)}`).join("\n")}`;
+  promptSynth += DTC_PROMPT_DP_SOFT
+    ? `\n\n→ INSTRUCTION : traiter les DP comme la couche prioritaire structurante à poser dans l'introduction. Influence longue (1-3 ans) : jamais un événement daté précis. Si un transit lourd (Pluton, Uranus…) n'est pas confirmé par une DP, son expression est souvent atténuée ou retardée.`
+    : `\n\n→ INSTRUCTION HIÉRARCHIQUE : les DP sont la couche structurante à poser dans l'introduction. Influence longue (1-3 ans), jamais un événement daté précis. Si un transit lourd (Pluton, Uranus…) n'est PAS confirmé par une DP, son expression sera atténuée ou retardée.`;
+}
+
+// SYNTHÈSE — COUCHE 0-bis : LUNE PROGRESSÉE (climat psychologique de fond)
+if (_narrDpLuneOn && _progMoonArc) {
+  promptSynth += `\n\n[🌙 LUNE PROGRESSÉE — CLIMAT PSYCHOLOGIQUE DE FOND]\nLa Lune progressée évolue ${_progMoonArcPhrase()} (déplacement lent ~1°/mois). Elle décrit le CLIMAT ÉMOTIONNEL / intérieur dominant de la période ; la maison qu'elle occupe indique le secteur de vie où se concentre la sensibilité.\n→ INSTRUCTION : poser ce climat dans l'introduction comme toile de fond psychologique ; ne JAMAIS le dater comme un événement précis.`;
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -13167,7 +13469,7 @@ if (_mdsePrimaryDirections.length > 0) {
 if (firdariaActive) promptSynth += `\n\n[🕰 FIRDARIA — CHRONOCRATEUR ACTIF (COUCHE ÉPOQUE)]\n${firdariaActive.label}\n→ INSTRUCTION PRIORITAIRE : la Firdaria définit le CLIMAT DE FOND de l'existence. Toutes les techniques ci-dessous doivent être lues à travers ce filtre.`;
 if (_firdSynergyBlock) promptSynth += _firdSynergyBlock;
 
-if (_mdseZRPeakPeriod.sign) {
+if (false /* WS_PLACIDUS_RETRAIT */ && _mdseZRPeakPeriod.sign) {
     let zrTxt = `Période L1 en ${_mdseZRPeakPeriod.sign}`;
     if (_mdseZRPeakPeriod.isPeak) zrTxt += ` — ⚡ PÉRIODE DE PIC (signe angulaire depuis Part de Fortune) : phase d'aboutissement et de visibilité professionnelle accrue.`;
     else if (_mdseZRPeakPeriod.isLoosing) zrTxt += ` — ⚠ Phase de RELÂCHEMENT (fin de période L1) : transition imminente, accomplir avant le changement.`;
@@ -13199,7 +13501,7 @@ if (natalDict["Nœud Nord"] && natalDict["Nœud Sud"]) {
 // ═══════════════════════════════════════════════════════════════
 //  SYNTHÈSE — COUCHE 2 : CLIMAT ANNUEL (Arcs, Progressions, RS)
 // ═══════════════════════════════════════════════════════════════
-const progSynthLines = []; maisonsResult.forEach(m => m.progressions_texte.forEach(t => { if (!progSynthLines.includes(t)) progSynthLines.push(t); }));
+const progSynthLines = []; maisonsResult.forEach(m => m.progressions_texte.forEach(t => { if (!/☀\s*ARC SOLAIRE/.test(t) && !progSynthLines.includes(t)) progSynthLines.push(t); }));
 if (progSynthLines.length > 0) {
     const progSynthSorted = [...progSynthLines].sort((a, b) => {
         const wa = (a.match(/\[poids ([0-9.]+)\]/) || [])[1]; const wb = (b.match(/\[poids ([0-9.]+)\]/) || [])[1];
@@ -13208,7 +13510,7 @@ if (progSynthLines.length > 0) {
     const progSynthCap = Math.min(progSynthSorted.length, 15);
     const progSynthTrimmed = progSynthSorted.slice(0, progSynthCap);
     if (progSynthSorted.length > progSynthCap) progSynthTrimmed.push(`→ ${progSynthSorted.length - progSynthCap} progression(s) mineure(s) omise(s).`);
-    promptSynth += `\n\n[🔮 PROGRESSIONS & ARCS SOLAIRES — Climat annuel (PRIORITÉ HAUTE)]\n${progSynthTrimmed.join("\n")}\n→ Les progressions et arcs solaires décrivent le TERRAIN PSYCHIQUE de l'année. Les transits lourds ne peuvent se manifester pleinement que si le terrain progressé les soutient.`;
+    promptSynth += `\n\n[🔮 PROGRESSIONS SECONDAIRES — Climat psychologique de l'année (PRIORITÉ HAUTE)]\n${progSynthTrimmed.join("\n")}\n→ Les progressions secondaires décrivent le TERRAIN PSYCHIQUE / climat intérieur de l'année (comment le natif vit intérieurement la période). Les transits lourds ne se manifestent pleinement que si ce terrain progressé les soutient.`;
 }
 
 if (maisonsResult._srText) {
@@ -13373,7 +13675,7 @@ if (_mdseResultsForLLM.length > 0) {
         const pmAspTag = sig._progAspects?.length > 0 ? `\n   🔮 Progressions : ${sig._progAspects.join("; ")}` : "";
         const pStTag = sig._progStations?.length > 0 ? `\n   🔄 Station prog. : ${sig._progStations.join("; ")}` : "";
         const pScTag = sig._progSignChanges?.length > 0 ? `\n   ♈ Ingress prog. : ${sig._progSignChanges.join("; ")}` : "";
-        const arcTag = sig._arcAspects?.length > 0 ? `\n   ☀ Arcs solaires : ${sig._arcAspects.join("; ")}` : "";
+        const arcTag = ""; // Arcs solaires retirés du narratif (conservés dans le rapport technique).
         const dpTag2 = sig._dpConfirmed?.length > 0 ? `\n   🏛️ Dir. primaire : ${sig._dpConfirmed.slice(0,2).join("; ")}` : "";
         const firdTag2 = sig._firdConfirmed ? `\n   ⏳ Chronocrateur : ${sig._firdConfirmed}` : "";
         const firdSyncTag2 = sig._progMoonFirdSync ? `\n   🔗 ${sig._progMoonFirdSync}` : "";
@@ -13445,13 +13747,14 @@ promptSynth += `\n\n[⛔ CHARTE ANTI-HALLUCINATION — OBLIGATIONS STRICTES]
 8. POIDS & PRIORITÉ : Prioriser les aspects à [poids] élevé (> 0.8). Un aspect serré (poids > 1.0) a plus de valeur prédictive qu'un aspect large (poids < 0.4).
 9. MC / IC & ASPECTS NOMMÉS : Pour tout transit vers le Milieu du Ciel (M10), le Fond du Ciel / IC (M4) ou l'axe vertical, reprendre STRICTEMENT le nom d'aspect fourni dans les données (Conjonction / Opposition / Carré / etc.). « Face au sommet », « en miroir du point culminant », «exactement face au MC» = **opposition** au MC, PAS conjonction. INTERDIT d'écrire « conjonction au MC », « Uranus rejoint le MC », « fusion / union avec le MC » si les données indiquent opposition (ou autre). Ne pas utiliser « s'unir à » de façon floue pour entrelacer IC et MC sans nommer l'aspect exact. Si les dates 📌 ou le libellé technique placent le pic d'un Uranus–angle hors de la période du rapport ou comme pic déjà passé d'une autre année, ne pas en faire l'événement structurant de l'année courante — résiduel seulement si les données l'étayent. Même principe pour l'axe horizontal **Ascendant / Descendant** : « face à », « en miroir de l'autre », «au seuil du partenaire» ≠ conjonction à l'ASC si les données disent opposition (ou autre) ; ne pas renommer l'aspect.
 10. PYRAMIDE PRÉDICTIVE — HIÉRARCHIE DE LECTURE OBLIGATOIRE (6 couches, du sommet à la base) :
-   a) TRAME DU DESTIN — Directions Primaires (quand disponibles) = les tournants inévitables (durée 1-3 ans). Rien de majeur n'arrive si les DP ne l'ont pas promis ;
-   b) ÉPOQUE DE VIE — Firdaria, Zodiacal Releasing, Bound Profections, Cycles de vie = le chronocrateur, le maître du temps. Quelle planète domine et quel domaine est activé ;
-   c) CLIMAT ANNUEL — Progressions secondaires, Arcs solaires, Révolution Solaire, Révolutions Lunaires, Profections annuelles = quelle année précise l'événement se produit ;
+   a) TRAME DU DESTIN — Directions Primaires (quand disponibles) = ${DTC_PROMPT_DP_SOFT ? "les grands tournants structurants (durée 1-3 ans). Le plus souvent, un tournant majeur est annoncé par une DP" : "les tournants inévitables (durée 1-3 ans). Rien de majeur n'arrive si les DP ne l'ont pas promis"} ;
+   b) ÉPOQUE DE VIE — Firdaria, Cycles de vie = le chronocrateur, le maître du temps. Quelle planète domine et quel domaine est activé ;
+   c) CLIMAT ANNUEL — Progressions secondaires, Révolution Solaire, Révolutions Lunaires, Profections annuelles = quelle année précise l'événement se produit ;
    d) ACTIVATIONS MAJEURES — Transits lourds (Pluton/Uranus/Neptune/Saturne/Jupiter), Éclipses, Convergences, Double Activation = réveillent les promesses des couches supérieures ;
    e) DÉCLENCHEURS — Mars, Lunaisons, transits rapides = le timing exact, le "jour J" ;
    f) COMPLÉMENTAIRES — Déclinaisons, Midpoints, Antiscia, Degrés critiques, Ingress, Cycles rétrogrades = nuances, une phrase suffit.
-   ➤ PRINCIPE FONDAMENTAL : La synthèse doit PARTIR de l'époque et du climat pour CONTEXTUALISER les transits. Un événement = convergence de MINIMUM 3 couches. Ne JAMAIS lister les transits isolément sans les relier au terrain progressé, au Firdaria et au bound lord.`;
+   ➤ PRINCIPE FONDAMENTAL : La synthèse doit PARTIR de l'époque et du climat pour CONTEXTUALISER les transits. Un événement = convergence de MINIMUM 3 couches. Ne JAMAIS lister les transits isolément sans les relier au terrain progressé, au Firdaria et au bound lord.
+11. TRANSIT ≠ NATAL : une planète EN TRANSIT n'est pas sa version DE NAISSANCE. Quand un transit aspecte une planète natale, ne lui prête pas les aspects que la planète natale du même nom entretient dans le thème. Un aspect entre deux planètes NATALES (synergie Firdaria, réseau natal « natif ») est un trait permanent, jamais un événement daté : ne l'utilise pas comme cause d'un transit précis.`;
 const synthScore = houseScores.reduce((s, v) => s + v, 0);
 const synthBudget = synthScore > 80 ? `[TOKEN BUDGET SYNTHÈSE : ÉTENDU — Score global ${synthScore.toFixed(0)}. Intensité élevée. 60-80 lignes, développe les 5-8 axes majeurs.]`
   : synthScore > 40 ? `[TOKEN BUDGET SYNTHÈSE : STANDARD — Score global ${synthScore.toFixed(0)}. 40-60 lignes, 3-5 axes majeurs.]`
@@ -13941,7 +14244,13 @@ if (finalOutput.length > 0) {
     const _addScoreSmart = (mIdx,col,w,at,pn) => { if(_isNeutralConj(at,pn)){_hmTension[mIdx][col]+=w*0.5;_hmSupport[mIdx][col]+=w*0.5;}else if(_isHardAsp(at,pn)){_hmTension[mIdx][col]+=w;}else{_hmSupport[mIdx][col]+=w;} };
     const _addScore = (mIdx,col,w,isH) => { if(isH)_hmTension[mIdx][col]+=w; else _hmSupport[mIdx][col]+=w; };
     const _bucketDate = (ds) => { if(!ds)return -1; const d=new Date(ds); return isNaN(d)?-1:_hmBucket(d); };
-    const _spreadBuckets = (debut,fin) => { if(!debut)return[]; const d1=new Date(debut);if(isNaN(d1))return[]; const col1=_hmBucket(d1); if(!fin)return col1>=0?[{col:col1,frac:1}]:[]; const d2=new Date(fin);if(isNaN(d2)||d2<=d1)return col1>=0?[{col:col1,frac:1}]:[]; const cols=new Set();const cur=new Date(d1);while(cur<=d2){const c=_hmBucket(cur);if(c>=0)cols.add(c);cur.setDate(cur.getDate()+7);}const c2=_hmBucket(d2);if(c2>=0)cols.add(c2);const arr=[...cols];if(arr.length===0)return[];return arr.map(col=>({col,frac:1/arr.length})); };
+    // Correctif pas de balayage (S3) : en hebdo/journalier les colonnes = 1 jour ; un pas de 7 j
+    //   SAUTAIT les jours intermédiaires d'une vague (placement temporel infidèle). Pas = 1 j sur
+    //   ces granularités fines ; INCHANGÉ (7 j) en annuel/mensuel → grille annuelle byte-identique
+    //   (baseline 150 intacte). ON par défaut PROD. Bypass LOCAL : DTC_HM_STEP_FIX=0.
+    const DTC_HM_STEP_FIX = !(typeof process !== "undefined" && process.env && process.env.DTC_HM_STEP_FIX === "0");
+    const _hmStepDays = (DTC_HM_STEP_FIX && (_hmGranularity==="daily"||_hmGranularity==="weekly")) ? 1 : 7;
+    const _spreadBuckets = (debut,fin) => { if(!debut)return[]; const d1=new Date(debut);if(isNaN(d1))return[]; const col1=_hmBucket(d1); if(!fin)return col1>=0?[{col:col1,frac:1}]:[]; const d2=new Date(fin);if(isNaN(d2)||d2<=d1)return col1>=0?[{col:col1,frac:1}]:[]; const cols=new Set();const cur=new Date(d1);while(cur<=d2){const c=_hmBucket(cur);if(c>=0)cols.add(c);cur.setDate(cur.getDate()+_hmStepDays);}const c2=_hmBucket(d2);if(c2>=0)cols.add(c2);const arr=[...cols];if(arr.length===0)return[];return arr.map(col=>({col,frac:1/arr.length})); };
 
     _rmHM.forEach((m, mIdx) => {
         const hm = _houseMult(mIdx);
@@ -13975,11 +14284,17 @@ if (finalOutput.length > 0) {
     const _DTC_PHASEC2_HM_ON = !(typeof process !== "undefined" && process.env && process.env.DTC_PHASEC2_DOCTRINAL_ENABLED === "0");
     const _dpHousesHM = new Set();
     if (_mdsePrimaryDirections && _mdsePrimaryDirections.length > 0) {
-        const _dpForHM = _DTC_PHASEC2_HM_ON ? _mdsePrimaryDirections.filter(dp => !_dpDocIsAxisSelfBug({ planet: dp.promissor, significator: dp.significator, aspect: dp.aspect })) : _mdsePrimaryDirections;
+        const _dpHMbase = _dpFilterPrio(_mdsePrimaryDirections);
+        const _dpForHM = _DTC_PHASEC2_HM_ON ? _dpHMbase.filter(dp => !_dpDocIsAxisSelfBug({ planet: dp.promissor, significator: dp.significator, aspect: dp.aspect })) : _dpHMbase;
         _dpForHM
           .forEach(dp => {
             const orbFactor = dp.orbYears <= 0.3 ? 1.5 : dp.orbYears <= 0.7 ? 1.2 : dp.orbYears <= 1.0 ? 1.0 : 0.7;
-            const houses = [dp.promHouse, dp.sigHouse].filter(h => h >= 1 && h <= 12);
+            // Maison chauffée = celle du SIGNIFICATEUR seul (point fixe touché). Le promisseur
+            // colore la nature de l'évènement mais n'active pas son propre domaine. Cohérent avec
+            // la convention transit (heat = maison de la cible natale, pas du transiteur). Repli
+            // sur promHouse si la maison du significateur est absente.
+            const _dpSigH = (dp.sigHouse >= 1 && dp.sigHouse <= 12) ? dp.sigHouse : dp.promHouse;
+            const houses = [_dpSigH].filter(h => h >= 1 && h <= 12);
             houses.forEach(h => {
                 _dpHousesHM.add(h);
                 const hIdx = h - 1;
@@ -14083,6 +14398,279 @@ if (finalOutput.length > 0) {
     const _top3 = _hmTotals.map((t,i)=>({m:i+1,t})).sort((a,b)=>b.t-a.t).slice(0,3).map(x=>x.m);
     const _tensionTotals = _hmTension.map(row=>row.reduce((a,b)=>a+b,0));
     const _supportTotals = _hmSupport.map(row=>row.reduce((a,b)=>a+b,0));
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // C3 — GRILLE HEATMAP v2 : backbone computeTransitScore (score v6/v7).
+    //   • Source = houseTransitScored (le MÊME score qui alimente le narratif LLM)
+    //     → cohérence carte ↔ texte par construction.
+    //   • Climat de fond EXCLU (DP, Firdaria, RS-ASC, retour nodal, cascade,
+    //     progressions/arcs étalés) — décision utilisateur « sortir de la grille ».
+    //   • Événements datés gardés (éclipses, éclipse natale active, stations, étoiles).
+    //   • Station = AMPLIFIÉE (pas ×0.7 : Hand/Rushman « station intensifies »).
+    //   • NE TOUCHE PAS _tensionTotals/_supportTotals (feed MDSE gelé) → M5 neutre.
+    //   • Shadow : top3_v2/normalized_v2 toujours exposés (revue/diag sans bascule).
+    //   • ⚠ ROLLBACK 2026-07-04 : affichage repassé au LEGACY v1 par défaut. La grille v2
+    //     (somme des scores v6 par maison natale) sur-pondère les maisons à stellium natal
+    //     (ex. Mbappé M3 = Lune+Vénus aspectées → total x30 vs maison vide) et ignore la
+    //     maison physiquement transitée. Refonte doctrinale requise avant re-bascule.
+    //     Activation test LOCAL : DTC_HEATMAP_V2=1. Dormant en PROD (VM n8n sans process).
+    // ══════════════════════════════════════════════════════════════════════════
+    const DTC_HEATMAP_V2 = (typeof process !== "undefined" && process.env && process.env.DTC_HEATMAP_V2 === "1");
+    const _hmTensionV2 = Array.from({length:12},()=>Array(_hmCols).fill(0));
+    const _hmSupportV2 = Array.from({length:12},()=>Array(_hmCols).fill(0));
+    const _eclCapV2 = Array.from({length:12},()=>Array(_hmCols).fill(0));
+    const _addV2 = (mIdx,col,w,at,pn) => { if(_isNeutralConj(at,pn)){_hmTensionV2[mIdx][col]+=w*0.5;_hmSupportV2[mIdx][col]+=w*0.5;}else if(_isHardAsp(at,pn)){_hmTensionV2[mIdx][col]+=w;}else{_hmSupportV2[mIdx][col]+=w;} };
+    // (a) Transits LENTS scorés v6/v7 : distribution de entry.score sur les colonnes des vagues,
+    //     avec emphase au pic (P1 : ×1.5 si orbe<0.3°, ×1.2 si <1.0°), masse totale conservée.
+    houseTransitScored.forEach((entries, mIdx) => {
+        const hm = _houseMult(mIdx);
+        (entries||[]).forEach(entry => {
+            const a = (typeof aspectsSuiviLent === "object" && aspectsSuiviLent) ? aspectsSuiviLent[entry.key] : null;
+            const colFrac = {};
+            if (a && Array.isArray(a.waves) && a.waves.length) {
+                a.waves.forEach(w => { _spreadBuckets(w.start, w.end).forEach(({col,frac}) => { colFrac[col]=(colFrac[col]||0)+frac; }); });
+            }
+            if (Object.keys(colFrac).length === 0) { const cpk=_bucketDate(entry.bestPeakDate); if(cpk>=0) colFrac[cpk]=1; }
+            const cPeak = _bucketDate(entry.bestPeakDate);
+            const emph = (entry.bestPeakOrb!=null && entry.bestPeakOrb<0.3)?1.5:(entry.bestPeakOrb!=null && entry.bestPeakOrb<1.0)?1.2:1.0;
+            let wsum = 0; const weights = {};
+            Object.entries(colFrac).forEach(([col,frac]) => { const c=+col; const w=frac*(c===cPeak?emph:1.0); weights[c]=w; wsum+=w; });
+            if (wsum<=0) return;
+            const mass = (entry.score||0)*hm;
+            Object.entries(weights).forEach(([col,w]) => { _addV2(mIdx, +col, mass*(w/wsum), entry.aspName, entry.pNatal); });
+        });
+    });
+    // (b) Événements datés (barèmes cohérents, climat de fond exclu).
+    _rmHM.forEach((m, mIdx) => {
+        const hm = _houseMult(mIdx);
+        (m.eclipses||[]).forEach(e=>{const col=_bucketDate(e.date||e.debut);if(col<0)return;if(_eclCapV2[mIdx][col]<2){_hmTensionV2[mIdx][col]+=5*hm;_eclCapV2[mIdx][col]++;}});
+        (m._hm_eclipse_natal_active||[]).forEach(a=>{const col=_bucketDate(a.date);if(col<0)return;if(_eclCapV2[mIdx][col]<2){_hmTensionV2[mIdx][col]+=4*hm;_eclCapV2[mIdx][col]++;}});
+        (m.stations_retro||[]).forEach(s=>{const col=_bucketDate(s.date||s.debut);if(col<0)return;const pw=(_PLANET_W[s.planete]||2);_hmTensionV2[mIdx][col]+=pw*hm;});
+        (m._hm_etoiles||[]).forEach(a=>{const col=_bucketDate(a.date);if(col<0)return;_hmSupportV2[mIdx][col]+=(a.isRoyal?4:2.5)*hm;});
+    });
+    // (c) Finalisation v2.
+    const _hmGridV2 = Array.from({length:12},(_,i)=>_hmTensionV2[i].map((t,j)=>t+_hmSupportV2[i][j]));
+    const _hmMaxV2 = Math.max(1,..._hmGridV2.flat());
+    const _hmTotalsV2 = _hmGridV2.map(row=>row.reduce((a,b)=>a+b,0));
+    const _totalMaxV2 = Math.max(1,..._hmTotalsV2);
+    const _normalizedV2 = _hmTotalsV2.map(t=>Math.round(t/_totalMaxV2*100));
+    const _top3V2 = _hmTotalsV2.map((t,i)=>({m:i+1,t})).sort((a,b)=>b.t-a.t).slice(0,3).map(x=>x.m);
+    const _tensionTotalsV2 = _hmTensionV2.map(row=>row.reduce((a,b)=>a+b,0));
+    const _supportTotalsV2 = _hmSupportV2.map(row=>row.reduce((a,b)=>a+b,0));
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // C3 v3 — GRILLE HEATMAP DOCTRINALE : maison PHYSIQUEMENT TRANSITÉE (B) + contact dominant.
+    //   • Verdict doctrine (Hand/Rushman/Brady/Teal, sous-agent 6e32a93b, Brennan exclu) :
+    //     le « domaine de vie » activé = maison PARCOURUE par la planète transitante
+    //     (w.transitHouseAtPeak), PAS la maison natale de la planète aspectée. La v2 (score
+    //     rangé par maison natale) était l'INVERSE de la doctrine → biais stellium (Mbappé
+    //     M3 = Lune+Vénus natales → 34% de l'intensité). En conjonction B=A (capté nativement).
+    //   • Agrégation CONTACT DOMINANT : aucun auteur ne SOMME une maison chargée (Hand ch.2
+    //     règle 3 = orbe moyen/pic unique ; Brady ch.7 = climax discrets). Par maison, contacts
+    //     classés par score, facteur 1/rang plafonné _V3_TOPN. Corrige 34%→~14% (banc _c3-models).
+    //   • Réutilise le score v6/v7 (déjà doctrinal : orbe, passages, importance natale, double/
+    //     triple activation) et les mêmes barèmes événements datés (b) + finalisation (c) que v2.
+    //   • Feed MDSE GELÉ (ne touche pas _tensionTotals/_supportTotals) → M5 neutre par construction.
+    //   • Dormant PROD (process absent en VM n8n). Test LOCAL : DTC_HEATMAP_V3=1. v2 reste OFF.
+    // ══════════════════════════════════════════════════════════════════════════
+    const DTC_HEATMAP_V3 = !(typeof process !== "undefined" && process.env && process.env.DTC_HEATMAP_V3 === "0");
+    // C2 — barème ABSOLU /100 (Note = PIC absolu, aligné case↔Note). ON par défaut (validé local :
+    //   M5 neutre + alignement + hybride top3 cumul). Bypass d'urgence LOCAL via DTC_HEATMAP_ABS=0.
+    const DTC_HEATMAP_ABS = !(typeof process !== "undefined" && process.env && process.env.DTC_HEATMAP_ABS === "0");
+    // Borne haute = 100/100 (pic « temps fort » réel). = p90 des pics de carte réels par granularité
+    //   (banc _c2-calibrate, 40 cas cache). annuel/mensuel solides.
+    //   hebdo/journalier CALIBRÉS 2026-07-05 (_s2-calib-fine : 40 cas × 12 fenêtres échantillonnées,
+    //   convention p90 pic-max carte ; auto-contrôle : le harness reproduit l'annuel à 126.6 ≈ 125).
+    // ══ V4 A-PUR (flip doctrinal 2026-07-05b) — attribution à la maison NATALE A de la planète touchée
+    //   (= houseTransitScored = cœur du moteur = maisons que le récit LLM développe) + valence TRANSITANTE
+    //   + topN=6 + ceils recalibrés (ratio p90 A-pur/B = 0.539 → 125/68/55/139 × 0.539). Doctrine :
+    //   Rushman L1821 (« the sign and house the planet is in AND the house(s) it rules »), hiérarchie
+    //   d'aspect (ASPECT_MULTIPLIER) + bonus étoile (NATAL_IMPORTANCE) DÉJÀ dans entry.score.
+    //   Validé cohorte 150 (GT stricte 103) : HIT maison 96.1% ≥ ancien B 92.2% (pas de régression) ;
+    //   cohérence carte↔récit 67.0% vs dual50 48.9% vs B 39.2% (résout la dissonance carte↔récit).
+    //   Supersede le dual50 du 2026-07-05a. ON par défaut ; ROLLBACK d'urgence (LOCAL ou PROD via var
+    //   d'env) DTC_HM_V4=0 → V3 B-seul historique bit-à-bit. PROD-safe (process absent → ON).
+    const DTC_HM_V4 = !(typeof process !== "undefined" && process.env && process.env.DTC_HM_V4 === "0");
+    const _V3_CEIL = (DTC_HM_V4
+      ? ({ annual: 67, monthly: 37, weekly: 30, daily: 75 })[_hmGranularity]
+      : ({ annual: 125, monthly: 68, weekly: 55, daily: 139 })[_hmGranularity]) || (DTC_HM_V4 ? 67 : 125);
+    const _V3_TOPN = DTC_HM_V4 ? 6 : 4; // V4 : top-6 contacts/maison (cohorte 150) ; V3 : top-4. dominant + climax 1/rang.
+    const _V3_FAST_K = 6; // R&D : poids relatif d'un contact rapide (Soleil/Lune/Mercure/Vénus/Mars) vs lent. Fast = triggers légers (Hand). Absent en annuel (non tracké).
+    const _hmTensionV3 = Array.from({length:12},()=>Array(_hmCols).fill(0));
+    const _hmSupportV3 = Array.from({length:12},()=>Array(_hmCols).fill(0));
+    const _eclCapV3 = Array.from({length:12},()=>Array(_hmCols).fill(0));
+    // ── Correctif valence AFFICHÉE (Hand ch.1 : un aspect DOUX d'un maléfique est « moins
+    //    difficile », PAS « porteur » — la moindre difficulté vient du dynamisme réduit de
+    //    l'aspect, pas d'un soutien ; Brady : la nature de la planète prime sur l'aspect,
+    //    Saturne « very substantial » même en trigone). Un trigone/sextile (ou mineur doux)
+    //    d'un maléfique → NEUTRE 50/50 au lieu de 100% soutien. DISPLAY-ONLY : ne touche QUE
+    //    _hmTensionV3/_hmSupportV3 ; réalloue tension↔soutien (somme de cellule inchangée →
+    //    Note/top3 identiques). _addScoreSmart legacy (feed MDSE) intact → Δ baseline 150 = 0.
+    //    ON par défaut PROD (process absent → true). Bypass d'urgence LOCAL : DTC_HM_TONE_V3=0.
+    const DTC_HM_TONE_V3 = !(typeof process !== "undefined" && process.env && process.env.DTC_HM_TONE_V3 === "0");
+    const _isSoftMaleficV3 = (at,pn) => DTC_HM_TONE_V3 && !_HARD_ASP_BASE.has(at) && at!=="Conjonction" && _MALEFIC_P.has(pn);
+    // ── Correctif SYMÉTRIQUE (flag DTC_HM_TONE_BEN) : un aspect DUR d'un BÉNÉFIQUE est « fairly
+    //    easy », PAS une crise. Hand, Planets in Transit p.265 : « Even the square and opposition
+    //    transit aspects, which are difficult with most planets, are fairly easy with Jupiter…
+    //    you must be careful not to do things in excess ». → carré/opposition (+ semi/sesqui-carré,
+    //    « like the square but less strong ») d'un bénéfique (Jupiter/Vénus/Soleil/Nœud Nord) →
+    //    NEUTRE 50/50 au lieu de 100% tension. EXCLUT le QUINCONCE : Hand p.27 le lie à un
+    //    « fateful change… health crises as well as accidents » indépendamment de la planète →
+    //    le quinconce garde sa tension même pour un bénéfique. Conjonction bénéfique = déjà 100%
+    //    soutien (inchangée). Même garantie DISPLAY-ONLY / MDSE-safe que ci-dessus. Bypass : DTC_HM_TONE_BEN=0.
+    const DTC_HM_TONE_BEN = !(typeof process !== "undefined" && process.env && process.env.DTC_HM_TONE_BEN === "0");
+    const _isHardBeneficV3 = (at,pn) => DTC_HM_TONE_BEN && _HARD_ASP_BASE.has(at) && at!=="Quinconce" && _BENEFIC_P.has(pn);
+    const _addV3 = (mIdx,col,w,at,pn) => { if(_isSoftMaleficV3(at,pn)||_isHardBeneficV3(at,pn)||_isNeutralConj(at,pn)){_hmTensionV3[mIdx][col]+=w*0.5;_hmSupportV3[mIdx][col]+=w*0.5;}else if(_isHardAsp(at,pn)){_hmTensionV3[mIdx][col]+=w;}else{_hmSupportV3[mIdx][col]+=w;} };
+    // (a) Transits lents : chaque contact rangé dans sa maison TRANSITÉE B* (maison au pic global),
+    //     agrégation contact-dominant par maison, puis distribution temporelle à pics (par vague).
+    const _v3ByHouse = Array.from({length:12},()=>[]);
+    // V4 A-PUR (DTC_HM_V4 ON) : le contact est rangé dans sa maison NATALE A (aIdx = index de
+    //   houseTransitScored = maison de la planète natale touchée), score PLEIN ; valence jugée sur la
+    //   planète TRANSITANTE (entry.pTransit). V3 (rollback DTC_HM_V4=0) : B-seul (transitHouseAtPeak),
+    //   valence natale (pNatal). entry.score porte déjà hiérarchie d'aspect + bonus étoile + importance natale.
+    houseTransitScored.forEach((entries, aIdx) => {
+        const aH = aIdx+1;
+        (entries||[]).forEach(entry => {
+            const a = (typeof aspectsSuiviLent === "object" && aspectsSuiviLent) ? aspectsSuiviLent[entry.key] : null;
+            if (!a || !Array.isArray(a.waves) || !a.waves.length) return;
+            const valP = DTC_HM_V4 ? (entry.pTransit||entry.pNatal) : entry.pNatal;
+            const base = { aspName: entry.aspName, valP, waves: a.waves, bestPeakDate: entry.bestPeakDate };
+            if (DTC_HM_V4) {
+                if (aH>=1&&aH<=12) _v3ByHouse[aH-1].push({ ...base, score: entry.score||0 });
+            } else {
+                const bestW = a.waves.reduce((best,w)=> parseFloat(w.minOrb)<=parseFloat(best.minOrb)?w:best);
+                const bH = bestW.transitHouseAtPeak;
+                if (bH>=1&&bH<=12) _v3ByHouse[bH-1].push({ ...base, score: entry.score||0 });
+            }
+        });
+    });
+    // (a-bis) Transits RAPIDES (Soleil/Lune/Mercure/Vénus/Mars) : remplissage léger de la maison
+    //   TRAVERSÉE (_rmHM[].aspects_rapides déjà rangé par maison de la transitante = B). Poids faible
+    //   _V3_FAST_K, fondu dans la MÊME agrégation contact-dominant → plafonné par top-N, subordonné
+    //   aux lents. Absent en annuel (_fastHM=[] → aspects_rapides vide) : les rapides sur 12 mois = bruit.
+    _rmHM.forEach((m, mIdx) => {
+        (m.aspects_rapides||[]).forEach(a => {
+            if (_bradyAxisDrop(a.pNatal, a.type)) return; // 3C Brady : cohérence axe (no-op pour conjonctions)
+            const sc = (_PLANET_W[a.pTransit]||0.5)*(_ASP_MULT[a.type]||1.0)*_V3_FAST_K;
+            if (sc<=0) return;
+            // A-PUR (DTC_HM_V4) : ranger le contact rapide dans la maison NATALE A de la planète touchée
+            //   (a.pNatal → _ndHM), cohérent avec les lents et le récit (L4387). Repli B (mIdx) si introuvable.
+            const _fnh = _ndHM[a.pNatal] && _ndHM[a.pNatal].house;
+            const _fH = (DTC_HM_V4 && _fnh>=1 && _fnh<=12) ? _fnh : (mIdx+1);
+            _v3ByHouse[_fH-1].push({ score: sc, aspName: a.type, valP: (DTC_HM_V4 ? (a.pTransit||a.pNatal) : a.pNatal)||"", waves: [{ start: a.debut, end: a.fin, peakDate: null, minOrb: 2 }], bestPeakDate: a.debut });
+        });
+    });
+    _v3ByHouse.forEach((contacts, mIdx) => {
+        const hm = _houseMult(mIdx);
+        contacts.sort((x,y)=>y.score-x.score);
+        contacts.forEach((ct, rank) => {
+            const rankFactor = rank < _V3_TOPN ? 1/(rank+1) : 0;
+            if (rankFactor<=0) return;
+            const colFrac = {};
+            ct.waves.forEach(w => {
+                const cPeakW=_bucketDate(w.peakDate);
+                const emphW=(parseFloat(w.minOrb)<0.3)?1.5:(parseFloat(w.minOrb)<1.0)?1.2:1.0;
+                _spreadBuckets(w.start,w.end).forEach(({col,frac})=>{ colFrac[col]=(colFrac[col]||0)+frac*(col===cPeakW?emphW:1.0); });
+            });
+            let wsum=0; Object.values(colFrac).forEach(v=>wsum+=v);
+            if (wsum<=0) { const cpk=_bucketDate(ct.bestPeakDate); if(cpk>=0){colFrac[cpk]=1;wsum=1;} else return; }
+            const mass = ct.score*hm*rankFactor;
+            Object.entries(colFrac).forEach(([col,w])=>{ _addV3(mIdx, +col, mass*(w/wsum), ct.aspName, ct.valP); });
+        });
+    });
+    // (b) Événements datés — identique v2 (maison d'occurrence, cohérent B). Révision fine = enrichissement séparé.
+    _rmHM.forEach((m, mIdx) => {
+        const hm = _houseMult(mIdx);
+        (m.eclipses||[]).forEach(e=>{const col=_bucketDate(e.date||e.debut);if(col<0)return;if(_eclCapV3[mIdx][col]<2){_hmTensionV3[mIdx][col]+=5*hm;_eclCapV3[mIdx][col]++;}});
+        (m._hm_eclipse_natal_active||[]).forEach(a=>{const col=_bucketDate(a.date);if(col<0)return;if(_eclCapV3[mIdx][col]<2){_hmTensionV3[mIdx][col]+=4*hm;_eclCapV3[mIdx][col]++;}});
+        // 1B — éclipse conjointe/opposée à un point natal (maison A du point), tension scalée par importance (Brady).
+        if (DTC_HM_ECLNAT) _eclNatV3.forEach(ev=>{if(ev.house-1!==mIdx)return;const col=_bucketDate(ev.date);if(col<0)return;if(_eclCapV3[mIdx][col]<2){_hmTensionV3[mIdx][col]+=4*(1+ev.imp/10)*hm;_eclCapV3[mIdx][col]++;}});
+        (m.stations_retro||[]).forEach(s=>{const col=_bucketDate(s.date||s.debut);if(col<0)return;const pw=(_PLANET_W[s.planete]||2);_hmTensionV3[mIdx][col]+=pw*hm;});
+        (m._hm_etoiles||[]).forEach(a=>{const col=_bucketDate(a.date);if(col<0)return;_hmSupportV3[mIdx][col]+=(a.isRoyal?4:2.5)*hm;});
+    });
+    // (b-bis) R1 — DÉCLENCHEURS RAPIDES en annuel (couche timing display-only, MDSE-safe).
+    //   Doctrine Hand : les rapides sont des DÉCLENCHEURS datés (Soleil/Mars « trigger… time of release » L1556 ;
+    //   « an event of great significance will not be triggered by just one transit » L1953). Lune « very transient »
+    //   (L4615) → EXCLUE (déjà absente d'aspectsSuiviRapDTC : Soleil/Mercure/Vénus/Mars seuls). Source =
+    //   aspectsSuiviRapDTC (calculée MÊME en annuel, ISOLÉE : ne touche NI _fastHM NI le feed MDSE legacy →
+    //   Δ baseline 150 = 0 par construction). Attribution A-PUR (maison natale du point touché), valence sur la
+    //   TRANSITANTE via _addV3, poids ≪ lents (pas de NATAL_IMPORTANCE), HORS compétition top-6 (couche additive
+    //   plafonnée _FT_CELL_CAP) → un blip DATÉ visible sans jamais écraser un thème lent (cohérence carte↔récit,
+    //   ex. Vénus☌Mars 14 nov M8). Arbitrage utilisateur 2026-07-05 : CONJONCTION seule, orbe < 1.0°, cibles =
+    //   points natals réels (pas de Lots). ON par défaut PROD-safe ; rollback DTC_HM_FASTTRIG=0 → annuel bit-à-bit.
+    const DTC_HM_FASTTRIG = !(typeof process !== "undefined" && process.env && process.env.DTC_HM_FASTTRIG === "0");
+    if (DTC_HM_FASTTRIG && DTC_HM_V4 && _fastHM.length === 0 && aspectsSuiviRapDTC && typeof aspectsSuiviRapDTC === "object") {
+        const _FT_TARGETS = new Set(["Soleil","Lune","Mercure","Vénus","Mars","Jupiter","Saturne","Uranus","Neptune","Pluton","Chiron","Lilith","Nœud Nord","Nœud Sud","Ascendant","Milieu du Ciel","Descendant","Imum Coeli"]);
+        // Poids délibérément SOBRE (K=4 < _V3_FAST_K=6 du chemin agrégé) : ici l'ajout est DIRECT (hors top-6/1-rang),
+        // donc plus « fort » par unité → un K plus bas garantit fast ≪ lents (Mars/Soleil +5.2/cellule, Vénus/Mercure +2.6
+        // vs cellules lentes 10-40). Plafond cellule 6 = un jalon visible mais mineur.
+        const _FT_ORB = 1.0, _FT_K = 4, _FT_CELL_CAP = 6;
+        const _ftCell = Array.from({length:12},()=>Array(_hmCols).fill(0));
+        Object.keys(aspectsSuiviRapDTC).forEach(key => {
+            const parts = key.replace("fast_","").split("|||");
+            const pT = parts[0], aspName = parts[1], pN = parts[2];
+            if (aspName !== "Conjonction" || !_FT_TARGETS.has(pN)) return;
+            if (pT === pN) return; // exclut les AUTO-RETOURS (Soleil☌Soleil, Mercure☌Mercure…) : cycles récurrents annuels, pas des déclencheurs de charge (Hand : le trigger active un point CHARGÉ, ≠ retour périodique).
+            const rec = aspectsSuiviRapDTC[key]; const aH = rec && rec.natalHouse;
+            if (!(aH >= 1 && aH <= 12)) return;
+            const mIdx = aH - 1, hm = _houseMult(mIdx);
+            (rec.waves || []).forEach(w => {
+                if (!(parseFloat(w.minOrb) < _FT_ORB)) return;
+                const col = _bucketDate(w.peakDate); if (col < 0) return;
+                const raw = (_PLANET_W[pT] || 0.5) * (_ASP_MULT[aspName] || 1.0) * _FT_K * hm;
+                const add = Math.min(raw, Math.max(0, _FT_CELL_CAP - _ftCell[mIdx][col]));
+                if (add <= 0) return;
+                _ftCell[mIdx][col] += add;
+                _addV3(mIdx, col, add, aspName, pT);
+            });
+        });
+    }
+    // (c) Finalisation v3.
+    const _hmGridV3 = Array.from({length:12},(_,i)=>_hmTensionV3[i].map((t,j)=>t+_hmSupportV3[i][j]));
+    const _hmMaxV3 = Math.max(1,..._hmGridV3.flat());
+    const _hmTotalsV3 = _hmGridV3.map(row=>row.reduce((a,b)=>a+b,0));
+    const _totalMaxV3 = Math.max(1,..._hmTotalsV3);
+    const _normalizedV3 = _hmTotalsV3.map(t=>Math.round(t/_totalMaxV3*100));
+    const _top3V3 = _hmTotalsV3.map((t,i)=>({m:i+1,t})).sort((a,b)=>b.t-a.t).slice(0,3).map(x=>x.m);
+    const _tensionTotalsV3 = _hmTensionV3.map(row=>row.reduce((a,b)=>a+b,0));
+    const _supportTotalsV3 = _hmSupportV3.map(row=>row.reduce((a,b)=>a+b,0));
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // C2 — barème ABSOLU /100 (affichage pur, feed MDSE gelé → M5 neutre par construction).
+    //   • Doctrine : la Note d'un domaine = son PIC = mois le plus fort (Hand ch.2 « l'intensité
+    //     culmine à l'exactitude ») + objectif produit d'origine « afficher les PICS d'intensité
+    //     par maison ». On ne SOMME donc plus les mois (le cumul relatif faisait qu'une maison
+    //     soutenue toute l'année plafonnait à 100 sans jamais de vrai temps fort — cf. Mbappé M7).
+    //   • ABSOLU : pic ÷ borne fixe _V3_CEIL (p90 des pics réels/granularité) → 100 = temps fort
+    //     objectif, une période calme reste basse (plus de « 100 » systématique).
+    //   • ALIGNEMENT case↔Note : maxIntensity de sortie = _V3_CEIL → le helper met les cases à la
+    //     MÊME échelle (v/_V3_CEIL, plafonné) → la Note d'un domaine = sa case la plus brillante.
+    //   • top3 : par PIC (choix produit). On expose AUSSI top3 par cumul (importance soutenue,
+    //     lecture doctrinale « thème majeur de l'année ») en shadow → arbitrage top3 sur pièce.
+    const _peakV3 = _hmGridV3.map(row => Math.max(0, ...row));
+    const _normalizedAbs = _peakV3.map(p => Math.round(Math.min(1, p / _V3_CEIL) * 100));
+    const _top3Abs = _peakV3.map((p, i) => ({ m: i + 1, p })).sort((a, b) => b.p - a.p).filter(x => x.p > 0).slice(0, 3).map(x => x.m);
+    const _top3Cumul = _top3V3; // = classement par somme (soutien sur la durée)
+    // Sélection C2 (HYBRIDE, arbitré sur preuve Mbappé 2026-07-04) :
+    //   • Note = pic absolu si ABS on (aligné cases), sinon cumul relatif (v3 historique).
+    //   • top3 « domaines les plus sollicités » = TOUJOURS le CUMUL (durée / thème majeur de la
+    //     période). Le pic ferait remonter un spike ponctuel (ex. M10 août) devant un transit lent
+    //     soutenu (ex. M7 Saturne) — à l'envers de la doctrine (Hand/Brady : la lente soutenue =
+    //     thème majeur) et incohérent avec le mot « sollicité ». top3_abs reste exposé en shadow.
+    const _normalizedSelV3 = DTC_HEATMAP_ABS ? _normalizedAbs : _normalizedV3;
+    const _top3SelV3 = _top3Cumul;
+    const _hmMaxSelV3 = DTC_HEATMAP_ABS ? _V3_CEIL : _hmMaxV3;
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // V4 A-PUR est le CHEMIN LIVE (voir DTC_HM_V4 plus haut : attribution maison NATALE A = houseTransitScored
+    //   (cœur/récit) + valence transitante + topN=6 + ceils recalibrés, validé cohorte 150 le 2026-07-05b :
+    //   HIT maison 96.1% ≥ ancien B 92.2%, cohérence carte↔récit 67% vs dual50 49% vs B 39%). Une seule grille
+    //   est calculée (pas de double calcul en PROD). Rollback d'urgence = DTC_HM_V4=0
+    //   (→ V3 B-seul bit-à-bit). _v4diag = marqueur léger (aucun calcul) pour la donnée technique.
+    const _v4diag = DTC_HM_V4
+      ? { live: "v4-apur-n6", ceil: _V3_CEIL, granularity: _hmGranularity, fasttrig: (DTC_HM_FASTTRIG && _fastHM.length === 0) ? "conj<1° Soleil/Mercure/Vénus/Mars (A-pur, hors top6, plafonné)" : "off", angbrady: DTC_HM_ANGBRADY ? "3C Brady: angles prime importance égale + dédup axe (conj=point réel, drop opp ASC/MC & non-conj DESC/IC)" : "off", eclnat: DTC_HM_ECLNAT ? "1B: éclipse-conj/opp-natal scalée par importance (orbes Brady 2,5°/2°)" : "off", toneben: DTC_HM_TONE_BEN ? "bénéfique carré/opp/semi/sesqui → 50/50 (Hand p.265, quinconce exclu)" : "off", note: "attribution maison NATALE A (houseTransitScored = cœur/récit) + valence transitante + topN6 — flip A-pur 2026-07-05b (supersede dual50)" }
+      : null;
+
     // --- MDSE v2.1 : Application différée P0(×)/P0b(×)/Q3 asym/polarity/cap (nécessite tensionTotals/supportTotals) ---
     try {
     // Phase A : P0 multiplicatif + P0b multiplicatif
@@ -17345,6 +17933,20 @@ if (finalOutput.length > 0) {
       });
     }
     } catch(e) { console.log("[WARN] Anti-hallucination post-fix:", e.message); }
+    // --- #4 : HINT CARTE dans la SYNTHÈSE (cohérence visuel↔récit, audit P1-B) ---
+    //   Injecte le top3 CUMUL affiché (« domaines les plus sollicités ») dans le prompt de synthèse,
+    //   APRÈS le calcul de la carte (pas de dépendance d'ordre). PROD-safe, M5 neutre (ne touche que
+    //   prompt_user de l'item synthese). Flag DTC_PROMPT_HEATMAP_HINT (défaut ON, bypass =0).
+    try {
+    const DTC_PROMPT_HEATMAP_HINT = !(typeof process !== "undefined" && process.env && process.env.DTC_PROMPT_HEATMAP_HINT === "0");
+    if (DTC_PROMPT_HEATMAP_HINT && Array.isArray(_top3Cumul) && _top3Cumul.length) {
+      const _hintTop = _top3Cumul.slice(0,3).map(h=>"M"+h).join(", ");
+      const _hintTxt = `\n\n[🗺️ CADRE CARTE — cohérence visuel↔récit]\nDomaines les plus sollicités de la période (heatmap affichée au client) : ${_hintTop}.\n→ Structure ta synthèse en priorité autour de ces domaines. Un domaine hors de ce trio ne doit pas être présenté comme LE thème dominant de la période. Ce cadre hiérarchise, il n'invente rien : reste fidèle aux configurations.`;
+      finalOutput.forEach(item => {
+        if (item.json && item.json.type === "synthese" && item.json.prompt_user) item.json.prompt_user += _hintTxt;
+      });
+    }
+    } catch(e) { console.log("[WARN] #4 heatmap hint:", e.message); }
     // --- ANTI-HALLUCINATION : identités clés (seigneur, gouverneur, almutem) ---
     try {
     if (false /* WS_PLACIDUS_RETRAIT */ && profections?.annuelle?.seigneur) {
@@ -17367,16 +17969,39 @@ if (finalOutput.length > 0) {
     // `finalOutput[0].json.eventSignatures = sigPayload;` (ligne ~29785) afin de lire
     // les confidences POST-DTC v18 (alignement strict avec les rapports HTML).
     if (finalOutput.length > 0) {
+        // C3 — sélection d'affichage : v3 (doctrinal) prioritaire, sinon v2 (rollback, OFF), sinon legacy v1.
+        const _hmSelGrid = DTC_HEATMAP_V3?_hmGridV3:(DTC_HEATMAP_V2?_hmGridV2:_hmGrid);
+        const _hmSelTension = DTC_HEATMAP_V3?_hmTensionV3:(DTC_HEATMAP_V2?_hmTensionV2:_hmTension);
+        const _hmSelSupport = DTC_HEATMAP_V3?_hmSupportV3:(DTC_HEATMAP_V2?_hmSupportV2:_hmSupport);
+        const _hmSelMax = DTC_HEATMAP_V3?_hmMaxSelV3:(DTC_HEATMAP_V2?_hmMaxV2:_hmMax);
+        const _hmSelTotals = DTC_HEATMAP_V3?_hmTotalsV3:(DTC_HEATMAP_V2?_hmTotalsV2:_hmTotals);
+        const _selTensionTotals = DTC_HEATMAP_V3?_tensionTotalsV3:(DTC_HEATMAP_V2?_tensionTotalsV2:_tensionTotals);
+        const _selSupportTotals = DTC_HEATMAP_V3?_supportTotalsV3:(DTC_HEATMAP_V2?_supportTotalsV2:_supportTotals);
+        const _selNormalized = DTC_HEATMAP_V3?_normalizedSelV3:(DTC_HEATMAP_V2?_normalizedV2:_normalized);
+        const _selTop3 = DTC_HEATMAP_V3?_top3SelV3:(DTC_HEATMAP_V2?_top3V2:_top3);
         finalOutput[0].json.heatmapData = {
-            grid: _hmGrid.map(row=>row.map(v=>Math.round(v*10)/10)),
-            tensionGrid: _hmTension.map(row=>row.map(v=>Math.round(v*10)/10)),
-            supportGrid: _hmSupport.map(row=>row.map(v=>Math.round(v*10)/10)),
+            grid: _hmSelGrid.map(row=>row.map(v=>Math.round(v*10)/10)),
+            tensionGrid: _hmSelTension.map(row=>row.map(v=>Math.round(v*10)/10)),
+            supportGrid: _hmSelSupport.map(row=>row.map(v=>Math.round(v*10)/10)),
             colLabels: _hmLabels, title: _hmTitle, subtitle: _hmSub,
-            maxIntensity: Math.round(_hmMax*10)/10,
-            totals: _hmTotals.map(v=>Math.round(v)),
-            tensionTotals: _tensionTotals.map(v=>Math.round(v)),
-            supportTotals: _supportTotals.map(v=>Math.round(v)),
-            normalized: _normalized, top3: _top3,
+            maxIntensity: Math.round(_hmSelMax*10)/10,
+            totals: _hmSelTotals.map(v=>Math.round(v)),
+            tensionTotals: _selTensionTotals.map(v=>Math.round(v)),
+            supportTotals: _selSupportTotals.map(v=>Math.round(v)),
+            normalized: _selNormalized, top3: _selTop3,
+            // C3 shadow — toujours exposés (revue concordance carte↔narratif), non lus tant que flag OFF :
+            grid_v2: _hmGridV2.map(row=>row.map(v=>Math.round(v*10)/10)),
+            normalized_v2: _normalizedV2, top3_v2: _top3V2,
+            tensionTotals_v2: _tensionTotalsV2.map(v=>Math.round(v)), supportTotals_v2: _supportTotalsV2.map(v=>Math.round(v)),
+            grid_v3: _hmGridV3.map(row=>row.map(v=>Math.round(v*10)/10)),
+            normalized_v3: _normalizedV3, top3_v3: _top3V3,
+            tensionTotals_v3: _tensionTotalsV3.map(v=>Math.round(v)), supportTotals_v3: _supportTotalsV3.map(v=>Math.round(v)),
+            // C2 shadow — barème absolu (pic) vs cumul relatif : toujours exposés (revue + arbitrage top3), lus si DTC_HEATMAP_ABS ON :
+            ceilAbs: _V3_CEIL, peakV3: _peakV3.map(v=>Math.round(v*10)/10),
+            normalized_abs: _normalizedAbs, top3_abs: _top3Abs,
+            normalized_cumul: _normalizedV3, top3_cumul: _top3Cumul,
+            // V4 shadow (DTC_HM_V4) — diagnostic dual A+B + valence transitante ; null tant que flag OFF :
+            v4diag: _v4diag,
             granularity: _hmGranularity,
             profLord: null /* WS_PLACIDUS_RETRAIT : Seigneur de l'année retiré de l'affichage */, firdMajor: _firdMajorHM,
             eventSignatures: _mdseResults.map(s => ({
