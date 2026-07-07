@@ -4,6 +4,8 @@
 
 **Dernière mise à jour rédactionnelle** : 2026-06-02 (ajout `POST /solar-return`, `POST /lunar-return` avec **relocation Volguine** + intégration `Prepare Data` v12, `POST /directions/primary`, `POST /batch/western/planets` — exhaustivité 12/12 endpoints serveur).
 
+> **Vérification 2026-07-07** : les **12 routes** de ce document correspondent **bit-à-bit** à `FRA/API SE/main.py` (relu intégralement). Cartographie des consommateurs PROD recalée sur les snapshots `FRA/_workflow-backups-prod/2026-07-07/` (voir §9). Rappel : `main.py` reste la source de vérité ; ce document est une référence de lecture.
+
 ---
 
 ## 1. Carte des documents `FRA/API SE`
@@ -452,7 +454,9 @@ curl -X POST http://46.225.174.155:8000/lunar-return \
 ## 6. Gotenberg (PDF)
 
 - Définition : **`docker-compose.yml`** → sur serveur **`/opt/astro/docker-compose.yml`**.
-- Port **3000**, image **`gotenberg/gotenberg:8`**, limites mémoire et rotation logs : voir inventaire §6.
+- Port **3000**, image **`gotenberg/gotenberg:8`**, `mem_limit: 1536m`, rotation logs (`max-size 20m`, `max-file 4`).
+- Endpoint utilisé par les 3 workflows : **`POST http://46.225.174.155:3000/forms/chromium/convert/html`** (nœuds `Convert HTML to PDF*`). JS Chromium **activé** (`--chromium-disable-javascript=false`, `--chromium-allow-list=.*`).
+- **Polices / glyphes astro (fontconfig, 2026-06-14)** : `./fontconfig/local.conf` est monté dans `/etc/fonts/local.conf`. Il **alias** les familles symboles des CSS (Segoe UI Symbol, Apple Symbols, Symbola, Arial Unicode MS, « Noto Sans Symbols 2 ») vers **« Noto Sans Symbols »** (trait fin) **avant** « Noto Sans Symbols2 ». Sans ça, les signes du zodiaque (U+2648–2653) sont rendus en présentation **emoji colorée** au lieu des glyphes monochromes. S'applique à TOUS les rapports (THEME/PREV/SYN) — lié à la **roue v3** (glyphes ♀/♂, cf. docs workflow).
 - L’API Gotenberg (multipart, chemins `/forms/...`) est documentée officiellement sur [gotenberg.dev](https://gotenberg.dev/) — ne pas dupliquer ici les paramètres versionnés.
 
 ---
@@ -490,12 +494,19 @@ Exécuter après tout `restart` de `astro-api` :
 
 ## 9. Consommateurs connus dans le monorepo
 
-| Zone | Usage typique |
-|------|----------------|
-| Workflows n8n THEME / PREV | `POST /western/planets`, `POST /western/houses`, parfois éclipses / lune / transits |
-| `FRA/PREV/N8N Prev` (TRANCHE 3 V23) | **`POST /solar-return`** + **`POST /lunar-return`** — HTTP nodes `Download Solar Return` et `Download Lunar Returns`, exposition `prepareData.srData` + `prepareData.lrData` pour consommation par moteur V23 from-scratch |
-| `FRA/DHN/GLOBAL DHN.json` | `POST /western/planets`, `POST /western/houses`, `GET /progressions` |
-| `SITE/scripts/*.sh`, benchmarks | Tests `POST /western/planets` |
+**Endpoints appelés par les nœuds HTTP des workflows PROD** (vérifié 2026-07-07 sur les snapshots `FRA/_workflow-backups-prod/2026-07-07/`) :
+
+| Workflow (PROD) | Endpoints serveur privé (`:8000`) | Gotenberg (`:3000`) |
+|---|---|---|
+| **THEME** (`TbLFaLOx1dLW9oNP`) | `/western/planets`, `/western/houses`, `/eclipses` | `/forms/chromium/convert/html` |
+| **SYN** (`xfenvGOyoYB6GyZH`) | `/western/planets`, `/western/houses`, `/eclipses` | idem |
+| **PREV** (`szL522DJiXkppyt1`) | `/western/planets`, `/western/houses`, `/eclipses`, `/transits`, `/moon`, `/progressions`, `/progressions/eclipses` | idem |
+| `FRA/DHN` | `/batch/western/planets` (mode A.3), `/western/houses`, `/progressions` | — |
+
+**Endpoints avancés (état 2026-07-07)** :
+- **`/directions/primary`** : consommé par le moteur **DTC v18** de PREV (appel `fetch` interne à `Super noeud1` / `Prepare Data`, pas un nœud HTTP visible), avec fallback JS legacy si timeout. Toujours actif en PROD.
+- **`/solar-return`, `/lunar-return`** : construits pour la refonte moteur **V23** (Révolutions Solaires/Lunaires, relocation Volguine). **V23 a été gelée/abandonnée** ; ces routes ne sont **pas** appelées par le PREV PROD courant (MDSE + DTC v18). Elles restent disponibles côté serveur (utiles si V23 est reprise). Voir docs DTC (`SITE/scripts/dtc/`).
+- **`/batch/western/planets`** : utilisé par `FRA/DHN`, pas par THEME/PREV/SYN.
 
 Toute nouvelle route ou extension doit respecter la **règle** du journal (2026-04-21) : **pas de modification additive** des routes existantes sans migration explicite des consommateurs.
 
