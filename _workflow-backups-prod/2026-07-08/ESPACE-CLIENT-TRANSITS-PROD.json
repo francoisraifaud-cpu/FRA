@@ -1,6 +1,4 @@
 {
-  "updatedAt": "2026-06-09T15:51:59.000Z",
-  "createdAt": "2026-06-09T14:00:57.609Z",
   "id": "2ji0C7vUElPbUGFq",
   "name": "ESPACE CLIENT TRANSITS - PROD",
   "description": null,
@@ -1440,34 +1438,6 @@
     "binaryMode": "separate"
   },
   "staticData": null,
-  "meta": null,
-  "nodeGroups": [],
   "pinData": {},
-  "versionId": "3bd48308-a92e-44a4-9781-90163b634a4c",
-  "activeVersionId": null,
-  "versionCounter": 6,
-  "triggerCount": 0,
-  "sourceWorkflowId": null,
-  "shared": [
-    {
-      "updatedAt": "2026-06-09T14:00:57.611Z",
-      "createdAt": "2026-06-09T14:00:57.611Z",
-      "role": "workflow:owner",
-      "workflowId": "2ji0C7vUElPbUGFq",
-      "projectId": "ufEZlo6UrV6kY3QB",
-      "project": {
-        "updatedAt": "2026-05-12T09:08:19.047Z",
-        "createdAt": "2026-05-12T09:08:11.449Z",
-        "id": "ufEZlo6UrV6kY3QB",
-        "name": "Raifaud   <francois.raifaud@gmail.com>",
-        "type": "personal",
-        "icon": null,
-        "description": null,
-        "customTelemetryTags": [],
-        "creatorId": "fb6c984b-473f-495f-aed9-c5264bd1e18e"
-      }
-    }
-  ],
-  "tags": [],
-  "activeVersion": null
+  "tags": []
 }

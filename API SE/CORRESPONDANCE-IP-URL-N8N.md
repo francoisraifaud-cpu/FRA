@@ -4,16 +4,20 @@ Ce fichier sert à **paramétrer n8n** (et scripts) quand l’accès à l’API 
 
 ---
 
-## 1. Point important (état actuel au 2026-04-19)
+## 1. Point important (état actuel au 2026-07-08)
 
-Dans ce dépôt, **l’adresse IPv4 publique du serveur astro n’a pas changé** : tout pointe déjà vers **`46.225.174.155`**.  
-Les travaux récents ont ajouté un **accès par le port 80 (nginx)** en plus du **port 8000 (direct)** — **même IP**, pas « ancienne IP → nouvelle IP ».
+> **⚠ MISE À JOUR 2026-07-08 — Accès canonique = HTTPS + clé API.**
+> n8n appelle désormais l’API via le **gateway TLS `https://api.spikka.eu`** (voir §6), avec le header **`X-API-Key`** obligatoire (§5). Les **12 workflows** (THEME/PREV/SYN/DHN + ESPACE CLIENT, prod & préprod) ont été migrés. Les accès directs `http://46.225.174.155:8000` / `:3000` sont **fermés au public par UFW** (seuls n8n Cloud `51.116.119.68` + IP dev) et **destinés à passer en localhost**. Détails : `JOURNAL-OPERATIONS.md` (entrée 2026-07-08).
+
+Dans ce dépôt, **l’adresse IPv4 publique du serveur astro n’a pas changé** : tout pointe vers **`46.225.174.155`** (désormais derrière le domaine `api.spikka.eu`).
 
 Si tu migres plus tard vers **une autre VM / une autre IP**, utilise le **§4** (modèle à remplir) et mets à jour ce fichier.
 
 ---
 
 ## 2. Correspondance « ancien accès » → « nouvel accès » (même serveur, même IPv4)
+
+> **Note 2026-07-08 :** cette table (port 80 direct) est **historique**. L’accès **recommandé/canonique** est maintenant le **gateway HTTPS `https://api.spikka.eu` + `X-API-Key`** (voir **§6**). Le port 80 en clair reste un fallback legacy.
 
 | Ancien (avant nginx) | Nouveau (recommandé sous charge) | Remarque |
 |----------------------|-----------------------------------|----------|
@@ -26,11 +30,11 @@ Si tu migres plus tard vers **une autre VM / une autre IP**, utilise le **§4** 
 | `http://46.225.174.155:8000/eclipses?...` | `http://46.225.174.155/eclipses?...` | Idem. |
 | `http://46.225.174.155:8000/health` | `http://46.225.174.155/health` | Smoke / uptime. |
 
-**Gotenberg (inchangé dans nos travaux)** :
+**Gotenberg** :
 
-| Usage | URL (inchangée si même serveur) |
-|--------|----------------------------------|
-| PDF | `http://46.225.174.155:3000` |
+| Usage | URL canonique (2026-07-08) | Direct (UFW n8n+dev only) |
+|--------|-----------------------------|----------------------------|
+| PDF | `https://api.spikka.eu/pdf/...` (+ `X-API-Key`) | `http://46.225.174.155:3000` |
 
 ---
 
@@ -70,22 +74,29 @@ Remplace **`ANCIENNE_IP`** / **`NOUVELLE_IP`** par les valeurs réelles ; garde 
 
 ---
 
-## 5. Authentification API (optionnelle)
+## 5. Authentification API (ACTIVE depuis 2026-07-08)
 
-Si tu actives **`ASTRO_API_KEY`** sur le serveur (`/etc/default/astro-api`), chaque requête n8n vers l’API doit envoyer le header **`X-API-Key`**.  
-Cela ne change **pas** l’IP ni le port, mais il faut **ajouter le header** dans chaque nœud HTTP concerné.
+Le **gateway `https://api.spikka.eu` (:443) exige le header `X-API-Key`** sur toutes les routes **sauf `/health`** (validation nginx via `map $http_x_api_key`, cf. `/etc/nginx/conf.d/astro-gateway.conf`). Une requête sans clé (ou mauvaise clé) reçoit **401**.
+
+- Clé côté serveur : `/root/astro-api-key.txt` (chmod 600). Côté site/scripts : `SITE/.env.local` → **`ASTRO_API_KEY`** (gitignored). **Ne jamais coller la clé dans le chat ni un commit.**
+- Chaque nœud HTTP n8n vers `api.spikka.eu` porte le header `X-API-Key`. Les nœuds **Code** faisant `helpers.httpRequest` l’incluent dans leur objet `headers`.
+- **Rotation** : régénérer (`openssl rand -hex 32`), mettre à jour `astro-gateway.conf` (placeholder `__APIKEY__`) + `nginx -t && systemctl reload nginx`, puis relancer `SITE/scripts/_enprat/astro-https-migrate.mjs --wf=<ids> --apply` pour propager la nouvelle clé dans n8n.
 
 ---
 
-## 6. TLS / nom de domaine (futur)
+## 6. TLS / nom de domaine (EN PLACE depuis 2026-07-08)
 
-Quand tu auras un **nom de domaine** + HTTPS, la correspondance deviendra du type :
+Le basculement HTTPS est **fait**. Domaine **`api.spikka.eu`** (DNS A → `46.225.174.155`, IONOS), certificat **Let’s Encrypt** (`/etc/letsencrypt/live/api.spikka.eu/`), TLS 1.2/1.3, vhost `/etc/nginx/sites-available/astro-api-443` (`/` → `127.0.0.1:8000`, `/pdf/` → `127.0.0.1:3000`, `/health` ouvert).
 
-| Avant (HTTP + IP) | Après (HTTPS + domaine) |
-|-------------------|---------------------------|
-| `http://46.225.174.155:8000/...` | `https://api.example.com/...` (selon ton vhost) |
+| Avant (HTTP + IP) | Après (HTTPS + domaine) — **canonique** |
+|-------------------|------------------------------------------|
+| `http://46.225.174.155:8000/western/planets` | `https://api.spikka.eu/western/planets` (+ `X-API-Key`) |
+| `http://46.225.174.155:8000/transits?...` | `https://api.spikka.eu/transits?...` (+ `X-API-Key`) |
+| `http://46.225.174.155:8000/progressions?...` | `https://api.spikka.eu/progressions?...` (+ `X-API-Key`) |
+| `http://46.225.174.155:8000/health` | `https://api.spikka.eu/health` (sans clé) |
+| `http://46.225.174.155:3000` (Gotenberg) | `https://api.spikka.eu/pdf/...` (+ `X-API-Key`) |
 
-À documenter ici le jour du basculement.
+**Renouvellement Let’s Encrypt** : certbot timer automatique → **garder le port 80 ouvert** (challenge ACME).
 
 ---
 

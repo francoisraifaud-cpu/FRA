@@ -2,7 +2,9 @@
 
 **Rôle de ce document** : consolider en un seul endroit **tous les contrats HTTP**, le **comportement interne** du code, l’**arborescence serveur**, l’**infra** (systemd, nginx, Docker Gotenberg) et les **règles de non-régression**. Les détails opérationnels longs (reconstruction VM, UFW, fail2ban, runbook incidents) restent dans **[INVENTAIRE-SERVEUR-ASTRO-SWISSEPH-GOTENBERG.md](./INVENTAIRE-SERVEUR-ASTRO-SWISSEPH-GOTENBERG.md)** ; le **fil des interventions** dans **[JOURNAL-OPERATIONS.md](./JOURNAL-OPERATIONS.md)** ; les **URLs n8n** dans **[CORRESPONDANCE-IP-URL-N8N.md](./CORRESPONDANCE-IP-URL-N8N.md)**.
 
-**Dernière mise à jour rédactionnelle** : 2026-04-21 (alignée sur `main.py` du dépôt et rollback incident `/western/planets`).
+**Dernière mise à jour rédactionnelle** : 2026-07-08 (accès via gateway HTTPS `api.spikka.eu` + clé API ; contrats de routes 2026-04-21 inchangés).
+
+> **⚠ 2026-07-08 — Accès réseau.** Les contrats de routes ci-dessous (chemins, schémas requête/réponse) sont **inchangés**, mais l'**appel réel passe par le gateway `https://api.spikka.eu`** (TLS) avec le header **`X-API-Key`** (sauf `/health`). `/pdf/` = Gotenberg. Les URLs directes `http://46.225.174.155:8000` sont **fermées au public** (UFW : n8n + dev). Voir `CORRESPONDANCE-IP-URL-N8N.md` §5-§6 et `JOURNAL-OPERATIONS.md` (2026-07-08).
 
 ---
 

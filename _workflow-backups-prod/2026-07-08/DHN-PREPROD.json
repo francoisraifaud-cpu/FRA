@@ -1,6 +1,4 @@
 {
-  "updatedAt": "2026-07-08T14:20:16.115Z",
-  "createdAt": "2026-05-12T20:41:42.479Z",
   "id": "Z9JgGaLoJhKNo8mB",
   "name": "DHN — PREPROD",
   "description": null,
@@ -314,6 +312,15 @@
             }
           },
           "timeout": 90000
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-API-Key",
+              "value": "__REDACTED__"
+            }
+          ]
         }
       },
       "id": "a6a8c277-5a1f-4355-acce-501dce174503",
@@ -690,34 +697,6 @@
     "availableInMCP": true
   },
   "staticData": null,
-  "meta": null,
-  "nodeGroups": [],
   "pinData": null,
-  "versionId": "3caeb9a9-6dc6-4f6a-bf77-c5095db98a73",
-  "activeVersionId": null,
-  "versionCounter": 8,
-  "triggerCount": 0,
-  "sourceWorkflowId": null,
-  "shared": [
-    {
-      "updatedAt": "2026-05-12T20:41:42.481Z",
-      "createdAt": "2026-05-12T20:41:42.481Z",
-      "role": "workflow:owner",
-      "workflowId": "Z9JgGaLoJhKNo8mB",
-      "projectId": "ufEZlo6UrV6kY3QB",
-      "project": {
-        "updatedAt": "2026-05-12T09:08:19.047Z",
-        "createdAt": "2026-05-12T09:08:11.449Z",
-        "id": "ufEZlo6UrV6kY3QB",
-        "name": "Raifaud   <francois.raifaud@gmail.com>",
-        "type": "personal",
-        "icon": null,
-        "description": null,
-        "customTelemetryTags": [],
-        "creatorId": "fb6c984b-473f-495f-aed9-c5264bd1e18e"
-      }
-    }
-  ],
-  "tags": [],
-  "activeVersion": null
+  "tags": []
 }

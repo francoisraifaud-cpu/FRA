@@ -35,19 +35,23 @@ Ce dossier est la **référence unique** dans le dépôt pour le serveur privé 
 | [`infra/apply-prod-hardening.sh`](./infra/apply-prod-hardening.sh) | **Script rejouable** : `apt upgrade`, swap, journald, sysctl, **nginx** (port 80 → API), UFW 80, drop-in **systemd** (`MemoryMax`, `EnvironmentFile`), déploiement compose + `main.py` depuis `/tmp/*.deploy` |
 | [`infra/nginx-astro-api.conf`](./infra/nginx-astro-api.conf) | Modèle installé en **`/etc/nginx/sites-available/astro-api-proxy`** |
 
-**Après durcissement** :
+**Après durcissement (état 2026-07-08)** :
 
-- **`http://46.225.174.155/`** (port **80**) = même API que **`http://46.225.174.155:8000/`**, avec **rate limiting** nginx.
-- Le port **8000** reste ouvert pour la **compatibilité** n8n existante ; migration possible vers le **80** puis resserrement UFW (voir inventaire §2.4, §14).
-- **Reboot noyau** : si `/var/run/reboot-required` sur le serveur → planifier `shutdown -r now` ; voir **`/root/REBOOT_REQUIRED.txt`**.
+- **Accès canonique n8n = `https://api.spikka.eu`** (TLS Let’s Encrypt) + header **`X-API-Key`** (toutes routes sauf `/health`). Route `/pdf/` → Gotenberg. Voir `CORRESPONDANCE-IP-URL-N8N.md` §5-§6 et le journal **2026-07-08**.
+- **`:8000` (API) et `:3000` (Gotenberg)** : **fermés au public par UFW** (seuls n8n Cloud `51.116.119.68` + IP dev), destinés à passer en **localhost** après le verrouillage final.
+- Le port **80** (nginx en clair) subsiste en legacy + pour le challenge **ACME** (renouvellement Let’s Encrypt).
+- **Reboot noyau** : effectué le 2026-07-08 (MàJ noyau appliquée).
 
-**Clé API optionnelle** : fichier serveur **`/etc/default/astro-api`** — tant que **`ASTRO_API_KEY`** n’y est pas défini, l’API reste ouverte comme avant. Détail : inventaire **§2.5**, journal **2026-04-19**.
+**Clé API** : **ACTIVE** au niveau du gateway nginx `:443` (`/etc/nginx/conf.d/astro-gateway.conf`, `map $http_x_api_key`). Clé : `/root/astro-api-key.txt` (serveur) + `SITE/.env.local` → `ASTRO_API_KEY` (site/scripts, gitignored). Détail : inventaire **§2.5**, journal **2026-07-08**.
 
 ---
 
 ## TLS / suite « industrielle »
 
-Non couvert automatiquement ici : **HTTPS** (domaine + Caddy ou nginx + Let’s Encrypt), **allowlist IP**, **monitoring**, **backups snapshot**. Pistes décrites dans l’inventaire **§14** et à consigner dans **`JOURNAL-OPERATIONS.md`** au fil des mises en prod.
+- **HTTPS** : ✅ en place (`api.spikka.eu`, Let’s Encrypt, TLS 1.2/1.3, vhost nginx `:443`).
+- **Allowlist IP** : ✅ UFW restreint `:8000`/`:3000` à n8n Cloud + IP dev.
+- **Clé API** : ✅ exigée par le gateway (`X-API-Key`), sauf `/health`.
+- **Reste** : passage `:8000`/`:3000` en **localhost** (verrouillage final), **monitoring** (Uptime Kuma/Datadog), **backups snapshot** Hetzner — à consigner dans **`JOURNAL-OPERATIONS.md`**.
 
 ---
 

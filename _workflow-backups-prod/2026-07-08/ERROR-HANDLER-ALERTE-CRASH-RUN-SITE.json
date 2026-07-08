@@ -1,6 +1,4 @@
 {
-  "updatedAt": "2026-07-08T10:04:28.765Z",
-  "createdAt": "2026-07-08T10:04:28.765Z",
   "id": "n4PbtS5wi2gqTPgX",
   "name": "ERROR HANDLER - alerte crash run (site)",
   "description": null,
@@ -64,34 +62,6 @@
     "executionOrder": "v1"
   },
   "staticData": null,
-  "meta": null,
-  "nodeGroups": [],
   "pinData": null,
-  "versionId": "064d663f-c862-4ef1-9dc7-1473882035aa",
-  "activeVersionId": null,
-  "versionCounter": 1,
-  "triggerCount": 0,
-  "sourceWorkflowId": null,
-  "shared": [
-    {
-      "updatedAt": "2026-07-08T10:04:28.769Z",
-      "createdAt": "2026-07-08T10:04:28.769Z",
-      "role": "workflow:owner",
-      "workflowId": "n4PbtS5wi2gqTPgX",
-      "projectId": "ufEZlo6UrV6kY3QB",
-      "project": {
-        "updatedAt": "2026-05-12T09:08:19.047Z",
-        "createdAt": "2026-05-12T09:08:11.449Z",
-        "id": "ufEZlo6UrV6kY3QB",
-        "name": "Raifaud   <francois.raifaud@gmail.com>",
-        "type": "personal",
-        "icon": null,
-        "description": null,
-        "customTelemetryTags": [],
-        "creatorId": "fb6c984b-473f-495f-aed9-c5264bd1e18e"
-      }
-    }
-  ],
-  "tags": [],
-  "activeVersion": null
+  "tags": []
 }

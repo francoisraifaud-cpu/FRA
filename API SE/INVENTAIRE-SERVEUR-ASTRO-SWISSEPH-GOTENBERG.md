@@ -1,11 +1,13 @@
 # Inventaire serveur « astro-server » — Swiss Ephemeris + Gotenberg
 
 Document généré pour permettre une **reconstruction à zéro** du serveur critique (API astro + PDF).  
-**Dernière mise à jour des faits techniques** : 2026-04-21 (référence API exhaustive, correction §8.6 `/eclipses`, contrat §8.2 `/western/planets` ; faits 2026-04-19 inchangés : durcissement, nginx port 80).
+**Dernière mise à jour des faits techniques** : 2026-07-08 (gateway HTTPS `api.spikka.eu` + clé API + pare-feu ; faits 2026-04-19/21 conservés). 
+
+> **⚠ 2026-07-08 — Accès canonique = `https://api.spikka.eu` + `X-API-Key`.** L'API `:8000` et Gotenberg `:3000` sont désormais **derrière un gateway nginx TLS** et **fermés au public par UFW** (n8n Cloud + IP dev only). Les URLs `http://46.225.174.155:8000/...` listées en §8 restent le **contrat des routes** (schémas de requête/réponse) mais l'appel réel passe par le gateway. Détails : `JOURNAL-OPERATIONS.md` (2026-07-08) et `CORRESPONDANCE-IP-URL-N8N.md` §5-§6.
 
 **Référence contrats API** : [`DOCUMENTATION-REFERENCE-API-ET-SERVEUR.md`](./DOCUMENTATION-REFERENCE-API-ET-SERVEUR.md).  
 **Chronologie des opérations** : [`JOURNAL-OPERATIONS.md`](./JOURNAL-OPERATIONS.md).  
-**URLs n8n (port 80 vs 8000, IPv6, migration IP)** : [`CORRESPONDANCE-IP-URL-N8N.md`](./CORRESPONDANCE-IP-URL-N8N.md).
+**URLs n8n (gateway HTTPS, clé API, IPv6, migration IP)** : [`CORRESPONDANCE-IP-URL-N8N.md`](./CORRESPONDANCE-IP-URL-N8N.md).
 
 ---
 
@@ -19,7 +21,7 @@ Document généré pour permettre une **reconstruction à zéro** du serveur cri
 | **SSH** | **22** | Administration. |
 | **DNS local** | 127.0.0.53 / 127.0.0.54 | `systemd-resolved` (standard Ubuntu). |
 
-**Sécurité** : **UFW** ouvre **22, 80, 3000, 8000** (voir §4). **TLS** : pas encore sur ce serveur (§2.4). **Authentification API** : optionnelle via **`ASTRO_API_KEY`** + **`X-API-Key`** (§2.5) ; sans clé, l’API reste publique. **Rate limit** : nginx sur le **port 80** uniquement.
+**Sécurité (2026-07-08)** : **UFW** ouvre **22, 80, 443** au public ; **3000 et 8000 sont restreints** à n8n Cloud (`51.116.119.68`) + IP dev (→ localhost au verrouillage final). **TLS** : ✅ gateway **`https://api.spikka.eu`** (Let's Encrypt, §2.4). **Authentification API** : ✅ **`X-API-Key`** exigée par le gateway `:443` sur toutes les routes sauf `/health` (§2.5). **Rate limit** : gateway `:443` (25 r/s, burst 60) + nginx port 80 legacy.
 
 ---
 
@@ -58,15 +60,16 @@ Ce ne sont **pas** des IP du serveur : ce sont des **appelants externes**. Utile
 
 ### 2.4 URLs de base (prod)
 
-- API Astro (direct uvicorn) : **`http://46.225.174.155:8000`**
-- API Astro (**nginx**, rate limiting ~25 req/s par IP, burst 60) : **`http://46.225.174.155/`** (port **80**, mêmes chemins que sur `:8000`, ex. `/western/planets`)
-- Gotenberg : **`http://46.225.174.155:3000`**
+- **Gateway HTTPS (canonique, n8n)** : **`https://api.spikka.eu`** → `/` = API (`127.0.0.1:8000`), `/pdf/` = Gotenberg (`127.0.0.1:3000`), `/health` sans clé. TLS 1.2/1.3, header **`X-API-Key`** obligatoire (sauf `/health`).
+- API Astro (direct uvicorn) : **`http://46.225.174.155:8000`** — **UFW : n8n + dev only** (→ localhost au verrouillage final).
+- Gotenberg (direct) : **`http://46.225.174.155:3000`** — **UFW : n8n + dev only**.
+- API port 80 (nginx en clair, legacy + ACME) : **`http://46.225.174.155/`**.
 
-**TLS** : pas encore terminé sur ce serveur. Étape suivante recommandée : **Caddy** ou **nginx + Let’s Encrypt** derrière un **nom de domaine** pointant vers l’IP, puis basculer n8n en `https://…`.
+**TLS** : ✅ **en place** — domaine `api.spikka.eu` (IONOS, DNS A → IP), **Let's Encrypt** (`/etc/letsencrypt/live/api.spikka.eu/`), vhost `/etc/nginx/sites-available/astro-api-443`. Renouvellement certbot → garder le **port 80** ouvert (ACME).
 
-### 2.5 Authentification API (optionnelle)
+### 2.5 Authentification API (ACTIVE — 2026-07-08)
 
-Si la variable d’environnement **`ASTRO_API_KEY`** est définie pour le service `astro-api` (fichier **`/etc/default/astro-api`**, voir commentaires dedans), toutes les routes exigent le header **`X-API-Key`** (sauf `/health`, `/docs`, `/openapi.json`, `/redoc`). **Tant que la clé n’est pas définie**, le comportement reste **identique** à avant (accès libre).
+Le **gateway nginx `:443`** exige le header **`X-API-Key`** sur toutes les routes **sauf `/health`** (validation `map $http_x_api_key`, `/etc/nginx/conf.d/astro-gateway.conf`) ; sans clé → **401**. Clé : **`/root/astro-api-key.txt`** (serveur, chmod 600) + **`SITE/.env.local`** → `ASTRO_API_KEY` (site/scripts). Le middleware `ASTRO_API_KEY` de `main.py` (`/etc/default/astro-api`) reste disponible pour durcir aussi le `:8000` direct si besoin.
 
 ---
 
@@ -98,14 +101,15 @@ Si la variable d’environnement **`ASTRO_API_KEY`** est définie pour le servic
 
 ## 4. Pare-feu (UFW)
 
-État observé : **actif**, politique **entrant par défaut deny**.
+État observé (2026-07-08) : **actif**, politique **entrant par défaut deny**.
 
 | Port / règle | Action |
 |----------------|--------|
 | **22/tcp** | ALLOW (IPv4 + IPv6) |
-| **80/tcp** | ALLOW (nginx → API) |
-| **3000** | ALLOW (Gotenberg) |
-| **8000** | ALLOW (API Astro direct) |
+| **80/tcp** | ALLOW (nginx legacy + ACME Let's Encrypt) |
+| **443/tcp** | ALLOW (gateway HTTPS `api.spikka.eu`) |
+| **3000** | ALLOW **uniquement** n8n Cloud (`51.116.119.68`) + IP dev — plus d'accès public (→ localhost au verrouillage final) |
+| **8000** | ALLOW **uniquement** n8n Cloud (`51.116.119.68`) + IP dev — plus d'accès public (→ localhost au verrouillage final) |
 
 ---
 
@@ -576,7 +580,7 @@ Sur les nœuds HTTP vers cette API : **timeout modéré** (10–15 s), **peu de 
 | **astro-api (systemd)** | **`MemoryMax=1200M`**, **`EnvironmentFile=-/etc/default/astro-api`** (clé API optionnelle, voir §2.5). |
 | **Gotenberg** | **`mem_limit` ~1,5 Go**, logs Docker **rotation** `max-size` / `max-file` (`docker-compose.yml`). |
 
-**Pas encore fait automatiquement** : TLS (HTTPS), allowlist IP stricte sur 8000/3000, monitoring externe, sauvegardes snapshot Hetzner — à planifier selon ton domaine et ton budget temps.
+**Fait depuis (2026-07-08)** : ✅ TLS/HTTPS (`api.spikka.eu`, Let's Encrypt), ✅ allowlist IP UFW sur 8000/3000 (n8n + dev), ✅ clé API `X-API-Key` au gateway. **Reste** : passage 8000/3000 en **localhost** (verrouillage final), monitoring externe, sauvegardes snapshot Hetzner.
 
 ---
 

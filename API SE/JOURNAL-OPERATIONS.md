@@ -148,14 +148,72 @@ Le script est **idempotent** dans une large mesure (swap, sysctl, journald, ngin
 
 ---
 
+## 2026-07-08 — Sécurisation pré-lancement : pare-feu, HTTPS (`api.spikka.eu`), clé API, migration n8n
+
+### Contexte
+
+Audit sécurité avant mise en prod commerciale. Constat : l'API `:8000` et Gotenberg `:3000` étaient **exposés publiquement sans authentification** (exfiltration de données perso, SSRF, DoS possibles) et le trafic n8n↔serveur circulait **en clair** (HTTP). Mise à jour noyau en attente (~77 j).
+
+### Actions
+
+**1. Pare-feu (UFW) — fermeture au monde**
+- `:8000` et `:3000` restreints aux **seules** IP légitimes : n8n Cloud (`51.116.119.68`) + IP dev. Plus aucun accès public direct.
+- `:22` (SSH), `:80` (ACME/renew Let's Encrypt), `:443` (gateway) conservés.
+
+**2. Durcissement + reboot noyau**
+- X11Forwarding off (`/etc/ssh/sshd_config.d/50-hardening.conf`) ; fail2ban jail `recidive` (`/etc/fail2ban/jail.d/99-recidive.local`, ban 1 semaine).
+- Reboot pour appliquer la MàJ noyau (auto-start vérifié : `astro-api`, Docker/Gotenberg `restart=always`, UFW persistant).
+
+**3. Gateway HTTPS `api.spikka.eu`**
+- DNS A `api.spikka.eu` → `46.225.174.155` (IONOS). Certbot + Let's Encrypt (`/etc/letsencrypt/live/api.spikka.eu/`), TLS 1.2/1.3.
+- nginx `:443` (`/etc/nginx/sites-available/astro-api-443`) : `/` → `127.0.0.1:8000` (API), `/pdf/` → `127.0.0.1:3000` (Gotenberg), `/health` ouvert.
+- **Clé `X-API-Key` exigée** sur toutes les routes sauf `/health`, via `map $http_x_api_key` (`/etc/nginx/conf.d/astro-gateway.conf`, `map_hash_bucket_size 128`). Rate limit `astro_tls` 25 r/s, burst 60.
+- Clé générée `openssl rand -hex 32` → `/root/astro-api-key.txt` (chmod 600) + `SITE/.env.local` (`ASTRO_API_KEY`, gitignored). **Ne jamais coller la clé dans le chat / un commit.**
+
+**4. Migration n8n → gateway (12 workflows référençant l'IP)**
+- Outil : `SITE/scripts/_enprat/astro-https-migrate.mjs` (modes `--scan-all` / `--inspect` / `--verify` / `--force-key`, dry-run + backups auto).
+- Repointage `http://46.225.174.155:8000` → `https://api.spikka.eu`, `:3000` → `https://api.spikka.eu/pdf`, + header `X-API-Key` sur chaque nœud HTTP.
+- **Nœuds Code** aussi : `Prepare Data` (PREV / ESPACE CLIENT TRANSITS — `helpers.httpRequest` inline, clé injectée dans `headers`), `Build Prog URL` + `Resultat final1` (DHN — build-string d'URL ; clé posée sur le nœud aval `Scan progressions`).
+- **Préprod** (THEME/PREV/SYN/DHN) migrée + **smoke 24/24 en 200, 0×401** (planets, houses, transits, moon, eclipses, progressions, directions/primary, solar-return, lunar-return, Gotenberg `/pdf`).
+- **Prod** : 7 workflows actifs migrés + `--verify` OK (`THEME`, `PREV`, `SYN`, `DHN`, `ESPACE CLIENT`, `ESPACE CLIENT SPIKKA CONNECT SYN`, `ESPACE CLIENT TRANSITS DAILY`). `ESPACE CLIENT TRANSITS` (**archivé**) non migré (ne s'exécute pas ; à migrer s'il est désarchivé).
+- Le PUT via l'API publique n8n retire `binaryMode`/`availableInMCP` de `settings` (liste blanche API) — sans impact (PDF OK au smoke).
+
+**5. Incident fuite clé `X-API-Key` (GitGuardian) + rotation zéro-coupure**
+- Alerte GitGuardian : la clé du gateway figurait **en clair** dans les JSON `FRA/_workflow-backups-prod/2026-07-08/` (backup `ce874df`, poussé). Cause racine : l'export de backup relit les workflows **live**, qui portent désormais le header `X-API-Key` inline. Dépôt **privé** (GitGuardian scanne aussi le privé) → pas d'exposition publique, mais clé traitée comme compromise.
+- **Rotation** : nouvelle clé `openssl rand -hex 32`. Gateway passé en **double-clé** (ancienne + nouvelle acceptées simultanément) → repointage des **81 nœuds** (HTTP + Code) des 11 workflows porteurs via `astro-https-migrate.mjs --rotate-all --apply` → smoke THEME préprod **0×401** (Calcul/Download/PDF en 200) → **invalidation de l'ancienne** (gateway = nouvelle clé seule ; `/root/astro-api-key.new` promu en `/root/astro-api-key.txt`). Vérif finale : nouvelle clé **acceptée (404 sur `/`)**, ancienne **rejetée (401)**. **Aucune coupure.**
+- **Récidive empêchée** : `n8n-export-prod-workflows.mjs` caviarde désormais toute valeur `X-API-Key` (**walk récursif** — attrape aussi la copie dupliquée dans `activeVersion.nodes` renvoyée par l'API) et **strip** les champs dupliqués/volatils (`activeVersion`, `shared`, `updatedAt`, `versionCounter`…). Backup 2026-07-08 régénéré : **0 clé**, `__REDACTED__` partout.
+- **Historique git** : la clé fuitée n'existait que dans le commit `ce874df` → purge ciblée (`git filter-repo --replace-text`) sur la branche `backup/workflows-prod-2026-07-08` + force-push. Clé déjà rotée (inerte) → purge = hygiène complémentaire.
+- **`SITE/.env.local`** mis à jour avec la nouvelle clé (gitignored). **Ne jamais coller de clé dans le chat / un commit.**
+
+### Fichiers (dépôt)
+
+- `SITE/scripts/_enprat/astro-https-migrate.mjs` — migration/scan/verify + **`--rotate-key` / `--rotate-all`** (rotation de la valeur `X-API-Key` sur nœuds déjà migrés).
+- `SITE/scripts/n8n-export-prod-workflows.mjs` — export/backup + **caviardage récursif** `X-API-Key` et strip `activeVersion`/`shared` (aucun secret en backup).
+- Backups pré-migration : `SITE/scripts/_enprat/_https-migrate-backups/` + `FRA/_workflow-backups-prod/2026-07-08/` (caviardés).
+
+### Vérif
+
+- `--verify` des 7 prod : `✅ aucune IP résiduelle ; gateway+clé cohérents`. Les ⚠ (Vercel Blob, Gmail API) = appels externes légitimes non keyés → **normal**.
+- Smoke préprod : 24/24 en 200 via `:443` (dont nœuds Code inline + Gotenberg).
+
+### Reste à faire
+
+- **Verrouillage final** : binder `:8000`/`:3000` sur `127.0.0.1` (localhost) une fois confirmé qu'aucun autre client ne les appelle en direct. Tant que non fait, le pare-feu les protège déjà d'Internet.
+- Garder `:80` ouvert pour le renouvellement Let's Encrypt (certbot timer).
+
+---
+
 ## Référence rapide — URLs prod
 
 | Usage | URL |
 |--------|-----|
-| API (direct, compat historique) | `http://46.225.174.155:8000/...` |
-| API (**nginx**, rate limit) | `http://46.225.174.155/...` (port **80**) |
-| Gotenberg | `http://46.225.174.155:3000` |
-| SSH | `ssh root@46.225.174.155` (clé ; mot de passe désactivé côté serveur audité) |
+| **API (canonique, n8n)** | **`https://api.spikka.eu/...`** (TLS + header `X-API-Key`) |
+| **Gotenberg (canonique)** | **`https://api.spikka.eu/pdf/...`** (TLS + `X-API-Key`) |
+| Health (sans clé) | `https://api.spikka.eu/health` |
+| API directe `:8000` | `http://46.225.174.155:8000/...` — **UFW : n8n + dev only** (→ localhost bientôt) |
+| Gotenberg direct `:3000` | `http://46.225.174.155:3000` — **UFW : n8n + dev only** (→ localhost bientôt) |
+| API port 80 (nginx, sans TLS) | `http://46.225.174.155/...` (legacy ; préférer `:443`) |
+| SSH | `ssh root@46.225.174.155` (clé ; mot de passe désactivé) |
 
 ---
 
@@ -172,4 +230,4 @@ Le script est **idempotent** dans une large mesure (swap, sysctl, journald, ngin
 
 ---
 
-*Dernière mise à jour rédactionnelle de ce journal : 2026-04-21.*
+*Dernière mise à jour rédactionnelle de ce journal : 2026-07-08.*
