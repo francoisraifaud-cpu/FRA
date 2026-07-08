@@ -196,10 +196,17 @@ Audit sécurité avant mise en prod commerciale. Constat : l'API `:8000` et Gote
 - `--verify` des 7 prod : `✅ aucune IP résiduelle ; gateway+clé cohérents`. Les ⚠ (Vercel Blob, Gmail API) = appels externes légitimes non keyés → **normal**.
 - Smoke préprod : 24/24 en 200 via `:443` (dont nœuds Code inline + Gotenberg).
 
+**6. Verrouillage final — `:8000`/`:3000` en localhost (FAIT 2026-07-08)**
+- `astro-api` (uvicorn) : `--host 0.0.0.0` → **`--host 127.0.0.1`** (unit `/etc/systemd/system/astro-api.service`, backup `.bak.localhost.20260708`).
+- Gotenberg (compose `/opt/astro/docker-compose.yml`) : `"3000:3000"` → **`"127.0.0.1:3000:3000"`** (backup `.bak.localhost.20260708`, copie dépôt `FRA/API SE/docker-compose.yml` alignée).
+- `ss -tlnp` : plus aucun `0.0.0.0`/`[::]` sur 8000/3000 → **écoute loopback uniquement**. nginx `:443` tape sur `127.0.0.1` → inchangé.
+- Smoke : accès direct externe `:8000`/`:3000` = **000 (refusé)** ; gateway `/health` = **200**, gateway+clé = **404** ; run THEME préprod e2e = calcul/PDF **200, 0×(401/403/502)**.
+
 ### Reste à faire
 
-- **Verrouillage final** : binder `:8000`/`:3000` sur `127.0.0.1` (localhost) une fois confirmé qu'aucun autre client ne les appelle en direct. Tant que non fait, le pare-feu les protège déjà d'Internet.
 - Garder `:80` ouvert pour le renouvellement Let's Encrypt (certbot timer).
+- Les règles UFW `:8000`/`:3000` (n8n + dev) sont désormais **redondantes** (rien n'écoute côté public) — nettoyage optionnel.
+- Workflow archivé `ESPACE CLIENT TRANSITS - PROD` : pointe encore l'IP directe `:8000` → **à migrer vers le gateway s'il est un jour désarchivé** (sinon il échouera, le port n'étant plus exposé).
 
 ---
 
@@ -210,8 +217,8 @@ Audit sécurité avant mise en prod commerciale. Constat : l'API `:8000` et Gote
 | **API (canonique, n8n)** | **`https://api.spikka.eu/...`** (TLS + header `X-API-Key`) |
 | **Gotenberg (canonique)** | **`https://api.spikka.eu/pdf/...`** (TLS + `X-API-Key`) |
 | Health (sans clé) | `https://api.spikka.eu/health` |
-| API directe `:8000` | `http://46.225.174.155:8000/...` — **UFW : n8n + dev only** (→ localhost bientôt) |
-| Gotenberg direct `:3000` | `http://46.225.174.155:3000` — **UFW : n8n + dev only** (→ localhost bientôt) |
+| API directe `:8000` | **`127.0.0.1:8000` (loopback only)** — plus d'accès externe ; nginx `:443` uniquement |
+| Gotenberg direct `:3000` | **`127.0.0.1:3000` (loopback only)** — plus d'accès externe ; via `:443/pdf/` uniquement |
 | API port 80 (nginx, sans TLS) | `http://46.225.174.155/...` (legacy ; préférer `:443`) |
 | SSH | `ssh root@46.225.174.155` (clé ; mot de passe désactivé) |
 

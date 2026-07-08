@@ -2,7 +2,9 @@
 # Déploiement : copier ce fichier vers /opt/astro/docker-compose.yml sur la VM, puis :
 #   cd /opt/astro && docker compose pull && docker compose up -d
 #
-# Port public attendu : 3000 (voir UFW + INVENTAIRE-SERVEUR-ASTRO-SWISSEPH-GOTENBERG.md).
+# Bind LOCALHOST uniquement (2026-07-08) : Gotenberg n'est plus exposé publiquement.
+# L'accès passe exclusivement par le gateway nginx https://api.spikka.eu/pdf/ (→ 127.0.0.1:3000).
+# (voir INVENTAIRE-SERVEUR-ASTRO-SWISSEPH-GOTENBERG.md + JOURNAL-OPERATIONS.md).
 # Limites mémoire + rotation logs (Compose file format / plugin v2).
 
 services:
@@ -10,7 +12,7 @@ services:
     image: gotenberg/gotenberg:8
     restart: always
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     mem_limit: "1536m"
     logging:
       driver: json-file

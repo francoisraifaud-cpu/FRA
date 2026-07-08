@@ -40,7 +40,7 @@ Document généré pour permettre une **reconstruction à zéro** du serveur cri
 
 | Interface | Adresse | Usage |
 |-----------|---------|--------|
-| **eth0 (public IPv4)** | **`46.225.174.155/32`** | Adresse **principale** utilisée par n8n et les scripts (`http://46.225.174.155:8000/...`, `:3000/...`). |
+| **eth0 (public IPv4)** | **`46.225.174.155/32`** | IP publique du serveur. Depuis 2026-07-08, l'accès applicatif passe par le **gateway `https://api.spikka.eu` (`:443`)** ; `:8000`/`:3000` ne sont plus exposés (loopback). |
 | **eth0 (public IPv6)** | **`2a01:4f8:1c1e:d9aa::1/64`** | Accès v6 (Hetzner typique). `curl ifconfig.me` peut renvoyer l’IPv6. |
 | lo | `127.0.0.1`, `::1` | Localhost |
 | **docker bridge** `br-8a40a68b6d16` | **`172.18.0.1/16`** | Réseau du conteneur Gotenberg. |
@@ -61,8 +61,8 @@ Ce ne sont **pas** des IP du serveur : ce sont des **appelants externes**. Utile
 ### 2.4 URLs de base (prod)
 
 - **Gateway HTTPS (canonique, n8n)** : **`https://api.spikka.eu`** → `/` = API (`127.0.0.1:8000`), `/pdf/` = Gotenberg (`127.0.0.1:3000`), `/health` sans clé. TLS 1.2/1.3, header **`X-API-Key`** obligatoire (sauf `/health`).
-- API Astro (direct uvicorn) : **`http://46.225.174.155:8000`** — **UFW : n8n + dev only** (→ localhost au verrouillage final).
-- Gotenberg (direct) : **`http://46.225.174.155:3000`** — **UFW : n8n + dev only**.
+- API Astro (uvicorn) : **`127.0.0.1:8000` (loopback uniquement depuis 2026-07-08)** — plus aucun accès externe direct ; nginx `:443` seul y accède.
+- Gotenberg : **`127.0.0.1:3000` (loopback uniquement depuis 2026-07-08)** — plus aucun accès externe direct ; via `:443/pdf/` seul.
 - API port 80 (nginx en clair, legacy + ACME) : **`http://46.225.174.155/`**.
 
 **TLS** : ✅ **en place** — domaine `api.spikka.eu` (IONOS, DNS A → IP), **Let's Encrypt** (`/etc/letsencrypt/live/api.spikka.eu/`), vhost `/etc/nginx/sites-available/astro-api-443`. Renouvellement certbot → garder le **port 80** ouvert (ACME).
@@ -126,7 +126,7 @@ After=network.target
 
 [Service]
 WorkingDirectory=/opt/astro/api
-ExecStart=/opt/astro/api/venv/bin/uvicorn main:app --host 0.0.0.0 --port 8000 --workers 2 --timeout-keep-alive 5
+ExecStart=/opt/astro/api/venv/bin/uvicorn main:app --host 127.0.0.1 --port 8000 --workers 10 --timeout-keep-alive 5
 LimitNOFILE=65536
 Restart=on-failure
 RestartSec=5
@@ -178,7 +178,7 @@ services:
     image: gotenberg/gotenberg:8
     restart: always
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     mem_limit: "1536m"
     logging:
       driver: json-file
@@ -198,11 +198,11 @@ services:
 | Nom conteneur | `astro-gotenberg-1` |
 | Image | `gotenberg/gotenberg:8` |
 | Version API | **8.27.0** (endpoint `/version`, texte brut) |
-| Publication ports | `0.0.0.0:3000->3000/tcp` (et IPv6) |
+| Publication ports | `127.0.0.1:3000->3000/tcp` (loopback only depuis 2026-07-08) |
 
 ### 6.3 Santé Gotenberg
 
-`GET http://127.0.0.1:3000/health` (ou depuis l’extérieur sur `:3000`) renvoie un JSON du type :
+`GET http://127.0.0.1:3000/health` (loopback ; accès externe désormais fermé) renvoie un JSON du type :
 
 ```json
 {
