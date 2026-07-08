@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-06-19T17:18:26.777Z",
+  "updatedAt": "2026-07-08T09:25:47.920Z",
   "createdAt": "2026-05-12T20:41:42.479Z",
   "id": "Z9JgGaLoJhKNo8mB",
   "name": "DHN — PREPROD",
@@ -160,7 +160,7 @@
     },
     {
       "parameters": {
-        "url": "http://api.timezonedb.com/v2.1/get-time-zone",
+        "url": "http://vip.timezonedb.com/v2.1/get-time-zone",
         "sendQuery": true,
         "queryParameters": {
           "parameters": [
@@ -681,9 +681,9 @@
   "meta": null,
   "nodeGroups": [],
   "pinData": null,
-  "versionId": "9738722a-5759-4bfc-ba97-691161ef4a62",
+  "versionId": "33facf2f-45c5-4e50-aa0c-7d4fb230946c",
   "activeVersionId": null,
-  "versionCounter": 5,
+  "versionCounter": 6,
   "triggerCount": 0,
   "sourceWorkflowId": null,
   "shared": [

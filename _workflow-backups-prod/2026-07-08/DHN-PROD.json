@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-07-01T08:40:25.152Z",
+  "updatedAt": "2026-07-08T09:23:51.602Z",
   "createdAt": "2026-05-12T13:52:23.533Z",
   "id": "uA6jTzmayt2OXByY",
   "name": "DHN — PROD",
@@ -162,7 +162,7 @@
     },
     {
       "parameters": {
-        "url": "http://api.timezonedb.com/v2.1/get-time-zone",
+        "url": "http://vip.timezonedb.com/v2.1/get-time-zone",
         "sendQuery": true,
         "queryParameters": {
           "parameters": [
@@ -685,9 +685,9 @@
   "meta": null,
   "nodeGroups": [],
   "pinData": {},
-  "versionId": "26cdec8a-34f9-4e44-a9fe-779ecdd303ef",
-  "activeVersionId": "26cdec8a-34f9-4e44-a9fe-779ecdd303ef",
-  "versionCounter": 61,
+  "versionId": "1e0f2cb6-b46e-4f78-819e-f4e0ccdbebaa",
+  "activeVersionId": "1e0f2cb6-b46e-4f78-819e-f4e0ccdbebaa",
+  "versionCounter": 62,
   "triggerCount": 1,
   "sourceWorkflowId": null,
   "shared": [
@@ -712,9 +712,9 @@
   ],
   "tags": [],
   "activeVersion": {
-    "updatedAt": "2026-07-01T08:40:25.155Z",
-    "createdAt": "2026-07-01T08:40:25.155Z",
-    "versionId": "26cdec8a-34f9-4e44-a9fe-779ecdd303ef",
+    "updatedAt": "2026-07-08T09:23:51.606Z",
+    "createdAt": "2026-07-08T09:23:51.606Z",
+    "versionId": "1e0f2cb6-b46e-4f78-819e-f4e0ccdbebaa",
     "workflowId": "uA6jTzmayt2OXByY",
     "nodes": [
       {
@@ -872,7 +872,7 @@
       },
       {
         "parameters": {
-          "url": "http://api.timezonedb.com/v2.1/get-time-zone",
+          "url": "http://vip.timezonedb.com/v2.1/get-time-zone",
           "sendQuery": true,
           "queryParameters": {
             "parameters": [
@@ -1392,18 +1392,18 @@
     "autosaved": false,
     "workflowPublishHistory": [
       {
-        "createdAt": "2026-07-01T08:40:25.447Z",
-        "id": 1807,
+        "createdAt": "2026-07-08T09:23:51.872Z",
+        "id": 2196,
         "workflowId": "uA6jTzmayt2OXByY",
-        "versionId": "26cdec8a-34f9-4e44-a9fe-779ecdd303ef",
+        "versionId": "1e0f2cb6-b46e-4f78-819e-f4e0ccdbebaa",
         "event": "activated",
         "userId": "fb6c984b-473f-495f-aed9-c5264bd1e18e"
       },
       {
-        "createdAt": "2026-07-01T08:40:25.375Z",
-        "id": 1806,
+        "createdAt": "2026-07-08T09:23:51.798Z",
+        "id": 2195,
         "workflowId": "uA6jTzmayt2OXByY",
-        "versionId": "26cdec8a-34f9-4e44-a9fe-779ecdd303ef",
+        "versionId": "1e0f2cb6-b46e-4f78-819e-f4e0ccdbebaa",
         "event": "deactivated",
         "userId": "fb6c984b-473f-495f-aed9-c5264bd1e18e"
       }
