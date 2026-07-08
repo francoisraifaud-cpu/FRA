@@ -1,0 +1,97 @@
+{
+  "updatedAt": "2026-07-08T10:04:28.765Z",
+  "createdAt": "2026-07-08T10:04:28.765Z",
+  "id": "n4PbtS5wi2gqTPgX",
+  "name": "ERROR HANDLER - alerte crash run (site)",
+  "description": null,
+  "active": false,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "err-trigger-1",
+      "name": "Error Trigger",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://site-rapports-astro.vercel.app/api/webhooks/n8n-run-failed",
+        "authentication": "genericCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ workflowName: $json.workflow ? $json.workflow.name : undefined, executionId: $json.execution ? $json.execution.id : undefined, executionUrl: $json.execution ? $json.execution.url : undefined, errorMessage: ($json.execution && $json.execution.error) ? $json.execution.error.message : undefined, lastNode: $json.execution ? $json.execution.lastNodeExecuted : undefined }) }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "http-post-1",
+      "name": "POST site n8n-run-failed",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        220,
+        0
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "o42Ex2btQQnyFxlJ",
+          "name": "PREV Site Webhook"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Error Trigger": {
+      "main": [
+        [
+          {
+            "node": "POST site n8n-run-failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "meta": null,
+  "nodeGroups": [],
+  "pinData": null,
+  "versionId": "064d663f-c862-4ef1-9dc7-1473882035aa",
+  "activeVersionId": null,
+  "versionCounter": 1,
+  "triggerCount": 0,
+  "sourceWorkflowId": null,
+  "shared": [
+    {
+      "updatedAt": "2026-07-08T10:04:28.769Z",
+      "createdAt": "2026-07-08T10:04:28.769Z",
+      "role": "workflow:owner",
+      "workflowId": "n4PbtS5wi2gqTPgX",
+      "projectId": "ufEZlo6UrV6kY3QB",
+      "project": {
+        "updatedAt": "2026-05-12T09:08:19.047Z",
+        "createdAt": "2026-05-12T09:08:11.449Z",
+        "id": "ufEZlo6UrV6kY3QB",
+        "name": "Raifaud   <francois.raifaud@gmail.com>",
+        "type": "personal",
+        "icon": null,
+        "description": null,
+        "customTelemetryTags": [],
+        "creatorId": "fb6c984b-473f-495f-aed9-c5264bd1e18e"
+      }
+    }
+  ],
+  "tags": [],
+  "activeVersion": null
+}

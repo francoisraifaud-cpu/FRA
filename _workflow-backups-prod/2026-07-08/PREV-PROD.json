@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-07-08T09:22:17.537Z",
+  "updatedAt": "2026-07-08T10:05:14.002Z",
   "createdAt": "2026-05-12T13:52:22.625Z",
   "id": "szL522DJiXkppyt1",
   "name": "PREV — PROD",
@@ -2819,7 +2819,8 @@
     "saveDataErrorExecution": "all",
     "saveDataSuccessExecution": "all",
     "executionTimeout": 2700,
-    "availableInMCP": true
+    "availableInMCP": true,
+    "errorWorkflow": "n4PbtS5wi2gqTPgX"
   },
   "staticData": {
     "node:Gmail Trigger1": {
@@ -2831,7 +2832,7 @@
   "pinData": {},
   "versionId": "6a169961-f0fa-4740-bd84-6d134608ed64",
   "activeVersionId": "6a169961-f0fa-4740-bd84-6d134608ed64",
-  "versionCounter": 338,
+  "versionCounter": 339,
   "triggerCount": 2,
   "sourceWorkflowId": null,
   "shared": [
@@ -5680,8 +5681,24 @@
         "userId": "fb6c984b-473f-495f-aed9-c5264bd1e18e"
       },
       {
+        "createdAt": "2026-07-08T10:05:15.124Z",
+        "id": 2198,
+        "workflowId": "szL522DJiXkppyt1",
+        "versionId": "6a169961-f0fa-4740-bd84-6d134608ed64",
+        "event": "activated",
+        "userId": "fb6c984b-473f-495f-aed9-c5264bd1e18e"
+      },
+      {
         "createdAt": "2026-07-08T09:22:18.238Z",
         "id": 2179,
+        "workflowId": "szL522DJiXkppyt1",
+        "versionId": "6a169961-f0fa-4740-bd84-6d134608ed64",
+        "event": "deactivated",
+        "userId": "fb6c984b-473f-495f-aed9-c5264bd1e18e"
+      },
+      {
+        "createdAt": "2026-07-08T10:05:14.623Z",
+        "id": 2197,
         "workflowId": "szL522DJiXkppyt1",
         "versionId": "6a169961-f0fa-4740-bd84-6d134608ed64",
         "event": "deactivated",
