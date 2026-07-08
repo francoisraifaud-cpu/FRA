@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-06-14T07:23:13.320Z",
+  "updatedAt": "2026-07-08T14:32:33.321Z",
   "createdAt": "2026-06-09T15:11:26.857Z",
   "id": "gS7MuCxBat0i9Jzu",
   "name": "ESPACE CLIENT TRANSITS DAILY - PROD",
@@ -58,13 +58,22 @@
     },
     {
       "parameters": {
-        "url": "=http://46.225.174.155:8000/transits?date_debut={{ $('Prepare Date').first().json.dmy }}&date_fin={{ $('Prepare Date').first().json.dmy }}",
+        "url": "=https://api.spikka.eu/transits?date_debut={{ $('Prepare Date').first().json.dmy }}&date_fin={{ $('Prepare Date').first().json.dmy }}",
         "options": {
           "response": {
             "response": {
               "responseFormat": "json"
             }
           }
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-API-Key",
+              "value": "__REDACTED__"
+            }
+          ]
         }
       },
       "id": "n-transits",
@@ -78,13 +87,22 @@
     },
     {
       "parameters": {
-        "url": "=http://46.225.174.155:8000/moon?date_debut={{ $('Prepare Date').first().json.dmy }}&date_fin={{ $('Prepare Date').first().json.dmy }}",
+        "url": "=https://api.spikka.eu/moon?date_debut={{ $('Prepare Date').first().json.dmy }}&date_fin={{ $('Prepare Date').first().json.dmy }}",
         "options": {
           "response": {
             "response": {
               "responseFormat": "json"
             }
           }
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-API-Key",
+              "value": "__REDACTED__"
+            }
+          ]
         }
       },
       "id": "n-moon",
@@ -218,9 +236,9 @@
   "meta": null,
   "nodeGroups": [],
   "pinData": {},
-  "versionId": "d8eed7d7-5f0b-496c-adb2-decc150bfbd2",
-  "activeVersionId": "76468636-b6e4-41c9-8ff7-01c15d37143a",
-  "versionCounter": 14,
+  "versionId": "bd980007-2672-4617-b7cb-a234afce49f2",
+  "activeVersionId": "bd980007-2672-4617-b7cb-a234afce49f2",
+  "versionCounter": 15,
   "triggerCount": 2,
   "sourceWorkflowId": null,
   "shared": [
@@ -245,9 +263,9 @@
   ],
   "tags": [],
   "activeVersion": {
-    "updatedAt": "2026-06-09T15:48:56.098Z",
-    "createdAt": "2026-06-09T15:48:56.098Z",
-    "versionId": "76468636-b6e4-41c9-8ff7-01c15d37143a",
+    "updatedAt": "2026-07-08T14:32:33.322Z",
+    "createdAt": "2026-07-08T14:32:33.322Z",
+    "versionId": "bd980007-2672-4617-b7cb-a234afce49f2",
     "workflowId": "gS7MuCxBat0i9Jzu",
     "nodes": [
       {
@@ -262,7 +280,7 @@
         "typeVersion": 2,
         "position": [
           0,
-          -120
+          -128
         ],
         "webhookId": "espace-client-transits-hook"
       },
@@ -283,7 +301,7 @@
         "typeVersion": 1.2,
         "position": [
           0,
-          120
+          128
         ]
       },
       {
@@ -295,19 +313,28 @@
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
         "position": [
-          220,
+          224,
           0
         ]
       },
       {
         "parameters": {
-          "url": "=http://46.225.174.155:8000/transits?date_debut={{ $('Prepare Date').first().json.dmy }}&date_fin={{ $('Prepare Date').first().json.dmy }}",
+          "url": "=https://api.spikka.eu/transits?date_debut={{ $('Prepare Date').first().json.dmy }}&date_fin={{ $('Prepare Date').first().json.dmy }}",
           "options": {
             "response": {
               "response": {
                 "responseFormat": "json"
               }
             }
+          },
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "X-API-Key",
+                "value": "__REDACTED__"
+              }
+            ]
           }
         },
         "id": "n-transits",
@@ -315,19 +342,28 @@
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.2,
         "position": [
-          440,
+          448,
           0
         ]
       },
       {
         "parameters": {
-          "url": "=http://46.225.174.155:8000/moon?date_debut={{ $('Prepare Date').first().json.dmy }}&date_fin={{ $('Prepare Date').first().json.dmy }}",
+          "url": "=https://api.spikka.eu/moon?date_debut={{ $('Prepare Date').first().json.dmy }}&date_fin={{ $('Prepare Date').first().json.dmy }}",
           "options": {
             "response": {
               "response": {
                 "responseFormat": "json"
               }
             }
+          },
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "X-API-Key",
+                "value": "__REDACTED__"
+              }
+            ]
           }
         },
         "id": "n-moon",
@@ -335,7 +371,7 @@
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.2,
         "position": [
-          660,
+          672,
           0
         ]
       },
@@ -369,7 +405,7 @@
         "type": "n8n-nodes-base.httpRequest",
         "typeVersion": 4.2,
         "position": [
-          1100,
+          1104,
           0
         ],
         "credentials": {
@@ -455,50 +491,18 @@
     "autosaved": false,
     "workflowPublishHistory": [
       {
-        "createdAt": "2026-06-09T15:48:56.410Z",
-        "id": 1113,
+        "createdAt": "2026-07-08T14:32:33.553Z",
+        "id": 2246,
         "workflowId": "gS7MuCxBat0i9Jzu",
-        "versionId": "76468636-b6e4-41c9-8ff7-01c15d37143a",
+        "versionId": "bd980007-2672-4617-b7cb-a234afce49f2",
         "event": "activated",
         "userId": "fb6c984b-473f-495f-aed9-c5264bd1e18e"
       },
       {
-        "createdAt": "2026-06-09T15:48:56.836Z",
-        "id": 1115,
+        "createdAt": "2026-07-08T14:32:33.480Z",
+        "id": 2245,
         "workflowId": "gS7MuCxBat0i9Jzu",
-        "versionId": "76468636-b6e4-41c9-8ff7-01c15d37143a",
-        "event": "activated",
-        "userId": "fb6c984b-473f-495f-aed9-c5264bd1e18e"
-      },
-      {
-        "createdAt": "2026-06-09T15:52:14.890Z",
-        "id": 1117,
-        "workflowId": "gS7MuCxBat0i9Jzu",
-        "versionId": "76468636-b6e4-41c9-8ff7-01c15d37143a",
-        "event": "activated",
-        "userId": "fb6c984b-473f-495f-aed9-c5264bd1e18e"
-      },
-      {
-        "createdAt": "2026-06-09T15:48:56.231Z",
-        "id": 1112,
-        "workflowId": "gS7MuCxBat0i9Jzu",
-        "versionId": "76468636-b6e4-41c9-8ff7-01c15d37143a",
-        "event": "deactivated",
-        "userId": "fb6c984b-473f-495f-aed9-c5264bd1e18e"
-      },
-      {
-        "createdAt": "2026-06-09T15:48:56.689Z",
-        "id": 1114,
-        "workflowId": "gS7MuCxBat0i9Jzu",
-        "versionId": "76468636-b6e4-41c9-8ff7-01c15d37143a",
-        "event": "deactivated",
-        "userId": "fb6c984b-473f-495f-aed9-c5264bd1e18e"
-      },
-      {
-        "createdAt": "2026-06-09T15:52:14.783Z",
-        "id": 1116,
-        "workflowId": "gS7MuCxBat0i9Jzu",
-        "versionId": "76468636-b6e4-41c9-8ff7-01c15d37143a",
+        "versionId": "bd980007-2672-4617-b7cb-a234afce49f2",
         "event": "deactivated",
         "userId": "fb6c984b-473f-495f-aed9-c5264bd1e18e"
       }

@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-07-08T12:05:55.796Z",
+  "updatedAt": "2026-07-08T14:14:13.432Z",
   "createdAt": "2026-05-12T20:41:41.596Z",
   "id": "eshtbInOYSd3Cz3Z",
   "name": "SYN — PREPROD",
@@ -110,7 +110,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "http://46.225.174.155:3000/forms/chromium/convert/html",
+        "url": "https://api.spikka.eu/pdf/forms/chromium/convert/html",
         "sendBody": true,
         "contentType": "multipart-form-data",
         "bodyParameters": {
@@ -128,6 +128,15 @@
               "responseFormat": "file"
             }
           }
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-API-Key",
+              "value": "__REDACTED__"
+            }
+          ]
         }
       },
       "id": "ef5d733b-36cc-4ba3-b814-a3cd7a41eb97",
@@ -187,7 +196,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "http://46.225.174.155:3000/forms/chromium/convert/html",
+        "url": "https://api.spikka.eu/pdf/forms/chromium/convert/html",
         "sendBody": true,
         "contentType": "multipart-form-data",
         "bodyParameters": {
@@ -205,6 +214,15 @@
               "responseFormat": "file"
             }
           }
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-API-Key",
+              "value": "__REDACTED__"
+            }
+          ]
         }
       },
       "id": "6bc57e0f-efff-4202-9065-576a59869760",
@@ -469,13 +487,17 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "http://46.225.174.155:8000/western/planets",
+        "url": "https://api.spikka.eu/western/planets",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
             {
               "name": "Content-Type",
               "value": "application/json"
+            },
+            {
+              "name": "X-API-Key",
+              "value": "__REDACTED__"
             }
           ]
         },
@@ -497,13 +519,17 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "http://46.225.174.155:8000/western/planets",
+        "url": "https://api.spikka.eu/western/planets",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
             {
               "name": "Content-Type",
               "value": "application/json"
+            },
+            {
+              "name": "X-API-Key",
+              "value": "__REDACTED__"
             }
           ]
         },
@@ -555,13 +581,17 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "http://46.225.174.155:8000/western/houses",
+        "url": "https://api.spikka.eu/western/houses",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
             {
               "name": "Content-Type",
               "value": "application/json"
+            },
+            {
+              "name": "X-API-Key",
+              "value": "__REDACTED__"
             }
           ]
         },
@@ -583,13 +613,17 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "http://46.225.174.155:8000/western/houses",
+        "url": "https://api.spikka.eu/western/houses",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
             {
               "name": "Content-Type",
               "value": "application/json"
+            },
+            {
+              "name": "X-API-Key",
+              "value": "__REDACTED__"
             }
           ]
         },
@@ -610,13 +644,22 @@
     },
     {
       "parameters": {
-        "url": "=http://46.225.174.155:8000/eclipses?date_debut={{ $('Vars A').first().json.date }}&date_fin={{ $('Vars A').first().json.date }}",
+        "url": "=https://api.spikka.eu/eclipses?date_debut={{ $('Vars A').first().json.date }}&date_fin={{ $('Vars A').first().json.date }}",
         "options": {
           "response": {
             "response": {
               "responseFormat": "json"
             }
           }
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-API-Key",
+              "value": "__REDACTED__"
+            }
+          ]
         }
       },
       "id": "04d49387-69dd-47fa-be46-43724ad659c8",
@@ -631,13 +674,22 @@
     },
     {
       "parameters": {
-        "url": "=http://46.225.174.155:8000/eclipses?date_debut={{ $('Vars B').first().json.date }}&date_fin={{ $('Vars B').first().json.date }}",
+        "url": "=https://api.spikka.eu/eclipses?date_debut={{ $('Vars B').first().json.date }}&date_fin={{ $('Vars B').first().json.date }}",
         "options": {
           "response": {
             "response": {
               "responseFormat": "json"
             }
           }
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-API-Key",
+              "value": "__REDACTED__"
+            }
+          ]
         }
       },
       "id": "22c932b0-d61b-44a3-9275-e065346bbe7f",
@@ -794,13 +846,17 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "http://46.225.174.155:8000/western/planets",
+        "url": "https://api.spikka.eu/western/planets",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
             {
               "name": "Content-Type",
               "value": "application/json"
+            },
+            {
+              "name": "X-API-Key",
+              "value": "__REDACTED__"
             }
           ]
         },
@@ -837,13 +893,17 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "http://46.225.174.155:8000/western/houses",
+        "url": "https://api.spikka.eu/western/houses",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
             {
               "name": "Content-Type",
               "value": "application/json"
+            },
+            {
+              "name": "X-API-Key",
+              "value": "__REDACTED__"
             }
           ]
         },
@@ -1087,7 +1147,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "http://46.225.174.155:3000/forms/chromium/convert/html",
+        "url": "https://api.spikka.eu/pdf/forms/chromium/convert/html",
         "sendBody": true,
         "contentType": "multipart-form-data",
         "bodyParameters": {
@@ -1105,6 +1165,15 @@
               "responseFormat": "file"
             }
           }
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-API-Key",
+              "value": "__REDACTED__"
+            }
+          ]
         }
       },
       "id": "d68b5173-f6b0-4ef9-98d5-f979105d0c43",
@@ -3263,9 +3332,9 @@
   "meta": null,
   "nodeGroups": [],
   "pinData": {},
-  "versionId": "4aa3cb93-4dac-410e-928d-ed9efacf76e0",
-  "activeVersionId": "4aa3cb93-4dac-410e-928d-ed9efacf76e0",
-  "versionCounter": 151,
+  "versionId": "b7c6af43-6ede-4070-b224-46c137cf4836",
+  "activeVersionId": "b7c6af43-6ede-4070-b224-46c137cf4836",
+  "versionCounter": 152,
   "triggerCount": 2,
   "sourceWorkflowId": null,
   "shared": [
@@ -3290,9 +3359,9 @@
   ],
   "tags": [],
   "activeVersion": {
-    "updatedAt": "2026-07-08T12:05:55.828Z",
-    "createdAt": "2026-07-08T12:05:55.828Z",
-    "versionId": "4aa3cb93-4dac-410e-928d-ed9efacf76e0",
+    "updatedAt": "2026-07-08T14:14:13.452Z",
+    "createdAt": "2026-07-08T14:14:13.452Z",
+    "versionId": "b7c6af43-6ede-4070-b224-46c137cf4836",
     "workflowId": "eshtbInOYSd3Cz3Z",
     "nodes": [
       {
@@ -3398,7 +3467,7 @@
       {
         "parameters": {
           "method": "POST",
-          "url": "http://46.225.174.155:3000/forms/chromium/convert/html",
+          "url": "https://api.spikka.eu/pdf/forms/chromium/convert/html",
           "sendBody": true,
           "contentType": "multipart-form-data",
           "bodyParameters": {
@@ -3416,6 +3485,15 @@
                 "responseFormat": "file"
               }
             }
+          },
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "X-API-Key",
+                "value": "__REDACTED__"
+              }
+            ]
           }
         },
         "id": "ef5d733b-36cc-4ba3-b814-a3cd7a41eb97",
@@ -3475,7 +3553,7 @@
       {
         "parameters": {
           "method": "POST",
-          "url": "http://46.225.174.155:3000/forms/chromium/convert/html",
+          "url": "https://api.spikka.eu/pdf/forms/chromium/convert/html",
           "sendBody": true,
           "contentType": "multipart-form-data",
           "bodyParameters": {
@@ -3493,6 +3571,15 @@
                 "responseFormat": "file"
               }
             }
+          },
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "X-API-Key",
+                "value": "__REDACTED__"
+              }
+            ]
           }
         },
         "id": "6bc57e0f-efff-4202-9065-576a59869760",
@@ -3757,13 +3844,17 @@
       {
         "parameters": {
           "method": "POST",
-          "url": "http://46.225.174.155:8000/western/planets",
+          "url": "https://api.spikka.eu/western/planets",
           "sendHeaders": true,
           "headerParameters": {
             "parameters": [
               {
                 "name": "Content-Type",
                 "value": "application/json"
+              },
+              {
+                "name": "X-API-Key",
+                "value": "__REDACTED__"
               }
             ]
           },
@@ -3785,13 +3876,17 @@
       {
         "parameters": {
           "method": "POST",
-          "url": "http://46.225.174.155:8000/western/planets",
+          "url": "https://api.spikka.eu/western/planets",
           "sendHeaders": true,
           "headerParameters": {
             "parameters": [
               {
                 "name": "Content-Type",
                 "value": "application/json"
+              },
+              {
+                "name": "X-API-Key",
+                "value": "__REDACTED__"
               }
             ]
           },
@@ -3843,13 +3938,17 @@
       {
         "parameters": {
           "method": "POST",
-          "url": "http://46.225.174.155:8000/western/houses",
+          "url": "https://api.spikka.eu/western/houses",
           "sendHeaders": true,
           "headerParameters": {
             "parameters": [
               {
                 "name": "Content-Type",
                 "value": "application/json"
+              },
+              {
+                "name": "X-API-Key",
+                "value": "__REDACTED__"
               }
             ]
           },
@@ -3871,13 +3970,17 @@
       {
         "parameters": {
           "method": "POST",
-          "url": "http://46.225.174.155:8000/western/houses",
+          "url": "https://api.spikka.eu/western/houses",
           "sendHeaders": true,
           "headerParameters": {
             "parameters": [
               {
                 "name": "Content-Type",
                 "value": "application/json"
+              },
+              {
+                "name": "X-API-Key",
+                "value": "__REDACTED__"
               }
             ]
           },
@@ -3898,13 +4001,22 @@
       },
       {
         "parameters": {
-          "url": "=http://46.225.174.155:8000/eclipses?date_debut={{ $('Vars A').first().json.date }}&date_fin={{ $('Vars A').first().json.date }}",
+          "url": "=https://api.spikka.eu/eclipses?date_debut={{ $('Vars A').first().json.date }}&date_fin={{ $('Vars A').first().json.date }}",
           "options": {
             "response": {
               "response": {
                 "responseFormat": "json"
               }
             }
+          },
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "X-API-Key",
+                "value": "__REDACTED__"
+              }
+            ]
           }
         },
         "id": "04d49387-69dd-47fa-be46-43724ad659c8",
@@ -3919,13 +4031,22 @@
       },
       {
         "parameters": {
-          "url": "=http://46.225.174.155:8000/eclipses?date_debut={{ $('Vars B').first().json.date }}&date_fin={{ $('Vars B').first().json.date }}",
+          "url": "=https://api.spikka.eu/eclipses?date_debut={{ $('Vars B').first().json.date }}&date_fin={{ $('Vars B').first().json.date }}",
           "options": {
             "response": {
               "response": {
                 "responseFormat": "json"
               }
             }
+          },
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "X-API-Key",
+                "value": "__REDACTED__"
+              }
+            ]
           }
         },
         "id": "22c932b0-d61b-44a3-9275-e065346bbe7f",
@@ -4082,13 +4203,17 @@
       {
         "parameters": {
           "method": "POST",
-          "url": "http://46.225.174.155:8000/western/planets",
+          "url": "https://api.spikka.eu/western/planets",
           "sendHeaders": true,
           "headerParameters": {
             "parameters": [
               {
                 "name": "Content-Type",
                 "value": "application/json"
+              },
+              {
+                "name": "X-API-Key",
+                "value": "__REDACTED__"
               }
             ]
           },
@@ -4125,13 +4250,17 @@
       {
         "parameters": {
           "method": "POST",
-          "url": "http://46.225.174.155:8000/western/houses",
+          "url": "https://api.spikka.eu/western/houses",
           "sendHeaders": true,
           "headerParameters": {
             "parameters": [
               {
                 "name": "Content-Type",
                 "value": "application/json"
+              },
+              {
+                "name": "X-API-Key",
+                "value": "__REDACTED__"
               }
             ]
           },
@@ -4375,7 +4504,7 @@
       {
         "parameters": {
           "method": "POST",
-          "url": "http://46.225.174.155:3000/forms/chromium/convert/html",
+          "url": "https://api.spikka.eu/pdf/forms/chromium/convert/html",
           "sendBody": true,
           "contentType": "multipart-form-data",
           "bodyParameters": {
@@ -4393,6 +4522,15 @@
                 "responseFormat": "file"
               }
             }
+          },
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "X-API-Key",
+                "value": "__REDACTED__"
+              }
+            ]
           }
         },
         "id": "d68b5173-f6b0-4ef9-98d5-f979105d0c43",
@@ -6545,18 +6683,18 @@
     "autosaved": false,
     "workflowPublishHistory": [
       {
-        "createdAt": "2026-07-08T12:05:56.704Z",
-        "id": 2216,
+        "createdAt": "2026-07-08T14:14:14.264Z",
+        "id": 2228,
         "workflowId": "eshtbInOYSd3Cz3Z",
-        "versionId": "4aa3cb93-4dac-410e-928d-ed9efacf76e0",
+        "versionId": "b7c6af43-6ede-4070-b224-46c137cf4836",
         "event": "activated",
         "userId": "fb6c984b-473f-495f-aed9-c5264bd1e18e"
       },
       {
-        "createdAt": "2026-07-08T12:05:56.303Z",
-        "id": 2215,
+        "createdAt": "2026-07-08T14:14:13.850Z",
+        "id": 2227,
         "workflowId": "eshtbInOYSd3Cz3Z",
-        "versionId": "4aa3cb93-4dac-410e-928d-ed9efacf76e0",
+        "versionId": "b7c6af43-6ede-4070-b224-46c137cf4836",
         "event": "deactivated",
         "userId": "fb6c984b-473f-495f-aed9-c5264bd1e18e"
       }

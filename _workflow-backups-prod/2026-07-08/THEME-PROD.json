@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-07-08T11:51:02.287Z",
+  "updatedAt": "2026-07-08T14:32:23.873Z",
   "createdAt": "2026-05-12T13:52:21.975Z",
   "id": "TbLFaLOx1dLW9oNP",
   "name": "THEME - PROD",
@@ -648,13 +648,17 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "http://46.225.174.155:8000/western/planets",
+        "url": "https://api.spikka.eu/western/planets",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
             {
               "name": "Content-Type",
               "value": "application/json"
+            },
+            {
+              "name": "X-API-Key",
+              "value": "__REDACTED__"
             }
           ]
         },
@@ -676,13 +680,17 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "http://46.225.174.155:8000/western/houses",
+        "url": "https://api.spikka.eu/western/houses",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
             {
               "name": "Content-Type",
               "value": "application/json"
+            },
+            {
+              "name": "X-API-Key",
+              "value": "__REDACTED__"
             }
           ]
         },
@@ -703,13 +711,22 @@
     },
     {
       "parameters": {
-        "url": "=http://46.225.174.155:8000/eclipses?date_debut={{ $('Extract Variables').first().json.date }}&date_fin={{ $('Extract Variables').first().json.date }}",
+        "url": "=https://api.spikka.eu/eclipses?date_debut={{ $('Extract Variables').first().json.date }}&date_fin={{ $('Extract Variables').first().json.date }}",
         "options": {
           "response": {
             "response": {
               "responseFormat": "json"
             }
           }
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-API-Key",
+              "value": "__REDACTED__"
+            }
+          ]
         }
       },
       "type": "n8n-nodes-base.httpRequest",
@@ -881,7 +898,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "http://46.225.174.155:3000/forms/chromium/convert/html",
+        "url": "https://api.spikka.eu/pdf/forms/chromium/convert/html",
         "sendBody": true,
         "contentType": "multipart-form-data",
         "bodyParameters": {
@@ -899,6 +916,15 @@
               "responseFormat": "file"
             }
           }
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-API-Key",
+              "value": "__REDACTED__"
+            }
+          ]
         }
       },
       "id": "909541bd-0780-453d-b813-c4b12b04a2e6",
@@ -926,7 +952,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "http://46.225.174.155:3000/forms/chromium/convert/html",
+        "url": "https://api.spikka.eu/pdf/forms/chromium/convert/html",
         "sendBody": true,
         "contentType": "multipart-form-data",
         "bodyParameters": {
@@ -940,6 +966,15 @@
         },
         "options": {
           "response": {}
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-API-Key",
+              "value": "__REDACTED__"
+            }
+          ]
         }
       },
       "id": "f86178db-7d79-4779-9aff-ad99c904eb89",
@@ -1091,7 +1126,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "http://46.225.174.155:3000/forms/chromium/convert/html",
+        "url": "https://api.spikka.eu/pdf/forms/chromium/convert/html",
         "sendBody": true,
         "contentType": "multipart-form-data",
         "bodyParameters": {
@@ -1109,6 +1144,15 @@
               "responseFormat": "file"
             }
           }
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-API-Key",
+              "value": "__REDACTED__"
+            }
+          ]
         }
       },
       "id": "f43a885c-db4a-4191-8a20-f62c332d4650",
@@ -2564,9 +2608,9 @@
   "meta": null,
   "nodeGroups": [],
   "pinData": {},
-  "versionId": "f329f88a-c28d-4835-bb8e-4857a1e36193",
-  "activeVersionId": "f329f88a-c28d-4835-bb8e-4857a1e36193",
-  "versionCounter": 164,
+  "versionId": "172b1290-29be-4ec4-9f17-cca772aac028",
+  "activeVersionId": "172b1290-29be-4ec4-9f17-cca772aac028",
+  "versionCounter": 165,
   "triggerCount": 2,
   "sourceWorkflowId": null,
   "shared": [
@@ -2591,9 +2635,9 @@
   ],
   "tags": [],
   "activeVersion": {
-    "updatedAt": "2026-07-08T11:51:02.305Z",
-    "createdAt": "2026-07-08T11:51:02.305Z",
-    "versionId": "f329f88a-c28d-4835-bb8e-4857a1e36193",
+    "updatedAt": "2026-07-08T14:32:23.883Z",
+    "createdAt": "2026-07-08T14:32:23.883Z",
+    "versionId": "172b1290-29be-4ec4-9f17-cca772aac028",
     "workflowId": "TbLFaLOx1dLW9oNP",
     "nodes": [
       {
@@ -3237,13 +3281,17 @@
       {
         "parameters": {
           "method": "POST",
-          "url": "http://46.225.174.155:8000/western/planets",
+          "url": "https://api.spikka.eu/western/planets",
           "sendHeaders": true,
           "headerParameters": {
             "parameters": [
               {
                 "name": "Content-Type",
                 "value": "application/json"
+              },
+              {
+                "name": "X-API-Key",
+                "value": "__REDACTED__"
               }
             ]
           },
@@ -3265,13 +3313,17 @@
       {
         "parameters": {
           "method": "POST",
-          "url": "http://46.225.174.155:8000/western/houses",
+          "url": "https://api.spikka.eu/western/houses",
           "sendHeaders": true,
           "headerParameters": {
             "parameters": [
               {
                 "name": "Content-Type",
                 "value": "application/json"
+              },
+              {
+                "name": "X-API-Key",
+                "value": "__REDACTED__"
               }
             ]
           },
@@ -3292,13 +3344,22 @@
       },
       {
         "parameters": {
-          "url": "=http://46.225.174.155:8000/eclipses?date_debut={{ $('Extract Variables').first().json.date }}&date_fin={{ $('Extract Variables').first().json.date }}",
+          "url": "=https://api.spikka.eu/eclipses?date_debut={{ $('Extract Variables').first().json.date }}&date_fin={{ $('Extract Variables').first().json.date }}",
           "options": {
             "response": {
               "response": {
                 "responseFormat": "json"
               }
             }
+          },
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "X-API-Key",
+                "value": "__REDACTED__"
+              }
+            ]
           }
         },
         "type": "n8n-nodes-base.httpRequest",
@@ -3470,7 +3531,7 @@
       {
         "parameters": {
           "method": "POST",
-          "url": "http://46.225.174.155:3000/forms/chromium/convert/html",
+          "url": "https://api.spikka.eu/pdf/forms/chromium/convert/html",
           "sendBody": true,
           "contentType": "multipart-form-data",
           "bodyParameters": {
@@ -3488,6 +3549,15 @@
                 "responseFormat": "file"
               }
             }
+          },
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "X-API-Key",
+                "value": "__REDACTED__"
+              }
+            ]
           }
         },
         "id": "909541bd-0780-453d-b813-c4b12b04a2e6",
@@ -3515,7 +3585,7 @@
       {
         "parameters": {
           "method": "POST",
-          "url": "http://46.225.174.155:3000/forms/chromium/convert/html",
+          "url": "https://api.spikka.eu/pdf/forms/chromium/convert/html",
           "sendBody": true,
           "contentType": "multipart-form-data",
           "bodyParameters": {
@@ -3529,6 +3599,15 @@
           },
           "options": {
             "response": {}
+          },
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "X-API-Key",
+                "value": "__REDACTED__"
+              }
+            ]
           }
         },
         "id": "f86178db-7d79-4779-9aff-ad99c904eb89",
@@ -3680,7 +3759,7 @@
       {
         "parameters": {
           "method": "POST",
-          "url": "http://46.225.174.155:3000/forms/chromium/convert/html",
+          "url": "https://api.spikka.eu/pdf/forms/chromium/convert/html",
           "sendBody": true,
           "contentType": "multipart-form-data",
           "bodyParameters": {
@@ -3698,6 +3777,15 @@
                 "responseFormat": "file"
               }
             }
+          },
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "X-API-Key",
+                "value": "__REDACTED__"
+              }
+            ]
           }
         },
         "id": "f43a885c-db4a-4191-8a20-f62c332d4650",
@@ -5145,18 +5233,18 @@
     "autosaved": false,
     "workflowPublishHistory": [
       {
-        "createdAt": "2026-07-08T11:51:03.091Z",
-        "id": 2210,
+        "createdAt": "2026-07-08T14:32:24.664Z",
+        "id": 2232,
         "workflowId": "TbLFaLOx1dLW9oNP",
-        "versionId": "f329f88a-c28d-4835-bb8e-4857a1e36193",
+        "versionId": "172b1290-29be-4ec4-9f17-cca772aac028",
         "event": "activated",
         "userId": "fb6c984b-473f-495f-aed9-c5264bd1e18e"
       },
       {
-        "createdAt": "2026-07-08T11:51:02.710Z",
-        "id": 2209,
+        "createdAt": "2026-07-08T14:32:24.238Z",
+        "id": 2231,
         "workflowId": "TbLFaLOx1dLW9oNP",
-        "versionId": "f329f88a-c28d-4835-bb8e-4857a1e36193",
+        "versionId": "172b1290-29be-4ec4-9f17-cca772aac028",
         "event": "deactivated",
         "userId": "fb6c984b-473f-495f-aed9-c5264bd1e18e"
       }

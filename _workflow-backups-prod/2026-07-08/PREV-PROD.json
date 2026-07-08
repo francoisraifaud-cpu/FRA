@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-07-08T10:05:14.002Z",
+  "updatedAt": "2026-07-08T14:32:25.812Z",
   "createdAt": "2026-05-12T13:52:22.625Z",
   "id": "szL522DJiXkppyt1",
   "name": "PREV — PROD",
@@ -536,7 +536,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "http://46.225.174.155:3000/forms/chromium/convert/html",
+        "url": "https://api.spikka.eu/pdf/forms/chromium/convert/html",
         "sendBody": true,
         "contentType": "multipart-form-data",
         "bodyParameters": {
@@ -554,6 +554,15 @@
               "responseFormat": "file"
             }
           }
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-API-Key",
+              "value": "__REDACTED__"
+            }
+          ]
         }
       },
       "id": "6e5830b2-09e3-4f74-852f-ac5c1b24f46b",
@@ -699,7 +708,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// ==========================================\r\n// NŒUD PREPARE DATA v9\r\n// Normalise les données planètes quel que soit le format source :\r\n//   Format A (ancien) : { fullDegree, isRetro, signe }\r\n//   Format B (nouveau) : { longitude_absolue, est_retrograde, signe, ... }\r\n// Chiron + astéroïdes inclus dans transits_complet_2026.json\r\n// Nouveau v8 : progressionsData + eclipsesProgressees + lune enrichie\r\n// Nouveau v9 (2026-05-23) : éclipses enrichies avec longitude_absolue / fullDegree /\r\n//   signe / degre_dans_signe / latitude / declinaison (post-patch API /eclipses).\r\n//   Corrige le silent-drop des positions exactes qui forçait le super-nœud à utiliser\r\n//   un fallback bugué (`dayMatch.planetes.Lune?.fullDegree ?? 0`) pour les éclipses\r\n//   lunaires (Lune absente de TRANSIT_OBJECTS API).\r\n// Nouveau v11 (2026-06-02) : Solar/Lunar Returns Brady/Rushman/Teal pour V23 TRANCHE 3.\r\n//   Appels POST /solar-return et POST /lunar-return exposés via `_v23SolarReturn`\r\n//   (objet wrapper) + `_v23LunarReturns` (objet wrapper avec returns[]).\r\n//   V23 consomme ces champs depuis le cache ISO — aucun appel réseau direct\r\n//   depuis le moteur local (règle architecturale : V23 = pure compute from cache).\r\n// Nouveau v12 (2026-06-02) : RS/LR RELOCALISÉES Doctrine B Volguine (Brady Ch.6 R.6.1,\r\n//   Teal Ch.10 R.T.10.4). Lecture optionnelle de `birthday_place_lat / _lng /\r\n//   _formatted_address` (saisi dans le formulaire site « lieu prochain anniversaire »).\r\n//   Si présents → passés en `relocation_lat / _lon / _label` aux 2 endpoints API →\r\n//   cuspides Placidus + ASC + MC + ARMC recalculés au lieu de relocation. Sinon →\r\n//   fallback côté API sur les coords natales (RS/LR natales). Les positions\r\n//   planétaires absolues (longitude Soleil/Lune/etc.) restent globales et inchangées.\r\n// Nouveau v13 (2026-06-03) : FIX SOURCE RELOCATION — lecture des champs\r\n//   `birthday_place_*` depuis `_vars` (= $(\"Extract Variables\").first().json,\r\n//   payload webhook complet) au lieu de `_birth` (= JSON.parse(_prep.body) qui\r\n//   ne contient que les params natal pour swisseph year/month/.../latitude/longitude).\r\n//   Bug v12 : `_birth.birthday_place_lat` etait undefined => Number.isFinite(undefined)\r\n//   = false => fallback natal silencieux meme quand la relocation etait envoyee.\r\n//   Audit exec 8847 a confirme : Extract Variables contient bien birthday_place_lat,\r\n//   2. Preparation dynamique1 body ne contient que natal swisseph (cf.\r\n//   scripts/_audit-exec-8847.mjs).\r\n// ==========================================\r\n\r\nconst allItems = $input.all();\r\n\r\nlet transitsRaw = null, eclipsesRaw = null, luneRaw = null;\r\nlet progressionsRaw = null, eclipsesProgRaw = null;\r\n\r\n// Phase B P1 (2026-05-25) — DP Swiss Ephemeris rigoureux : remplacement définitif\r\n// du calcul JS Naibod (β=0, ε fixe) par un appel direct à /directions/primary mode\r\n// \"rigoureux\" (β réel + ε variable). Décision utilisateur : la dette doctrinale\r\n// (Lune ±5° / Pluton ±17° / Nœuds en latitude écliptique ignorée) est insoutenable\r\n// — on accepte de recalibrer MDSE cas-par-cas si KPI client régresse.\r\n//\r\n// Phase B P0 (2026-05-24) avait déjà tenté ce remplacement avec NO-GO −1,3 pp TOP5\r\n// PREPROD client (baseline 52% → 50,7%). La baseline a depuis été remontée à 60%\r\n// par Phase C-1 ; on retente le remplacement et on ajustera MDSE selon les cas\r\n// régressés (cf. SITE/scripts/dtc/PHASE-B-DP-NOGO-2026-05-24.md).\r\n//\r\n// Output : `_mdsePrimaryDirectionsApi` (raw hits API, format Swiss Eph).\r\n// Fail-safe : si l'API tombe ou tarde (>15s), `primaryDirsApiRaw = null` →\r\n// le Super noeud1 bascule automatiquement sur le calcul JS legacy conservé en\r\n// fallback (lignes 6126-6211 de `FRA/PREV/N8N Prev`).\r\nlet primaryDirsApiRaw = null;\r\n// [DP MUNDANE 2026-07-06] Frame directions primaires : mundane Placidus semi-arc\r\n// (all-to-all), validees contre Morinus. ACTIF par defaut (bascule 2026-07-06).\r\n// n8n Cloud n'alimente pas process.env -> le defaut doit porter le mode voulu en\r\n// PROD ; l'override local DTC_DP_MUNDANE=0 permet de revenir en zodiacal (A/B, bench).\r\n// PROD-safe (garde typeof process).\r\nconst _DTC_DP_FRAME = (typeof process !== \"undefined\" && process.env && process.env.DTC_DP_MUNDANE === \"0\") ? \"zodiacal\" : \"mundane\";\r\ntry {\r\n    const _prep = $(\"2. Préparation dynamique1\").first()?.json;\r\n    const _vars = $(\"Extract Variables\").first()?.json;\r\n    if (_prep && _prep.body && _vars && _vars.annee) {\r\n        const _birth = JSON.parse(_prep.body);\r\n        const _annee = parseInt(_vars.annee, 10);\r\n        if (_birth && Number.isFinite(_annee)) {\r\n            const _resp = await this.helpers.httpRequest({\r\n                method: \"POST\",\r\n                url: \"http://46.225.174.155:8000/directions/primary\",\r\n                headers: { \"Content-Type\": \"application/json\" },\r\n                body: { birth: _birth, target_year: _annee, mode: \"rigoureux\", dp_orb_yr: 1.0, frame: _DTC_DP_FRAME },\r\n                json: true,\r\n                timeout: 15000,\r\n            });\r\n            if (_resp && _resp.statusCode === 200 && _resp.output && Array.isArray(_resp.output.hits)) {\r\n                primaryDirsApiRaw = _resp.output.hits;\r\n            }\r\n        }\r\n    }\r\n} catch (_eDPApi) {\r\n    // silent : fallback JS legacy automatique côté Super noeud1\r\n}\r\n\r\n// TRANCHE 3 V23 (2026-06-02) — Solar/Lunar Returns\r\n// Brady Ch.6 R.6.1 (SR stand-alone chart of the year),\r\n// Rushman Ch.5 R.5.1 (most powerful technique year ahead),\r\n// Teal Ch.10 R.T.10.1-10.6 (SR + LR + matching + retrograde),\r\n// OQ.T.4 : precessed-only (précession 50.29 arcsec/an, standard western moderne).\r\n// Fail-safe : si l'API échoue/timeout (>15s), `v23SolarReturnRaw=null` et/ou\r\n// `v23LunarReturnsRaw=null` → V23 helpers returns retombent en mode dégradé\r\n// (Section G inactive — les Sections D/E/F restent normales).\r\nlet v23SolarReturnRaw = null;\r\nlet v23LunarReturnsRaw = null;\r\ntry {\r\n    const _prep = $(\"2. Préparation dynamique1\").first()?.json;\r\n    const _vars = $(\"Extract Variables\").first()?.json;\r\n    if (_prep && _prep.body && _vars && _vars.annee) {\r\n        const _birth = JSON.parse(_prep.body);\r\n        const _annee = parseInt(_vars.annee, 10);\r\n        const _periodStart = _vars.date_entree;\r\n        const _periodEnd   = _vars.date_sortie;\r\n\r\n        // v13 (2026-06-03) : FIX RELOCATION — la source des champs `birthday_place_*`\r\n        // n'est PAS `_birth` (= JSON.parse(_prep.body) qui ne contient que les params\r\n        // natal pour swisseph : year/month/date/latitude/longitude...), mais bien\r\n        // `_vars` (= $(\"Extract Variables\").first().json qui contient les 30+ champs\r\n        // du payload webhook original, dont les 3 champs reloc). Audit exec 8847\r\n        // a confirmé : `2. Préparation dynamique1` body = natal seul, `Extract\r\n        // Variables` json = payload webhook complet (cf. _audit-exec-8847.mjs).\r\n        // Doctrine B Volguine (Brady Ch.6 R.6.1, Teal Ch.10 R.T.10.4) : RS/LR\r\n        // relocalisées au lieu d'événement quand renseigné, sinon natal.\r\n        // Bornage : lat ∈ [-90,90], lng ∈ [-180,180] (parité S6.24.4 L3772-3780).\r\n        let _relocLat = null, _relocLon = null, _relocLabel = null;\r\n        if (Number.isFinite(_vars.birthday_place_lat) && Math.abs(_vars.birthday_place_lat) <= 90) {\r\n            _relocLat = _vars.birthday_place_lat;\r\n        }\r\n        if (Number.isFinite(_vars.birthday_place_lng) && Math.abs(_vars.birthday_place_lng) <= 180) {\r\n            _relocLon = _vars.birthday_place_lng;\r\n        }\r\n        if (typeof _vars.birthday_place_formatted_address === \"string\" && _vars.birthday_place_formatted_address.trim()) {\r\n            _relocLabel = _vars.birthday_place_formatted_address.trim();\r\n        }\r\n\r\n        // ── /solar-return ──\r\n        if (_birth && Number.isFinite(_annee)) {\r\n            try {\r\n                const _bodySR = { natal: _birth, year: _annee, precessed: true };\r\n                if (_relocLat !== null && _relocLon !== null) {\r\n                    _bodySR.relocation_lat = _relocLat;\r\n                    _bodySR.relocation_lon = _relocLon;\r\n                    if (_relocLabel) _bodySR.relocation_label = _relocLabel;\r\n                }\r\n                const _respSR = await this.helpers.httpRequest({\r\n                    method: \"POST\",\r\n                    url: \"http://46.225.174.155:8000/solar-return\",\r\n                    headers: { \"Content-Type\": \"application/json\" },\r\n                    body: _bodySR,\r\n                    json: true,\r\n                    timeout: 15000,\r\n                });\r\n                if (_respSR && _respSR.statusCode === 200 && _respSR.output) {\r\n                    v23SolarReturnRaw = _respSR.output;\r\n                }\r\n            } catch (_eSR) { /* silent : V23 Section G en mode dégradé */ }\r\n        }\r\n\r\n        // ── /lunar-return ──\r\n        if (_birth && _periodStart && _periodEnd) {\r\n            try {\r\n                const _bodyLR = {\r\n                    natal: _birth,\r\n                    period_start: _periodStart,\r\n                    period_end: _periodEnd,\r\n                    precessed: true,\r\n                };\r\n                if (_relocLat !== null && _relocLon !== null) {\r\n                    _bodyLR.relocation_lat = _relocLat;\r\n                    _bodyLR.relocation_lon = _relocLon;\r\n                    if (_relocLabel) _bodyLR.relocation_label = _relocLabel;\r\n                }\r\n                const _respLR = await this.helpers.httpRequest({\r\n                    method: \"POST\",\r\n                    url: \"http://46.225.174.155:8000/lunar-return\",\r\n                    headers: { \"Content-Type\": \"application/json\" },\r\n                    body: _bodyLR,\r\n                    json: true,\r\n                    timeout: 15000,\r\n                });\r\n                if (_respLR && _respLR.statusCode === 200 && _respLR.output && Array.isArray(_respLR.output.returns)) {\r\n                    v23LunarReturnsRaw = _respLR.output;\r\n                }\r\n            } catch (_eLR) { /* silent : V23 Section G en mode dégradé */ }\r\n        }\r\n    }\r\n} catch (_eReturnsApi) {\r\n    // silent : top-level catch (vars absents) → V23 helpers returns en mode dégradé\r\n}\r\n\r\nfor (const item of allItems) {\r\n    const d = item.json;\r\n    const arr = Array.isArray(d) ? d : (d.data || []);\r\n    if (!arr.length) continue;\r\n    const first = arr[0];\r\n\r\n    if (first.age_annees !== undefined && first.planetes) {\r\n        // Progressions secondaires : { date, age_annees, jd_progresse, planetes }\r\n        progressionsRaw = arr;\r\n    } else if (first.date_vie !== undefined) {\r\n        // Éclipses progressées : { date_vie, date_progresse, age_annees, ... }\r\n        eclipsesProgRaw = arr;\r\n    } else if (first.date && first.planetes) {\r\n        transitsRaw = arr;\r\n    } else if (first.date_heure && first.lune) {\r\n        luneRaw = arr;\r\n    } else if (first.astre && first.type && first.date_maximum) {\r\n        eclipsesRaw = arr;\r\n    }\r\n}\r\n\r\nif (!transitsRaw)  throw new Error(\"transits introuvable — vérifier Extract from File\");\r\nif (!eclipsesRaw)  eclipsesRaw = [];\r\nif (!luneRaw)      luneRaw = [];\r\n\r\n// ---- Normalisation d'une entrée planète ----\r\n// Gère les 2 formats : fullDegree OU longitude_absolue\r\nconst normalizePlanet = (p) => {\r\n    if (!p || typeof p !== \"object\") return p;\r\n    // Déjà normalisé (Format A)\r\n    if (p.fullDegree !== undefined) return p;\r\n    // Format B → convertir (le spread ...p passe TOUS les champs y compris\r\n    // latitude, distance_ua, vitesse_longitude, declinaison)\r\n    return {\r\n        ...p,\r\n        fullDegree : p.longitude_absolue,\r\n        isRetro    : p.est_retrograde === \"True\" || p.est_retrograde === true ? \"True\" : \"False\",\r\n        signe      : p.signe || null\r\n    };\r\n};\r\n\r\n// ---- 1. NORMALISER toutes les planètes dans transitsData ----\r\nconst transitsNormalized = transitsRaw.map(day => {\r\n    if (!day?.planetes) return day;\r\n    const normalizedPlanetes = {};\r\n    for (const [planetName, planetData] of Object.entries(day.planetes)) {\r\n        normalizedPlanetes[planetName] = normalizePlanet(planetData);\r\n    }\r\n    return { ...day, planetes: normalizedPlanetes };\r\n});\r\n\r\n// ---- 2. LUNE HAUTE PRÉCISION : indexer par date ----\r\n// v8 : ajout latitude, distanceUA, declinaison (null-safe)\r\nconst luneByDate = {};\r\nluneRaw.forEach(entry => {\r\n    const date = entry.date_heure.substring(0, 10);\r\n    if (!luneByDate[date]) luneByDate[date] = [];\r\n    luneByDate[date].push({\r\n        heure      : entry.date_heure.substring(11, 16),\r\n        fullDegree : entry.lune.longitude_absolue,\r\n        signe      : entry.lune.signe,\r\n        degInSign  : entry.lune.degre_dans_signe,\r\n        vitesse    : entry.lune.vitesse_journaliere,\r\n        latitude   : entry.lune.latitude    ?? null,\r\n        distanceUA : entry.lune.distance_ua  ?? null,\r\n        declinaison: entry.lune.declinaison  ?? null\r\n    });\r\n});\r\n\r\n// ---- 3. ÉCLIPSES NATALES ----\r\n// v9 (2026-05-23) : transmet AUSSI longitude_absolue / fullDegree / signe / degre_dans_signe\r\n// / latitude / declinaison fournis par l'API /eclipses post-patch. Sans ces champs,\r\n// le super-nœud retombe sur un fallback qui assigne degree=0 aux éclipses lunaires\r\n// (la Lune n'étant pas exposée par /transits), ce qui projette toutes les éclipses\r\n// lunaires sur la maison contenant 0° Bélier (ex : M2 pour un Asc 27° Capricorne).\r\nconst eclipses = eclipsesRaw.map(e => {\r\n    const obj = {\r\n        astre : e.astre,\r\n        type  : e.type,\r\n        date  : e.date_maximum.substring(0, 10),\r\n        heure : e.date_maximum.substring(11, 16),\r\n        label : `Éclipse ${e.type} de ${e.astre} le ${e.date_maximum.substring(0, 10)}`\r\n    };\r\n    // v9 : positions écliptiques (api-patch 2026-05-23) — null-safe pour caches anciens\r\n    if (typeof e.longitude_absolue === 'number') obj.longitude_absolue = e.longitude_absolue;\r\n    if (typeof e.fullDegree        === 'number') obj.fullDegree        = e.fullDegree;\r\n    if (typeof e.degre_dans_signe  === 'number') obj.degre_dans_signe  = e.degre_dans_signe;\r\n    if (typeof e.latitude          === 'number') obj.latitude          = e.latitude;\r\n    if (typeof e.declinaison       === 'number') obj.declinaison       = e.declinaison;\r\n    if (e.signe) obj.signe = e.signe;\r\n    // Saros (existant)\r\n    if (e.saros_number)       obj.saros_number       = e.saros_number;\r\n    if (e.saros_type_eclipse) obj.saros_type_eclipse = e.saros_type_eclipse;\r\n    if (e.saros_theme)        obj.saros_theme        = e.saros_theme;\r\n    if (e.saros_keywords)     obj.saros_keywords     = e.saros_keywords;\r\n    return obj;\r\n});\r\n\r\n// ---- 4. ÉCLIPSES PROGRESSÉES (optionnelles — [] si aucune dans la période) ----\r\n// v10 (2026-05-24) : propage longitude_absolue / fullDegree / degre_dans_signe /\r\n// latitude / declinaison retournés par l'API post-fix URL `date_debut=date_naissance`.\r\n// Sans ces champs, le Super noeud1 ne peut pas enrichir avec la maison natale et\r\n// le boost ×1.25 (Note 227 §3) reste inactif (mode fail-safe DTC).\r\nconst eclipsesProgressees = (eclipsesProgRaw || []).map(e => {\r\n    const obj = {\r\n        dateVie       : e.date_vie,\r\n        dateProgresse : e.date_progresse,\r\n        ageAnnees     : e.age_annees,\r\n        astre         : e.astre         || null,\r\n        type          : e.type          || null,\r\n        magnitude     : e.magnitude     || null,\r\n        signe         : e.signe         || null,\r\n        degre         : e.degre         || null,\r\n        visible       : e.visible_lieu_naissance ?? null\r\n    };\r\n    if (typeof e.longitude_absolue === 'number') obj.longitude_absolue = e.longitude_absolue;\r\n    if (typeof e.fullDegree        === 'number') obj.fullDegree        = e.fullDegree;\r\n    if (typeof e.degre_dans_signe  === 'number') obj.degre_dans_signe  = e.degre_dans_signe;\r\n    if (typeof e.latitude          === 'number') obj.latitude          = e.latitude;\r\n    if (typeof e.declinaison       === 'number') obj.declinaison       = e.declinaison;\r\n    return obj;\r\n});\r\n\r\n// ---- 5. PROGRESSIONS SECONDAIRES (optionnelles) ----\r\n// Planètes normalisées avec le même normalizePlanet que transits\r\nconst progressionsNormalized = (progressionsRaw || []).map(day => {\r\n    if (!day?.planetes) return day;\r\n    const normalizedPlanetes = {};\r\n    for (const [planetName, planetData] of Object.entries(day.planetes)) {\r\n        normalizedPlanetes[planetName] = normalizePlanet(planetData);\r\n    }\r\n    return { ...day, planetes: normalizedPlanetes };\r\n});\r\n\r\n// ---- 6. VÉRIFICATION présence astéroïdes ----\r\nconst samplePlanetes = transitsNormalized[0]?.planetes || {};\r\nconst asteroidsOK = {};\r\nfor (const a of [\"Chiron\", \"Lilith\", \"Ceres\", \"Pallas\", \"Junon\", \"Vesta\"]) {\r\n    asteroidsOK[a] = !!(samplePlanetes[a]?.fullDegree);\r\n}\r\n\r\n// ---- 7. OUTPUT ----\r\nreturn [{\r\n    json: {\r\n        transitsData          : transitsNormalized,\r\n        luneData              : luneByDate,\r\n        eclipsesData          : eclipses,\r\n        progressionsData      : progressionsNormalized,\r\n        eclipsesProgressees   : eclipsesProgressees,\r\n        // Phase B P1 (2026-05-25) : DP Swiss Eph rigoureux (β réel, ε variable).\r\n        // Null = appel API échoué/timeout → Super noeud1 fallback JS legacy automatique.\r\n        _mdsePrimaryDirectionsApi: primaryDirsApiRaw,\r\n        // TRANCHE 3 V23 (2026-06-02) : Solar/Lunar Returns Brady/Rushman/Teal.\r\n        // Null = appel API échoué/timeout → V23 Section G en mode dégradé (Sections D/E/F intactes).\r\n        _v23SolarReturn   : v23SolarReturnRaw,\r\n        _v23LunarReturns  : v23LunarReturnsRaw,\r\n        _meta: {\r\n            nbJours              : transitsNormalized.length,\r\n            nbLune               : luneRaw.length,\r\n            nbEclipses           : eclipses.length,\r\n            nbProgressions       : progressionsNormalized.length,\r\n            nbEclipsesProgressees: eclipsesProgressees.length,\r\n            nbPrimaryDirsApi     : (primaryDirsApiRaw && primaryDirsApiRaw.length) || 0,\r\n            nbV23SolarReturn     : v23SolarReturnRaw ? 1 : 0,\r\n            nbV23LunarReturns    : (v23LunarReturnsRaw && Array.isArray(v23LunarReturnsRaw.returns) ? v23LunarReturnsRaw.returns.length : 0),\r\n            asteroidsOK          : asteroidsOK,\r\n            formatDetecte        : (transitsRaw[0]?.planetes?.Soleil?.fullDegree !== undefined) ? \"A\" : \"B\"\r\n        }\r\n    }\r\n}];\r\n"
+        "jsCode": "// ==========================================\r\n// NŒUD PREPARE DATA v9\r\n// Normalise les données planètes quel que soit le format source :\r\n//   Format A (ancien) : { fullDegree, isRetro, signe }\r\n//   Format B (nouveau) : { longitude_absolue, est_retrograde, signe, ... }\r\n// Chiron + astéroïdes inclus dans transits_complet_2026.json\r\n// Nouveau v8 : progressionsData + eclipsesProgressees + lune enrichie\r\n// Nouveau v9 (2026-05-23) : éclipses enrichies avec longitude_absolue / fullDegree /\r\n//   signe / degre_dans_signe / latitude / declinaison (post-patch API /eclipses).\r\n//   Corrige le silent-drop des positions exactes qui forçait le super-nœud à utiliser\r\n//   un fallback bugué (`dayMatch.planetes.Lune?.fullDegree ?? 0`) pour les éclipses\r\n//   lunaires (Lune absente de TRANSIT_OBJECTS API).\r\n// Nouveau v11 (2026-06-02) : Solar/Lunar Returns Brady/Rushman/Teal pour V23 TRANCHE 3.\r\n//   Appels POST /solar-return et POST /lunar-return exposés via `_v23SolarReturn`\r\n//   (objet wrapper) + `_v23LunarReturns` (objet wrapper avec returns[]).\r\n//   V23 consomme ces champs depuis le cache ISO — aucun appel réseau direct\r\n//   depuis le moteur local (règle architecturale : V23 = pure compute from cache).\r\n// Nouveau v12 (2026-06-02) : RS/LR RELOCALISÉES Doctrine B Volguine (Brady Ch.6 R.6.1,\r\n//   Teal Ch.10 R.T.10.4). Lecture optionnelle de `birthday_place_lat / _lng /\r\n//   _formatted_address` (saisi dans le formulaire site « lieu prochain anniversaire »).\r\n//   Si présents → passés en `relocation_lat / _lon / _label` aux 2 endpoints API →\r\n//   cuspides Placidus + ASC + MC + ARMC recalculés au lieu de relocation. Sinon →\r\n//   fallback côté API sur les coords natales (RS/LR natales). Les positions\r\n//   planétaires absolues (longitude Soleil/Lune/etc.) restent globales et inchangées.\r\n// Nouveau v13 (2026-06-03) : FIX SOURCE RELOCATION — lecture des champs\r\n//   `birthday_place_*` depuis `_vars` (= $(\"Extract Variables\").first().json,\r\n//   payload webhook complet) au lieu de `_birth` (= JSON.parse(_prep.body) qui\r\n//   ne contient que les params natal pour swisseph year/month/.../latitude/longitude).\r\n//   Bug v12 : `_birth.birthday_place_lat` etait undefined => Number.isFinite(undefined)\r\n//   = false => fallback natal silencieux meme quand la relocation etait envoyee.\r\n//   Audit exec 8847 a confirme : Extract Variables contient bien birthday_place_lat,\r\n//   2. Preparation dynamique1 body ne contient que natal swisseph (cf.\r\n//   scripts/_audit-exec-8847.mjs).\r\n// ==========================================\r\n\r\nconst allItems = $input.all();\r\n\r\nlet transitsRaw = null, eclipsesRaw = null, luneRaw = null;\r\nlet progressionsRaw = null, eclipsesProgRaw = null;\r\n\r\n// Phase B P1 (2026-05-25) — DP Swiss Ephemeris rigoureux : remplacement définitif\r\n// du calcul JS Naibod (β=0, ε fixe) par un appel direct à /directions/primary mode\r\n// \"rigoureux\" (β réel + ε variable). Décision utilisateur : la dette doctrinale\r\n// (Lune ±5° / Pluton ±17° / Nœuds en latitude écliptique ignorée) est insoutenable\r\n// — on accepte de recalibrer MDSE cas-par-cas si KPI client régresse.\r\n//\r\n// Phase B P0 (2026-05-24) avait déjà tenté ce remplacement avec NO-GO −1,3 pp TOP5\r\n// PREPROD client (baseline 52% → 50,7%). La baseline a depuis été remontée à 60%\r\n// par Phase C-1 ; on retente le remplacement et on ajustera MDSE selon les cas\r\n// régressés (cf. SITE/scripts/dtc/PHASE-B-DP-NOGO-2026-05-24.md).\r\n//\r\n// Output : `_mdsePrimaryDirectionsApi` (raw hits API, format Swiss Eph).\r\n// Fail-safe : si l'API tombe ou tarde (>15s), `primaryDirsApiRaw = null` →\r\n// le Super noeud1 bascule automatiquement sur le calcul JS legacy conservé en\r\n// fallback (lignes 6126-6211 de `FRA/PREV/N8N Prev`).\r\nlet primaryDirsApiRaw = null;\r\n// [DP MUNDANE 2026-07-06] Frame directions primaires : mundane Placidus semi-arc\r\n// (all-to-all), validees contre Morinus. ACTIF par defaut (bascule 2026-07-06).\r\n// n8n Cloud n'alimente pas process.env -> le defaut doit porter le mode voulu en\r\n// PROD ; l'override local DTC_DP_MUNDANE=0 permet de revenir en zodiacal (A/B, bench).\r\n// PROD-safe (garde typeof process).\r\nconst _DTC_DP_FRAME = (typeof process !== \"undefined\" && process.env && process.env.DTC_DP_MUNDANE === \"0\") ? \"zodiacal\" : \"mundane\";\r\ntry {\r\n    const _prep = $(\"2. Préparation dynamique1\").first()?.json;\r\n    const _vars = $(\"Extract Variables\").first()?.json;\r\n    if (_prep && _prep.body && _vars && _vars.annee) {\r\n        const _birth = JSON.parse(_prep.body);\r\n        const _annee = parseInt(_vars.annee, 10);\r\n        if (_birth && Number.isFinite(_annee)) {\r\n            const _resp = await this.helpers.httpRequest({\r\n                method: \"POST\",\r\n                url: \"https://api.spikka.eu/directions/primary\",\r\n                headers: { \"X-API-Key\": \"__REDACTED__\", \"Content-Type\": \"application/json\" },\r\n                body: { birth: _birth, target_year: _annee, mode: \"rigoureux\", dp_orb_yr: 1.0, frame: _DTC_DP_FRAME },\r\n                json: true,\r\n                timeout: 15000,\r\n            });\r\n            if (_resp && _resp.statusCode === 200 && _resp.output && Array.isArray(_resp.output.hits)) {\r\n                primaryDirsApiRaw = _resp.output.hits;\r\n            }\r\n        }\r\n    }\r\n} catch (_eDPApi) {\r\n    // silent : fallback JS legacy automatique côté Super noeud1\r\n}\r\n\r\n// TRANCHE 3 V23 (2026-06-02) — Solar/Lunar Returns\r\n// Brady Ch.6 R.6.1 (SR stand-alone chart of the year),\r\n// Rushman Ch.5 R.5.1 (most powerful technique year ahead),\r\n// Teal Ch.10 R.T.10.1-10.6 (SR + LR + matching + retrograde),\r\n// OQ.T.4 : precessed-only (précession 50.29 arcsec/an, standard western moderne).\r\n// Fail-safe : si l'API échoue/timeout (>15s), `v23SolarReturnRaw=null` et/ou\r\n// `v23LunarReturnsRaw=null` → V23 helpers returns retombent en mode dégradé\r\n// (Section G inactive — les Sections D/E/F restent normales).\r\nlet v23SolarReturnRaw = null;\r\nlet v23LunarReturnsRaw = null;\r\ntry {\r\n    const _prep = $(\"2. Préparation dynamique1\").first()?.json;\r\n    const _vars = $(\"Extract Variables\").first()?.json;\r\n    if (_prep && _prep.body && _vars && _vars.annee) {\r\n        const _birth = JSON.parse(_prep.body);\r\n        const _annee = parseInt(_vars.annee, 10);\r\n        const _periodStart = _vars.date_entree;\r\n        const _periodEnd   = _vars.date_sortie;\r\n\r\n        // v13 (2026-06-03) : FIX RELOCATION — la source des champs `birthday_place_*`\r\n        // n'est PAS `_birth` (= JSON.parse(_prep.body) qui ne contient que les params\r\n        // natal pour swisseph : year/month/date/latitude/longitude...), mais bien\r\n        // `_vars` (= $(\"Extract Variables\").first().json qui contient les 30+ champs\r\n        // du payload webhook original, dont les 3 champs reloc). Audit exec 8847\r\n        // a confirmé : `2. Préparation dynamique1` body = natal seul, `Extract\r\n        // Variables` json = payload webhook complet (cf. _audit-exec-8847.mjs).\r\n        // Doctrine B Volguine (Brady Ch.6 R.6.1, Teal Ch.10 R.T.10.4) : RS/LR\r\n        // relocalisées au lieu d'événement quand renseigné, sinon natal.\r\n        // Bornage : lat ∈ [-90,90], lng ∈ [-180,180] (parité S6.24.4 L3772-3780).\r\n        let _relocLat = null, _relocLon = null, _relocLabel = null;\r\n        if (Number.isFinite(_vars.birthday_place_lat) && Math.abs(_vars.birthday_place_lat) <= 90) {\r\n            _relocLat = _vars.birthday_place_lat;\r\n        }\r\n        if (Number.isFinite(_vars.birthday_place_lng) && Math.abs(_vars.birthday_place_lng) <= 180) {\r\n            _relocLon = _vars.birthday_place_lng;\r\n        }\r\n        if (typeof _vars.birthday_place_formatted_address === \"string\" && _vars.birthday_place_formatted_address.trim()) {\r\n            _relocLabel = _vars.birthday_place_formatted_address.trim();\r\n        }\r\n\r\n        // ── /solar-return ──\r\n        if (_birth && Number.isFinite(_annee)) {\r\n            try {\r\n                const _bodySR = { natal: _birth, year: _annee, precessed: true };\r\n                if (_relocLat !== null && _relocLon !== null) {\r\n                    _bodySR.relocation_lat = _relocLat;\r\n                    _bodySR.relocation_lon = _relocLon;\r\n                    if (_relocLabel) _bodySR.relocation_label = _relocLabel;\r\n                }\r\n                const _respSR = await this.helpers.httpRequest({\r\n                    method: \"POST\",\r\n                    url: \"https://api.spikka.eu/solar-return\",\r\n                    headers: { \"X-API-Key\": \"__REDACTED__\", \"Content-Type\": \"application/json\" },\r\n                    body: _bodySR,\r\n                    json: true,\r\n                    timeout: 15000,\r\n                });\r\n                if (_respSR && _respSR.statusCode === 200 && _respSR.output) {\r\n                    v23SolarReturnRaw = _respSR.output;\r\n                }\r\n            } catch (_eSR) { /* silent : V23 Section G en mode dégradé */ }\r\n        }\r\n\r\n        // ── /lunar-return ──\r\n        if (_birth && _periodStart && _periodEnd) {\r\n            try {\r\n                const _bodyLR = {\r\n                    natal: _birth,\r\n                    period_start: _periodStart,\r\n                    period_end: _periodEnd,\r\n                    precessed: true,\r\n                };\r\n                if (_relocLat !== null && _relocLon !== null) {\r\n                    _bodyLR.relocation_lat = _relocLat;\r\n                    _bodyLR.relocation_lon = _relocLon;\r\n                    if (_relocLabel) _bodyLR.relocation_label = _relocLabel;\r\n                }\r\n                const _respLR = await this.helpers.httpRequest({\r\n                    method: \"POST\",\r\n                    url: \"https://api.spikka.eu/lunar-return\",\r\n                    headers: { \"X-API-Key\": \"__REDACTED__\", \"Content-Type\": \"application/json\" },\r\n                    body: _bodyLR,\r\n                    json: true,\r\n                    timeout: 15000,\r\n                });\r\n                if (_respLR && _respLR.statusCode === 200 && _respLR.output && Array.isArray(_respLR.output.returns)) {\r\n                    v23LunarReturnsRaw = _respLR.output;\r\n                }\r\n            } catch (_eLR) { /* silent : V23 Section G en mode dégradé */ }\r\n        }\r\n    }\r\n} catch (_eReturnsApi) {\r\n    // silent : top-level catch (vars absents) → V23 helpers returns en mode dégradé\r\n}\r\n\r\nfor (const item of allItems) {\r\n    const d = item.json;\r\n    const arr = Array.isArray(d) ? d : (d.data || []);\r\n    if (!arr.length) continue;\r\n    const first = arr[0];\r\n\r\n    if (first.age_annees !== undefined && first.planetes) {\r\n        // Progressions secondaires : { date, age_annees, jd_progresse, planetes }\r\n        progressionsRaw = arr;\r\n    } else if (first.date_vie !== undefined) {\r\n        // Éclipses progressées : { date_vie, date_progresse, age_annees, ... }\r\n        eclipsesProgRaw = arr;\r\n    } else if (first.date && first.planetes) {\r\n        transitsRaw = arr;\r\n    } else if (first.date_heure && first.lune) {\r\n        luneRaw = arr;\r\n    } else if (first.astre && first.type && first.date_maximum) {\r\n        eclipsesRaw = arr;\r\n    }\r\n}\r\n\r\nif (!transitsRaw)  throw new Error(\"transits introuvable — vérifier Extract from File\");\r\nif (!eclipsesRaw)  eclipsesRaw = [];\r\nif (!luneRaw)      luneRaw = [];\r\n\r\n// ---- Normalisation d'une entrée planète ----\r\n// Gère les 2 formats : fullDegree OU longitude_absolue\r\nconst normalizePlanet = (p) => {\r\n    if (!p || typeof p !== \"object\") return p;\r\n    // Déjà normalisé (Format A)\r\n    if (p.fullDegree !== undefined) return p;\r\n    // Format B → convertir (le spread ...p passe TOUS les champs y compris\r\n    // latitude, distance_ua, vitesse_longitude, declinaison)\r\n    return {\r\n        ...p,\r\n        fullDegree : p.longitude_absolue,\r\n        isRetro    : p.est_retrograde === \"True\" || p.est_retrograde === true ? \"True\" : \"False\",\r\n        signe      : p.signe || null\r\n    };\r\n};\r\n\r\n// ---- 1. NORMALISER toutes les planètes dans transitsData ----\r\nconst transitsNormalized = transitsRaw.map(day => {\r\n    if (!day?.planetes) return day;\r\n    const normalizedPlanetes = {};\r\n    for (const [planetName, planetData] of Object.entries(day.planetes)) {\r\n        normalizedPlanetes[planetName] = normalizePlanet(planetData);\r\n    }\r\n    return { ...day, planetes: normalizedPlanetes };\r\n});\r\n\r\n// ---- 2. LUNE HAUTE PRÉCISION : indexer par date ----\r\n// v8 : ajout latitude, distanceUA, declinaison (null-safe)\r\nconst luneByDate = {};\r\nluneRaw.forEach(entry => {\r\n    const date = entry.date_heure.substring(0, 10);\r\n    if (!luneByDate[date]) luneByDate[date] = [];\r\n    luneByDate[date].push({\r\n        heure      : entry.date_heure.substring(11, 16),\r\n        fullDegree : entry.lune.longitude_absolue,\r\n        signe      : entry.lune.signe,\r\n        degInSign  : entry.lune.degre_dans_signe,\r\n        vitesse    : entry.lune.vitesse_journaliere,\r\n        latitude   : entry.lune.latitude    ?? null,\r\n        distanceUA : entry.lune.distance_ua  ?? null,\r\n        declinaison: entry.lune.declinaison  ?? null\r\n    });\r\n});\r\n\r\n// ---- 3. ÉCLIPSES NATALES ----\r\n// v9 (2026-05-23) : transmet AUSSI longitude_absolue / fullDegree / signe / degre_dans_signe\r\n// / latitude / declinaison fournis par l'API /eclipses post-patch. Sans ces champs,\r\n// le super-nœud retombe sur un fallback qui assigne degree=0 aux éclipses lunaires\r\n// (la Lune n'étant pas exposée par /transits), ce qui projette toutes les éclipses\r\n// lunaires sur la maison contenant 0° Bélier (ex : M2 pour un Asc 27° Capricorne).\r\nconst eclipses = eclipsesRaw.map(e => {\r\n    const obj = {\r\n        astre : e.astre,\r\n        type  : e.type,\r\n        date  : e.date_maximum.substring(0, 10),\r\n        heure : e.date_maximum.substring(11, 16),\r\n        label : `Éclipse ${e.type} de ${e.astre} le ${e.date_maximum.substring(0, 10)}`\r\n    };\r\n    // v9 : positions écliptiques (api-patch 2026-05-23) — null-safe pour caches anciens\r\n    if (typeof e.longitude_absolue === 'number') obj.longitude_absolue = e.longitude_absolue;\r\n    if (typeof e.fullDegree        === 'number') obj.fullDegree        = e.fullDegree;\r\n    if (typeof e.degre_dans_signe  === 'number') obj.degre_dans_signe  = e.degre_dans_signe;\r\n    if (typeof e.latitude          === 'number') obj.latitude          = e.latitude;\r\n    if (typeof e.declinaison       === 'number') obj.declinaison       = e.declinaison;\r\n    if (e.signe) obj.signe = e.signe;\r\n    // Saros (existant)\r\n    if (e.saros_number)       obj.saros_number       = e.saros_number;\r\n    if (e.saros_type_eclipse) obj.saros_type_eclipse = e.saros_type_eclipse;\r\n    if (e.saros_theme)        obj.saros_theme        = e.saros_theme;\r\n    if (e.saros_keywords)     obj.saros_keywords     = e.saros_keywords;\r\n    return obj;\r\n});\r\n\r\n// ---- 4. ÉCLIPSES PROGRESSÉES (optionnelles — [] si aucune dans la période) ----\r\n// v10 (2026-05-24) : propage longitude_absolue / fullDegree / degre_dans_signe /\r\n// latitude / declinaison retournés par l'API post-fix URL `date_debut=date_naissance`.\r\n// Sans ces champs, le Super noeud1 ne peut pas enrichir avec la maison natale et\r\n// le boost ×1.25 (Note 227 §3) reste inactif (mode fail-safe DTC).\r\nconst eclipsesProgressees = (eclipsesProgRaw || []).map(e => {\r\n    const obj = {\r\n        dateVie       : e.date_vie,\r\n        dateProgresse : e.date_progresse,\r\n        ageAnnees     : e.age_annees,\r\n        astre         : e.astre         || null,\r\n        type          : e.type          || null,\r\n        magnitude     : e.magnitude     || null,\r\n        signe         : e.signe         || null,\r\n        degre         : e.degre         || null,\r\n        visible       : e.visible_lieu_naissance ?? null\r\n    };\r\n    if (typeof e.longitude_absolue === 'number') obj.longitude_absolue = e.longitude_absolue;\r\n    if (typeof e.fullDegree        === 'number') obj.fullDegree        = e.fullDegree;\r\n    if (typeof e.degre_dans_signe  === 'number') obj.degre_dans_signe  = e.degre_dans_signe;\r\n    if (typeof e.latitude          === 'number') obj.latitude          = e.latitude;\r\n    if (typeof e.declinaison       === 'number') obj.declinaison       = e.declinaison;\r\n    return obj;\r\n});\r\n\r\n// ---- 5. PROGRESSIONS SECONDAIRES (optionnelles) ----\r\n// Planètes normalisées avec le même normalizePlanet que transits\r\nconst progressionsNormalized = (progressionsRaw || []).map(day => {\r\n    if (!day?.planetes) return day;\r\n    const normalizedPlanetes = {};\r\n    for (const [planetName, planetData] of Object.entries(day.planetes)) {\r\n        normalizedPlanetes[planetName] = normalizePlanet(planetData);\r\n    }\r\n    return { ...day, planetes: normalizedPlanetes };\r\n});\r\n\r\n// ---- 6. VÉRIFICATION présence astéroïdes ----\r\nconst samplePlanetes = transitsNormalized[0]?.planetes || {};\r\nconst asteroidsOK = {};\r\nfor (const a of [\"Chiron\", \"Lilith\", \"Ceres\", \"Pallas\", \"Junon\", \"Vesta\"]) {\r\n    asteroidsOK[a] = !!(samplePlanetes[a]?.fullDegree);\r\n}\r\n\r\n// ---- 7. OUTPUT ----\r\nreturn [{\r\n    json: {\r\n        transitsData          : transitsNormalized,\r\n        luneData              : luneByDate,\r\n        eclipsesData          : eclipses,\r\n        progressionsData      : progressionsNormalized,\r\n        eclipsesProgressees   : eclipsesProgressees,\r\n        // Phase B P1 (2026-05-25) : DP Swiss Eph rigoureux (β réel, ε variable).\r\n        // Null = appel API échoué/timeout → Super noeud1 fallback JS legacy automatique.\r\n        _mdsePrimaryDirectionsApi: primaryDirsApiRaw,\r\n        // TRANCHE 3 V23 (2026-06-02) : Solar/Lunar Returns Brady/Rushman/Teal.\r\n        // Null = appel API échoué/timeout → V23 Section G en mode dégradé (Sections D/E/F intactes).\r\n        _v23SolarReturn   : v23SolarReturnRaw,\r\n        _v23LunarReturns  : v23LunarReturnsRaw,\r\n        _meta: {\r\n            nbJours              : transitsNormalized.length,\r\n            nbLune               : luneRaw.length,\r\n            nbEclipses           : eclipses.length,\r\n            nbProgressions       : progressionsNormalized.length,\r\n            nbEclipsesProgressees: eclipsesProgressees.length,\r\n            nbPrimaryDirsApi     : (primaryDirsApiRaw && primaryDirsApiRaw.length) || 0,\r\n            nbV23SolarReturn     : v23SolarReturnRaw ? 1 : 0,\r\n            nbV23LunarReturns    : (v23LunarReturnsRaw && Array.isArray(v23LunarReturnsRaw.returns) ? v23LunarReturnsRaw.returns.length : 0),\r\n            asteroidsOK          : asteroidsOK,\r\n            formatDetecte        : (transitsRaw[0]?.planetes?.Soleil?.fullDegree !== undefined) ? \"A\" : \"B\"\r\n        }\r\n    }\r\n}];\r\n"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -738,13 +747,22 @@
     },
     {
       "parameters": {
-        "url": "=http://46.225.174.155:8000/progressions/eclipses?date_debut={{ $('Extract Variables').first().json.date }}&date_fin={{ $('Extract Variables').first().json.date_sortie }}&year={{ JSON.parse($('2. Préparation dynamique1').first().json.body).year }}&month={{ JSON.parse($('2. Préparation dynamique1').first().json.body).month }}&date={{ JSON.parse($('2. Préparation dynamique1').first().json.body).date }}&hours={{ JSON.parse($('2. Préparation dynamique1').first().json.body).hours }}&minutes={{ JSON.parse($('2. Préparation dynamique1').first().json.body).minutes }}&seconds=0&latitude={{ JSON.parse($('2. Préparation dynamique1').first().json.body).latitude }}&longitude={{ JSON.parse($('2. Préparation dynamique1').first().json.body).longitude }}&timezone={{ JSON.parse($('2. Préparation dynamique1').first().json.body).timezone }}\n\n",
+        "url": "=https://api.spikka.eu/progressions/eclipses?date_debut={{ $('Extract Variables').first().json.date }}&date_fin={{ $('Extract Variables').first().json.date_sortie }}&year={{ JSON.parse($('2. Préparation dynamique1').first().json.body).year }}&month={{ JSON.parse($('2. Préparation dynamique1').first().json.body).month }}&date={{ JSON.parse($('2. Préparation dynamique1').first().json.body).date }}&hours={{ JSON.parse($('2. Préparation dynamique1').first().json.body).hours }}&minutes={{ JSON.parse($('2. Préparation dynamique1').first().json.body).minutes }}&seconds=0&latitude={{ JSON.parse($('2. Préparation dynamique1').first().json.body).latitude }}&longitude={{ JSON.parse($('2. Préparation dynamique1').first().json.body).longitude }}&timezone={{ JSON.parse($('2. Préparation dynamique1').first().json.body).timezone }}\n\n",
         "options": {
           "response": {
             "response": {
               "responseFormat": "json"
             }
           }
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-API-Key",
+              "value": "__REDACTED__"
+            }
+          ]
         }
       },
       "type": "n8n-nodes-base.httpRequest",
@@ -785,13 +803,22 @@
     },
     {
       "parameters": {
-        "url": "=http://46.225.174.155:8000/progressions?date_debut={{ $('Extract Variables').first().json.date_entree }}&date_fin={{ $('Extract Variables').first().json.date_sortie }}&year={{ JSON.parse($('2. Préparation dynamique1').first().json.body).year }}&month={{ JSON.parse($('2. Préparation dynamique1').first().json.body).month }}&date={{ JSON.parse($('2. Préparation dynamique1').first().json.body).date }}&hours={{ JSON.parse($('2. Préparation dynamique1').first().json.body).hours }}&minutes={{ JSON.parse($('2. Préparation dynamique1').first().json.body).minutes }}&seconds=0&latitude={{ JSON.parse($('2. Préparation dynamique1').first().json.body).latitude }}&longitude={{ JSON.parse($('2. Préparation dynamique1').first().json.body).longitude }}&timezone={{ JSON.parse($('2. Préparation dynamique1').first().json.body).timezone }}\n",
+        "url": "=https://api.spikka.eu/progressions?date_debut={{ $('Extract Variables').first().json.date_entree }}&date_fin={{ $('Extract Variables').first().json.date_sortie }}&year={{ JSON.parse($('2. Préparation dynamique1').first().json.body).year }}&month={{ JSON.parse($('2. Préparation dynamique1').first().json.body).month }}&date={{ JSON.parse($('2. Préparation dynamique1').first().json.body).date }}&hours={{ JSON.parse($('2. Préparation dynamique1').first().json.body).hours }}&minutes={{ JSON.parse($('2. Préparation dynamique1').first().json.body).minutes }}&seconds=0&latitude={{ JSON.parse($('2. Préparation dynamique1').first().json.body).latitude }}&longitude={{ JSON.parse($('2. Préparation dynamique1').first().json.body).longitude }}&timezone={{ JSON.parse($('2. Préparation dynamique1').first().json.body).timezone }}\n",
         "options": {
           "response": {
             "response": {
               "responseFormat": "json"
             }
           }
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-API-Key",
+              "value": "__REDACTED__"
+            }
+          ]
         }
       },
       "type": "n8n-nodes-base.httpRequest",
@@ -828,7 +855,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "http://46.225.174.155:3000/forms/chromium/convert/html",
+        "url": "https://api.spikka.eu/pdf/forms/chromium/convert/html",
         "sendBody": true,
         "contentType": "multipart-form-data",
         "bodyParameters": {
@@ -846,6 +873,15 @@
               "responseFormat": "file"
             }
           }
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-API-Key",
+              "value": "__REDACTED__"
+            }
+          ]
         }
       },
       "id": "8338ce29-7e40-4424-ba66-cf61dff922a0",
@@ -888,13 +924,17 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "http://46.225.174.155:8000/western/planets",
+        "url": "https://api.spikka.eu/western/planets",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
             {
               "name": "Content-Type",
               "value": "application/json"
+            },
+            {
+              "name": "X-API-Key",
+              "value": "__REDACTED__"
             }
           ]
         },
@@ -916,13 +956,17 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "http://46.225.174.155:8000/western/houses",
+        "url": "https://api.spikka.eu/western/houses",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
             {
               "name": "Content-Type",
               "value": "application/json"
+            },
+            {
+              "name": "X-API-Key",
+              "value": "__REDACTED__"
             }
           ]
         },
@@ -943,13 +987,22 @@
     },
     {
       "parameters": {
-        "url": "=http://46.225.174.155:8000/eclipses?date_debut={{ $('Extract Variables').first().json.date }}&date_fin={{ $('Extract Variables').first().json.date }}",
+        "url": "=https://api.spikka.eu/eclipses?date_debut={{ $('Extract Variables').first().json.date }}&date_fin={{ $('Extract Variables').first().json.date }}",
         "options": {
           "response": {
             "response": {
               "responseFormat": "json"
             }
           }
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-API-Key",
+              "value": "__REDACTED__"
+            }
+          ]
         }
       },
       "type": "n8n-nodes-base.httpRequest",
@@ -1016,13 +1069,22 @@
     },
     {
       "parameters": {
-        "url": "=http://46.225.174.155:8000/transits?date_debut={{ $('Extract Variables').first().json.date_entree }}&date_fin={{ $('Extract Variables').first().json.date_sortie }}",
+        "url": "=https://api.spikka.eu/transits?date_debut={{ $('Extract Variables').first().json.date_entree }}&date_fin={{ $('Extract Variables').first().json.date_sortie }}",
         "options": {
           "response": {
             "response": {
               "responseFormat": "json"
             }
           }
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-API-Key",
+              "value": "__REDACTED__"
+            }
+          ]
         }
       },
       "type": "n8n-nodes-base.httpRequest",
@@ -1036,13 +1098,22 @@
     },
     {
       "parameters": {
-        "url": "=http://46.225.174.155:8000/eclipses?date_debut={{ DateTime.fromFormat($('Extract Variables').first().json.date_entree, 'dd/MM/yyyy').minus({years: 5}).toFormat('dd/MM/yyyy') }}&date_fin={{ $('Extract Variables').first().json.date_sortie }}",
+        "url": "=https://api.spikka.eu/eclipses?date_debut={{ DateTime.fromFormat($('Extract Variables').first().json.date_entree, 'dd/MM/yyyy').minus({years: 5}).toFormat('dd/MM/yyyy') }}&date_fin={{ $('Extract Variables').first().json.date_sortie }}",
         "options": {
           "response": {
             "response": {
               "responseFormat": "json"
             }
           }
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-API-Key",
+              "value": "__REDACTED__"
+            }
+          ]
         }
       },
       "type": "n8n-nodes-base.httpRequest",
@@ -1056,13 +1127,22 @@
     },
     {
       "parameters": {
-        "url": "=http://46.225.174.155:8000/moon?date_debut={{ $('Extract Variables').first().json.date_entree }}&date_fin={{ $('Extract Variables').first().json.date_sortie }}",
+        "url": "=https://api.spikka.eu/moon?date_debut={{ $('Extract Variables').first().json.date_entree }}&date_fin={{ $('Extract Variables').first().json.date_sortie }}",
         "options": {
           "response": {
             "response": {
               "responseFormat": "json"
             }
           }
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-API-Key",
+              "value": "__REDACTED__"
+            }
+          ]
         }
       },
       "type": "n8n-nodes-base.httpRequest",
@@ -1284,7 +1364,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "http://46.225.174.155:3000/forms/chromium/convert/html",
+        "url": "https://api.spikka.eu/pdf/forms/chromium/convert/html",
         "sendBody": true,
         "contentType": "multipart-form-data",
         "bodyParameters": {
@@ -1298,6 +1378,15 @@
         },
         "options": {
           "response": {}
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-API-Key",
+              "value": "__REDACTED__"
+            }
+          ]
         }
       },
       "id": "f7f9dac3-be1a-48c4-be7c-b01daea33dbf",
@@ -2830,9 +2919,9 @@
   "meta": null,
   "nodeGroups": [],
   "pinData": {},
-  "versionId": "6a169961-f0fa-4740-bd84-6d134608ed64",
-  "activeVersionId": "6a169961-f0fa-4740-bd84-6d134608ed64",
-  "versionCounter": 339,
+  "versionId": "cd123a93-ed52-4f87-b248-0bec4932a1d0",
+  "activeVersionId": "cd123a93-ed52-4f87-b248-0bec4932a1d0",
+  "versionCounter": 340,
   "triggerCount": 2,
   "sourceWorkflowId": null,
   "shared": [
@@ -2857,9 +2946,9 @@
   ],
   "tags": [],
   "activeVersion": {
-    "updatedAt": "2026-07-08T09:22:17.599Z",
-    "createdAt": "2026-07-08T09:22:17.599Z",
-    "versionId": "6a169961-f0fa-4740-bd84-6d134608ed64",
+    "updatedAt": "2026-07-08T14:32:25.850Z",
+    "createdAt": "2026-07-08T14:32:25.850Z",
+    "versionId": "cd123a93-ed52-4f87-b248-0bec4932a1d0",
     "workflowId": "szL522DJiXkppyt1",
     "nodes": [
       {
@@ -3391,7 +3480,7 @@
       {
         "parameters": {
           "method": "POST",
-          "url": "http://46.225.174.155:3000/forms/chromium/convert/html",
+          "url": "https://api.spikka.eu/pdf/forms/chromium/convert/html",
           "sendBody": true,
           "contentType": "multipart-form-data",
           "bodyParameters": {
@@ -3409,6 +3498,15 @@
                 "responseFormat": "file"
               }
             }
+          },
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "X-API-Key",
+                "value": "__REDACTED__"
+              }
+            ]
           }
         },
         "id": "6e5830b2-09e3-4f74-852f-ac5c1b24f46b",
@@ -3554,7 +3652,7 @@
       },
       {
         "parameters": {
-          "jsCode": "// ==========================================\r\n// NŒUD PREPARE DATA v9\r\n// Normalise les données planètes quel que soit le format source :\r\n//   Format A (ancien) : { fullDegree, isRetro, signe }\r\n//   Format B (nouveau) : { longitude_absolue, est_retrograde, signe, ... }\r\n// Chiron + astéroïdes inclus dans transits_complet_2026.json\r\n// Nouveau v8 : progressionsData + eclipsesProgressees + lune enrichie\r\n// Nouveau v9 (2026-05-23) : éclipses enrichies avec longitude_absolue / fullDegree /\r\n//   signe / degre_dans_signe / latitude / declinaison (post-patch API /eclipses).\r\n//   Corrige le silent-drop des positions exactes qui forçait le super-nœud à utiliser\r\n//   un fallback bugué (`dayMatch.planetes.Lune?.fullDegree ?? 0`) pour les éclipses\r\n//   lunaires (Lune absente de TRANSIT_OBJECTS API).\r\n// Nouveau v11 (2026-06-02) : Solar/Lunar Returns Brady/Rushman/Teal pour V23 TRANCHE 3.\r\n//   Appels POST /solar-return et POST /lunar-return exposés via `_v23SolarReturn`\r\n//   (objet wrapper) + `_v23LunarReturns` (objet wrapper avec returns[]).\r\n//   V23 consomme ces champs depuis le cache ISO — aucun appel réseau direct\r\n//   depuis le moteur local (règle architecturale : V23 = pure compute from cache).\r\n// Nouveau v12 (2026-06-02) : RS/LR RELOCALISÉES Doctrine B Volguine (Brady Ch.6 R.6.1,\r\n//   Teal Ch.10 R.T.10.4). Lecture optionnelle de `birthday_place_lat / _lng /\r\n//   _formatted_address` (saisi dans le formulaire site « lieu prochain anniversaire »).\r\n//   Si présents → passés en `relocation_lat / _lon / _label` aux 2 endpoints API →\r\n//   cuspides Placidus + ASC + MC + ARMC recalculés au lieu de relocation. Sinon →\r\n//   fallback côté API sur les coords natales (RS/LR natales). Les positions\r\n//   planétaires absolues (longitude Soleil/Lune/etc.) restent globales et inchangées.\r\n// Nouveau v13 (2026-06-03) : FIX SOURCE RELOCATION — lecture des champs\r\n//   `birthday_place_*` depuis `_vars` (= $(\"Extract Variables\").first().json,\r\n//   payload webhook complet) au lieu de `_birth` (= JSON.parse(_prep.body) qui\r\n//   ne contient que les params natal pour swisseph year/month/.../latitude/longitude).\r\n//   Bug v12 : `_birth.birthday_place_lat` etait undefined => Number.isFinite(undefined)\r\n//   = false => fallback natal silencieux meme quand la relocation etait envoyee.\r\n//   Audit exec 8847 a confirme : Extract Variables contient bien birthday_place_lat,\r\n//   2. Preparation dynamique1 body ne contient que natal swisseph (cf.\r\n//   scripts/_audit-exec-8847.mjs).\r\n// ==========================================\r\n\r\nconst allItems = $input.all();\r\n\r\nlet transitsRaw = null, eclipsesRaw = null, luneRaw = null;\r\nlet progressionsRaw = null, eclipsesProgRaw = null;\r\n\r\n// Phase B P1 (2026-05-25) — DP Swiss Ephemeris rigoureux : remplacement définitif\r\n// du calcul JS Naibod (β=0, ε fixe) par un appel direct à /directions/primary mode\r\n// \"rigoureux\" (β réel + ε variable). Décision utilisateur : la dette doctrinale\r\n// (Lune ±5° / Pluton ±17° / Nœuds en latitude écliptique ignorée) est insoutenable\r\n// — on accepte de recalibrer MDSE cas-par-cas si KPI client régresse.\r\n//\r\n// Phase B P0 (2026-05-24) avait déjà tenté ce remplacement avec NO-GO −1,3 pp TOP5\r\n// PREPROD client (baseline 52% → 50,7%). La baseline a depuis été remontée à 60%\r\n// par Phase C-1 ; on retente le remplacement et on ajustera MDSE selon les cas\r\n// régressés (cf. SITE/scripts/dtc/PHASE-B-DP-NOGO-2026-05-24.md).\r\n//\r\n// Output : `_mdsePrimaryDirectionsApi` (raw hits API, format Swiss Eph).\r\n// Fail-safe : si l'API tombe ou tarde (>15s), `primaryDirsApiRaw = null` →\r\n// le Super noeud1 bascule automatiquement sur le calcul JS legacy conservé en\r\n// fallback (lignes 6126-6211 de `FRA/PREV/N8N Prev`).\r\nlet primaryDirsApiRaw = null;\r\n// [DP MUNDANE 2026-07-06] Frame directions primaires : mundane Placidus semi-arc\r\n// (all-to-all), validees contre Morinus. ACTIF par defaut (bascule 2026-07-06).\r\n// n8n Cloud n'alimente pas process.env -> le defaut doit porter le mode voulu en\r\n// PROD ; l'override local DTC_DP_MUNDANE=0 permet de revenir en zodiacal (A/B, bench).\r\n// PROD-safe (garde typeof process).\r\nconst _DTC_DP_FRAME = (typeof process !== \"undefined\" && process.env && process.env.DTC_DP_MUNDANE === \"0\") ? \"zodiacal\" : \"mundane\";\r\ntry {\r\n    const _prep = $(\"2. Préparation dynamique1\").first()?.json;\r\n    const _vars = $(\"Extract Variables\").first()?.json;\r\n    if (_prep && _prep.body && _vars && _vars.annee) {\r\n        const _birth = JSON.parse(_prep.body);\r\n        const _annee = parseInt(_vars.annee, 10);\r\n        if (_birth && Number.isFinite(_annee)) {\r\n            const _resp = await this.helpers.httpRequest({\r\n                method: \"POST\",\r\n                url: \"http://46.225.174.155:8000/directions/primary\",\r\n                headers: { \"Content-Type\": \"application/json\" },\r\n                body: { birth: _birth, target_year: _annee, mode: \"rigoureux\", dp_orb_yr: 1.0, frame: _DTC_DP_FRAME },\r\n                json: true,\r\n                timeout: 15000,\r\n            });\r\n            if (_resp && _resp.statusCode === 200 && _resp.output && Array.isArray(_resp.output.hits)) {\r\n                primaryDirsApiRaw = _resp.output.hits;\r\n            }\r\n        }\r\n    }\r\n} catch (_eDPApi) {\r\n    // silent : fallback JS legacy automatique côté Super noeud1\r\n}\r\n\r\n// TRANCHE 3 V23 (2026-06-02) — Solar/Lunar Returns\r\n// Brady Ch.6 R.6.1 (SR stand-alone chart of the year),\r\n// Rushman Ch.5 R.5.1 (most powerful technique year ahead),\r\n// Teal Ch.10 R.T.10.1-10.6 (SR + LR + matching + retrograde),\r\n// OQ.T.4 : precessed-only (précession 50.29 arcsec/an, standard western moderne).\r\n// Fail-safe : si l'API échoue/timeout (>15s), `v23SolarReturnRaw=null` et/ou\r\n// `v23LunarReturnsRaw=null` → V23 helpers returns retombent en mode dégradé\r\n// (Section G inactive — les Sections D/E/F restent normales).\r\nlet v23SolarReturnRaw = null;\r\nlet v23LunarReturnsRaw = null;\r\ntry {\r\n    const _prep = $(\"2. Préparation dynamique1\").first()?.json;\r\n    const _vars = $(\"Extract Variables\").first()?.json;\r\n    if (_prep && _prep.body && _vars && _vars.annee) {\r\n        const _birth = JSON.parse(_prep.body);\r\n        const _annee = parseInt(_vars.annee, 10);\r\n        const _periodStart = _vars.date_entree;\r\n        const _periodEnd   = _vars.date_sortie;\r\n\r\n        // v13 (2026-06-03) : FIX RELOCATION — la source des champs `birthday_place_*`\r\n        // n'est PAS `_birth` (= JSON.parse(_prep.body) qui ne contient que les params\r\n        // natal pour swisseph : year/month/date/latitude/longitude...), mais bien\r\n        // `_vars` (= $(\"Extract Variables\").first().json qui contient les 30+ champs\r\n        // du payload webhook original, dont les 3 champs reloc). Audit exec 8847\r\n        // a confirmé : `2. Préparation dynamique1` body = natal seul, `Extract\r\n        // Variables` json = payload webhook complet (cf. _audit-exec-8847.mjs).\r\n        // Doctrine B Volguine (Brady Ch.6 R.6.1, Teal Ch.10 R.T.10.4) : RS/LR\r\n        // relocalisées au lieu d'événement quand renseigné, sinon natal.\r\n        // Bornage : lat ∈ [-90,90], lng ∈ [-180,180] (parité S6.24.4 L3772-3780).\r\n        let _relocLat = null, _relocLon = null, _relocLabel = null;\r\n        if (Number.isFinite(_vars.birthday_place_lat) && Math.abs(_vars.birthday_place_lat) <= 90) {\r\n            _relocLat = _vars.birthday_place_lat;\r\n        }\r\n        if (Number.isFinite(_vars.birthday_place_lng) && Math.abs(_vars.birthday_place_lng) <= 180) {\r\n            _relocLon = _vars.birthday_place_lng;\r\n        }\r\n        if (typeof _vars.birthday_place_formatted_address === \"string\" && _vars.birthday_place_formatted_address.trim()) {\r\n            _relocLabel = _vars.birthday_place_formatted_address.trim();\r\n        }\r\n\r\n        // ── /solar-return ──\r\n        if (_birth && Number.isFinite(_annee)) {\r\n            try {\r\n                const _bodySR = { natal: _birth, year: _annee, precessed: true };\r\n                if (_relocLat !== null && _relocLon !== null) {\r\n                    _bodySR.relocation_lat = _relocLat;\r\n                    _bodySR.relocation_lon = _relocLon;\r\n                    if (_relocLabel) _bodySR.relocation_label = _relocLabel;\r\n                }\r\n                const _respSR = await this.helpers.httpRequest({\r\n                    method: \"POST\",\r\n                    url: \"http://46.225.174.155:8000/solar-return\",\r\n                    headers: { \"Content-Type\": \"application/json\" },\r\n                    body: _bodySR,\r\n                    json: true,\r\n                    timeout: 15000,\r\n                });\r\n                if (_respSR && _respSR.statusCode === 200 && _respSR.output) {\r\n                    v23SolarReturnRaw = _respSR.output;\r\n                }\r\n            } catch (_eSR) { /* silent : V23 Section G en mode dégradé */ }\r\n        }\r\n\r\n        // ── /lunar-return ──\r\n        if (_birth && _periodStart && _periodEnd) {\r\n            try {\r\n                const _bodyLR = {\r\n                    natal: _birth,\r\n                    period_start: _periodStart,\r\n                    period_end: _periodEnd,\r\n                    precessed: true,\r\n                };\r\n                if (_relocLat !== null && _relocLon !== null) {\r\n                    _bodyLR.relocation_lat = _relocLat;\r\n                    _bodyLR.relocation_lon = _relocLon;\r\n                    if (_relocLabel) _bodyLR.relocation_label = _relocLabel;\r\n                }\r\n                const _respLR = await this.helpers.httpRequest({\r\n                    method: \"POST\",\r\n                    url: \"http://46.225.174.155:8000/lunar-return\",\r\n                    headers: { \"Content-Type\": \"application/json\" },\r\n                    body: _bodyLR,\r\n                    json: true,\r\n                    timeout: 15000,\r\n                });\r\n                if (_respLR && _respLR.statusCode === 200 && _respLR.output && Array.isArray(_respLR.output.returns)) {\r\n                    v23LunarReturnsRaw = _respLR.output;\r\n                }\r\n            } catch (_eLR) { /* silent : V23 Section G en mode dégradé */ }\r\n        }\r\n    }\r\n} catch (_eReturnsApi) {\r\n    // silent : top-level catch (vars absents) → V23 helpers returns en mode dégradé\r\n}\r\n\r\nfor (const item of allItems) {\r\n    const d = item.json;\r\n    const arr = Array.isArray(d) ? d : (d.data || []);\r\n    if (!arr.length) continue;\r\n    const first = arr[0];\r\n\r\n    if (first.age_annees !== undefined && first.planetes) {\r\n        // Progressions secondaires : { date, age_annees, jd_progresse, planetes }\r\n        progressionsRaw = arr;\r\n    } else if (first.date_vie !== undefined) {\r\n        // Éclipses progressées : { date_vie, date_progresse, age_annees, ... }\r\n        eclipsesProgRaw = arr;\r\n    } else if (first.date && first.planetes) {\r\n        transitsRaw = arr;\r\n    } else if (first.date_heure && first.lune) {\r\n        luneRaw = arr;\r\n    } else if (first.astre && first.type && first.date_maximum) {\r\n        eclipsesRaw = arr;\r\n    }\r\n}\r\n\r\nif (!transitsRaw)  throw new Error(\"transits introuvable — vérifier Extract from File\");\r\nif (!eclipsesRaw)  eclipsesRaw = [];\r\nif (!luneRaw)      luneRaw = [];\r\n\r\n// ---- Normalisation d'une entrée planète ----\r\n// Gère les 2 formats : fullDegree OU longitude_absolue\r\nconst normalizePlanet = (p) => {\r\n    if (!p || typeof p !== \"object\") return p;\r\n    // Déjà normalisé (Format A)\r\n    if (p.fullDegree !== undefined) return p;\r\n    // Format B → convertir (le spread ...p passe TOUS les champs y compris\r\n    // latitude, distance_ua, vitesse_longitude, declinaison)\r\n    return {\r\n        ...p,\r\n        fullDegree : p.longitude_absolue,\r\n        isRetro    : p.est_retrograde === \"True\" || p.est_retrograde === true ? \"True\" : \"False\",\r\n        signe      : p.signe || null\r\n    };\r\n};\r\n\r\n// ---- 1. NORMALISER toutes les planètes dans transitsData ----\r\nconst transitsNormalized = transitsRaw.map(day => {\r\n    if (!day?.planetes) return day;\r\n    const normalizedPlanetes = {};\r\n    for (const [planetName, planetData] of Object.entries(day.planetes)) {\r\n        normalizedPlanetes[planetName] = normalizePlanet(planetData);\r\n    }\r\n    return { ...day, planetes: normalizedPlanetes };\r\n});\r\n\r\n// ---- 2. LUNE HAUTE PRÉCISION : indexer par date ----\r\n// v8 : ajout latitude, distanceUA, declinaison (null-safe)\r\nconst luneByDate = {};\r\nluneRaw.forEach(entry => {\r\n    const date = entry.date_heure.substring(0, 10);\r\n    if (!luneByDate[date]) luneByDate[date] = [];\r\n    luneByDate[date].push({\r\n        heure      : entry.date_heure.substring(11, 16),\r\n        fullDegree : entry.lune.longitude_absolue,\r\n        signe      : entry.lune.signe,\r\n        degInSign  : entry.lune.degre_dans_signe,\r\n        vitesse    : entry.lune.vitesse_journaliere,\r\n        latitude   : entry.lune.latitude    ?? null,\r\n        distanceUA : entry.lune.distance_ua  ?? null,\r\n        declinaison: entry.lune.declinaison  ?? null\r\n    });\r\n});\r\n\r\n// ---- 3. ÉCLIPSES NATALES ----\r\n// v9 (2026-05-23) : transmet AUSSI longitude_absolue / fullDegree / signe / degre_dans_signe\r\n// / latitude / declinaison fournis par l'API /eclipses post-patch. Sans ces champs,\r\n// le super-nœud retombe sur un fallback qui assigne degree=0 aux éclipses lunaires\r\n// (la Lune n'étant pas exposée par /transits), ce qui projette toutes les éclipses\r\n// lunaires sur la maison contenant 0° Bélier (ex : M2 pour un Asc 27° Capricorne).\r\nconst eclipses = eclipsesRaw.map(e => {\r\n    const obj = {\r\n        astre : e.astre,\r\n        type  : e.type,\r\n        date  : e.date_maximum.substring(0, 10),\r\n        heure : e.date_maximum.substring(11, 16),\r\n        label : `Éclipse ${e.type} de ${e.astre} le ${e.date_maximum.substring(0, 10)}`\r\n    };\r\n    // v9 : positions écliptiques (api-patch 2026-05-23) — null-safe pour caches anciens\r\n    if (typeof e.longitude_absolue === 'number') obj.longitude_absolue = e.longitude_absolue;\r\n    if (typeof e.fullDegree        === 'number') obj.fullDegree        = e.fullDegree;\r\n    if (typeof e.degre_dans_signe  === 'number') obj.degre_dans_signe  = e.degre_dans_signe;\r\n    if (typeof e.latitude          === 'number') obj.latitude          = e.latitude;\r\n    if (typeof e.declinaison       === 'number') obj.declinaison       = e.declinaison;\r\n    if (e.signe) obj.signe = e.signe;\r\n    // Saros (existant)\r\n    if (e.saros_number)       obj.saros_number       = e.saros_number;\r\n    if (e.saros_type_eclipse) obj.saros_type_eclipse = e.saros_type_eclipse;\r\n    if (e.saros_theme)        obj.saros_theme        = e.saros_theme;\r\n    if (e.saros_keywords)     obj.saros_keywords     = e.saros_keywords;\r\n    return obj;\r\n});\r\n\r\n// ---- 4. ÉCLIPSES PROGRESSÉES (optionnelles — [] si aucune dans la période) ----\r\n// v10 (2026-05-24) : propage longitude_absolue / fullDegree / degre_dans_signe /\r\n// latitude / declinaison retournés par l'API post-fix URL `date_debut=date_naissance`.\r\n// Sans ces champs, le Super noeud1 ne peut pas enrichir avec la maison natale et\r\n// le boost ×1.25 (Note 227 §3) reste inactif (mode fail-safe DTC).\r\nconst eclipsesProgressees = (eclipsesProgRaw || []).map(e => {\r\n    const obj = {\r\n        dateVie       : e.date_vie,\r\n        dateProgresse : e.date_progresse,\r\n        ageAnnees     : e.age_annees,\r\n        astre         : e.astre         || null,\r\n        type          : e.type          || null,\r\n        magnitude     : e.magnitude     || null,\r\n        signe         : e.signe         || null,\r\n        degre         : e.degre         || null,\r\n        visible       : e.visible_lieu_naissance ?? null\r\n    };\r\n    if (typeof e.longitude_absolue === 'number') obj.longitude_absolue = e.longitude_absolue;\r\n    if (typeof e.fullDegree        === 'number') obj.fullDegree        = e.fullDegree;\r\n    if (typeof e.degre_dans_signe  === 'number') obj.degre_dans_signe  = e.degre_dans_signe;\r\n    if (typeof e.latitude          === 'number') obj.latitude          = e.latitude;\r\n    if (typeof e.declinaison       === 'number') obj.declinaison       = e.declinaison;\r\n    return obj;\r\n});\r\n\r\n// ---- 5. PROGRESSIONS SECONDAIRES (optionnelles) ----\r\n// Planètes normalisées avec le même normalizePlanet que transits\r\nconst progressionsNormalized = (progressionsRaw || []).map(day => {\r\n    if (!day?.planetes) return day;\r\n    const normalizedPlanetes = {};\r\n    for (const [planetName, planetData] of Object.entries(day.planetes)) {\r\n        normalizedPlanetes[planetName] = normalizePlanet(planetData);\r\n    }\r\n    return { ...day, planetes: normalizedPlanetes };\r\n});\r\n\r\n// ---- 6. VÉRIFICATION présence astéroïdes ----\r\nconst samplePlanetes = transitsNormalized[0]?.planetes || {};\r\nconst asteroidsOK = {};\r\nfor (const a of [\"Chiron\", \"Lilith\", \"Ceres\", \"Pallas\", \"Junon\", \"Vesta\"]) {\r\n    asteroidsOK[a] = !!(samplePlanetes[a]?.fullDegree);\r\n}\r\n\r\n// ---- 7. OUTPUT ----\r\nreturn [{\r\n    json: {\r\n        transitsData          : transitsNormalized,\r\n        luneData              : luneByDate,\r\n        eclipsesData          : eclipses,\r\n        progressionsData      : progressionsNormalized,\r\n        eclipsesProgressees   : eclipsesProgressees,\r\n        // Phase B P1 (2026-05-25) : DP Swiss Eph rigoureux (β réel, ε variable).\r\n        // Null = appel API échoué/timeout → Super noeud1 fallback JS legacy automatique.\r\n        _mdsePrimaryDirectionsApi: primaryDirsApiRaw,\r\n        // TRANCHE 3 V23 (2026-06-02) : Solar/Lunar Returns Brady/Rushman/Teal.\r\n        // Null = appel API échoué/timeout → V23 Section G en mode dégradé (Sections D/E/F intactes).\r\n        _v23SolarReturn   : v23SolarReturnRaw,\r\n        _v23LunarReturns  : v23LunarReturnsRaw,\r\n        _meta: {\r\n            nbJours              : transitsNormalized.length,\r\n            nbLune               : luneRaw.length,\r\n            nbEclipses           : eclipses.length,\r\n            nbProgressions       : progressionsNormalized.length,\r\n            nbEclipsesProgressees: eclipsesProgressees.length,\r\n            nbPrimaryDirsApi     : (primaryDirsApiRaw && primaryDirsApiRaw.length) || 0,\r\n            nbV23SolarReturn     : v23SolarReturnRaw ? 1 : 0,\r\n            nbV23LunarReturns    : (v23LunarReturnsRaw && Array.isArray(v23LunarReturnsRaw.returns) ? v23LunarReturnsRaw.returns.length : 0),\r\n            asteroidsOK          : asteroidsOK,\r\n            formatDetecte        : (transitsRaw[0]?.planetes?.Soleil?.fullDegree !== undefined) ? \"A\" : \"B\"\r\n        }\r\n    }\r\n}];\r\n"
+          "jsCode": "// ==========================================\r\n// NŒUD PREPARE DATA v9\r\n// Normalise les données planètes quel que soit le format source :\r\n//   Format A (ancien) : { fullDegree, isRetro, signe }\r\n//   Format B (nouveau) : { longitude_absolue, est_retrograde, signe, ... }\r\n// Chiron + astéroïdes inclus dans transits_complet_2026.json\r\n// Nouveau v8 : progressionsData + eclipsesProgressees + lune enrichie\r\n// Nouveau v9 (2026-05-23) : éclipses enrichies avec longitude_absolue / fullDegree /\r\n//   signe / degre_dans_signe / latitude / declinaison (post-patch API /eclipses).\r\n//   Corrige le silent-drop des positions exactes qui forçait le super-nœud à utiliser\r\n//   un fallback bugué (`dayMatch.planetes.Lune?.fullDegree ?? 0`) pour les éclipses\r\n//   lunaires (Lune absente de TRANSIT_OBJECTS API).\r\n// Nouveau v11 (2026-06-02) : Solar/Lunar Returns Brady/Rushman/Teal pour V23 TRANCHE 3.\r\n//   Appels POST /solar-return et POST /lunar-return exposés via `_v23SolarReturn`\r\n//   (objet wrapper) + `_v23LunarReturns` (objet wrapper avec returns[]).\r\n//   V23 consomme ces champs depuis le cache ISO — aucun appel réseau direct\r\n//   depuis le moteur local (règle architecturale : V23 = pure compute from cache).\r\n// Nouveau v12 (2026-06-02) : RS/LR RELOCALISÉES Doctrine B Volguine (Brady Ch.6 R.6.1,\r\n//   Teal Ch.10 R.T.10.4). Lecture optionnelle de `birthday_place_lat / _lng /\r\n//   _formatted_address` (saisi dans le formulaire site « lieu prochain anniversaire »).\r\n//   Si présents → passés en `relocation_lat / _lon / _label` aux 2 endpoints API →\r\n//   cuspides Placidus + ASC + MC + ARMC recalculés au lieu de relocation. Sinon →\r\n//   fallback côté API sur les coords natales (RS/LR natales). Les positions\r\n//   planétaires absolues (longitude Soleil/Lune/etc.) restent globales et inchangées.\r\n// Nouveau v13 (2026-06-03) : FIX SOURCE RELOCATION — lecture des champs\r\n//   `birthday_place_*` depuis `_vars` (= $(\"Extract Variables\").first().json,\r\n//   payload webhook complet) au lieu de `_birth` (= JSON.parse(_prep.body) qui\r\n//   ne contient que les params natal pour swisseph year/month/.../latitude/longitude).\r\n//   Bug v12 : `_birth.birthday_place_lat` etait undefined => Number.isFinite(undefined)\r\n//   = false => fallback natal silencieux meme quand la relocation etait envoyee.\r\n//   Audit exec 8847 a confirme : Extract Variables contient bien birthday_place_lat,\r\n//   2. Preparation dynamique1 body ne contient que natal swisseph (cf.\r\n//   scripts/_audit-exec-8847.mjs).\r\n// ==========================================\r\n\r\nconst allItems = $input.all();\r\n\r\nlet transitsRaw = null, eclipsesRaw = null, luneRaw = null;\r\nlet progressionsRaw = null, eclipsesProgRaw = null;\r\n\r\n// Phase B P1 (2026-05-25) — DP Swiss Ephemeris rigoureux : remplacement définitif\r\n// du calcul JS Naibod (β=0, ε fixe) par un appel direct à /directions/primary mode\r\n// \"rigoureux\" (β réel + ε variable). Décision utilisateur : la dette doctrinale\r\n// (Lune ±5° / Pluton ±17° / Nœuds en latitude écliptique ignorée) est insoutenable\r\n// — on accepte de recalibrer MDSE cas-par-cas si KPI client régresse.\r\n//\r\n// Phase B P0 (2026-05-24) avait déjà tenté ce remplacement avec NO-GO −1,3 pp TOP5\r\n// PREPROD client (baseline 52% → 50,7%). La baseline a depuis été remontée à 60%\r\n// par Phase C-1 ; on retente le remplacement et on ajustera MDSE selon les cas\r\n// régressés (cf. SITE/scripts/dtc/PHASE-B-DP-NOGO-2026-05-24.md).\r\n//\r\n// Output : `_mdsePrimaryDirectionsApi` (raw hits API, format Swiss Eph).\r\n// Fail-safe : si l'API tombe ou tarde (>15s), `primaryDirsApiRaw = null` →\r\n// le Super noeud1 bascule automatiquement sur le calcul JS legacy conservé en\r\n// fallback (lignes 6126-6211 de `FRA/PREV/N8N Prev`).\r\nlet primaryDirsApiRaw = null;\r\n// [DP MUNDANE 2026-07-06] Frame directions primaires : mundane Placidus semi-arc\r\n// (all-to-all), validees contre Morinus. ACTIF par defaut (bascule 2026-07-06).\r\n// n8n Cloud n'alimente pas process.env -> le defaut doit porter le mode voulu en\r\n// PROD ; l'override local DTC_DP_MUNDANE=0 permet de revenir en zodiacal (A/B, bench).\r\n// PROD-safe (garde typeof process).\r\nconst _DTC_DP_FRAME = (typeof process !== \"undefined\" && process.env && process.env.DTC_DP_MUNDANE === \"0\") ? \"zodiacal\" : \"mundane\";\r\ntry {\r\n    const _prep = $(\"2. Préparation dynamique1\").first()?.json;\r\n    const _vars = $(\"Extract Variables\").first()?.json;\r\n    if (_prep && _prep.body && _vars && _vars.annee) {\r\n        const _birth = JSON.parse(_prep.body);\r\n        const _annee = parseInt(_vars.annee, 10);\r\n        if (_birth && Number.isFinite(_annee)) {\r\n            const _resp = await this.helpers.httpRequest({\r\n                method: \"POST\",\r\n                url: \"https://api.spikka.eu/directions/primary\",\r\n                headers: { \"X-API-Key\": \"__REDACTED__\", \"Content-Type\": \"application/json\" },\r\n                body: { birth: _birth, target_year: _annee, mode: \"rigoureux\", dp_orb_yr: 1.0, frame: _DTC_DP_FRAME },\r\n                json: true,\r\n                timeout: 15000,\r\n            });\r\n            if (_resp && _resp.statusCode === 200 && _resp.output && Array.isArray(_resp.output.hits)) {\r\n                primaryDirsApiRaw = _resp.output.hits;\r\n            }\r\n        }\r\n    }\r\n} catch (_eDPApi) {\r\n    // silent : fallback JS legacy automatique côté Super noeud1\r\n}\r\n\r\n// TRANCHE 3 V23 (2026-06-02) — Solar/Lunar Returns\r\n// Brady Ch.6 R.6.1 (SR stand-alone chart of the year),\r\n// Rushman Ch.5 R.5.1 (most powerful technique year ahead),\r\n// Teal Ch.10 R.T.10.1-10.6 (SR + LR + matching + retrograde),\r\n// OQ.T.4 : precessed-only (précession 50.29 arcsec/an, standard western moderne).\r\n// Fail-safe : si l'API échoue/timeout (>15s), `v23SolarReturnRaw=null` et/ou\r\n// `v23LunarReturnsRaw=null` → V23 helpers returns retombent en mode dégradé\r\n// (Section G inactive — les Sections D/E/F restent normales).\r\nlet v23SolarReturnRaw = null;\r\nlet v23LunarReturnsRaw = null;\r\ntry {\r\n    const _prep = $(\"2. Préparation dynamique1\").first()?.json;\r\n    const _vars = $(\"Extract Variables\").first()?.json;\r\n    if (_prep && _prep.body && _vars && _vars.annee) {\r\n        const _birth = JSON.parse(_prep.body);\r\n        const _annee = parseInt(_vars.annee, 10);\r\n        const _periodStart = _vars.date_entree;\r\n        const _periodEnd   = _vars.date_sortie;\r\n\r\n        // v13 (2026-06-03) : FIX RELOCATION — la source des champs `birthday_place_*`\r\n        // n'est PAS `_birth` (= JSON.parse(_prep.body) qui ne contient que les params\r\n        // natal pour swisseph : year/month/date/latitude/longitude...), mais bien\r\n        // `_vars` (= $(\"Extract Variables\").first().json qui contient les 30+ champs\r\n        // du payload webhook original, dont les 3 champs reloc). Audit exec 8847\r\n        // a confirmé : `2. Préparation dynamique1` body = natal seul, `Extract\r\n        // Variables` json = payload webhook complet (cf. _audit-exec-8847.mjs).\r\n        // Doctrine B Volguine (Brady Ch.6 R.6.1, Teal Ch.10 R.T.10.4) : RS/LR\r\n        // relocalisées au lieu d'événement quand renseigné, sinon natal.\r\n        // Bornage : lat ∈ [-90,90], lng ∈ [-180,180] (parité S6.24.4 L3772-3780).\r\n        let _relocLat = null, _relocLon = null, _relocLabel = null;\r\n        if (Number.isFinite(_vars.birthday_place_lat) && Math.abs(_vars.birthday_place_lat) <= 90) {\r\n            _relocLat = _vars.birthday_place_lat;\r\n        }\r\n        if (Number.isFinite(_vars.birthday_place_lng) && Math.abs(_vars.birthday_place_lng) <= 180) {\r\n            _relocLon = _vars.birthday_place_lng;\r\n        }\r\n        if (typeof _vars.birthday_place_formatted_address === \"string\" && _vars.birthday_place_formatted_address.trim()) {\r\n            _relocLabel = _vars.birthday_place_formatted_address.trim();\r\n        }\r\n\r\n        // ── /solar-return ──\r\n        if (_birth && Number.isFinite(_annee)) {\r\n            try {\r\n                const _bodySR = { natal: _birth, year: _annee, precessed: true };\r\n                if (_relocLat !== null && _relocLon !== null) {\r\n                    _bodySR.relocation_lat = _relocLat;\r\n                    _bodySR.relocation_lon = _relocLon;\r\n                    if (_relocLabel) _bodySR.relocation_label = _relocLabel;\r\n                }\r\n                const _respSR = await this.helpers.httpRequest({\r\n                    method: \"POST\",\r\n                    url: \"https://api.spikka.eu/solar-return\",\r\n                    headers: { \"X-API-Key\": \"__REDACTED__\", \"Content-Type\": \"application/json\" },\r\n                    body: _bodySR,\r\n                    json: true,\r\n                    timeout: 15000,\r\n                });\r\n                if (_respSR && _respSR.statusCode === 200 && _respSR.output) {\r\n                    v23SolarReturnRaw = _respSR.output;\r\n                }\r\n            } catch (_eSR) { /* silent : V23 Section G en mode dégradé */ }\r\n        }\r\n\r\n        // ── /lunar-return ──\r\n        if (_birth && _periodStart && _periodEnd) {\r\n            try {\r\n                const _bodyLR = {\r\n                    natal: _birth,\r\n                    period_start: _periodStart,\r\n                    period_end: _periodEnd,\r\n                    precessed: true,\r\n                };\r\n                if (_relocLat !== null && _relocLon !== null) {\r\n                    _bodyLR.relocation_lat = _relocLat;\r\n                    _bodyLR.relocation_lon = _relocLon;\r\n                    if (_relocLabel) _bodyLR.relocation_label = _relocLabel;\r\n                }\r\n                const _respLR = await this.helpers.httpRequest({\r\n                    method: \"POST\",\r\n                    url: \"https://api.spikka.eu/lunar-return\",\r\n                    headers: { \"X-API-Key\": \"__REDACTED__\", \"Content-Type\": \"application/json\" },\r\n                    body: _bodyLR,\r\n                    json: true,\r\n                    timeout: 15000,\r\n                });\r\n                if (_respLR && _respLR.statusCode === 200 && _respLR.output && Array.isArray(_respLR.output.returns)) {\r\n                    v23LunarReturnsRaw = _respLR.output;\r\n                }\r\n            } catch (_eLR) { /* silent : V23 Section G en mode dégradé */ }\r\n        }\r\n    }\r\n} catch (_eReturnsApi) {\r\n    // silent : top-level catch (vars absents) → V23 helpers returns en mode dégradé\r\n}\r\n\r\nfor (const item of allItems) {\r\n    const d = item.json;\r\n    const arr = Array.isArray(d) ? d : (d.data || []);\r\n    if (!arr.length) continue;\r\n    const first = arr[0];\r\n\r\n    if (first.age_annees !== undefined && first.planetes) {\r\n        // Progressions secondaires : { date, age_annees, jd_progresse, planetes }\r\n        progressionsRaw = arr;\r\n    } else if (first.date_vie !== undefined) {\r\n        // Éclipses progressées : { date_vie, date_progresse, age_annees, ... }\r\n        eclipsesProgRaw = arr;\r\n    } else if (first.date && first.planetes) {\r\n        transitsRaw = arr;\r\n    } else if (first.date_heure && first.lune) {\r\n        luneRaw = arr;\r\n    } else if (first.astre && first.type && first.date_maximum) {\r\n        eclipsesRaw = arr;\r\n    }\r\n}\r\n\r\nif (!transitsRaw)  throw new Error(\"transits introuvable — vérifier Extract from File\");\r\nif (!eclipsesRaw)  eclipsesRaw = [];\r\nif (!luneRaw)      luneRaw = [];\r\n\r\n// ---- Normalisation d'une entrée planète ----\r\n// Gère les 2 formats : fullDegree OU longitude_absolue\r\nconst normalizePlanet = (p) => {\r\n    if (!p || typeof p !== \"object\") return p;\r\n    // Déjà normalisé (Format A)\r\n    if (p.fullDegree !== undefined) return p;\r\n    // Format B → convertir (le spread ...p passe TOUS les champs y compris\r\n    // latitude, distance_ua, vitesse_longitude, declinaison)\r\n    return {\r\n        ...p,\r\n        fullDegree : p.longitude_absolue,\r\n        isRetro    : p.est_retrograde === \"True\" || p.est_retrograde === true ? \"True\" : \"False\",\r\n        signe      : p.signe || null\r\n    };\r\n};\r\n\r\n// ---- 1. NORMALISER toutes les planètes dans transitsData ----\r\nconst transitsNormalized = transitsRaw.map(day => {\r\n    if (!day?.planetes) return day;\r\n    const normalizedPlanetes = {};\r\n    for (const [planetName, planetData] of Object.entries(day.planetes)) {\r\n        normalizedPlanetes[planetName] = normalizePlanet(planetData);\r\n    }\r\n    return { ...day, planetes: normalizedPlanetes };\r\n});\r\n\r\n// ---- 2. LUNE HAUTE PRÉCISION : indexer par date ----\r\n// v8 : ajout latitude, distanceUA, declinaison (null-safe)\r\nconst luneByDate = {};\r\nluneRaw.forEach(entry => {\r\n    const date = entry.date_heure.substring(0, 10);\r\n    if (!luneByDate[date]) luneByDate[date] = [];\r\n    luneByDate[date].push({\r\n        heure      : entry.date_heure.substring(11, 16),\r\n        fullDegree : entry.lune.longitude_absolue,\r\n        signe      : entry.lune.signe,\r\n        degInSign  : entry.lune.degre_dans_signe,\r\n        vitesse    : entry.lune.vitesse_journaliere,\r\n        latitude   : entry.lune.latitude    ?? null,\r\n        distanceUA : entry.lune.distance_ua  ?? null,\r\n        declinaison: entry.lune.declinaison  ?? null\r\n    });\r\n});\r\n\r\n// ---- 3. ÉCLIPSES NATALES ----\r\n// v9 (2026-05-23) : transmet AUSSI longitude_absolue / fullDegree / signe / degre_dans_signe\r\n// / latitude / declinaison fournis par l'API /eclipses post-patch. Sans ces champs,\r\n// le super-nœud retombe sur un fallback qui assigne degree=0 aux éclipses lunaires\r\n// (la Lune n'étant pas exposée par /transits), ce qui projette toutes les éclipses\r\n// lunaires sur la maison contenant 0° Bélier (ex : M2 pour un Asc 27° Capricorne).\r\nconst eclipses = eclipsesRaw.map(e => {\r\n    const obj = {\r\n        astre : e.astre,\r\n        type  : e.type,\r\n        date  : e.date_maximum.substring(0, 10),\r\n        heure : e.date_maximum.substring(11, 16),\r\n        label : `Éclipse ${e.type} de ${e.astre} le ${e.date_maximum.substring(0, 10)}`\r\n    };\r\n    // v9 : positions écliptiques (api-patch 2026-05-23) — null-safe pour caches anciens\r\n    if (typeof e.longitude_absolue === 'number') obj.longitude_absolue = e.longitude_absolue;\r\n    if (typeof e.fullDegree        === 'number') obj.fullDegree        = e.fullDegree;\r\n    if (typeof e.degre_dans_signe  === 'number') obj.degre_dans_signe  = e.degre_dans_signe;\r\n    if (typeof e.latitude          === 'number') obj.latitude          = e.latitude;\r\n    if (typeof e.declinaison       === 'number') obj.declinaison       = e.declinaison;\r\n    if (e.signe) obj.signe = e.signe;\r\n    // Saros (existant)\r\n    if (e.saros_number)       obj.saros_number       = e.saros_number;\r\n    if (e.saros_type_eclipse) obj.saros_type_eclipse = e.saros_type_eclipse;\r\n    if (e.saros_theme)        obj.saros_theme        = e.saros_theme;\r\n    if (e.saros_keywords)     obj.saros_keywords     = e.saros_keywords;\r\n    return obj;\r\n});\r\n\r\n// ---- 4. ÉCLIPSES PROGRESSÉES (optionnelles — [] si aucune dans la période) ----\r\n// v10 (2026-05-24) : propage longitude_absolue / fullDegree / degre_dans_signe /\r\n// latitude / declinaison retournés par l'API post-fix URL `date_debut=date_naissance`.\r\n// Sans ces champs, le Super noeud1 ne peut pas enrichir avec la maison natale et\r\n// le boost ×1.25 (Note 227 §3) reste inactif (mode fail-safe DTC).\r\nconst eclipsesProgressees = (eclipsesProgRaw || []).map(e => {\r\n    const obj = {\r\n        dateVie       : e.date_vie,\r\n        dateProgresse : e.date_progresse,\r\n        ageAnnees     : e.age_annees,\r\n        astre         : e.astre         || null,\r\n        type          : e.type          || null,\r\n        magnitude     : e.magnitude     || null,\r\n        signe         : e.signe         || null,\r\n        degre         : e.degre         || null,\r\n        visible       : e.visible_lieu_naissance ?? null\r\n    };\r\n    if (typeof e.longitude_absolue === 'number') obj.longitude_absolue = e.longitude_absolue;\r\n    if (typeof e.fullDegree        === 'number') obj.fullDegree        = e.fullDegree;\r\n    if (typeof e.degre_dans_signe  === 'number') obj.degre_dans_signe  = e.degre_dans_signe;\r\n    if (typeof e.latitude          === 'number') obj.latitude          = e.latitude;\r\n    if (typeof e.declinaison       === 'number') obj.declinaison       = e.declinaison;\r\n    return obj;\r\n});\r\n\r\n// ---- 5. PROGRESSIONS SECONDAIRES (optionnelles) ----\r\n// Planètes normalisées avec le même normalizePlanet que transits\r\nconst progressionsNormalized = (progressionsRaw || []).map(day => {\r\n    if (!day?.planetes) return day;\r\n    const normalizedPlanetes = {};\r\n    for (const [planetName, planetData] of Object.entries(day.planetes)) {\r\n        normalizedPlanetes[planetName] = normalizePlanet(planetData);\r\n    }\r\n    return { ...day, planetes: normalizedPlanetes };\r\n});\r\n\r\n// ---- 6. VÉRIFICATION présence astéroïdes ----\r\nconst samplePlanetes = transitsNormalized[0]?.planetes || {};\r\nconst asteroidsOK = {};\r\nfor (const a of [\"Chiron\", \"Lilith\", \"Ceres\", \"Pallas\", \"Junon\", \"Vesta\"]) {\r\n    asteroidsOK[a] = !!(samplePlanetes[a]?.fullDegree);\r\n}\r\n\r\n// ---- 7. OUTPUT ----\r\nreturn [{\r\n    json: {\r\n        transitsData          : transitsNormalized,\r\n        luneData              : luneByDate,\r\n        eclipsesData          : eclipses,\r\n        progressionsData      : progressionsNormalized,\r\n        eclipsesProgressees   : eclipsesProgressees,\r\n        // Phase B P1 (2026-05-25) : DP Swiss Eph rigoureux (β réel, ε variable).\r\n        // Null = appel API échoué/timeout → Super noeud1 fallback JS legacy automatique.\r\n        _mdsePrimaryDirectionsApi: primaryDirsApiRaw,\r\n        // TRANCHE 3 V23 (2026-06-02) : Solar/Lunar Returns Brady/Rushman/Teal.\r\n        // Null = appel API échoué/timeout → V23 Section G en mode dégradé (Sections D/E/F intactes).\r\n        _v23SolarReturn   : v23SolarReturnRaw,\r\n        _v23LunarReturns  : v23LunarReturnsRaw,\r\n        _meta: {\r\n            nbJours              : transitsNormalized.length,\r\n            nbLune               : luneRaw.length,\r\n            nbEclipses           : eclipses.length,\r\n            nbProgressions       : progressionsNormalized.length,\r\n            nbEclipsesProgressees: eclipsesProgressees.length,\r\n            nbPrimaryDirsApi     : (primaryDirsApiRaw && primaryDirsApiRaw.length) || 0,\r\n            nbV23SolarReturn     : v23SolarReturnRaw ? 1 : 0,\r\n            nbV23LunarReturns    : (v23LunarReturnsRaw && Array.isArray(v23LunarReturnsRaw.returns) ? v23LunarReturnsRaw.returns.length : 0),\r\n            asteroidsOK          : asteroidsOK,\r\n            formatDetecte        : (transitsRaw[0]?.planetes?.Soleil?.fullDegree !== undefined) ? \"A\" : \"B\"\r\n        }\r\n    }\r\n}];\r\n"
         },
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
@@ -3593,13 +3691,22 @@
       },
       {
         "parameters": {
-          "url": "=http://46.225.174.155:8000/progressions/eclipses?date_debut={{ $('Extract Variables').first().json.date }}&date_fin={{ $('Extract Variables').first().json.date_sortie }}&year={{ JSON.parse($('2. Préparation dynamique1').first().json.body).year }}&month={{ JSON.parse($('2. Préparation dynamique1').first().json.body).month }}&date={{ JSON.parse($('2. Préparation dynamique1').first().json.body).date }}&hours={{ JSON.parse($('2. Préparation dynamique1').first().json.body).hours }}&minutes={{ JSON.parse($('2. Préparation dynamique1').first().json.body).minutes }}&seconds=0&latitude={{ JSON.parse($('2. Préparation dynamique1').first().json.body).latitude }}&longitude={{ JSON.parse($('2. Préparation dynamique1').first().json.body).longitude }}&timezone={{ JSON.parse($('2. Préparation dynamique1').first().json.body).timezone }}\n\n",
+          "url": "=https://api.spikka.eu/progressions/eclipses?date_debut={{ $('Extract Variables').first().json.date }}&date_fin={{ $('Extract Variables').first().json.date_sortie }}&year={{ JSON.parse($('2. Préparation dynamique1').first().json.body).year }}&month={{ JSON.parse($('2. Préparation dynamique1').first().json.body).month }}&date={{ JSON.parse($('2. Préparation dynamique1').first().json.body).date }}&hours={{ JSON.parse($('2. Préparation dynamique1').first().json.body).hours }}&minutes={{ JSON.parse($('2. Préparation dynamique1').first().json.body).minutes }}&seconds=0&latitude={{ JSON.parse($('2. Préparation dynamique1').first().json.body).latitude }}&longitude={{ JSON.parse($('2. Préparation dynamique1').first().json.body).longitude }}&timezone={{ JSON.parse($('2. Préparation dynamique1').first().json.body).timezone }}\n\n",
           "options": {
             "response": {
               "response": {
                 "responseFormat": "json"
               }
             }
+          },
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "X-API-Key",
+                "value": "__REDACTED__"
+              }
+            ]
           }
         },
         "type": "n8n-nodes-base.httpRequest",
@@ -3640,13 +3747,22 @@
       },
       {
         "parameters": {
-          "url": "=http://46.225.174.155:8000/progressions?date_debut={{ $('Extract Variables').first().json.date_entree }}&date_fin={{ $('Extract Variables').first().json.date_sortie }}&year={{ JSON.parse($('2. Préparation dynamique1').first().json.body).year }}&month={{ JSON.parse($('2. Préparation dynamique1').first().json.body).month }}&date={{ JSON.parse($('2. Préparation dynamique1').first().json.body).date }}&hours={{ JSON.parse($('2. Préparation dynamique1').first().json.body).hours }}&minutes={{ JSON.parse($('2. Préparation dynamique1').first().json.body).minutes }}&seconds=0&latitude={{ JSON.parse($('2. Préparation dynamique1').first().json.body).latitude }}&longitude={{ JSON.parse($('2. Préparation dynamique1').first().json.body).longitude }}&timezone={{ JSON.parse($('2. Préparation dynamique1').first().json.body).timezone }}\n",
+          "url": "=https://api.spikka.eu/progressions?date_debut={{ $('Extract Variables').first().json.date_entree }}&date_fin={{ $('Extract Variables').first().json.date_sortie }}&year={{ JSON.parse($('2. Préparation dynamique1').first().json.body).year }}&month={{ JSON.parse($('2. Préparation dynamique1').first().json.body).month }}&date={{ JSON.parse($('2. Préparation dynamique1').first().json.body).date }}&hours={{ JSON.parse($('2. Préparation dynamique1').first().json.body).hours }}&minutes={{ JSON.parse($('2. Préparation dynamique1').first().json.body).minutes }}&seconds=0&latitude={{ JSON.parse($('2. Préparation dynamique1').first().json.body).latitude }}&longitude={{ JSON.parse($('2. Préparation dynamique1').first().json.body).longitude }}&timezone={{ JSON.parse($('2. Préparation dynamique1').first().json.body).timezone }}\n",
           "options": {
             "response": {
               "response": {
                 "responseFormat": "json"
               }
             }
+          },
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "X-API-Key",
+                "value": "__REDACTED__"
+              }
+            ]
           }
         },
         "type": "n8n-nodes-base.httpRequest",
@@ -3683,7 +3799,7 @@
       {
         "parameters": {
           "method": "POST",
-          "url": "http://46.225.174.155:3000/forms/chromium/convert/html",
+          "url": "https://api.spikka.eu/pdf/forms/chromium/convert/html",
           "sendBody": true,
           "contentType": "multipart-form-data",
           "bodyParameters": {
@@ -3701,6 +3817,15 @@
                 "responseFormat": "file"
               }
             }
+          },
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "X-API-Key",
+                "value": "__REDACTED__"
+              }
+            ]
           }
         },
         "id": "8338ce29-7e40-4424-ba66-cf61dff922a0",
@@ -3743,13 +3868,17 @@
       {
         "parameters": {
           "method": "POST",
-          "url": "http://46.225.174.155:8000/western/planets",
+          "url": "https://api.spikka.eu/western/planets",
           "sendHeaders": true,
           "headerParameters": {
             "parameters": [
               {
                 "name": "Content-Type",
                 "value": "application/json"
+              },
+              {
+                "name": "X-API-Key",
+                "value": "__REDACTED__"
               }
             ]
           },
@@ -3771,13 +3900,17 @@
       {
         "parameters": {
           "method": "POST",
-          "url": "http://46.225.174.155:8000/western/houses",
+          "url": "https://api.spikka.eu/western/houses",
           "sendHeaders": true,
           "headerParameters": {
             "parameters": [
               {
                 "name": "Content-Type",
                 "value": "application/json"
+              },
+              {
+                "name": "X-API-Key",
+                "value": "__REDACTED__"
               }
             ]
           },
@@ -3798,13 +3931,22 @@
       },
       {
         "parameters": {
-          "url": "=http://46.225.174.155:8000/eclipses?date_debut={{ $('Extract Variables').first().json.date }}&date_fin={{ $('Extract Variables').first().json.date }}",
+          "url": "=https://api.spikka.eu/eclipses?date_debut={{ $('Extract Variables').first().json.date }}&date_fin={{ $('Extract Variables').first().json.date }}",
           "options": {
             "response": {
               "response": {
                 "responseFormat": "json"
               }
             }
+          },
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "X-API-Key",
+                "value": "__REDACTED__"
+              }
+            ]
           }
         },
         "type": "n8n-nodes-base.httpRequest",
@@ -3871,13 +4013,22 @@
       },
       {
         "parameters": {
-          "url": "=http://46.225.174.155:8000/transits?date_debut={{ $('Extract Variables').first().json.date_entree }}&date_fin={{ $('Extract Variables').first().json.date_sortie }}",
+          "url": "=https://api.spikka.eu/transits?date_debut={{ $('Extract Variables').first().json.date_entree }}&date_fin={{ $('Extract Variables').first().json.date_sortie }}",
           "options": {
             "response": {
               "response": {
                 "responseFormat": "json"
               }
             }
+          },
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "X-API-Key",
+                "value": "__REDACTED__"
+              }
+            ]
           }
         },
         "type": "n8n-nodes-base.httpRequest",
@@ -3891,13 +4042,22 @@
       },
       {
         "parameters": {
-          "url": "=http://46.225.174.155:8000/eclipses?date_debut={{ DateTime.fromFormat($('Extract Variables').first().json.date_entree, 'dd/MM/yyyy').minus({years: 5}).toFormat('dd/MM/yyyy') }}&date_fin={{ $('Extract Variables').first().json.date_sortie }}",
+          "url": "=https://api.spikka.eu/eclipses?date_debut={{ DateTime.fromFormat($('Extract Variables').first().json.date_entree, 'dd/MM/yyyy').minus({years: 5}).toFormat('dd/MM/yyyy') }}&date_fin={{ $('Extract Variables').first().json.date_sortie }}",
           "options": {
             "response": {
               "response": {
                 "responseFormat": "json"
               }
             }
+          },
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "X-API-Key",
+                "value": "__REDACTED__"
+              }
+            ]
           }
         },
         "type": "n8n-nodes-base.httpRequest",
@@ -3911,13 +4071,22 @@
       },
       {
         "parameters": {
-          "url": "=http://46.225.174.155:8000/moon?date_debut={{ $('Extract Variables').first().json.date_entree }}&date_fin={{ $('Extract Variables').first().json.date_sortie }}",
+          "url": "=https://api.spikka.eu/moon?date_debut={{ $('Extract Variables').first().json.date_entree }}&date_fin={{ $('Extract Variables').first().json.date_sortie }}",
           "options": {
             "response": {
               "response": {
                 "responseFormat": "json"
               }
             }
+          },
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "X-API-Key",
+                "value": "__REDACTED__"
+              }
+            ]
           }
         },
         "type": "n8n-nodes-base.httpRequest",
@@ -4139,7 +4308,7 @@
       {
         "parameters": {
           "method": "POST",
-          "url": "http://46.225.174.155:3000/forms/chromium/convert/html",
+          "url": "https://api.spikka.eu/pdf/forms/chromium/convert/html",
           "sendBody": true,
           "contentType": "multipart-form-data",
           "bodyParameters": {
@@ -4153,6 +4322,15 @@
           },
           "options": {
             "response": {}
+          },
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "X-API-Key",
+                "value": "__REDACTED__"
+              }
+            ]
           }
         },
         "id": "f7f9dac3-be1a-48c4-be7c-b01daea33dbf",
@@ -5673,34 +5851,18 @@
     "autosaved": false,
     "workflowPublishHistory": [
       {
-        "createdAt": "2026-07-08T09:22:18.736Z",
-        "id": 2180,
+        "createdAt": "2026-07-08T14:32:27.220Z",
+        "id": 2234,
         "workflowId": "szL522DJiXkppyt1",
-        "versionId": "6a169961-f0fa-4740-bd84-6d134608ed64",
+        "versionId": "cd123a93-ed52-4f87-b248-0bec4932a1d0",
         "event": "activated",
         "userId": "fb6c984b-473f-495f-aed9-c5264bd1e18e"
       },
       {
-        "createdAt": "2026-07-08T10:05:15.124Z",
-        "id": 2198,
+        "createdAt": "2026-07-08T14:32:26.594Z",
+        "id": 2233,
         "workflowId": "szL522DJiXkppyt1",
-        "versionId": "6a169961-f0fa-4740-bd84-6d134608ed64",
-        "event": "activated",
-        "userId": "fb6c984b-473f-495f-aed9-c5264bd1e18e"
-      },
-      {
-        "createdAt": "2026-07-08T09:22:18.238Z",
-        "id": 2179,
-        "workflowId": "szL522DJiXkppyt1",
-        "versionId": "6a169961-f0fa-4740-bd84-6d134608ed64",
-        "event": "deactivated",
-        "userId": "fb6c984b-473f-495f-aed9-c5264bd1e18e"
-      },
-      {
-        "createdAt": "2026-07-08T10:05:14.623Z",
-        "id": 2197,
-        "workflowId": "szL522DJiXkppyt1",
-        "versionId": "6a169961-f0fa-4740-bd84-6d134608ed64",
+        "versionId": "cd123a93-ed52-4f87-b248-0bec4932a1d0",
         "event": "deactivated",
         "userId": "fb6c984b-473f-495f-aed9-c5264bd1e18e"
       }

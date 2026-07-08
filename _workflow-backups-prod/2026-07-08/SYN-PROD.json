@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-07-08T13:47:08.309Z",
+  "updatedAt": "2026-07-08T14:32:28.925Z",
   "createdAt": "2026-05-12T13:52:23.149Z",
   "id": "xfenvGOyoYB6GyZH",
   "name": "SYN — PROD",
@@ -108,7 +108,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "http://46.225.174.155:3000/forms/chromium/convert/html",
+        "url": "https://api.spikka.eu/pdf/forms/chromium/convert/html",
         "sendBody": true,
         "contentType": "multipart-form-data",
         "bodyParameters": {
@@ -126,6 +126,15 @@
               "responseFormat": "file"
             }
           }
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-API-Key",
+              "value": "__REDACTED__"
+            }
+          ]
         }
       },
       "id": "ef5d733b-36cc-4ba3-b814-a3cd7a41eb97",
@@ -179,7 +188,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "http://46.225.174.155:3000/forms/chromium/convert/html",
+        "url": "https://api.spikka.eu/pdf/forms/chromium/convert/html",
         "sendBody": true,
         "contentType": "multipart-form-data",
         "bodyParameters": {
@@ -197,6 +206,15 @@
               "responseFormat": "file"
             }
           }
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-API-Key",
+              "value": "__REDACTED__"
+            }
+          ]
         }
       },
       "id": "6bc57e0f-efff-4202-9065-576a59869760",
@@ -457,13 +475,17 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "http://46.225.174.155:8000/western/planets",
+        "url": "https://api.spikka.eu/western/planets",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
             {
               "name": "Content-Type",
               "value": "application/json"
+            },
+            {
+              "name": "X-API-Key",
+              "value": "__REDACTED__"
             }
           ]
         },
@@ -485,13 +507,17 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "http://46.225.174.155:8000/western/planets",
+        "url": "https://api.spikka.eu/western/planets",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
             {
               "name": "Content-Type",
               "value": "application/json"
+            },
+            {
+              "name": "X-API-Key",
+              "value": "__REDACTED__"
             }
           ]
         },
@@ -543,13 +569,17 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "http://46.225.174.155:8000/western/houses",
+        "url": "https://api.spikka.eu/western/houses",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
             {
               "name": "Content-Type",
               "value": "application/json"
+            },
+            {
+              "name": "X-API-Key",
+              "value": "__REDACTED__"
             }
           ]
         },
@@ -571,13 +601,17 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "http://46.225.174.155:8000/western/houses",
+        "url": "https://api.spikka.eu/western/houses",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
             {
               "name": "Content-Type",
               "value": "application/json"
+            },
+            {
+              "name": "X-API-Key",
+              "value": "__REDACTED__"
             }
           ]
         },
@@ -598,13 +632,22 @@
     },
     {
       "parameters": {
-        "url": "=http://46.225.174.155:8000/eclipses?date_debut={{ $('Vars A').first().json.date }}&date_fin={{ $('Vars A').first().json.date }}",
+        "url": "=https://api.spikka.eu/eclipses?date_debut={{ $('Vars A').first().json.date }}&date_fin={{ $('Vars A').first().json.date }}",
         "options": {
           "response": {
             "response": {
               "responseFormat": "json"
             }
           }
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-API-Key",
+              "value": "__REDACTED__"
+            }
+          ]
         }
       },
       "id": "04d49387-69dd-47fa-be46-43724ad659c8",
@@ -619,13 +662,22 @@
     },
     {
       "parameters": {
-        "url": "=http://46.225.174.155:8000/eclipses?date_debut={{ $('Vars B').first().json.date }}&date_fin={{ $('Vars B').first().json.date }}",
+        "url": "=https://api.spikka.eu/eclipses?date_debut={{ $('Vars B').first().json.date }}&date_fin={{ $('Vars B').first().json.date }}",
         "options": {
           "response": {
             "response": {
               "responseFormat": "json"
             }
           }
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-API-Key",
+              "value": "__REDACTED__"
+            }
+          ]
         }
       },
       "id": "22c932b0-d61b-44a3-9275-e065346bbe7f",
@@ -782,13 +834,17 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "http://46.225.174.155:8000/western/planets",
+        "url": "https://api.spikka.eu/western/planets",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
             {
               "name": "Content-Type",
               "value": "application/json"
+            },
+            {
+              "name": "X-API-Key",
+              "value": "__REDACTED__"
             }
           ]
         },
@@ -825,13 +881,17 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "http://46.225.174.155:8000/western/houses",
+        "url": "https://api.spikka.eu/western/houses",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
             {
               "name": "Content-Type",
               "value": "application/json"
+            },
+            {
+              "name": "X-API-Key",
+              "value": "__REDACTED__"
             }
           ]
         },
@@ -902,7 +962,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// ============================================================================\n// REASSEMBLE TRAD SYN v4.0 — RÉCIT (miroir THEME PREPROD)\n// ----------------------------------------------------------------------------\n// Reconstruit la synthèse re-tissée à partir des chapitres traduits 1-par-1.\n// Nouveau format : synthese.chapters = [{ title, body }] (le générateur final\n// rend chaque chapitre en cartouche numéroté + punchlines \"## \" + \"## En pratique\").\n// Conserve synthese.llm_text (rétro-compat) et synData (le générateur en a besoin).\n// perspective_a/b ne sont plus traduites (code mort dans le rapport final).\n// ============================================================================\n\nconst items = $input.all();\n\nlet originalItems = [];\ntry { originalItems = $('1. Découpage SYN Trad').all(); } catch (e) {}\n\nlet synDataPassThrough = {};\ntry { synDataPassThrough = $('Reassemble SYN').first()?.json?.synData || {}; } catch (e) {\n  try { synDataPassThrough = $('Super noeud Syn').first()?.json || {}; } catch (e2) {}\n}\n\nconst result = {\n  perspective_a: {},\n  perspective_b: {},\n  synthese: null,\n  synData: synDataPassThrough,\n  _meta: { total_items: items.length, total_originals: originalItems.length, errors: [], translated: 0 },\n};\n\nif (items.length !== originalItems.length) {\n  result._meta.warning = `Attendu ${originalItems.length} traductions, reçu ${items.length}`;\n}\n\nconst chapterBucket = [];\n\nitems.forEach((item, idx) => {\n  if (item.json?.error || item.json?.errorMessage) {\n    result._meta.errors.push({ idx, error: item.json?.errorMessage || item.json?.error });\n    return;\n  }\n  let translated = item.json?.output || item.json?.text || '';\n  if (!translated || String(translated).includes('skipped')) return;\n  translated = String(translated).trim();\n\n  const orig = originalItems[idx]?.json || {};\n  const key = orig.key || '';\n  if (!key) { result._meta.errors.push({ idx, error: 'Aucune clé originale' }); return; }\n  result._meta.translated++;\n\n  if (key.startsWith('synthese_chap_') || orig.category === 'synthese_chapter') {\n    // Le Traducteur préfixe le corps par un titre adapté à l'adresse « # Titre »\n    // (un seul dièse). On l'extrait comme titre de chapitre et on le retire du\n    // corps (sinon mdRecit le rendrait en punchline). Fallback : titre source.\n    let body = translated;\n    let title = orig.titre || orig.label || '';\n    const lines = body.split('\\n');\n    let p = 0;\n    while (p < lines.length && !lines[p].trim()) p++;\n    const tm = lines[p] && lines[p].match(/^#\\s+(.+?)\\s*#*\\s*$/);\n    if (tm) {\n      title = tm[1].replace(/\\*/g, '').trim();\n      lines.splice(0, p + 1);\n      body = lines.join('\\n').replace(/^\\s+/, '');\n    }\n    chapterBucket.push({\n      index: (orig.chapter_index != null) ? orig.chapter_index : idx,\n      title,\n      body,\n    });\n  } else if (key === 'synthese') {\n    // rétro-compat (ancien format à 1 bloc)\n    result.synthese = { label: orig.label || 'Synthèse', llm_text: translated };\n  } else if (key.startsWith('perspective_a_')) {\n    const h = key.replace('perspective_a_', '');\n    result.perspective_a[h] = { label: orig.label || '', llm_text: translated, house: orig.house, score: orig.score, is_principale: orig.is_principale };\n  } else if (key.startsWith('perspective_b_')) {\n    const h = key.replace('perspective_b_', '');\n    result.perspective_b[h] = { label: orig.label || '', llm_text: translated, house: orig.house, score: orig.score, is_principale: orig.is_principale };\n  }\n});\n\nif (chapterBucket.length) {\n  chapterBucket.sort((a, b) => a.index - b.index);\n  const chapters = chapterBucket.map(c => ({ title: c.title, body: c.body }));\n  const llm_text = chapters.map(c => `## ${c.title}\\n\\n${c.body}`).join('\\n\\n');\n  result.synthese = { label: 'Synthèse', chapters, llm_text };\n  result._meta.chapters = chapters.length;\n}\n\n\n// __C2_REGISTRE_BEGIN__ (couche 2 — auto-fix registre, coût LLM zéro)\nfunction _c2Other() { try { const m = (synDataPassThrough && synDataPassThrough.meta) || {}; return (m.personne_b && m.personne_b.prenom) || (m.personne_a && m.personne_a.prenom) || ''; } catch (e) { return ''; } }\nfunction _c2Fix(txt, other) {\n  if (!txt) return txt;\n  let t = String(txt);\n  const o = other || 'your partner';\n  t = t.replace(/\\bbetween you two\\b/gi, 'between you and ' + o)\n       .replace(/\\bthe two of you\\b/gi, 'you and ' + o)\n       .replace(/\\bas a couple\\b/gi, 'in your relationship')\n       .replace(/\\byour couple\\b/gi, 'your relationship')\n       .replace(/\\bYou both\\b/g, 'You and ' + o)\n       .replace(/\\byou both\\b/gi, 'you and ' + o)\n       .replace(/\\byou two\\b/gi, 'you and ' + o);\n  const of = other || 'votre partenaire';\n  t = t.replace(/\\bentre vous deux\\b/gi, 'entre vous et ' + of)\n       .replace(/\\bvous deux\\b/gi, 'vous et ' + of)\n       .replace(/\\bvotre couple\\b/gi, 'votre relation')\n       .replace(/\\ben couple\\b/gi, 'dans votre relation')\n       .replace(/\\bà vous deux\\b/gi, 'à vous et ' + of);\n  return t;\n}\n// filet anti-coquilles FR : liste blanche stricte de NON-MOTS (jamais un mot valide),\n// correction unique et certaine. Remplacement mot-entier, casse initiale préservée.\nconst _C2_TYPO = {\n  \"jalouseusement\": \"jalousement\",\n};\nfunction _c2Typo(txt) {\n  if (!txt) return txt;\n  let t = String(txt);\n  for (const bad in _C2_TYPO) {\n    const good = _C2_TYPO[bad];\n    const re = new RegExp(\"\\\\b\" + bad.replace(/[.*+?^${}()|[\\]\\\\]/g, \"\\\\$&\") + \"\\\\b\", \"gi\");\n    t = t.replace(re, function (m) {\n      return (m.charAt(0) === m.charAt(0).toUpperCase()) ? (good.charAt(0).toUpperCase() + good.slice(1)) : good;\n    });\n  }\n  return t;\n}\nif (result.synthese) {\n  const _o = _c2Other();\n  if (result.synthese.llm_text) result.synthese.llm_text = _c2Typo(_c2Fix(result.synthese.llm_text, _o));\n  if (Array.isArray(result.synthese.chapters)) {\n    result.synthese.chapters = result.synthese.chapters.map(function (c) { return Object.assign({}, c, { title: _c2Typo(_c2Fix(c.title, _o)), body: _c2Typo(_c2Fix(c.body, _o)) }); });\n    result.synthese.llm_text = result.synthese.chapters.map(function (c) { return '## ' + c.title + '\\n\\n' + c.body; }).join('\\n\\n');\n  }\n}\n// __C2_REGISTRE_END__\n\n// __C2_POSSESSION_DETECT_BEGIN__ (couche 2 — DÉTECTION précise inversion de conjonction, LOG ONLY, zéro réécriture)\n// Ne réécrit RIEN (zéro risque de régression). Croise le texte traduit avec les CONJONCTIONS RÉELLES\n// (données brutes Super noeud Syn). Ne flag QUE lorsqu'une phrase en langage de FUSION attribue la\n// conjonction à la mauvaise personne (ex. « ton Mercure fusionne avec l'Uranus de X » alors que la\n// conjonction réelle porte sur « ton Uranus / son Mercure »). Les autres aspects de la même paire\n// (sextile, semi-carré) ne sont PAS des fusions → aucun faux positif sur les paires à double aspect.\nfunction _c2SelfOther() {\n  try {\n    const m = (synDataPassThrough && synDataPassThrough.meta) || {};\n    return { self: (m.personne_a && m.personne_a.prenom) || '', other: (m.personne_b && m.personne_b.prenom) || '' };\n  } catch (e) { return { self: '', other: '' }; }\n}\nfunction _c2RealConjunctions(selfName) {\n  const map = {};\n  let arr = [];\n  try { arr = $('Super noeud Syn').first().json.inter_aspects_all_b_to_a || []; } catch (e) {}\n  if (!arr.length) { try { arr = (synDataPassThrough && synDataPassThrough.inter_aspects_all_b_to_a) || []; } catch (e) {} }\n  for (const a of arr) {\n    if (!/conjon/i.test(a.aspect || '')) continue;\n    const ps = a.planete_source, pc = a.planete_cible;\n    if (!ps || !pc || ps === pc) continue;\n    let selfPlanet = null;\n    if (selfName && String(a.source_personne || '').indexOf(selfName) >= 0) selfPlanet = ps;\n    else if (selfName && String(a.cible_personne || '').indexOf(selfName) >= 0) selfPlanet = pc;\n    if (!selfPlanet) continue;\n    const key = [ps, pc].sort().join('|');\n    (map[key] = map[key] || {})[selfPlanet] = true;\n  }\n  return map;\n}\nfunction _c2PossessionCheck(text, selfName, otherName, conjMap) {\n  if (!text || !conjMap) return [];\n  const PLANETS = ['Soleil', 'Lune', 'Mercure', 'Vénus', 'Venus', 'Mars', 'Jupiter', 'Saturne', 'Uranus', 'Neptune', 'Pluton'];\n  const FUSION = /(se\\s+fond|se\\s+fondre|fusionn|ne\\s+fait\\s+qu['’]un|conjonction|conjoint|fond\\s+sur|se\\s+superpose)/i;\n  const esc = function (s) { return String(s).replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&'); };\n  const planetRe = new RegExp('\\\\b(' + PLANETS.map(esc).join('|') + ')\\\\b', 'gi');\n  const sentences = String(text).split(/[.!?\\n]+/);\n  const out = [];\n  for (const s of sentences) {\n    if (!FUSION.test(s)) continue;\n    const owned = {};\n    let m; planetRe.lastIndex = 0;\n    while ((m = planetRe.exec(s)) !== null) {\n      let planet = m[1].charAt(0).toUpperCase() + m[1].slice(1).toLowerCase();\n      if (planet === 'Venus') planet = 'Vénus';\n      const before = s.slice(Math.max(0, m.index - 12), m.index).toLowerCase();\n      const after = s.slice(m.index + m[1].length, m.index + m[1].length + 26);\n      let owner = null;\n      if (/\\b(ton|ta|tes)\\s*$/.test(before)) owner = 'self';\n      else if (/\\b(son|sa|ses)\\s*$/.test(before)) owner = 'other';\n      else if (selfName && new RegExp('^\\\\s+de\\\\s+' + esc(selfName), 'i').test(after)) owner = 'self';\n      else if (otherName && new RegExp('^\\\\s+de\\\\s+' + esc(otherName), 'i').test(after)) owner = 'other';\n      if (owner && !(planet in owned)) owned[planet] = owner;\n    }\n    const ps = Object.keys(owned);\n    if (ps.length !== 2 || owned[ps[0]] === owned[ps[1]]) continue;\n    const key = ps.slice().sort().join('|');\n    if (!conjMap[key]) continue; // pas de conjonction réelle sur cette paire → hors périmètre\n    const selfPlanet = owned[ps[0]] === 'self' ? ps[0] : ps[1];\n    if (!conjMap[key][selfPlanet]) {\n      const real = Object.keys(conjMap[key]).join('/');\n      out.push(key + ' : fusion attribuée à « ton ' + selfPlanet + ' » alors que la conjonction réelle porte sur « ton ' + real + ' »');\n    }\n  }\n  return out;\n}\ntry {\n  const _so = _c2SelfOther();\n  const _conj = _c2RealConjunctions(_so.self);\n  const _ptext = (result.synthese && result.synthese.llm_text) || '';\n  const _contra = _c2PossessionCheck(_ptext, _so.self, _so.other, _conj);\n  if (_contra.length) {\n    result._meta.possession_warning = true;\n    result._meta.possession_contradictions = _contra;\n    console.log('[C2 POSSESSION] ⚠ inversion(s) de conjonction détectée(s) : ' + _contra.join(' | '));\n  }\n} catch (e) { /* détecteur best-effort, jamais bloquant */ }\n// __C2_POSSESSION_DETECT_END__\n\nreturn [{ json: result }];\n"
+        "jsCode": "// ============================================================================\n// REASSEMBLE TRAD SYN v4.0 — RÉCIT (miroir THEME PREPROD)\n// ----------------------------------------------------------------------------\n// Reconstruit la synthèse re-tissée à partir des chapitres traduits 1-par-1.\n// Nouveau format : synthese.chapters = [{ title, body }] (le générateur final\n// rend chaque chapitre en cartouche numéroté + punchlines \"## \" + \"## En pratique\").\n// Conserve synthese.llm_text (rétro-compat) et synData (le générateur en a besoin).\n// perspective_a/b ne sont plus traduites (code mort dans le rapport final).\n// ============================================================================\n\nconst items = $input.all();\n\nlet originalItems = [];\ntry { originalItems = $('1. Découpage SYN Trad').all(); } catch (e) {}\n\nlet synDataPassThrough = {};\ntry { synDataPassThrough = $('Reassemble SYN').first()?.json?.synData || {}; } catch (e) {\n  try { synDataPassThrough = $('Super noeud Syn').first()?.json || {}; } catch (e2) {}\n}\n\nconst result = {\n  perspective_a: {},\n  perspective_b: {},\n  synthese: null,\n  synData: synDataPassThrough,\n  _meta: { total_items: items.length, total_originals: originalItems.length, errors: [], translated: 0 },\n};\n\nif (items.length !== originalItems.length) {\n  result._meta.warning = `Attendu ${originalItems.length} traductions, reçu ${items.length}`;\n}\n\nconst chapterBucket = [];\n\nitems.forEach((item, idx) => {\n  if (item.json?.error || item.json?.errorMessage) {\n    result._meta.errors.push({ idx, error: item.json?.errorMessage || item.json?.error });\n    return;\n  }\n  let translated = item.json?.output || item.json?.text || '';\n  if (!translated || String(translated).includes('skipped')) return;\n  translated = String(translated).trim();\n\n  const orig = originalItems[idx]?.json || {};\n  const key = orig.key || '';\n  if (!key) { result._meta.errors.push({ idx, error: 'Aucune clé originale' }); return; }\n  result._meta.translated++;\n\n  if (key.startsWith('synthese_chap_') || orig.category === 'synthese_chapter') {\n    // Le Traducteur préfixe le corps par un titre adapté à l'adresse « # Titre »\n    // (un seul dièse). On l'extrait comme titre de chapitre et on le retire du\n    // corps (sinon mdRecit le rendrait en punchline). Fallback : titre source.\n    let body = translated;\n    let title = orig.titre || orig.label || '';\n    const lines = body.split('\\n');\n    let p = 0;\n    while (p < lines.length && !lines[p].trim()) p++;\n    const tm = lines[p] && lines[p].match(/^#\\s+(.+?)\\s*#*\\s*$/);\n    if (tm) {\n      title = tm[1].replace(/\\*/g, '').trim();\n      lines.splice(0, p + 1);\n      body = lines.join('\\n').replace(/^\\s+/, '');\n    }\n    chapterBucket.push({\n      index: (orig.chapter_index != null) ? orig.chapter_index : idx,\n      title,\n      body,\n    });\n  } else if (key === 'synthese') {\n    // rétro-compat (ancien format à 1 bloc)\n    result.synthese = { label: orig.label || 'Synthèse', llm_text: translated };\n  } else if (key.startsWith('perspective_a_')) {\n    const h = key.replace('perspective_a_', '');\n    result.perspective_a[h] = { label: orig.label || '', llm_text: translated, house: orig.house, score: orig.score, is_principale: orig.is_principale };\n  } else if (key.startsWith('perspective_b_')) {\n    const h = key.replace('perspective_b_', '');\n    result.perspective_b[h] = { label: orig.label || '', llm_text: translated, house: orig.house, score: orig.score, is_principale: orig.is_principale };\n  }\n});\n\nif (chapterBucket.length) {\n  chapterBucket.sort((a, b) => a.index - b.index);\n  const chapters = chapterBucket.map(c => ({ title: c.title, body: c.body }));\n  const llm_text = chapters.map(c => `## ${c.title}\\n\\n${c.body}`).join('\\n\\n');\n  result.synthese = { label: 'Synthèse', chapters, llm_text };\n  result._meta.chapters = chapters.length;\n}\n\n\n// __C2_REGISTRE_BEGIN__ (couche 2 — auto-fix registre, coût LLM zéro)\nfunction _c2Other() { try { const m = (synDataPassThrough && synDataPassThrough.meta) || {}; return (m.personne_b && m.personne_b.prenom) || (m.personne_a && m.personne_a.prenom) || ''; } catch (e) { return ''; } }\nfunction _c2Fix(txt, other) {\n  if (!txt) return txt;\n  let t = String(txt);\n  const o = other || 'your partner';\n  t = t.replace(/\\bbetween you two\\b/gi, 'between you and ' + o)\n       .replace(/\\bthe two of you\\b/gi, 'you and ' + o)\n       .replace(/\\bas a couple\\b/gi, 'in your relationship')\n       .replace(/\\byour couple\\b/gi, 'your relationship')\n       .replace(/\\bYou both\\b/g, 'You and ' + o)\n       .replace(/\\byou both\\b/gi, 'you and ' + o)\n       .replace(/\\byou two\\b/gi, 'you and ' + o);\n  const of = other || 'votre partenaire';\n  t = t.replace(/\\bentre vous deux\\b/gi, 'entre vous et ' + of)\n       .replace(/\\bvous deux\\b/gi, 'vous et ' + of)\n       .replace(/\\bvotre couple\\b/gi, 'votre relation')\n       .replace(/\\ben couple\\b/gi, 'dans votre relation')\n       .replace(/\\bà vous deux\\b/gi, 'à vous et ' + of);\n  return t;\n}\n// filet anti-coquilles FR : liste blanche stricte de NON-MOTS (jamais un mot valide),\n// correction unique et certaine. Remplacement mot-entier, casse initiale préservée.\nconst _C2_TYPO = {\n  \"jalouseusement\": \"jalousement\",\n};\nfunction _c2Typo(txt) {\n  if (!txt) return txt;\n  let t = String(txt);\n  for (const bad in _C2_TYPO) {\n    const good = _C2_TYPO[bad];\n    const re = new RegExp(\"\\\\b\" + bad.replace(/[.*+?^${}()|[\\]\\\\]/g, \"\\\\$&\") + \"\\\\b\", \"gi\");\n    t = t.replace(re, function (m) {\n      return (m.charAt(0) === m.charAt(0).toUpperCase()) ? (good.charAt(0).toUpperCase() + good.slice(1)) : good;\n    });\n  }\n  return t;\n}\nif (result.synthese) {\n  const _o = _c2Other();\n  if (result.synthese.llm_text) result.synthese.llm_text = _c2Typo(_c2Fix(result.synthese.llm_text, _o));\n  if (Array.isArray(result.synthese.chapters)) {\n    result.synthese.chapters = result.synthese.chapters.map(function (c) { return Object.assign({}, c, { title: _c2Typo(_c2Fix(c.title, _o)), body: _c2Typo(_c2Fix(c.body, _o)) }); });\n    result.synthese.llm_text = result.synthese.chapters.map(function (c) { return '## ' + c.title + '\\n\\n' + c.body; }).join('\\n\\n');\n  }\n}\n// __C2_REGISTRE_END__\n\n// __C2_POSSESSION_DETECT_BEGIN__ (couche 2 — DÉTECTION inversion de possession BILINGUE FR+EN, LOG ONLY, zéro réécriture)\n// Ne réécrit RIEN (zéro risque de régression). Croise le texte (FR ou EN) avec les CONJONCTIONS\n// RÉELLES (données brutes Super noeud Syn). Ne flag QUE si une phrase en langage de FUSION attribue\n// la conjonction à la mauvaise personne. Log-only : sert de filet QA (remontée exploitation).\nfunction _c2SelfOther() {\n  try {\n    const m = (synDataPassThrough && synDataPassThrough.meta) || {};\n    return { self: (m.personne_a && m.personne_a.prenom) || '', other: (m.personne_b && m.personne_b.prenom) || '' };\n  } catch (e) { return { self: '', other: '' }; }\n}\nfunction _c2RealConjunctions(selfName) {\n  const map = {};\n  let arr = [];\n  try { arr = $('Super noeud Syn').first().json.inter_aspects_all_b_to_a || []; } catch (e) {}\n  if (!arr.length) { try { arr = (synDataPassThrough && synDataPassThrough.inter_aspects_all_b_to_a) || []; } catch (e) {} }\n  for (const a of arr) {\n    if (!/conjon/i.test(a.aspect || '')) continue;\n    const ps = a.planete_source, pc = a.planete_cible;\n    if (!ps || !pc || ps === pc) continue;\n    let selfPlanet = null;\n    if (selfName && String(a.source_personne || '').indexOf(selfName) >= 0) selfPlanet = ps;\n    else if (selfName && String(a.cible_personne || '').indexOf(selfName) >= 0) selfPlanet = pc;\n    if (!selfPlanet) continue;\n    const key = [ps, pc].sort().join('|');\n    (map[key] = map[key] || {})[selfPlanet] = true;\n  }\n  return map;\n}\n// Canonicalise les noms de planètes FR ET EN vers la clé FR (celle des conjonctions réelles).\nconst _C2_PLANET_CANON = {\n  'soleil':'Soleil','sun':'Soleil','lune':'Lune','moon':'Lune','mercure':'Mercure','mercury':'Mercure',\n  'vénus':'Vénus','venus':'Vénus','mars':'Mars','jupiter':'Jupiter','saturne':'Saturne','saturn':'Saturne',\n  'uranus':'Uranus','neptune':'Neptune','pluton':'Pluton','pluto':'Pluton'\n};\nfunction _c2PossessionCheck(text, selfName, otherName, conjMap) {\n  if (!text || !conjMap) return [];\n  const tokens = Object.keys(_C2_PLANET_CANON).sort(function (a, b) { return b.length - a.length; });\n  const FUSION = /(se\\s+fond|se\\s+fondre|fusionn|ne\\s+fait\\s+qu['’]un|conjonction|conjoint|fond\\s+sur|se\\s+superpose|merge|becomes?\\s+one|be\\s+one\\s+with|fus(?:e|es|ed|ing|ion)|blend|conjunct|superimpos)/i;\n  const esc = function (s) { return String(s).replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&'); };\n  const planetRe = new RegExp('\\\\b(' + tokens.map(esc).join('|') + ')\\\\b', 'gi');\n  const sentences = String(text).split(/[.!?\\n]+/);\n  const out = [];\n  for (const s of sentences) {\n    if (!FUSION.test(s)) continue;\n    const owned = {};\n    let m; planetRe.lastIndex = 0;\n    while ((m = planetRe.exec(s)) !== null) {\n      const canon = _C2_PLANET_CANON[m[1].toLowerCase()];\n      if (!canon) continue;\n      const before = s.slice(Math.max(0, m.index - 16), m.index);\n      const beforeLC = before.toLowerCase();\n      const after = s.slice(m.index + m[1].length, m.index + m[1].length + 30);\n      let owner = null;\n      if (/\\b(ton|ta|tes)\\s*$/.test(beforeLC)) owner = 'self';\n      else if (/\\b(son|sa|ses)\\s*$/.test(beforeLC)) owner = 'other';\n      else if (/\\byour\\s*$/.test(beforeLC)) owner = 'self';\n      else if (/\\b(his|her|their)\\s*$/.test(beforeLC)) owner = 'other';\n      else if (selfName && new RegExp(esc(selfName) + \"['’]s\\\\s*$\", 'i').test(before)) owner = 'self';\n      else if (otherName && new RegExp(esc(otherName) + \"['’]s\\\\s*$\", 'i').test(before)) owner = 'other';\n      else if (selfName && new RegExp(\"^\\\\s+(de|of)\\\\s+\" + esc(selfName), 'i').test(after)) owner = 'self';\n      else if (otherName && new RegExp(\"^\\\\s+(de|of)\\\\s+\" + esc(otherName), 'i').test(after)) owner = 'other';\n      if (owner && !(canon in owned)) owned[canon] = owner;\n    }\n    const ps = Object.keys(owned);\n    if (ps.length !== 2 || owned[ps[0]] === owned[ps[1]]) continue;\n    const key = ps.slice().sort().join('|');\n    if (!conjMap[key]) continue;\n    const selfPlanet = owned[ps[0]] === 'self' ? ps[0] : ps[1];\n    if (!conjMap[key][selfPlanet]) {\n      const real = Object.keys(conjMap[key]).join('/');\n      out.push(key + ' : fusion attribuée au « ' + selfPlanet + ' (destinataire) » alors que la conjonction réelle porte sur « ' + real + ' (destinataire) »');\n    }\n  }\n  return out;\n}\ntry {\n  const _so = _c2SelfOther();\n  const _conj = _c2RealConjunctions(_so.self);\n  const _ptext = (result.synthese && result.synthese.llm_text) || '';\n  const _contra = _c2PossessionCheck(_ptext, _so.self, _so.other, _conj);\n  if (_contra.length) {\n    result._meta.possession_warning = true;\n    result._meta.possession_contradictions = _contra;\n    console.log('[C2 POSSESSION] ⚠ inversion(s) de conjonction détectée(s) : ' + _contra.join(' | '));\n  }\n} catch (e) { /* détecteur best-effort, jamais bloquant */ }\n// __C2_POSSESSION_DETECT_END__\n\nreturn [{ json: result }];\n"
       },
       "id": "2de8c12b-6416-4327-9149-8d21129a90d4",
       "name": "3. Reassemble Trad SYN",
@@ -1073,7 +1133,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "http://46.225.174.155:3000/forms/chromium/convert/html",
+        "url": "https://api.spikka.eu/pdf/forms/chromium/convert/html",
         "sendBody": true,
         "contentType": "multipart-form-data",
         "bodyParameters": {
@@ -1091,6 +1151,15 @@
               "responseFormat": "file"
             }
           }
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-API-Key",
+              "value": "__REDACTED__"
+            }
+          ]
         }
       },
       "id": "d68b5173-f6b0-4ef9-98d5-f979105d0c43",
@@ -3229,9 +3298,9 @@
   "meta": null,
   "nodeGroups": [],
   "pinData": {},
-  "versionId": "36f414cc-701a-4a31-a9be-52dc4a4fa08c",
-  "activeVersionId": "36f414cc-701a-4a31-a9be-52dc4a4fa08c",
-  "versionCounter": 183,
+  "versionId": "bb673e94-59de-443b-8a13-2e1cad9f98d6",
+  "activeVersionId": "bb673e94-59de-443b-8a13-2e1cad9f98d6",
+  "versionCounter": 185,
   "triggerCount": 2,
   "sourceWorkflowId": null,
   "shared": [
@@ -3256,9 +3325,9 @@
   ],
   "tags": [],
   "activeVersion": {
-    "updatedAt": "2026-07-08T13:47:08.341Z",
-    "createdAt": "2026-07-08T13:47:08.341Z",
-    "versionId": "36f414cc-701a-4a31-a9be-52dc4a4fa08c",
+    "updatedAt": "2026-07-08T14:32:28.943Z",
+    "createdAt": "2026-07-08T14:32:28.943Z",
+    "versionId": "bb673e94-59de-443b-8a13-2e1cad9f98d6",
     "workflowId": "xfenvGOyoYB6GyZH",
     "nodes": [
       {
@@ -3362,7 +3431,7 @@
       {
         "parameters": {
           "method": "POST",
-          "url": "http://46.225.174.155:3000/forms/chromium/convert/html",
+          "url": "https://api.spikka.eu/pdf/forms/chromium/convert/html",
           "sendBody": true,
           "contentType": "multipart-form-data",
           "bodyParameters": {
@@ -3380,6 +3449,15 @@
                 "responseFormat": "file"
               }
             }
+          },
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "X-API-Key",
+                "value": "__REDACTED__"
+              }
+            ]
           }
         },
         "id": "ef5d733b-36cc-4ba3-b814-a3cd7a41eb97",
@@ -3433,7 +3511,7 @@
       {
         "parameters": {
           "method": "POST",
-          "url": "http://46.225.174.155:3000/forms/chromium/convert/html",
+          "url": "https://api.spikka.eu/pdf/forms/chromium/convert/html",
           "sendBody": true,
           "contentType": "multipart-form-data",
           "bodyParameters": {
@@ -3451,6 +3529,15 @@
                 "responseFormat": "file"
               }
             }
+          },
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "X-API-Key",
+                "value": "__REDACTED__"
+              }
+            ]
           }
         },
         "id": "6bc57e0f-efff-4202-9065-576a59869760",
@@ -3711,13 +3798,17 @@
       {
         "parameters": {
           "method": "POST",
-          "url": "http://46.225.174.155:8000/western/planets",
+          "url": "https://api.spikka.eu/western/planets",
           "sendHeaders": true,
           "headerParameters": {
             "parameters": [
               {
                 "name": "Content-Type",
                 "value": "application/json"
+              },
+              {
+                "name": "X-API-Key",
+                "value": "__REDACTED__"
               }
             ]
           },
@@ -3739,13 +3830,17 @@
       {
         "parameters": {
           "method": "POST",
-          "url": "http://46.225.174.155:8000/western/planets",
+          "url": "https://api.spikka.eu/western/planets",
           "sendHeaders": true,
           "headerParameters": {
             "parameters": [
               {
                 "name": "Content-Type",
                 "value": "application/json"
+              },
+              {
+                "name": "X-API-Key",
+                "value": "__REDACTED__"
               }
             ]
           },
@@ -3797,13 +3892,17 @@
       {
         "parameters": {
           "method": "POST",
-          "url": "http://46.225.174.155:8000/western/houses",
+          "url": "https://api.spikka.eu/western/houses",
           "sendHeaders": true,
           "headerParameters": {
             "parameters": [
               {
                 "name": "Content-Type",
                 "value": "application/json"
+              },
+              {
+                "name": "X-API-Key",
+                "value": "__REDACTED__"
               }
             ]
           },
@@ -3825,13 +3924,17 @@
       {
         "parameters": {
           "method": "POST",
-          "url": "http://46.225.174.155:8000/western/houses",
+          "url": "https://api.spikka.eu/western/houses",
           "sendHeaders": true,
           "headerParameters": {
             "parameters": [
               {
                 "name": "Content-Type",
                 "value": "application/json"
+              },
+              {
+                "name": "X-API-Key",
+                "value": "__REDACTED__"
               }
             ]
           },
@@ -3852,13 +3955,22 @@
       },
       {
         "parameters": {
-          "url": "=http://46.225.174.155:8000/eclipses?date_debut={{ $('Vars A').first().json.date }}&date_fin={{ $('Vars A').first().json.date }}",
+          "url": "=https://api.spikka.eu/eclipses?date_debut={{ $('Vars A').first().json.date }}&date_fin={{ $('Vars A').first().json.date }}",
           "options": {
             "response": {
               "response": {
                 "responseFormat": "json"
               }
             }
+          },
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "X-API-Key",
+                "value": "__REDACTED__"
+              }
+            ]
           }
         },
         "id": "04d49387-69dd-47fa-be46-43724ad659c8",
@@ -3873,13 +3985,22 @@
       },
       {
         "parameters": {
-          "url": "=http://46.225.174.155:8000/eclipses?date_debut={{ $('Vars B').first().json.date }}&date_fin={{ $('Vars B').first().json.date }}",
+          "url": "=https://api.spikka.eu/eclipses?date_debut={{ $('Vars B').first().json.date }}&date_fin={{ $('Vars B').first().json.date }}",
           "options": {
             "response": {
               "response": {
                 "responseFormat": "json"
               }
             }
+          },
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "X-API-Key",
+                "value": "__REDACTED__"
+              }
+            ]
           }
         },
         "id": "22c932b0-d61b-44a3-9275-e065346bbe7f",
@@ -4036,13 +4157,17 @@
       {
         "parameters": {
           "method": "POST",
-          "url": "http://46.225.174.155:8000/western/planets",
+          "url": "https://api.spikka.eu/western/planets",
           "sendHeaders": true,
           "headerParameters": {
             "parameters": [
               {
                 "name": "Content-Type",
                 "value": "application/json"
+              },
+              {
+                "name": "X-API-Key",
+                "value": "__REDACTED__"
               }
             ]
           },
@@ -4079,13 +4204,17 @@
       {
         "parameters": {
           "method": "POST",
-          "url": "http://46.225.174.155:8000/western/houses",
+          "url": "https://api.spikka.eu/western/houses",
           "sendHeaders": true,
           "headerParameters": {
             "parameters": [
               {
                 "name": "Content-Type",
                 "value": "application/json"
+              },
+              {
+                "name": "X-API-Key",
+                "value": "__REDACTED__"
               }
             ]
           },
@@ -4156,7 +4285,7 @@
       },
       {
         "parameters": {
-          "jsCode": "// ============================================================================\n// REASSEMBLE TRAD SYN v4.0 — RÉCIT (miroir THEME PREPROD)\n// ----------------------------------------------------------------------------\n// Reconstruit la synthèse re-tissée à partir des chapitres traduits 1-par-1.\n// Nouveau format : synthese.chapters = [{ title, body }] (le générateur final\n// rend chaque chapitre en cartouche numéroté + punchlines \"## \" + \"## En pratique\").\n// Conserve synthese.llm_text (rétro-compat) et synData (le générateur en a besoin).\n// perspective_a/b ne sont plus traduites (code mort dans le rapport final).\n// ============================================================================\n\nconst items = $input.all();\n\nlet originalItems = [];\ntry { originalItems = $('1. Découpage SYN Trad').all(); } catch (e) {}\n\nlet synDataPassThrough = {};\ntry { synDataPassThrough = $('Reassemble SYN').first()?.json?.synData || {}; } catch (e) {\n  try { synDataPassThrough = $('Super noeud Syn').first()?.json || {}; } catch (e2) {}\n}\n\nconst result = {\n  perspective_a: {},\n  perspective_b: {},\n  synthese: null,\n  synData: synDataPassThrough,\n  _meta: { total_items: items.length, total_originals: originalItems.length, errors: [], translated: 0 },\n};\n\nif (items.length !== originalItems.length) {\n  result._meta.warning = `Attendu ${originalItems.length} traductions, reçu ${items.length}`;\n}\n\nconst chapterBucket = [];\n\nitems.forEach((item, idx) => {\n  if (item.json?.error || item.json?.errorMessage) {\n    result._meta.errors.push({ idx, error: item.json?.errorMessage || item.json?.error });\n    return;\n  }\n  let translated = item.json?.output || item.json?.text || '';\n  if (!translated || String(translated).includes('skipped')) return;\n  translated = String(translated).trim();\n\n  const orig = originalItems[idx]?.json || {};\n  const key = orig.key || '';\n  if (!key) { result._meta.errors.push({ idx, error: 'Aucune clé originale' }); return; }\n  result._meta.translated++;\n\n  if (key.startsWith('synthese_chap_') || orig.category === 'synthese_chapter') {\n    // Le Traducteur préfixe le corps par un titre adapté à l'adresse « # Titre »\n    // (un seul dièse). On l'extrait comme titre de chapitre et on le retire du\n    // corps (sinon mdRecit le rendrait en punchline). Fallback : titre source.\n    let body = translated;\n    let title = orig.titre || orig.label || '';\n    const lines = body.split('\\n');\n    let p = 0;\n    while (p < lines.length && !lines[p].trim()) p++;\n    const tm = lines[p] && lines[p].match(/^#\\s+(.+?)\\s*#*\\s*$/);\n    if (tm) {\n      title = tm[1].replace(/\\*/g, '').trim();\n      lines.splice(0, p + 1);\n      body = lines.join('\\n').replace(/^\\s+/, '');\n    }\n    chapterBucket.push({\n      index: (orig.chapter_index != null) ? orig.chapter_index : idx,\n      title,\n      body,\n    });\n  } else if (key === 'synthese') {\n    // rétro-compat (ancien format à 1 bloc)\n    result.synthese = { label: orig.label || 'Synthèse', llm_text: translated };\n  } else if (key.startsWith('perspective_a_')) {\n    const h = key.replace('perspective_a_', '');\n    result.perspective_a[h] = { label: orig.label || '', llm_text: translated, house: orig.house, score: orig.score, is_principale: orig.is_principale };\n  } else if (key.startsWith('perspective_b_')) {\n    const h = key.replace('perspective_b_', '');\n    result.perspective_b[h] = { label: orig.label || '', llm_text: translated, house: orig.house, score: orig.score, is_principale: orig.is_principale };\n  }\n});\n\nif (chapterBucket.length) {\n  chapterBucket.sort((a, b) => a.index - b.index);\n  const chapters = chapterBucket.map(c => ({ title: c.title, body: c.body }));\n  const llm_text = chapters.map(c => `## ${c.title}\\n\\n${c.body}`).join('\\n\\n');\n  result.synthese = { label: 'Synthèse', chapters, llm_text };\n  result._meta.chapters = chapters.length;\n}\n\n\n// __C2_REGISTRE_BEGIN__ (couche 2 — auto-fix registre, coût LLM zéro)\nfunction _c2Other() { try { const m = (synDataPassThrough && synDataPassThrough.meta) || {}; return (m.personne_b && m.personne_b.prenom) || (m.personne_a && m.personne_a.prenom) || ''; } catch (e) { return ''; } }\nfunction _c2Fix(txt, other) {\n  if (!txt) return txt;\n  let t = String(txt);\n  const o = other || 'your partner';\n  t = t.replace(/\\bbetween you two\\b/gi, 'between you and ' + o)\n       .replace(/\\bthe two of you\\b/gi, 'you and ' + o)\n       .replace(/\\bas a couple\\b/gi, 'in your relationship')\n       .replace(/\\byour couple\\b/gi, 'your relationship')\n       .replace(/\\bYou both\\b/g, 'You and ' + o)\n       .replace(/\\byou both\\b/gi, 'you and ' + o)\n       .replace(/\\byou two\\b/gi, 'you and ' + o);\n  const of = other || 'votre partenaire';\n  t = t.replace(/\\bentre vous deux\\b/gi, 'entre vous et ' + of)\n       .replace(/\\bvous deux\\b/gi, 'vous et ' + of)\n       .replace(/\\bvotre couple\\b/gi, 'votre relation')\n       .replace(/\\ben couple\\b/gi, 'dans votre relation')\n       .replace(/\\bà vous deux\\b/gi, 'à vous et ' + of);\n  return t;\n}\n// filet anti-coquilles FR : liste blanche stricte de NON-MOTS (jamais un mot valide),\n// correction unique et certaine. Remplacement mot-entier, casse initiale préservée.\nconst _C2_TYPO = {\n  \"jalouseusement\": \"jalousement\",\n};\nfunction _c2Typo(txt) {\n  if (!txt) return txt;\n  let t = String(txt);\n  for (const bad in _C2_TYPO) {\n    const good = _C2_TYPO[bad];\n    const re = new RegExp(\"\\\\b\" + bad.replace(/[.*+?^${}()|[\\]\\\\]/g, \"\\\\$&\") + \"\\\\b\", \"gi\");\n    t = t.replace(re, function (m) {\n      return (m.charAt(0) === m.charAt(0).toUpperCase()) ? (good.charAt(0).toUpperCase() + good.slice(1)) : good;\n    });\n  }\n  return t;\n}\nif (result.synthese) {\n  const _o = _c2Other();\n  if (result.synthese.llm_text) result.synthese.llm_text = _c2Typo(_c2Fix(result.synthese.llm_text, _o));\n  if (Array.isArray(result.synthese.chapters)) {\n    result.synthese.chapters = result.synthese.chapters.map(function (c) { return Object.assign({}, c, { title: _c2Typo(_c2Fix(c.title, _o)), body: _c2Typo(_c2Fix(c.body, _o)) }); });\n    result.synthese.llm_text = result.synthese.chapters.map(function (c) { return '## ' + c.title + '\\n\\n' + c.body; }).join('\\n\\n');\n  }\n}\n// __C2_REGISTRE_END__\n\n// __C2_POSSESSION_DETECT_BEGIN__ (couche 2 — DÉTECTION précise inversion de conjonction, LOG ONLY, zéro réécriture)\n// Ne réécrit RIEN (zéro risque de régression). Croise le texte traduit avec les CONJONCTIONS RÉELLES\n// (données brutes Super noeud Syn). Ne flag QUE lorsqu'une phrase en langage de FUSION attribue la\n// conjonction à la mauvaise personne (ex. « ton Mercure fusionne avec l'Uranus de X » alors que la\n// conjonction réelle porte sur « ton Uranus / son Mercure »). Les autres aspects de la même paire\n// (sextile, semi-carré) ne sont PAS des fusions → aucun faux positif sur les paires à double aspect.\nfunction _c2SelfOther() {\n  try {\n    const m = (synDataPassThrough && synDataPassThrough.meta) || {};\n    return { self: (m.personne_a && m.personne_a.prenom) || '', other: (m.personne_b && m.personne_b.prenom) || '' };\n  } catch (e) { return { self: '', other: '' }; }\n}\nfunction _c2RealConjunctions(selfName) {\n  const map = {};\n  let arr = [];\n  try { arr = $('Super noeud Syn').first().json.inter_aspects_all_b_to_a || []; } catch (e) {}\n  if (!arr.length) { try { arr = (synDataPassThrough && synDataPassThrough.inter_aspects_all_b_to_a) || []; } catch (e) {} }\n  for (const a of arr) {\n    if (!/conjon/i.test(a.aspect || '')) continue;\n    const ps = a.planete_source, pc = a.planete_cible;\n    if (!ps || !pc || ps === pc) continue;\n    let selfPlanet = null;\n    if (selfName && String(a.source_personne || '').indexOf(selfName) >= 0) selfPlanet = ps;\n    else if (selfName && String(a.cible_personne || '').indexOf(selfName) >= 0) selfPlanet = pc;\n    if (!selfPlanet) continue;\n    const key = [ps, pc].sort().join('|');\n    (map[key] = map[key] || {})[selfPlanet] = true;\n  }\n  return map;\n}\nfunction _c2PossessionCheck(text, selfName, otherName, conjMap) {\n  if (!text || !conjMap) return [];\n  const PLANETS = ['Soleil', 'Lune', 'Mercure', 'Vénus', 'Venus', 'Mars', 'Jupiter', 'Saturne', 'Uranus', 'Neptune', 'Pluton'];\n  const FUSION = /(se\\s+fond|se\\s+fondre|fusionn|ne\\s+fait\\s+qu['’]un|conjonction|conjoint|fond\\s+sur|se\\s+superpose)/i;\n  const esc = function (s) { return String(s).replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&'); };\n  const planetRe = new RegExp('\\\\b(' + PLANETS.map(esc).join('|') + ')\\\\b', 'gi');\n  const sentences = String(text).split(/[.!?\\n]+/);\n  const out = [];\n  for (const s of sentences) {\n    if (!FUSION.test(s)) continue;\n    const owned = {};\n    let m; planetRe.lastIndex = 0;\n    while ((m = planetRe.exec(s)) !== null) {\n      let planet = m[1].charAt(0).toUpperCase() + m[1].slice(1).toLowerCase();\n      if (planet === 'Venus') planet = 'Vénus';\n      const before = s.slice(Math.max(0, m.index - 12), m.index).toLowerCase();\n      const after = s.slice(m.index + m[1].length, m.index + m[1].length + 26);\n      let owner = null;\n      if (/\\b(ton|ta|tes)\\s*$/.test(before)) owner = 'self';\n      else if (/\\b(son|sa|ses)\\s*$/.test(before)) owner = 'other';\n      else if (selfName && new RegExp('^\\\\s+de\\\\s+' + esc(selfName), 'i').test(after)) owner = 'self';\n      else if (otherName && new RegExp('^\\\\s+de\\\\s+' + esc(otherName), 'i').test(after)) owner = 'other';\n      if (owner && !(planet in owned)) owned[planet] = owner;\n    }\n    const ps = Object.keys(owned);\n    if (ps.length !== 2 || owned[ps[0]] === owned[ps[1]]) continue;\n    const key = ps.slice().sort().join('|');\n    if (!conjMap[key]) continue; // pas de conjonction réelle sur cette paire → hors périmètre\n    const selfPlanet = owned[ps[0]] === 'self' ? ps[0] : ps[1];\n    if (!conjMap[key][selfPlanet]) {\n      const real = Object.keys(conjMap[key]).join('/');\n      out.push(key + ' : fusion attribuée à « ton ' + selfPlanet + ' » alors que la conjonction réelle porte sur « ton ' + real + ' »');\n    }\n  }\n  return out;\n}\ntry {\n  const _so = _c2SelfOther();\n  const _conj = _c2RealConjunctions(_so.self);\n  const _ptext = (result.synthese && result.synthese.llm_text) || '';\n  const _contra = _c2PossessionCheck(_ptext, _so.self, _so.other, _conj);\n  if (_contra.length) {\n    result._meta.possession_warning = true;\n    result._meta.possession_contradictions = _contra;\n    console.log('[C2 POSSESSION] ⚠ inversion(s) de conjonction détectée(s) : ' + _contra.join(' | '));\n  }\n} catch (e) { /* détecteur best-effort, jamais bloquant */ }\n// __C2_POSSESSION_DETECT_END__\n\nreturn [{ json: result }];\n"
+          "jsCode": "// ============================================================================\n// REASSEMBLE TRAD SYN v4.0 — RÉCIT (miroir THEME PREPROD)\n// ----------------------------------------------------------------------------\n// Reconstruit la synthèse re-tissée à partir des chapitres traduits 1-par-1.\n// Nouveau format : synthese.chapters = [{ title, body }] (le générateur final\n// rend chaque chapitre en cartouche numéroté + punchlines \"## \" + \"## En pratique\").\n// Conserve synthese.llm_text (rétro-compat) et synData (le générateur en a besoin).\n// perspective_a/b ne sont plus traduites (code mort dans le rapport final).\n// ============================================================================\n\nconst items = $input.all();\n\nlet originalItems = [];\ntry { originalItems = $('1. Découpage SYN Trad').all(); } catch (e) {}\n\nlet synDataPassThrough = {};\ntry { synDataPassThrough = $('Reassemble SYN').first()?.json?.synData || {}; } catch (e) {\n  try { synDataPassThrough = $('Super noeud Syn').first()?.json || {}; } catch (e2) {}\n}\n\nconst result = {\n  perspective_a: {},\n  perspective_b: {},\n  synthese: null,\n  synData: synDataPassThrough,\n  _meta: { total_items: items.length, total_originals: originalItems.length, errors: [], translated: 0 },\n};\n\nif (items.length !== originalItems.length) {\n  result._meta.warning = `Attendu ${originalItems.length} traductions, reçu ${items.length}`;\n}\n\nconst chapterBucket = [];\n\nitems.forEach((item, idx) => {\n  if (item.json?.error || item.json?.errorMessage) {\n    result._meta.errors.push({ idx, error: item.json?.errorMessage || item.json?.error });\n    return;\n  }\n  let translated = item.json?.output || item.json?.text || '';\n  if (!translated || String(translated).includes('skipped')) return;\n  translated = String(translated).trim();\n\n  const orig = originalItems[idx]?.json || {};\n  const key = orig.key || '';\n  if (!key) { result._meta.errors.push({ idx, error: 'Aucune clé originale' }); return; }\n  result._meta.translated++;\n\n  if (key.startsWith('synthese_chap_') || orig.category === 'synthese_chapter') {\n    // Le Traducteur préfixe le corps par un titre adapté à l'adresse « # Titre »\n    // (un seul dièse). On l'extrait comme titre de chapitre et on le retire du\n    // corps (sinon mdRecit le rendrait en punchline). Fallback : titre source.\n    let body = translated;\n    let title = orig.titre || orig.label || '';\n    const lines = body.split('\\n');\n    let p = 0;\n    while (p < lines.length && !lines[p].trim()) p++;\n    const tm = lines[p] && lines[p].match(/^#\\s+(.+?)\\s*#*\\s*$/);\n    if (tm) {\n      title = tm[1].replace(/\\*/g, '').trim();\n      lines.splice(0, p + 1);\n      body = lines.join('\\n').replace(/^\\s+/, '');\n    }\n    chapterBucket.push({\n      index: (orig.chapter_index != null) ? orig.chapter_index : idx,\n      title,\n      body,\n    });\n  } else if (key === 'synthese') {\n    // rétro-compat (ancien format à 1 bloc)\n    result.synthese = { label: orig.label || 'Synthèse', llm_text: translated };\n  } else if (key.startsWith('perspective_a_')) {\n    const h = key.replace('perspective_a_', '');\n    result.perspective_a[h] = { label: orig.label || '', llm_text: translated, house: orig.house, score: orig.score, is_principale: orig.is_principale };\n  } else if (key.startsWith('perspective_b_')) {\n    const h = key.replace('perspective_b_', '');\n    result.perspective_b[h] = { label: orig.label || '', llm_text: translated, house: orig.house, score: orig.score, is_principale: orig.is_principale };\n  }\n});\n\nif (chapterBucket.length) {\n  chapterBucket.sort((a, b) => a.index - b.index);\n  const chapters = chapterBucket.map(c => ({ title: c.title, body: c.body }));\n  const llm_text = chapters.map(c => `## ${c.title}\\n\\n${c.body}`).join('\\n\\n');\n  result.synthese = { label: 'Synthèse', chapters, llm_text };\n  result._meta.chapters = chapters.length;\n}\n\n\n// __C2_REGISTRE_BEGIN__ (couche 2 — auto-fix registre, coût LLM zéro)\nfunction _c2Other() { try { const m = (synDataPassThrough && synDataPassThrough.meta) || {}; return (m.personne_b && m.personne_b.prenom) || (m.personne_a && m.personne_a.prenom) || ''; } catch (e) { return ''; } }\nfunction _c2Fix(txt, other) {\n  if (!txt) return txt;\n  let t = String(txt);\n  const o = other || 'your partner';\n  t = t.replace(/\\bbetween you two\\b/gi, 'between you and ' + o)\n       .replace(/\\bthe two of you\\b/gi, 'you and ' + o)\n       .replace(/\\bas a couple\\b/gi, 'in your relationship')\n       .replace(/\\byour couple\\b/gi, 'your relationship')\n       .replace(/\\bYou both\\b/g, 'You and ' + o)\n       .replace(/\\byou both\\b/gi, 'you and ' + o)\n       .replace(/\\byou two\\b/gi, 'you and ' + o);\n  const of = other || 'votre partenaire';\n  t = t.replace(/\\bentre vous deux\\b/gi, 'entre vous et ' + of)\n       .replace(/\\bvous deux\\b/gi, 'vous et ' + of)\n       .replace(/\\bvotre couple\\b/gi, 'votre relation')\n       .replace(/\\ben couple\\b/gi, 'dans votre relation')\n       .replace(/\\bà vous deux\\b/gi, 'à vous et ' + of);\n  return t;\n}\n// filet anti-coquilles FR : liste blanche stricte de NON-MOTS (jamais un mot valide),\n// correction unique et certaine. Remplacement mot-entier, casse initiale préservée.\nconst _C2_TYPO = {\n  \"jalouseusement\": \"jalousement\",\n};\nfunction _c2Typo(txt) {\n  if (!txt) return txt;\n  let t = String(txt);\n  for (const bad in _C2_TYPO) {\n    const good = _C2_TYPO[bad];\n    const re = new RegExp(\"\\\\b\" + bad.replace(/[.*+?^${}()|[\\]\\\\]/g, \"\\\\$&\") + \"\\\\b\", \"gi\");\n    t = t.replace(re, function (m) {\n      return (m.charAt(0) === m.charAt(0).toUpperCase()) ? (good.charAt(0).toUpperCase() + good.slice(1)) : good;\n    });\n  }\n  return t;\n}\nif (result.synthese) {\n  const _o = _c2Other();\n  if (result.synthese.llm_text) result.synthese.llm_text = _c2Typo(_c2Fix(result.synthese.llm_text, _o));\n  if (Array.isArray(result.synthese.chapters)) {\n    result.synthese.chapters = result.synthese.chapters.map(function (c) { return Object.assign({}, c, { title: _c2Typo(_c2Fix(c.title, _o)), body: _c2Typo(_c2Fix(c.body, _o)) }); });\n    result.synthese.llm_text = result.synthese.chapters.map(function (c) { return '## ' + c.title + '\\n\\n' + c.body; }).join('\\n\\n');\n  }\n}\n// __C2_REGISTRE_END__\n\n// __C2_POSSESSION_DETECT_BEGIN__ (couche 2 — DÉTECTION inversion de possession BILINGUE FR+EN, LOG ONLY, zéro réécriture)\n// Ne réécrit RIEN (zéro risque de régression). Croise le texte (FR ou EN) avec les CONJONCTIONS\n// RÉELLES (données brutes Super noeud Syn). Ne flag QUE si une phrase en langage de FUSION attribue\n// la conjonction à la mauvaise personne. Log-only : sert de filet QA (remontée exploitation).\nfunction _c2SelfOther() {\n  try {\n    const m = (synDataPassThrough && synDataPassThrough.meta) || {};\n    return { self: (m.personne_a && m.personne_a.prenom) || '', other: (m.personne_b && m.personne_b.prenom) || '' };\n  } catch (e) { return { self: '', other: '' }; }\n}\nfunction _c2RealConjunctions(selfName) {\n  const map = {};\n  let arr = [];\n  try { arr = $('Super noeud Syn').first().json.inter_aspects_all_b_to_a || []; } catch (e) {}\n  if (!arr.length) { try { arr = (synDataPassThrough && synDataPassThrough.inter_aspects_all_b_to_a) || []; } catch (e) {} }\n  for (const a of arr) {\n    if (!/conjon/i.test(a.aspect || '')) continue;\n    const ps = a.planete_source, pc = a.planete_cible;\n    if (!ps || !pc || ps === pc) continue;\n    let selfPlanet = null;\n    if (selfName && String(a.source_personne || '').indexOf(selfName) >= 0) selfPlanet = ps;\n    else if (selfName && String(a.cible_personne || '').indexOf(selfName) >= 0) selfPlanet = pc;\n    if (!selfPlanet) continue;\n    const key = [ps, pc].sort().join('|');\n    (map[key] = map[key] || {})[selfPlanet] = true;\n  }\n  return map;\n}\n// Canonicalise les noms de planètes FR ET EN vers la clé FR (celle des conjonctions réelles).\nconst _C2_PLANET_CANON = {\n  'soleil':'Soleil','sun':'Soleil','lune':'Lune','moon':'Lune','mercure':'Mercure','mercury':'Mercure',\n  'vénus':'Vénus','venus':'Vénus','mars':'Mars','jupiter':'Jupiter','saturne':'Saturne','saturn':'Saturne',\n  'uranus':'Uranus','neptune':'Neptune','pluton':'Pluton','pluto':'Pluton'\n};\nfunction _c2PossessionCheck(text, selfName, otherName, conjMap) {\n  if (!text || !conjMap) return [];\n  const tokens = Object.keys(_C2_PLANET_CANON).sort(function (a, b) { return b.length - a.length; });\n  const FUSION = /(se\\s+fond|se\\s+fondre|fusionn|ne\\s+fait\\s+qu['’]un|conjonction|conjoint|fond\\s+sur|se\\s+superpose|merge|becomes?\\s+one|be\\s+one\\s+with|fus(?:e|es|ed|ing|ion)|blend|conjunct|superimpos)/i;\n  const esc = function (s) { return String(s).replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&'); };\n  const planetRe = new RegExp('\\\\b(' + tokens.map(esc).join('|') + ')\\\\b', 'gi');\n  const sentences = String(text).split(/[.!?\\n]+/);\n  const out = [];\n  for (const s of sentences) {\n    if (!FUSION.test(s)) continue;\n    const owned = {};\n    let m; planetRe.lastIndex = 0;\n    while ((m = planetRe.exec(s)) !== null) {\n      const canon = _C2_PLANET_CANON[m[1].toLowerCase()];\n      if (!canon) continue;\n      const before = s.slice(Math.max(0, m.index - 16), m.index);\n      const beforeLC = before.toLowerCase();\n      const after = s.slice(m.index + m[1].length, m.index + m[1].length + 30);\n      let owner = null;\n      if (/\\b(ton|ta|tes)\\s*$/.test(beforeLC)) owner = 'self';\n      else if (/\\b(son|sa|ses)\\s*$/.test(beforeLC)) owner = 'other';\n      else if (/\\byour\\s*$/.test(beforeLC)) owner = 'self';\n      else if (/\\b(his|her|their)\\s*$/.test(beforeLC)) owner = 'other';\n      else if (selfName && new RegExp(esc(selfName) + \"['’]s\\\\s*$\", 'i').test(before)) owner = 'self';\n      else if (otherName && new RegExp(esc(otherName) + \"['’]s\\\\s*$\", 'i').test(before)) owner = 'other';\n      else if (selfName && new RegExp(\"^\\\\s+(de|of)\\\\s+\" + esc(selfName), 'i').test(after)) owner = 'self';\n      else if (otherName && new RegExp(\"^\\\\s+(de|of)\\\\s+\" + esc(otherName), 'i').test(after)) owner = 'other';\n      if (owner && !(canon in owned)) owned[canon] = owner;\n    }\n    const ps = Object.keys(owned);\n    if (ps.length !== 2 || owned[ps[0]] === owned[ps[1]]) continue;\n    const key = ps.slice().sort().join('|');\n    if (!conjMap[key]) continue;\n    const selfPlanet = owned[ps[0]] === 'self' ? ps[0] : ps[1];\n    if (!conjMap[key][selfPlanet]) {\n      const real = Object.keys(conjMap[key]).join('/');\n      out.push(key + ' : fusion attribuée au « ' + selfPlanet + ' (destinataire) » alors que la conjonction réelle porte sur « ' + real + ' (destinataire) »');\n    }\n  }\n  return out;\n}\ntry {\n  const _so = _c2SelfOther();\n  const _conj = _c2RealConjunctions(_so.self);\n  const _ptext = (result.synthese && result.synthese.llm_text) || '';\n  const _contra = _c2PossessionCheck(_ptext, _so.self, _so.other, _conj);\n  if (_contra.length) {\n    result._meta.possession_warning = true;\n    result._meta.possession_contradictions = _contra;\n    console.log('[C2 POSSESSION] ⚠ inversion(s) de conjonction détectée(s) : ' + _contra.join(' | '));\n  }\n} catch (e) { /* détecteur best-effort, jamais bloquant */ }\n// __C2_POSSESSION_DETECT_END__\n\nreturn [{ json: result }];\n"
         },
         "id": "2de8c12b-6416-4327-9149-8d21129a90d4",
         "name": "3. Reassemble Trad SYN",
@@ -4327,7 +4456,7 @@
       {
         "parameters": {
           "method": "POST",
-          "url": "http://46.225.174.155:3000/forms/chromium/convert/html",
+          "url": "https://api.spikka.eu/pdf/forms/chromium/convert/html",
           "sendBody": true,
           "contentType": "multipart-form-data",
           "bodyParameters": {
@@ -4345,6 +4474,15 @@
                 "responseFormat": "file"
               }
             }
+          },
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "X-API-Key",
+                "value": "__REDACTED__"
+              }
+            ]
           }
         },
         "id": "d68b5173-f6b0-4ef9-98d5-f979105d0c43",
@@ -6475,18 +6613,18 @@
     "autosaved": false,
     "workflowPublishHistory": [
       {
-        "createdAt": "2026-07-08T13:47:09.185Z",
-        "id": 2222,
+        "createdAt": "2026-07-08T14:32:29.848Z",
+        "id": 2238,
         "workflowId": "xfenvGOyoYB6GyZH",
-        "versionId": "36f414cc-701a-4a31-a9be-52dc4a4fa08c",
+        "versionId": "bb673e94-59de-443b-8a13-2e1cad9f98d6",
         "event": "activated",
         "userId": "fb6c984b-473f-495f-aed9-c5264bd1e18e"
       },
       {
-        "createdAt": "2026-07-08T13:47:08.784Z",
-        "id": 2221,
+        "createdAt": "2026-07-08T14:32:29.424Z",
+        "id": 2237,
         "workflowId": "xfenvGOyoYB6GyZH",
-        "versionId": "36f414cc-701a-4a31-a9be-52dc4a4fa08c",
+        "versionId": "bb673e94-59de-443b-8a13-2e1cad9f98d6",
         "event": "deactivated",
         "userId": "fb6c984b-473f-495f-aed9-c5264bd1e18e"
       }
