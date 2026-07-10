@@ -1,5 +1,5 @@
 {
-  "exportedAt": "2026-07-10T15:50:19.663Z",
+  "exportedAt": "2026-07-10T17:46:51.263Z",
   "source": "https://tedwarehouseastro.app.n8n.cloud/api/v1",
   "count": 16,
   "workflows": [
@@ -120,8 +120,8 @@
       "env": "prod",
       "active": true,
       "nodes": 94,
-      "contentSha": "667019cd5696f3670e723f8fb7b693a3df89b60e73501591320715a427334e6a",
-      "fullSha": "05e3e7167291b2ea6ef94362d3be7ce873762a64dd7e2df06de3756bbf0194ae"
+      "contentSha": "300fa563be5de893dc5b1f253d1c9b72a22db996cda872b59bcc83487ddcacd4",
+      "fullSha": "0e567ffae9bd650c317cbc9f3cf4949460d483a9366fd12cf7fc757751d05264"
     },
     {
       "label": "SYN-PREPROD",
