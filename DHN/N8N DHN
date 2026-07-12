@@ -1406,6 +1406,9 @@ const STR = {
     plageIgnored: 'Plage indiquée : <b>{lab}</b> (heure locale) — <span style="color:#c60">aucune fenêtre ASC cohérente avec le questionnaire ; la plage est ignorée pour filtrer le résultat.</span>',
     plageRestricted: 'Plage indiquée : <b>{lab}</b> (heure locale). Scan restreint à cette fenêtre (grille 5 min). Recommandation = meilleur score <em>dans</em> la plage. Pour explorer 24 h, indiquer 00H00–24H00.',
     estimatedBirthTime: 'Heure de naissance estimee',
+    estimatedBirthWindow: 'Fenêtre horaire estimée',
+    windowCenter: 'centrée sur {t} · à lire en fourchette ±{x} min',
+    signIsAnchor: 'L\u2019élément fiable de cette rectification est le <b>signe Ascendant</b> ; l\u2019heure exacte se lit en fourchette, pas à la minute.',
     ascendant: 'Ascendant {sign}',
     eventCountWeight: '{n} date(s) d\u2019événements : pondération questionnaire ×{q} pour privilégier arcs, progressions et RS.',
     notPercents: 'Les totaux ne sont pas des pourcentages ni une probabilité.',
@@ -1465,6 +1468,9 @@ const STR = {
     plageIgnored: 'Specified window: <b>{lab}</b> (local time) \u2014 <span style="color:#c60">no ASC window consistent with the questionnaire; this window is ignored when filtering the result.</span>',
     plageRestricted: 'Specified window: <b>{lab}</b> (local time). Scan restricted to this window (5-min grid). Recommendation = best score <em>within</em> the window. To explore the full day, specify 00H00\u201324H00.',
     estimatedBirthTime: 'Estimated birth time',
+    estimatedBirthWindow: 'Estimated birth-time window',
+    windowCenter: 'centered on {t} · read as a ±{x} min range',
+    signIsAnchor: 'The reliable output of this rectification is the <b>Ascendant sign</b>; the exact time should be read as a range, not to the minute.',
     ascendant: 'Ascendant {sign}',
     eventCountWeight: '{n} life-event date(s): questionnaire weight ×{q} to favour solar arcs, progressions and solar returns.',
     notPercents: 'Totals are neither percentages nor probabilities.',
@@ -1607,15 +1613,29 @@ try{
   confHeureTxt = T('confTime',{time:best.time||'?',label:TConfLabel(confHeureLabel),gap:hGap});
 }catch(eConf){}
 
-let html='<div style="font-family:Arial,sans-serif;max-width:700px;margin:0 auto;padding:20px">';
-html+='<h2 style="color:#5B4A9E">'+T('title')+'</h2>';
-html+='<p>'+T('forPersonBornAt',{prenom:vars?.prenom||'',nom:vars?.nom||'',date:vars?.date||'',lieu:vars?.lieu||''})+'</p>'+plageHtml;
-html+='<div style="background:#eee8ff;padding:20px;border-radius:10px;text-align:center;margin:20px 0">';
-html+='<p style="font-size:14px;margin:0 0 5px;color:#666">'+T('estimatedBirthTime')+'</p>';
-html+='<p style="font-size:36px;font-weight:bold;margin:0;color:#5B4A9E">'+bestTime+'</p>';
-html+='<p style="font-size:18px;margin:5px 0 0">'+T('ascendant',{sign:best.ascSign||'?'})+'</p>';
-html+='<p style="margin:10px 0 0"><span style="display:inline-block;padding:5px 14px;border-radius:999px;font-size:12px;font-weight:700;letter-spacing:0.02em;border:2px solid '+confColor+';color:'+confColor+';background:#fff">'+TConfLabel(confLabelGlobal)+'</span></p>';
-html+='<p style="font-size:12px;margin:8px 0 0;color:#888">'+method+'</p>';
+// [v9.1 UX honnête] L'HEURE est affichée comme une FENÊTRE, pas une fausse minute.
+// Mesuré (harnais phaseB 18 cas AA) : la couche horaire la plus informative plafonne
+// à ~24 min d'erreur médiane (plateau, jamais un pic ±3 min) ; le SIGNE est le seul
+// livrable fiable. La demi-largeur suit la confiance HEURE calculée ci-dessus.
+function _hm2min(s){const m=/^(\d{1,2}):(\d{2})/.exec(String(s||''));return m?(+m[1]*60+ +m[2]):null;}
+function _min2hm(x){x=((Math.round(x)%1440)+1440)%1440;return String(Math.floor(x/60)).padStart(2,'0')+':'+String(x%60).padStart(2,'0');}
+const _bandByConf={'Forte':15,'Moyenne':25,'Faible':40,'Très faible':60,'Inconnue':60};
+const _band=_bandByConf[confHeureLabel]||60;
+const _bt=_hm2min(bestTime);
+const bestWindowTxt=(_bt!=null)?(_min2hm(_bt-_band)+' \u2013 '+_min2hm(_bt+_band)):bestTime;
+
+// Charte Spikka (mails SPIKKA Connect) : police système, marque #2E1560, texte #1a1a2e.
+let html='<div style="font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;max-width:700px;margin:0 auto;padding:24px;color:#1a1a2e">';
+html+='<p style="font-size:13px;letter-spacing:.12em;text-transform:uppercase;color:#2E1560;font-weight:700;margin:0 0 14px">SPIKKA</p>';
+html+='<h2 style="color:#2E1560;font-size:20px;font-weight:700;margin:0 0 10px">'+T('title')+'</h2>';
+html+='<p style="font-size:15px;line-height:1.6;margin:0 0 4px">'+T('forPersonBornAt',{prenom:vars?.prenom||'',nom:vars?.nom||'',date:vars?.date||'',lieu:vars?.lieu||''})+'</p>'+plageHtml;
+html+='<div style="background:#f4f1fb;padding:24px;border-radius:14px;text-align:center;margin:20px 0">';
+html+='<p style="font-size:17px;font-weight:700;margin:0 0 14px;color:#1a1a2e">'+T('ascendant',{sign:best.ascSign||'?'})+'</p>';
+html+='<p style="font-size:13px;margin:0 0 5px;color:#8a8aa0">'+T('estimatedBirthWindow')+'</p>';
+html+='<p style="font-size:32px;font-weight:700;margin:0;color:#2E1560;letter-spacing:-.01em">'+bestWindowTxt+'</p>';
+html+='<p style="font-size:12px;margin:6px 0 0;color:#8a8aa0">'+T('windowCenter',{t:bestTime,x:_band})+'</p>';
+html+='<p style="margin:14px 0 0"><span style="display:inline-block;padding:6px 16px;border-radius:9999px;font-size:12px;font-weight:700;letter-spacing:0.02em;border:1.5px solid '+confColor+';color:'+confColor+';background:#fff">'+TConfLabel(confLabelGlobal)+'</span></p>';
+html+='<p style="font-size:12px;margin:10px 0 0;color:#8a8aa0">'+method+'</p>';
 if(qFactor<1){
   html+='<p style="font-size:11px;margin-top:10px;color:#555">'+T('eventCountWeight',{n:evtCount,q:sfq(qFactor)})+'</p>';
 }
@@ -1630,11 +1650,14 @@ if(byScore.length>=2){
     marginTxt=T('marginGap',{scope:gridFull?T('scopeFullDay'):T('scopeAnalysed'),x:sf(s0-runner.totalScore)});
   }
 }
-html+='<p style="font-size:11px;margin-top:8px;color:#666">'+T('notPercents')+marginTxt+'</p></div>';
+html+='<p style="font-size:11px;margin-top:8px;color:#8a8aa0">'+T('notPercents')+marginTxt+'</p></div>';
+
+// [v9.1 UX honnête] Cadre l'attente : le signe est fiable, l'heure est une fourchette.
+html+='<p style="font-size:12px;line-height:1.6;color:#57534e;margin:14px 0 0">'+T('signIsAnchor')+'</p>';
 
 if(confSigneTxt||confHeureTxt){
-  html+='<div style="margin:16px 0;padding:14px 16px;border-radius:8px;border-left:5px solid '+confColor+';background:#fafafa">';
-  html+='<p style="margin:0 0 8px;font-size:14px;color:#222">'+T('confGlobalLabel')+'<span style="color:'+confColor+';font-weight:bold">'+TConfLabel(confLabelGlobal)+'</span></p>';
+  html+='<div style="margin:16px 0;padding:14px 16px;border-radius:12px;border-left:4px solid #2E1560;background:#faf9fc">';
+  html+='<p style="margin:0 0 8px;font-size:14px;color:#1a1a2e">'+T('confGlobalLabel')+'<span style="color:'+confColor+';font-weight:bold">'+TConfLabel(confLabelGlobal)+'</span></p>';
   if(confSigneTxt)html+='<p style="margin:2px 0;font-size:12px;color:#444">'+confSigneTxt+'</p>';
   if(confHeureTxt)html+='<p style="margin:2px 0;font-size:12px;color:#444">'+confHeureTxt+'</p>';
   if(confHeureLabel==='Très faible'||confHeureLabel==='Faible'){
@@ -1665,7 +1688,7 @@ if(Array.isArray(top3Hypotheses)&&top3Hypotheses.length>=2){
     const hlabel=THypConf(h.confidence||'low');
     const m=(h.marginToNext!=null&&Number(h.marginToNext)>0)?String(h.marginToNext):'\u2014';
     const techLine=(h.arcScore!=null||h.progScore!=null)?('Arcs '+sf(h.arcScore||0)+' \u00b7 Prog '+sf(h.progScore||0)+' \u00b7 '+T('thRS')+' '+sf(h.srScore||0)+' \u00b7 Q '+sf(h.wScore||0)):'';
-    html+='<div style="margin:6px 0;padding:10px 12px;background:#fff;border-radius:6px;border-left:3px solid #5B4A9E">';
+    html+='<div style="margin:6px 0;padding:10px 12px;background:#fff;border-radius:6px;border-left:3px solid #2E1560">';
     html+='<p style="margin:0 0 4px;font-size:13px;color:#222">'+T('phase4HypHead',{rank:h.rank,sign:h.sign||'?',time:h.time||'?',sf:sf(h.scoreFinal),m:m,hlabel:hlabel})+'</p>';
     if(techLine)html+='<p style="margin:0;font-size:11px;color:#555">'+T('phase4HypTech',{line:techLine})+'</p>';
     html+='</div>';
@@ -1675,7 +1698,7 @@ if(Array.isArray(top3Hypotheses)&&top3Hypotheses.length>=2){
 
 if(plageBounds&&bestGlobal&&best&&bestGlobal.time!==best.time){
   const plLab=plageBounds.label||(isEN?'your window':'votre plage');
-  html+='<div style="font-size:13px;color:#333;margin:14px 0;padding:14px;background:#f5f0ff;border-radius:8px;border-left:4px solid #5B4A9E">';
+  html+='<div style="font-size:13px;color:#333;margin:14px 0;padding:14px;background:#f5f0ff;border-radius:8px;border-left:4px solid #2E1560">';
   html+='<p style="margin:0 0 8px">'+T('bestGlobalIntro',{time:bestGlobal.time,sign:bestGlobal.ascSign||'?',x:sf(bestGlobal.totalScore)})+'</p>';
   html+='<p style="margin:0;font-size:12px;color:#555">'+T('bestGlobalNote',{plage:plLab,time:best.time,x:sf(best.totalScore)})+'</p>';
   html+='</div>';
@@ -1732,7 +1755,7 @@ for(const wk of wkChrono){
   const wTxt = qFactor<1 ? T('qGridSignWeight',{q:sfq(qFactor)}) : '';
   html+='<h3>'+T('qGridSignTitle',{sign:wg.sign,w:wTxt,score:sfq(wg.score)})+'</h3>';
   html+='<table style="width:100%;border-collapse:collapse;font-size:12px">';
-  html+='<tr style="background:#5B4A9E;color:white"><th style="padding:4px">'+T('thHeure')+'</th><th style="padding:4px">'+T('thASC')+'</th><th style="padding:4px">'+T('thDeg')+'</th><th style="padding:4px">'+T('thSrc')+'</th><th style="padding:4px">'+T('thArc')+'</th><th style="padding:4px">'+T('thProg')+'</th><th style="padding:4px">'+T('thRS')+'</th><th style="padding:4px">'+T('thTot')+'</th></tr>';
+  html+='<tr style="background:#2E1560;color:white"><th style="padding:4px">'+T('thHeure')+'</th><th style="padding:4px">'+T('thASC')+'</th><th style="padding:4px">'+T('thDeg')+'</th><th style="padding:4px">'+T('thSrc')+'</th><th style="padding:4px">'+T('thArc')+'</th><th style="padding:4px">'+T('thProg')+'</th><th style="padding:4px">'+T('thRS')+'</th><th style="padding:4px">'+T('thTot')+'</th></tr>';
   html+=wg.items.map(d=>{
     const isBest=d.time===bestTime;const bg=isBest?'background:#e8dff5;font-weight:bold':'';
     return '<tr style="border-bottom:1px solid #eee;'+bg+'"><td style="padding:3px;text-align:center">'+d.time+(isBest?' \u2605':'')+'</td><td style="padding:3px;text-align:center">'+d.ascSign+'</td><td style="padding:3px;text-align:center">'+(d.ascDeg!==undefined?d.ascDeg.toFixed(1)+'\u00B0':'?')+'</td><td style="padding:3px;text-align:center;color:#888;font-size:10px">'+d.src+'</td><td style="padding:3px;text-align:center">'+(d.arcScore?sf(d.arcScore):'-')+'</td><td style="padding:3px;text-align:center">'+(d.progScore?sf(d.progScore):'-')+'</td><td style="padding:3px;text-align:center">'+(d.srScore?sf(d.srScore):'-')+'</td><td style="padding:3px;text-align:center;font-weight:bold">'+(d.totalScore?sf(d.totalScore):'-')+'</td></tr>';
