@@ -3,3 +3,7 @@ node_modules/
 # Backups timestampés (locaux, ne pas versionner)
 *.backup-*.json
 *.backup-*
+
+# Backups PRE-deploy du code node prod (contiennent la clé API en clair)
+# → filet de rollback LOCAL uniquement, JAMAIS versionner (règle prod-deploy-github-backup)
+DHN/prod-backups/

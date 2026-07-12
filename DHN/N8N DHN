@@ -1078,7 +1078,24 @@ for(const s of Object.keys(signScoreMeanTopK)){
   const wM=signTechBreakdown[s]?.wMean||0;
   signScoreFinal[s]=Math.round((signScoreMeanTopK[s]+(Q_PRIOR_WEIGHT-1)*wM)*100)/100;
 }
-let signScoreMeanSorted=Object.entries(signScoreFinal).sort((a,b)=>b[1]-a[1]);
+// [v9.0 DÉCOUPLAGE signe/heure] Le SIGNE vient du questionnaire (wMean), l'astro ne sert
+// plus qu'à placer l'HEURE dans le signe (bestByAsc + éclipse Phase B). Justifications :
+//  (1) preuve indépendante que l'astro ne discrimine pas le SIGNE (couverture qui sature,
+//      DP & Phase-0 NO-GO sur signes voisins) ;
+//  (2) de-risk 16 cas : classement questionnaire = top-3 88% (14/16) vs rerank 69-75%
+//      (l'astro éjecte le bon signe hors du top-3 sur cas durs : Chirac Q#2->rang7,
+//      Delon Q#3->rang8) ; top-1 inchangé (~56%) mais Bardot/YSL récupérés en batch1 ;
+//  (3) le sweep Q_PRIOR (v6.4) plafonnait car il gardait scoreMean_topK (bruit ±5-10pts)
+//      DANS le classement -> QP=3 instable (de Gaulle bascule Balance->Lion par 0.46pt).
+//      Ici on RETIRE scoreMean_topK du classement des SIGNES (wMean quasi-déterministe ->
+//      stable) ; l'astro ne tranche plus que les ÉGALITÉS strictes de wMean.
+// Toggle réversible (A/B + rollback immédiat). L'astro reste pleinement actif pour l'HEURE.
+const SIGN_FROM_Q_ONLY=true;
+let signScoreMeanSorted=SIGN_FROM_Q_ONLY
+  ? Object.keys(signScoreMeanTopK)
+      .map(s=>[s,signTechBreakdown[s]?.wMean||0])
+      .sort((a,b)=>(b[1]-a[1])||((signScoreFinal[b[0]]||0)-(signScoreFinal[a[0]]||0)))
+  : Object.entries(signScoreFinal).sort((a,b)=>b[1]-a[1]);
 let bestSignByMean=signScoreMeanSorted[0]?.[0]||null;
 
 // [v8.0 ECLIPSE TIE-BREAK] Phase A (signe) + Phase B (heure)
@@ -1210,8 +1227,9 @@ async function _fetchProgEclipses(slotTime){
   }catch(e){_eclipseFetchDbg='http-err-'+(String(e?.message||e).slice(0,60));return[];}
 }
 
-if(ECLIPSE_TB_ENABLED&&_eventDates.length>0&&signScoreMeanSorted.length>=2){
-  // PHASE A : top-K signes finalistes.
+if(ECLIPSE_TB_ENABLED&&!SIGN_FROM_Q_ONLY&&_eventDates.length>0&&signScoreMeanSorted.length>=2){
+  // PHASE A : top-K signes finalistes. [v9.0] désactivée sous SIGN_FROM_Q_ONLY : elle
+  // reclasse le SIGNE via éclipses progressées, or le signe vient désormais du questionnaire.
   const top1=signScoreMeanSorted[0];const top2=signScoreMeanSorted[1];
   const margin12=top1[1]-top2[1];
   if(margin12<ECLIPSE_PHASEA_MARGIN){
