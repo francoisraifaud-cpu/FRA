@@ -713,3 +713,33 @@ Kane (28/07/1993 Leytonstone) via webhook preprod post-toggle : **Lion #1 robust
 top-3 Lion/Scorpion/Capricorne, confiance signe « Très faible » (questionnaire rempli via infos
 publiques → honnête). Heure 06:40 « Forte » = métrique moteur, mais **indicative** (validation AA :
 l'heure n'est jamais certifiée). Lion à l'ASC ≈ lever du soleil pour un Soleil fin-juillet (cohérent).
+
+### TEST DÉCISIF #9 — Éclipse-FENÊTRE + drapeau confiance : mesure conditionnelle fraîche (2026-07-12)
+
+Choix utilisateur « ship_then_ecl » : après livraison du SIGNE en prod, mesurer AVANT tout code si
+« l'éclipse mondaine corrobore » prédit une HEURE plus fiable (resserrer ~2h→~1h + drapeau).
+Mesuré sur 18 cas AA (`dhn-phaseB-hour.mjs`), 2 réglages :
+
+| Réglage | éclipse s'allume | ECL percentile vraie min (bas=mieux) | ECL \|argmax−vrai\| | UNION (larg/rét) | STRONG (larg/rét) | HIGH corrob≥2 (larg/rét) |
+|---|---|---|---|---|---|---|
+| **large** ±12mo/3° | 18/18 (100 %) | 55 % (≈ hasard) | 31 min | 137min / 83 % | 92min / 56 % | 104min / 72 % (18 cas) |
+| **serré** ±2mo/1,5° | 14/18 (78 %) | **12 %** (vrai signal de rang) | **36 min** (plateau) | 57min / 43 % | 44min / 21 % | 9min / 67 % (3 cas) |
+
+**GATE produit (rétention ≥ 85 % ET largeur médiane ≤ 60 min) : ÉCHOUÉ aux deux réglages.**
+
+**Lecture honnête (nuance capitale) :**
+1. **Large = inutilisable** : l'éclipse s'allume 100 % → non-discriminante (ne peut pas « flagger » un
+   cas plus fiable), et percentile 55 % = hasard.
+2. **Serré = vrai signal MAIS non convertible** : quand une éclipse serrée conjoint l'angle, la vraie
+   minute est dans le **top 12 %** du score éclipse (meilleur signal de rang de toutes les couches !).
+   MAIS (a) c'est un **plateau** (argmax encore à 36 min de la vérité), (b) elle ne s'allume que **78 %**
+   des cas, (c) la bande resserrée retient la vérité **21-43 %** (pile ou face). → **impossible d'en
+   faire une fenêtre resserrée fiable ni un drapeau de confiance** (le gate ≥85 %/≤60min tombe).
+3. Le drapeau « corroboration ≥2 » ne concerne que **3/18** cas et reste à 67 % de rétention → trop rare
+   et trop incertain pour un affichage produit.
+
+**VERDICT t8 : NO-GO éclipse-fenêtre/confiance.** Confirme et affine TEST #3 sur données fraîches.
+L'éclipse serrée est le **meilleur classeur de rang** (top 12 %) mais **plateau** → ne franchit pas le
+mur physique (angle 1°/4min × orbe ⇒ contact étalé ~15-30 min). Le produit HEURE reste une **fenêtre
+~2 h** sans fausse précision ; le livrable du jour est le **SIGNE découplé** (déployé prod). Couche
+HEURE la plus informative mesurée = **transit lent** (percentile 29 %, 24 min) — **déjà dans DHN**.
