@@ -686,10 +686,30 @@ de Gaulle #2, Proust manqué. **Le moteur = le découplé** (le classement suit 
 **+25 pts top-1 confirmés en live, zéro régression.** Bardot & YSL passent bien de #2 à #1 ;
 de Gaulle de #3 à #2. Objectif atteint.
 
-### Statut
+### Statut — LIVRÉ EN PROD (2026-07-12)
 
-- Toggle **déployé et validé en preprod** (node `Resultat final1`, `SIGN_FROM_Q_ONLY=true`).
-- **Prod : NON déployé** (attend GO utilisateur + backup GitHub, règle `prod-deploy-github-backup`).
+- Toggle **déployé et validé en preprod** (top-1 6/8), puis **déployé en PROD** (`uA6jTzmayt2OXByY`,
+  node `Resultat final1`, `SIGN_FROM_Q_ONLY=true`). Vérif post-PUT OK.
+- **Backup GitHub poussé** : `FRA` branche `backup/workflows-prod-2026-07-12`, commit `f378d09`
+  (snapshot `_workflow-backups-prod/2026-07-12/DHN-PROD.json` contient le toggle ✓).
+- **Rollback** : `FRA/DHN/prod-backups/RESULTAT-FINAL1-prod-PRE-*.js` (local, gitignore car clé en clair)
+  ou remettre `SIGN_FROM_Q_ONLY=false`.
 
-Fichiers : `FRA/DHN/N8N DHN` (toggle `SIGN_FROM_Q_ONLY`), `SITE/scripts/_enprat/dhn-deploy-preprod.mjs`,
-`dhn-preprod-lean-ab.mjs` (capture `rankedTop5`), `out/dhn-lean-ab-{mri2c01w,mri31lrk}.json`.
+> ⚠ **Drift miroir découvert au déploiement** : `FRA/DHN/N8N DHN` (miroir) pointait l'endpoint
+> éclipses sur `http://46.225.174.155:8000` **sans clé**, alors que la PROD utilise
+> `https://api.spikka.eu` **avec** clé. Déployer le miroir tel quel aurait cassé l'appel éclipses.
+> → déploiement prod fait en **transform-from-prod** (`dhn-deploy-prod.mjs` : greffe le toggle sur
+> le code prod live, préserve l'endpoint). **La preprod, elle, a reçu le miroir drifté** (endpoint
+> éclipses cassé) — sans impact sur la mesure SIGNE (toggle coupe la Phase A éclipse), mais à
+> **réconcilier** avant toute mesure HEURE en preprod.
+
+Fichiers : `FRA/DHN/N8N DHN` (toggle), `SITE/scripts/_enprat/dhn-deploy-prod.mjs` (transform-from-prod),
+`dhn-deploy-preprod.mjs`, `dhn-preprod-lean-ab.mjs` (capture `rankedTop5`),
+`out/dhn-lean-ab-{mri2c01w,mri31lrk}.json`, `dhn-kane-preprod-run.mjs` + `out/dhn-kane-preprod-mri3krik.json`.
+
+### Application Kane post-toggle (heure inconnue, sans vérité-terrain)
+
+Kane (28/07/1993 Leytonstone) via webhook preprod post-toggle : **Lion #1 robuste** (lean ET full),
+top-3 Lion/Scorpion/Capricorne, confiance signe « Très faible » (questionnaire rempli via infos
+publiques → honnête). Heure 06:40 « Forte » = métrique moteur, mais **indicative** (validation AA :
+l'heure n'est jamais certifiée). Lion à l'ASC ≈ lever du soleil pour un Soleil fin-juillet (cohérent).
