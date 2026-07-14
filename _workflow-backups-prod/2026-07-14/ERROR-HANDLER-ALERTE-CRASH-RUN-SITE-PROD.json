@@ -1,0 +1,67 @@
+{
+  "id": "n4PbtS5wi2gqTPgX",
+  "name": "ERROR HANDLER - alerte crash run (site) - PROD",
+  "description": null,
+  "active": false,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "err-trigger-1",
+      "name": "Error Trigger",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://site-rapports-astro.vercel.app/api/webhooks/n8n-run-failed",
+        "authentication": "genericCredentialType",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ workflowName: $json.workflow ? $json.workflow.name : undefined, executionId: $json.execution ? $json.execution.id : undefined, executionUrl: $json.execution ? $json.execution.url : undefined, errorMessage: ($json.execution && $json.execution.error) ? $json.execution.error.message : undefined, lastNode: $json.execution ? $json.execution.lastNodeExecuted : undefined }) }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "http-post-1",
+      "name": "POST site n8n-run-failed",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        224,
+        0
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "o42Ex2btQQnyFxlJ",
+          "name": "PREV Site Webhook"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Error Trigger": {
+      "main": [
+        [
+          {
+            "node": "POST site n8n-run-failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "staticData": null,
+  "pinData": {},
+  "tags": []
+}
