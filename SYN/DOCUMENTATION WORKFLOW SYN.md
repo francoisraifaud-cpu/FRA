@@ -50,6 +50,26 @@ Les nœuds **`6. Génération HTML3`** et **`Générateur de rapport final1`** c
 
 > **Dette repérée (à corriger un jour)** : l'entête de cette doc et `SITE/scripts/syn-deploy-supernode.mjs` pointent encore l'**ancien** ID PROD `4mjgklWWwjCF8fze` (invalide depuis l'incident n8n 12/05/2026). L'ID PROD courant est `xfenvGOyoYB6GyZH`. De plus, la source `FRA/SYN/N8N SYN` du script de deploy est **en retard** (pré-dashboard) : ne pas lancer `syn:deploy-supernode` sans `SYN_WORKFLOW_ID` correct **et** un miroir à jour, sous peine de régression.
 
+### 2026-07-15 — Recadrage narratif « Intensité » (§04 Décrypter) — Phase 1
+
+**Contexte** : même retour client (couple foyer/routines). Le rapport lisait l'**Intensité** haute (79) comme une *passion amoureuse*, alors que la note mesure la **charge / le magnétisme** du lien (émotion + friction), indépendamment de l'Harmonie (41, basse). 100 % narration (gel scoring v6.8.0, aucun coefficient touché).
+
+**Modif** (FR+EN) : ajout d'une **règle absolue** au prompt système du nœud **`SYN Axes · Fiche & Prompt`** (ancre : juste avant « Ne contredis JAMAIS la note. » / « Never contradict the score. »). Elle interdit d'assimiler « intense » à « passionné / désir / fusion » sans note haute d'Harmonie ou d'Alignement des valeurs ; quand Intensité haute + Harmonie basse → raconter une **électricité / tension** qui secoue le lien, jamais une passion romantique épanouie.
+
+**Cibles** : SYN — PROD `xfenvGOyoYB6GyZH` · SYN — PREPROD `eshtbInOYSd3Cz3Z`. Le nœud `SYN Axes · Fiche & Prompt` est **absent du Connect** → pas de cible Connect. **Outil** : `SITE/scripts/syn-intensity-recadrage.mjs` (inspect/--apply, backup + vérif).
+
+### 2026-07-15 — Recadrage narratif « Attraction / alchimie » (§06) — Phase 2
+
+**Contexte** : suite Phase 1. La section §06 dramatisait l'attirance en *passion sexuelle épanouie* (lexique d'aspects Vénus/Mars = « désir, passion, magnétisme » + ton global), alors que ce couple n'a **aucun marqueur de désir** (pas de contact Vénus-Mars harmonieux, pas d'harmonie Vénus-Vénus) et une Harmonie basse. 100 % narration (gel v6.8.0, **aucun coefficient touché**).
+
+**Modif** : ajout d'une **directive conditionnelle** au `synthPrompt` du **`Super noeud Syn`** (ancre : `const _p4 = globalScoreDetail.pilier4_structural || {};`). Booléen `_chargeSansDesir` = typologie **Amour** ∧ harmonie < 50 ∧ intensité ≥ 55 ∧ aucun désir Vénus-Mars/Vénus-Vénus. Quand vrai → la section attraction décrit un **magnétisme karmique / de friction AMBIVALENT**, jamais « passion absolue / à la vie à la mort / désir fusionnel » ni scène charnelle idyllique. PROD-safe (pas de `process`/`require`), **idempotent** (marqueur `_chargeSansDesir`).
+
+**Cibles** (Super noeud embarqué dans les 3 copies) : SYN — PROD `xfenvGOyoYB6GyZH` · SYN — PREPROD `eshtbInOYSd3Cz3Z` · Spikka Connect SYN — PROD `PL0qVLmYGFWorB2g`. **Outils** : `SITE/scripts/syn-attraction-recadrage.mjs` (lit le bloc validé `node --check` depuis `SITE/scripts/syn-attraction-block.snippet.js`). Backups PRE : `SITE/scripts/syn-supernode-backups/attraction-recadrage-*`. Snapshot GitHub : `FRA/_workflow-backups-prod/2026-07-15/` (branche `backup/workflows-prod-2026-07-15`).
+
+**Validation runtime** : run PREPROD réel **exec 9977** (Gael × Kevin, Amour ; harmonie 41 / intensité 79 / ancrage 87) → `Super noeud Syn` exécuté **sans erreur** avec le bloc, directive **déclenchée** (marqueur présent), dashboard = « Ancrage émotionnel ». _NB : un run PREPROD dure ~16 min (LLM connecté) et finit en `status=error` au mapping aval — comportement batch normal, le Super noeud tourne avant._
+
+> **Limite assumée** : le levier agit sur la **synthèse amont** (§06). Des résidus « passion » peuvent subsister si le LLM de vulgarisation (`N8N SYN Trad LLM`) puise encore dans les textes de maisons (M5/M8). À juger sur un prochain rapport **Essentiel** réel.
+
 ---
 
 ## 1. VUE D'ENSEMBLE
