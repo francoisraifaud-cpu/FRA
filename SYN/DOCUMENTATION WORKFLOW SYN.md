@@ -29,6 +29,29 @@ Détails complets : § 17 (v6.0 → v7.0.0 GA), `SITE/scripts/SYN-V7-CHANTIER.md
 
 ---
 
+## CHANGELOG NARRATION
+
+### 2026-07-15 — Renommage axe dashboard « Sécurité émotionnelle » → « Ancrage émotionnel »
+
+**Contexte** : retour client (couple foyer/routines) — la note forte de l'axe était lue comme une promesse de *compréhension mutuelle / connivence émotionnelle*, alors que le calcul mesure un **ancrage** (réseau Lunes + Maison IV : refuge, racines, « chez-soi »), indépendamment de la fluidité du dialogue émotionnel au quotidien. 100 % narration (gel scoring v6.8.0 respecté, **aucun coefficient touché** — la clé technique reste `securite`).
+
+**Modifs** (FR + EN) : `name` → « Ancrage émotionnel » / « Emotional anchoring » · `icon` 🛡️ → ⚓ · `desc` recadrée (retrait de « se sentir compris » / « feeling understood », ajout de « à distinguer de la fluidité du dialogue émotionnel au quotidien »).
+
+**⚠️ Piège (2 sources de libellé par workflow SYN)** — le libellé d'axe est déclaré à **deux endroits, dans deux formats différents** :
+1. **`Super noeud Syn`** — objet dashboard `{ name: "…", name_en: "…", icon: "…" }` + `desc`/`desc_en` (guillemets doubles). Sert le tableau de bord (site + Connect, rendu data-driven `SITE/lib/syn-dashboard-html.ts`).
+2. **`SYN Axes · Fiche & Prompt`** — catalogue `AXES = [{ key:'securite', fr:'…', en:'…' }]` (guillemets simples). Sert le **prompt LLM du rapport Essentiel** (texte vulgarisé lu par le client). Absent du workflow Connect.
+
+Les nœuds **`6. Génération HTML3`** et **`Générateur de rapport final1`** contiennent aussi « Sécurité émotionnelle » mais **uniquement** comme descripteur de la **Maison 4** (`Cohabitation · Sécurité émotionnelle · Famille`) — **NE PAS TOUCHER** (concept d'axe ≠ domaine de maison).
+
+**Cibles live patchées** (le LIVE est la vérité ; on pull → patch chirurgical → PUT, jamais déployer le miroir local qui est en retard) :
+- SYN — PROD `xfenvGOyoYB6GyZH` · SYN — PREPROD `eshtbInOYSd3Cz3Z` · Spikka Connect SYN — PROD `PL0qVLmYGFWorB2g` (pas de Connect PREPROD).
+
+**Outil** : `SITE/scripts/syn-secu-relabel.mjs` (modes inspect/--apply, backup + vérif post-PUT). Backups PRE : `SITE/scripts/syn-supernode-backups/relabel-secu-*`. Snapshot GitHub : `FRA/_workflow-backups-prod/2026-07-15/` (branche `backup/workflows-prod-2026-07-15`).
+
+> **Dette repérée (à corriger un jour)** : l'entête de cette doc et `SITE/scripts/syn-deploy-supernode.mjs` pointent encore l'**ancien** ID PROD `4mjgklWWwjCF8fze` (invalide depuis l'incident n8n 12/05/2026). L'ID PROD courant est `xfenvGOyoYB6GyZH`. De plus, la source `FRA/SYN/N8N SYN` du script de deploy est **en retard** (pré-dashboard) : ne pas lancer `syn:deploy-supernode` sans `SYN_WORKFLOW_ID` correct **et** un miroir à jour, sous peine de régression.
+
+---
+
 ## 1. VUE D'ENSEMBLE
 
 Le workflow **SYN** produit l'analyse complète de la synastrie entre deux individus. Il reçoit les données natales des deux personnes, calcule les superpositions (overlays), les inter-aspects, le thème composite, le thème Davison, et génère :
