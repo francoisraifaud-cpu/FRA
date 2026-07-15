@@ -70,6 +70,16 @@ Les nœuds **`6. Génération HTML3`** et **`Générateur de rapport final1`** c
 
 > **Limite assumée** : le levier agit sur la **synthèse amont** (§06). Des résidus « passion » peuvent subsister si le LLM de vulgarisation (`N8N SYN Trad LLM`) puise encore dans les textes de maisons (M5/M8). À juger sur un prochain rapport **Essentiel** réel.
 
+**MàJ — A/B empirique (levée du doute)** : comparaison du **même couple** (Gael × Kevin, Amour), même section §06, avant vs après patch — exec **9973** (pré-patch) vs **9977** (post-patch, directive déclenchée). AVANT : « attraction charnelle… **passion absolue et radicale, un lien à la vie, à la mort**, à travers le contact de son corps ». APRÈS : « **n'a rien d'une romance fluide digne des contes de fées** ; magnétisme **foncièrement karmique et exigeant, qui se passe d'une harmonie Vénus/Mars** ; la **passion naît de la friction psychologique** ». → La directive **propage bien jusqu'au chapitre**, la « limite assumée » **ne s'est pas matérialisée** sur ce cas.
+
+### 2026-07-15 — Recadrage description axe « Connexion mentale » (dashboard) — anti-piège « compréhension »
+
+**Contexte** : même famille de problème que « Sécurité émotionnelle ». La description du dashboard de l'axe **Connexion mentale** promettait « dialogue, curiosité, **compréhension mutuelle** », alors que la note mesure la connexion **Mercure / Air** (stimulation intellectuelle), pas le fait de *se comprendre* (registre émotionnel). Choc lexical avec le retour client « les 2 ont du mal à se comprendre ». 100 % narration (gel v6.8.0, **aucun coefficient**, **aucun renommage** — le `name` reste « Connexion mentale »).
+
+**Modif** (FR+EN) : dans l'objet dashboard `mental` du **`Super noeud Syn`** uniquement (le catalogue `AXES` de `SYN Axes` ne porte que le `name`, la prose §04 est déjà nuancée) : « compréhension mutuelle » → « **stimulation intellectuelle** » + clause « **à distinguer du fait de se sentir compris émotionnellement** » (parallèle à l'Ancrage). Patch chirurgical **dash-agnostique** (regex `[—–-]`), idempotent (marqueur `stimulation intellectuelle`). ⚠️ Ne pas confondre avec 2 homonymes **à NE PAS toucher** : bande Parent/Enfant « compréhension instinctive mutuelle » et directive de ton « deep mutual understanding. ».
+
+**Cibles** : SYN — PROD `xfenvGOyoYB6GyZH` · SYN — PREPROD `eshtbInOYSd3Cz3Z` · Spikka Connect SYN — PROD `PL0qVLmYGFWorB2g`. **Outil** : `SITE/scripts/syn-mental-recadrage.mjs`. Backups PRE : `SITE/scripts/syn-supernode-backups/mental-recadrage-*`. Snapshot GitHub : `FRA/_workflow-backups-prod/2026-07-15/`.
+
 ---
 
 ## 1. VUE D'ENSEMBLE
