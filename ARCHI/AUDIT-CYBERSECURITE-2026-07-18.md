@@ -14,7 +14,7 @@
 |---|---|---|---|---|
 | **F1** | Port 80 expose l'API astro **en clair, sans clé, à tout Internet** | astro-server | 🔴 **ÉLEVÉ** | ✅ **corrigé 2026-07-18** |
 | **F2** | Reboot noyau en attente (patchs sécurité inactifs) | astro-server | 🟠 MOYEN | ✅ **corrigé 2026-07-18** |
-| **F3** | Pas de snapshot/backup serveur hors-machine confirmé | astro-server | 🟠 MOYEN | à activer (console Hetzner) |
+| **F3** | Pas de snapshot/backup serveur hors-machine confirmé | astro-server | 🟠 MOYEN | ✅ **corrigé 2026-07-18** |
 | **F4** | Pas de monitoring/alerte de disponibilité externe | transverse | 🟠 MOYEN | à activer (compte requis) |
 | **F5** | Dérive « source de vérité » `main.py` dépôt ↔ live (718 vs 1473 l.) | API SE | 🟡 FAIBLE | ✅ **corrigé 2026-07-18** |
 | **F6** | Règles UFW 8000/3000 redondantes (rien n'écoute en public) | astro-server | ⚪ INFO | ✅ **nettoyé 2026-07-18** |
@@ -88,11 +88,16 @@ Renouvellement TLS revérifié : `certbot renew --dry-run` → *« all simulated
 
 ### 🟠 F3 — Pas de sauvegarde serveur hors-machine confirmée
 
-Le journal (`API SE/JOURNAL-OPERATIONS.md`) liste « sauvegardes snapshot Hetzner » en *reste à faire*. Aucun snapshot automatisé confirmé. En cas de compromission/chiffrement de la VM, la reconstruction repose sur le dépôt.
+Le journal (`API SE/JOURNAL-OPERATIONS.md`) listait « sauvegardes snapshot Hetzner » en *reste à faire*. En cas de compromission/chiffrement de la VM, la reconstruction reposait uniquement sur le dépôt.
 
-**Atténué ce jour** : `main.py`, `docker-compose.yml`, `fontconfig/local.conf`, **fichiers d'éphémérides** (`ephe-backup/`) et **configs nginx/systemd** sont désormais versionnés dans `FRA/API SE/` (voir F5). La reconstruction complète est décrite dans [`RUNBOOK-DR.md`](./RUNBOOK-DR.md).
+**✅ CORRIGÉ 2026-07-18** (via API Hetzner Cloud, `astro-server` id `123032910`) :
+- **Backups automatiques activés** — fenêtre **02-06 UTC**, rétention Hetzner **7 backups quotidiens** (`enable_backup` = success ; `backup_window` = `02-06`).
+- **Snapshot manuel « known-good » de référence créé** — image id `409950172`, `astro-server DR baseline 2026-07-18`, 4,68 GB, status `available`.
+- RTO fortement réduit : restauration directe d'image Hetzner (~minutes) plutôt que reconstruction from-scratch.
 
-**Remédiation recommandée** : activer les **snapshots automatiques Hetzner** (quotidiens, rétention 7 j) — RTO fortement réduit vs reconstruction from-scratch.
+**Atténuation complémentaire (déjà en place)** : `main.py`, `docker-compose.yml`, `fontconfig/local.conf`, **fichiers d'éphémérides** (`ephe-backup/`) et **configs nginx/systemd** sont versionnés dans `FRA/API SE/` (voir F5). Reconstruction complète décrite dans [`RUNBOOK-DR.md`](./RUNBOOK-DR.md).
+
+> ⚠️ Le token Hetzner utilisé pour cette activation a été transmis en clair dans le chat → **à révoquer/régénérer** dans la console Hetzner (Security → API Tokens). Aucun token n'est versionné dans le dépôt.
 
 ---
 
@@ -156,15 +161,13 @@ ssh root@46.225.174.155 "sha256sum /opt/astro/api/main.py /opt/astro/docker-comp
 | ~~F2~~ | ~~Reboot noyau (6.8.0-136)~~ | — | ✅ fait 2026-07-18 |
 | ~~F5~~ | ~~Réalignement dépôt ↔ live~~ | — | ✅ fait 2026-07-18 |
 | ~~F6~~ | ~~Nettoyer règles UFW redondantes~~ | — | ✅ fait 2026-07-18 |
-| **1** | **F3** — Activer snapshots/backups Hetzner quotidiens | 15 min | ⏳ **console Hetzner requise** |
-| **2** | **F4** — Sonde uptime `/health` + alerte | 30 min | ⏳ **compte monitoring requis** |
+| ~~F3~~ | ~~Activer backups Hetzner quotidiens + snapshot baseline~~ | — | ✅ fait 2026-07-18 |
+| **1** | **F4** — Sonde uptime `/health` + alerte | 30 min | ⏳ **compte monitoring requis** |
 | 3 | F7 — Allowlist SSH (option) | 5 min | non fait (risque lockout ; fail2ban suffit) |
 
-### F3 — Snapshots Hetzner (action côté console)
+### F3 — Snapshots Hetzner ✅ fait
 
-Aucun token `HCLOUD_TOKEN`/Hetzner présent côté dépôt → non automatisable ici. Deux voies :
-- **Hetzner Cloud console** → serveur `astro-server` → onglet **Backups** → *Enable* (backups quotidiens automatiques, rétention 7 j, ~20 % surcoût). OU **Snapshots** manuels ponctuels.
-- **Ou** fournir un `HCLOUD_TOKEN` (lecture/écriture serveurs) → activation par API possible.
+Activé 2026-07-18 par API Hetzner Cloud : backups automatiques (fenêtre `02-06` UTC, 7 quotidiens) + snapshot manuel de référence (`409950172`). Voir détail dans la section F3 ci-dessus.
 
 > Atténué : tous les livrables de reconstruction sont déjà versionnés (`FRA/API SE/` : code, éphémérides, configs). Le snapshot ne fait que réduire encore le RTO.
 

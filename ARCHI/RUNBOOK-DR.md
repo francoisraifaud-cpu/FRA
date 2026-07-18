@@ -11,7 +11,7 @@
 
 | Brique | Criticité | RTO cible | Reconstruction depuis |
 |---|---|---|---|
-| **astro-server** (moteur) | Vitale (propriétaire, VM unique) | **< 2 h** | `FRA/API SE/` (+ snapshot Hetzner si activé) |
+| **astro-server** (moteur) | Vitale (propriétaire, VM unique) | **~minutes** (image Hetzner) / < 2 h (from-scratch) | Backups Hetzner (id serveur `123032910`) + `FRA/API SE/` |
 | Base Neon (prod) | Vitale (données clients/commandes) | < 1 h | PITR/snapshot Neon |
 | Site (Vercel) | Haute | < 15 min | redeploy depuis Git `main` |
 | n8n workflows | Haute | < 1 h | `FRA/_workflow-backups-prod/` + `FRA/{ZONE}/` |
@@ -38,7 +38,13 @@ Ordre recommandé en sinistre total : **secrets (confinement) → astro-server �
 
 ## 2. Reconstruction `astro-server` (moteur astro) — cœur du DR
 
-**Chemin rapide (si snapshot Hetzner dispo)** : restaurer le snapshot, vérifier §5 smoke, re-pointer DNS si l'IP change. Sinon, from-scratch :
+**Chemin rapide — RESTAURATION IMAGE HETZNER (voie par défaut depuis 2026-07-18)** :
+- **Backups auto actifs** (fenêtre `02-06` UTC, 7 quotidiens) + **snapshot baseline** `astro-server DR baseline 2026-07-18` (image id `409950172`).
+- Console Hetzner Cloud → serveur `astro-server` (id `123032910`) → onglet **Backups**/**Snapshots** → *Rebuild from image* (ou créer un nouveau serveur depuis l'image), puis **§5 smoke** et re-pointer le DNS `api.spikka.eu` si l'IP change.
+- Par API : `POST /servers/{id}/actions/rebuild` avec `{ "image": <id> }` (nécessite un `HCLOUD_TOKEN` valide — non versionné).
+- RTO attendu : **~minutes** (vs from-scratch ci-dessous).
+
+**Chemin from-scratch (si aucune image restaurable)** :
 
 1. **VM** Ubuntu 24.04 LTS, **2 vCPU**, **≥ 4 Go RAM** (le live tourne sur ~23 Go, mais 4 Go suffisent pour redémarrer), disque **≥ 40 Go**, root.
 2. **Paquets** : `apt update && apt install -y python3 python3-venv python3-pip git curl ufw fail2ban nginx certbot python3-certbot-nginx` + Docker Engine + plugin Compose.
@@ -136,4 +142,4 @@ Ordre recommandé en sinistre total : **secrets (confinement) → astro-server �
 | Script durcissement | `FRA/API SE/infra/apply-prod-hardening.sh` |
 | Backups workflows n8n | `FRA/_workflow-backups-prod/<date>/` |
 
-> **Lacune résiduelle** : snapshot serveur automatisé (Hetzner) non confirmé actif — cf. audit F3. À activer pour ramener le RTO astro-server sous 15 min.
+> **F3 réglé (2026-07-18)** : backups Hetzner automatiques actifs (`02-06` UTC, 7 quotidiens) + snapshot baseline `409950172`. RTO astro-server ramené à ~minutes via restauration d'image (cf. §2, chemin rapide).
