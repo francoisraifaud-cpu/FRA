@@ -13,11 +13,11 @@
 | # | Finding | Brique | Sévérité | État |
 |---|---|---|---|---|
 | **F1** | Port 80 expose l'API astro **en clair, sans clé, à tout Internet** | astro-server | 🔴 **ÉLEVÉ** | ✅ **corrigé 2026-07-18** |
-| **F2** | Reboot noyau en attente (patchs sécurité inactifs) | astro-server | 🟠 MOYEN | à planifier |
-| **F3** | Pas de snapshot/backup serveur hors-machine confirmé | astro-server | 🟠 MOYEN | à activer |
-| **F4** | Pas de monitoring/alerte de disponibilité externe | transverse | 🟠 MOYEN | à activer |
-| **F5** | Dérive « source de vérité » `main.py` dépôt ↔ live (718 vs 1473 l.) | API SE | 🟡 FAIBLE | **corrigé ce jour** |
-| **F6** | Règles UFW 8000/3000 redondantes (rien n'écoute en public) | astro-server | ⚪ INFO | nettoyage optionnel |
+| **F2** | Reboot noyau en attente (patchs sécurité inactifs) | astro-server | 🟠 MOYEN | ✅ **corrigé 2026-07-18** |
+| **F3** | Pas de snapshot/backup serveur hors-machine confirmé | astro-server | 🟠 MOYEN | à activer (console Hetzner) |
+| **F4** | Pas de monitoring/alerte de disponibilité externe | transverse | 🟠 MOYEN | à activer (compte requis) |
+| **F5** | Dérive « source de vérité » `main.py` dépôt ↔ live (718 vs 1473 l.) | API SE | 🟡 FAIBLE | ✅ **corrigé 2026-07-18** |
+| **F6** | Règles UFW 8000/3000 redondantes (rien n'écoute en public) | astro-server | ⚪ INFO | ✅ **nettoyé 2026-07-18** |
 | **F7** | SSH (22) ouvert à tout Internet | astro-server | 🟡 FAIBLE | atténué (fail2ban + clé) |
 
 **Posture globale : correcte et en durcissement.** Les fondations sont saines (TLS + clé API sur le canal canonique, secrets hors Git, signatures webhook, fail2ban, mises à jour auto, binding loopback). Le seul risque **élevé** est le contournement par le port 80, simple à corriger.
@@ -82,6 +82,8 @@ Renouvellement TLS revérifié : `certbot renew --dry-run` → *« all simulated
 
 **Remédiation** : planifier une fenêtre + `shutdown -r now`. Après reboot, vérifier `uname -r` = `6.8.0-136` et relancer le smoke (`/health`, un `POST /western/planets` via `:443`).
 
+**✅ CORRIGÉ 2026-07-18** : reboot effectué (fenêtre : site derrière portail). Après redémarrage — `uname -r` = **`6.8.0-136-generic`**, `/var/run/reboot-required` **absent**, services `astro-api`/`nginx`/`docker`/`fail2ban` **actifs**, `:8000`/`:3000` loopback, gotenberg up, `https://api.spikka.eu/health` = 200, durcissement F1 (301 port 80) **persisté**.
+
 ---
 
 ### 🟠 F3 — Pas de sauvegarde serveur hors-machine confirmée
@@ -120,6 +122,8 @@ ssh root@46.225.174.155 "sha256sum /opt/astro/api/main.py /opt/astro/docker-comp
 
 `8000/tcp` et `3000/tcp` sont encore autorisés pour n8n Cloud + IP dev, alors que **rien n'écoute plus en public** (binding loopback confirmé par `ss -tlnp`). Sans danger, mais nettoyable pour la clarté (`ufw delete` des 4 règles).
 
+**✅ NETTOYÉ 2026-07-18** : les 4 règles `8000/3000` (n8n + dev) supprimées. Restent uniquement `22`, `80`, `443` (public) + `443` restreint n8n/dev.
+
 ---
 
 ### 🟡 F7 — SSH ouvert à tout Internet
@@ -146,13 +150,26 @@ ssh root@46.225.174.155 "sha256sum /opt/astro/api/main.py /opt/astro/docker-comp
 
 ## 4. Plan d'action priorisé
 
-| Priorité | Action | Effort | Gain |
+| Priorité | Action | Effort | État |
 |---|---|---|---|
-| ~~**1**~~ | ~~F1 — Durcir le port 80 (301 → HTTPS)~~ | — | ✅ **fait 2026-07-18** |
-| **1** | F3 — Activer snapshots Hetzner quotidiens | 15 min | RTO fortement réduit |
-| **2** | F2 — Planifier reboot noyau | fenêtre courte | patchs sécurité actifs |
-| **3** | F4 — Sonde uptime `/health` + alerte | 30 min | détection panne moteur |
-| 4 | F7 — Allowlist SSH (option) | 5 min | réduit surface SSH |
-| 5 | F6 — Nettoyer règles UFW redondantes | 5 min | hygiène |
+| ~~F1~~ | ~~Durcir le port 80 (301 → HTTPS)~~ | — | ✅ fait 2026-07-18 |
+| ~~F2~~ | ~~Reboot noyau (6.8.0-136)~~ | — | ✅ fait 2026-07-18 |
+| ~~F5~~ | ~~Réalignement dépôt ↔ live~~ | — | ✅ fait 2026-07-18 |
+| ~~F6~~ | ~~Nettoyer règles UFW redondantes~~ | — | ✅ fait 2026-07-18 |
+| **1** | **F3** — Activer snapshots/backups Hetzner quotidiens | 15 min | ⏳ **console Hetzner requise** |
+| **2** | **F4** — Sonde uptime `/health` + alerte | 30 min | ⏳ **compte monitoring requis** |
+| 3 | F7 — Allowlist SSH (option) | 5 min | non fait (risque lockout ; fail2ban suffit) |
 
-> **F1 appliqué et vérifié le 2026-07-18.** Restent des améliorations de résilience (F2–F4, F6–F7).
+### F3 — Snapshots Hetzner (action côté console)
+
+Aucun token `HCLOUD_TOKEN`/Hetzner présent côté dépôt → non automatisable ici. Deux voies :
+- **Hetzner Cloud console** → serveur `astro-server` → onglet **Backups** → *Enable* (backups quotidiens automatiques, rétention 7 j, ~20 % surcoût). OU **Snapshots** manuels ponctuels.
+- **Ou** fournir un `HCLOUD_TOKEN` (lecture/écriture serveurs) → activation par API possible.
+
+> Atténué : tous les livrables de reconstruction sont déjà versionnés (`FRA/API SE/` : code, éphémérides, configs). Le snapshot ne fait que réduire encore le RTO.
+
+### F4 — Monitoring disponibilité (compte requis)
+
+Options concrètes :
+- **UptimeRobot / Better Uptime (gratuit)** : 2 monitors HTTP(s) — `https://api.spikka.eu/health` et `https://spikka.ai/api/health` — alerte mail. 5 min de setup, compte requis.
+- **Ou** étendre le cron Vercel existant (`/api/cron/monitor-orders`) pour pinger `api.spikka.eu/health` et alerter via Sentry (`captureMessage`) si non-200 — livraison SITE (branche `preprod` → `main`).

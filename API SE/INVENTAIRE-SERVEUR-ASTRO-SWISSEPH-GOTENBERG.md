@@ -5,7 +5,7 @@ Document généré pour permettre une **reconstruction à zéro** du serveur cri
 
 > **⚠ MISE À JOUR 2026-07-18 (état des lieux live + résilience)** — voir aussi [`../ARCHI/`](../ARCHI/) (architecture, audit cyber, runbook DR) :
 > - **VM upgradée** : **~23 Go RAM** (et non ~3,7 Go), disque 38 Go (58 % utilisé), uptime 10 j. Services `astro-api`/`nginx`/`docker`/`fail2ban` **actifs**.
-> - **Noyau** : actif `6.8.0-134`, installé `6.8.0-136` → **reboot en attente** (patchs sécurité inactifs jusqu'au redémarrage). `unattended-upgrades` actif.
+> - **Noyau** : **`6.8.0-136`** actif (reboot effectué 2026-07-18 ; plus de reboot en attente). `unattended-upgrades` actif.
 > - **3 endpoints supplémentaires en live** absents du dépôt jusqu'ici : **`POST /directions/primary`**, **`POST /solar-return`**, **`POST /lunar-return`** (§8.10–8.12).
 > - **`docker-compose.yml`** monte désormais un volume **`fontconfig/local.conf`** (polices glyphes astro) — versionné dans `FRA/API SE/fontconfig/`.
 > - **Éphémérides** : présence des variantes `_12` **et** `_18` (`seas`/`semo`/`sepl`). **Sauvegardées dans le dépôt** : `FRA/API SE/ephe-backup/*.se1`.
@@ -44,7 +44,7 @@ Document généré pour permettre une **reconstruction à zéro** du serveur cri
 | Champ | Valeur |
 |--------|--------|
 | Hostname | `astro-server` |
-| OS | **Ubuntu 24.04.4 LTS** (Noble), noyau actif **6.8.0-134-generic** (installé **6.8.0-136**, reboot en attente au 2026-07-18) |
+| OS | **Ubuntu 24.04.4 LTS** (Noble), noyau **6.8.0-136-generic** (reboot effectué 2026-07-18 ; plus de reboot en attente) |
 | Architecture | x86_64 |
 | **RAM** | **~23 Go** (23461 Mo ; ~20,5 Go libres au 2026-07-18) + **swap 2 Go** |
 | Disque racine | `/dev/sda1` — **38 Go** total, **~21 Go** utilisés (58 %) au 2026-07-18 |
