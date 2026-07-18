@@ -107,7 +107,8 @@ Aucune supervision de `api.spikka.eu/health` ni de la base : une panne moteur pa
 
 **✅ CORRIGÉ 2026-07-18** — choix d'urbanisation : **sonde intégrée qui remonte dans Sentry** (pas d'outil externe supplémentaire).
 - Nouveau cron Vercel **`/api/cron/health-probe`** (toutes les **5 min**, `vercel.json`).
-- Cibles : `api-se` = `https://api.spikka.eu/health` (moteur, SPOF externe) et `site-public` = `${site}/api/health?deep=1` (site + ping PostgreSQL).
+- Cibles : `api-se` = **`http://api.spikka.eu/health`** (moteur, SPOF externe) et `site-public` = `${site}/api/health?deep=1` (site + ping PostgreSQL).
+- ⚠ **Cible `api-se` en HTTP port 80 volontaire** : le **443 est pare-feu-restreint** aux IP **n8n Cloud (`51.116.119.68`) + dev (`83.202.99.64`)** — l'egress Vercel ne peut donc **pas** joindre `https://api.spikka.eu`. Seul le `/health` **clair-text du port 80** est public (payload non sensible `{"status":"ok"}`, conservé lors du fix F1). Un premier essai en `https` a généré un **faux positif Sentry** (timeout) le 2026-07-18 18:00 → corrigé (commit `fix(monitoring)`).
 - Échec (HTTP≠200 / corps non sain / timeout 8 s / réseau) → `captureHealthProbeAlert` → **alerte Sentry** `level:error`, `tags: area=uptime, probe_target=<cible>`, `fingerprint` par cible (pas de bruit).
 - Le portail `SITE_GATE_PASSWORD` exempte `/api/health` et `/api/cron` (middleware) → **aucun faux positif** sur la prod fermée.
 - Déployé preprod + prod (`spikka-prod`). Fichiers : `SITE/app/api/cron/health-probe/route.ts`, `SITE/lib/sentry-uptime-alerts.ts`.
