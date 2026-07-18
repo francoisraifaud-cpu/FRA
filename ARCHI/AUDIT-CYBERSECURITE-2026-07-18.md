@@ -12,7 +12,7 @@
 
 | # | Finding | Brique | Sévérité | État |
 |---|---|---|---|---|
-| **F1** | Port 80 expose l'API astro **en clair, sans clé, à tout Internet** | astro-server | 🔴 **ÉLEVÉ** | à corriger |
+| **F1** | Port 80 expose l'API astro **en clair, sans clé, à tout Internet** | astro-server | 🔴 **ÉLEVÉ** | ✅ **corrigé 2026-07-18** |
 | **F2** | Reboot noyau en attente (patchs sécurité inactifs) | astro-server | 🟠 MOYEN | à planifier |
 | **F3** | Pas de snapshot/backup serveur hors-machine confirmé | astro-server | 🟠 MOYEN | à activer |
 | **F4** | Pas de monitoring/alerte de disponibilité externe | transverse | 🟠 MOYEN | à activer |
@@ -62,6 +62,17 @@ Déploiement (à valider avant application) :
 scp "FRA/API SE/infra/nginx-astro-api-80.hardened.conf" root@46.225.174.155:/etc/nginx/sites-available/astro-api-proxy
 ssh root@46.225.174.155 "nginx -t && systemctl reload nginx && certbot renew --dry-run"
 ```
+
+**✅ CORRIGÉ 2026-07-18** (backup serveur `astro-api-proxy.bak.*`, `nginx -t` OK, reload OK). Vérification live :
+
+| Requête | Avant | Après |
+|---|---|---|
+| `http://46.225.174.155/openapi.json` | 200 ❌ | **301 → `https://api.spikka.eu/openapi.json`** ✅ |
+| `http://46.225.174.155/transits?...` | 200 ❌ | **301 → HTTPS** ✅ |
+| `http://46.225.174.155/health` | 200 | 200 (conservé, smoke) |
+| `https://api.spikka.eu/openapi.json` | 401 | 401 (inchangé) |
+
+Renouvellement TLS revérifié : `certbot renew --dry-run` → *« all simulated renewals succeeded »*.
 
 ---
 
@@ -137,11 +148,11 @@ ssh root@46.225.174.155 "sha256sum /opt/astro/api/main.py /opt/astro/docker-comp
 
 | Priorité | Action | Effort | Gain |
 |---|---|---|---|
-| **1** | F1 — Durcir le port 80 (301 → HTTPS) | 5 min | supprime l'exposition clair/sans-clé |
-| **2** | F3 — Activer snapshots Hetzner quotidiens | 15 min | RTO fortement réduit |
-| **3** | F2 — Planifier reboot noyau | fenêtre courte | patchs sécurité actifs |
-| **4** | F4 — Sonde uptime `/health` + alerte | 30 min | détection panne moteur |
-| 5 | F7 — Allowlist SSH (option) | 5 min | réduit surface SSH |
-| 6 | F6 — Nettoyer règles UFW redondantes | 5 min | hygiène |
+| ~~**1**~~ | ~~F1 — Durcir le port 80 (301 → HTTPS)~~ | — | ✅ **fait 2026-07-18** |
+| **1** | F3 — Activer snapshots Hetzner quotidiens | 15 min | RTO fortement réduit |
+| **2** | F2 — Planifier reboot noyau | fenêtre courte | patchs sécurité actifs |
+| **3** | F4 — Sonde uptime `/health` + alerte | 30 min | détection panne moteur |
+| 4 | F7 — Allowlist SSH (option) | 5 min | réduit surface SSH |
+| 5 | F6 — Nettoyer règles UFW redondantes | 5 min | hygiène |
 
-> Recommandation : appliquer **F1** en priorité (correctif prêt, sûr). Les autres sont des améliorations de résilience.
+> **F1 appliqué et vérifié le 2026-07-18.** Restent des améliorations de résilience (F2–F4, F6–F7).
