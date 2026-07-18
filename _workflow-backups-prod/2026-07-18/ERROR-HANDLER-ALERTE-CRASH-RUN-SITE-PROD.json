@@ -19,7 +19,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "https://site-rapports-astro.vercel.app/api/webhooks/n8n-run-failed",
+        "url": "https://spikka.ai/api/webhooks/n8n-run-failed",
         "authentication": "genericCredentialType",
         "sendBody": true,
         "specifyBody": "json",
