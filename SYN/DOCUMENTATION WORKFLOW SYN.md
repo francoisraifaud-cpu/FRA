@@ -1,7 +1,24 @@
 # DOCUMENTATION WORKFLOW — SYNASTRIE
 
 **Version courante** : moteur scoring **v6.8.0 (gelé, 2026-05-06)** + narration **v7.0.0 (GA, 2026-05-06)** — voir § 17.
-**Plateforme** : n8n Cloud (workflow ID `4mjgklWWwjCF8fze`, alias `SYN — PROD`)
+**Plateforme** : n8n Cloud (workflow ID `xfenvGOyoYB6GyZH`, alias `SYN — PROD`) — ⚠ l'ancien ID `4mjgklWWwjCF8fze` est **invalidé** depuis l'outage n8n du 12/05/2026.
+
+## ⚙ Exploitation & câblage (vérifié 2026-07-18)
+
+| | PROD | PREPROD |
+|---|---|---|
+| Workflow n8n (ID) | `SYN — PROD` (`xfenvGOyoYB6GyZH`) | `SYN — PREPROD` (`eshtbInOYSd3Cz3Z`) |
+| Webhook (entrée) | `syn-site-order` | `syn-site-order-preprod` |
+| Site appelant | `spikka.ai` (Vercel `spikka-prod`) | staging (Vercel `site-rapports-astro`) |
+| Var site (URL) | `N8N_SYN_WEBHOOK_URL` | `N8N_SYN_WEBHOOK_URL_PREPROD` |
+
+- **Entrée** site→n8n : POST signé header `X-Site-Webhook-Secret` = `N8N_WEBHOOK_SECRET`.
+- **Sortie** n8n→site : `callbackBaseUrl` → `POST /api/webhooks/n8n-order-status` (rapport payant : `POST /api/webhooks/n8n-syn-dashboard`), secret symétrique.
+- **Moteur astro** : `https://api.spikka.eu/*` avec `X-API-Key` (jamais l'IP directe).
+- **Déploiement code** : `syn-deploy-supernode.mjs` / `syn-deploy-htmlfinal.mjs` / `syn-deploy-htmltech.mjs`.
+- **Isolation** PROD↔spikka.ai, PREPROD↔staging — `.cursor/rules/n8n-isolation-preprod-prod.mdc`. Liste canonique : `SITE/scripts/n8n-prod-workflows.json`. Architecture : `FRA/ARCHI/ARCHITECTURE-STACK.md`.
+
+---
 **Auteur** : François Raifaud
 
 **Architecture binaire scoring / narration** (depuis 2026-05-06) :

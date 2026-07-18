@@ -1,0 +1,15 @@
+﻿[Unit]
+Description=Astro API
+After=network.target
+
+[Service]
+WorkingDirectory=/opt/astro/api
+ExecStart=/opt/astro/api/venv/bin/uvicorn main:app --host 127.0.0.1 --port 8000 --workers 10 --timeout-keep-alive 5
+LimitNOFILE=65536
+Restart=on-failure
+RestartSec=5
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,7 @@
+﻿# Optionnel ÔÇö authentification API (FastAPI middleware).
+# 1) G├®n├®rer une cl├® : openssl rand -hex 32
+# 2) D├®commenter et coller :
+# ASTRO_API_KEY=votre_cle_secrete
+# 3) systemctl daemon-reload && systemctl restart astro-api.service
+# 4) Dans n8n : header X-API-Key = la m├¬me valeur
+# Tant que ASTRO_API_KEY est absent ou vide, lÔÇÖAPI reste ouverte comme avant.

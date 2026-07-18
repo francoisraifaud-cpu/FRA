@@ -1,7 +1,19 @@
 # Inventaire serveur « astro-server » — Swiss Ephemeris + Gotenberg
 
 Document généré pour permettre une **reconstruction à zéro** du serveur critique (API astro + PDF).  
-**Dernière mise à jour des faits techniques** : 2026-07-08 (gateway HTTPS `api.spikka.eu` + clé API + pare-feu ; faits 2026-04-19/21 conservés). 
+**Dernière mise à jour des faits techniques** : **2026-07-18** (état des lieux live SSH + réalignement dépôt↔live ; faits 2026-07-08 / 04-19/21 conservés).
+
+> **⚠ MISE À JOUR 2026-07-18 (état des lieux live + résilience)** — voir aussi [`../ARCHI/`](../ARCHI/) (architecture, audit cyber, runbook DR) :
+> - **VM upgradée** : **~23 Go RAM** (et non ~3,7 Go), disque 38 Go (58 % utilisé), uptime 10 j. Services `astro-api`/`nginx`/`docker`/`fail2ban` **actifs**.
+> - **Noyau** : actif `6.8.0-134`, installé `6.8.0-136` → **reboot en attente** (patchs sécurité inactifs jusqu'au redémarrage). `unattended-upgrades` actif.
+> - **3 endpoints supplémentaires en live** absents du dépôt jusqu'ici : **`POST /directions/primary`**, **`POST /solar-return`**, **`POST /lunar-return`** (§8.10–8.12).
+> - **`docker-compose.yml`** monte désormais un volume **`fontconfig/local.conf`** (polices glyphes astro) — versionné dans `FRA/API SE/fontconfig/`.
+> - **Éphémérides** : présence des variantes `_12` **et** `_18` (`seas`/`semo`/`sepl`). **Sauvegardées dans le dépôt** : `FRA/API SE/ephe-backup/*.se1`.
+> - **Configs serveur désormais versionnées** (DR) : `infra/nginx-astro-api-443.conf`, `infra/astro-gateway.conf.template` (clé caviardée `__APIKEY__`), `infra/astro-api.service`, `infra/astro-api.default.template`, `infra/nginx-astro-api-80.hardened.conf`.
+> - **`main.py` / `docker-compose.yml` du dépôt réalignés sur le live** (hashes identiques 2026-07-18). Le gel `requirements-api-astro.txt` correspond au venv live.
+> - **Finding cyber F1** : le **port 80** proxifie l'API **en clair, sans clé** → correctif prêt (`infra/nginx-astro-api-80.hardened.conf`), cf. `../ARCHI/AUDIT-CYBERSECURITE-2026-07-18.md`.
+
+**Dernière mise à jour des faits techniques (historique)** : 2026-07-08 (gateway HTTPS `api.spikka.eu` + clé API + pare-feu ; faits 2026-04-19/21 conservés). 
 
 > **⚠ 2026-07-08 — Accès canonique = `https://api.spikka.eu` + `X-API-Key`.** L'API `:8000` et Gotenberg `:3000` sont désormais **derrière un gateway nginx TLS** et **fermés au public par UFW** (n8n Cloud + IP dev only). Les URLs `http://46.225.174.155:8000/...` listées en §8 restent le **contrat des routes** (schémas de requête/réponse) mais l'appel réel passe par le gateway. Détails : `JOURNAL-OPERATIONS.md` (2026-07-08) et `CORRESPONDANCE-IP-URL-N8N.md` §5-§6.
 
@@ -32,9 +44,10 @@ Document généré pour permettre une **reconstruction à zéro** du serveur cri
 | Champ | Valeur |
 |--------|--------|
 | Hostname | `astro-server` |
-| OS | **Ubuntu 24.04.4 LTS** (Noble), noyau **6.8.0-106-generic** |
+| OS | **Ubuntu 24.04.4 LTS** (Noble), noyau actif **6.8.0-134-generic** (installé **6.8.0-136**, reboot en attente au 2026-07-18) |
 | Architecture | x86_64 |
-| Disque racine | `/dev/sda1` — **38 Go** total, **~23 Go** utilisés (ordre de grandeur au 2026-04-19) |
+| **RAM** | **~23 Go** (23461 Mo ; ~20,5 Go libres au 2026-07-18) + **swap 2 Go** |
+| Disque racine | `/dev/sda1` — **38 Go** total, **~21 Go** utilisés (58 %) au 2026-07-18 |
 
 ### 2.2 Adresses IP (interfaces)
 
@@ -476,6 +489,28 @@ Garde-fou interne : **50** itérations max par famille (soleil / lune).
 
 ---
 
+### 8.10 `POST /directions/primary`
+
+- **URL** : `https://api.spikka.eu/directions/primary` (+ `X-API-Key`).
+- **Corps** : `PrimaryDirectionsBody` (naissance + lieu + fuseau + paramètres d'année cible).
+- **Calcul** : **directions primaires** Naibod (semi-arc), Swiss Ephemeris. Sortie `output` incluant `age_years`, `jd_birth`, `jd_year_mid`, `epsilon_deg`, `lat_geo`, `mode` (`rigoureux`/`strict`), `natal_positions` (lon/lat_ecl/ra/dec par astre), et les directions calculées.
+
+### 8.11 `POST /solar-return`
+
+- **URL** : `https://api.spikka.eu/solar-return` (+ `X-API-Key`).
+- **Corps** : `SolarReturnRequest` (`natal`, `year`, `precessed` bool, lieu…).
+- **Calcul** : **révolution solaire**. Si `precessed=true`, cible = longitude solaire natale corrigée de la précession (**50,29″/an**) ; sinon retour tropical standard. Recherche par bracketing depuis le 1er janvier de l'année cible.
+
+### 8.12 `POST /lunar-return`
+
+- **URL** : `https://api.spikka.eu/lunar-return` (+ `X-API-Key`).
+- **Corps** : `LunarReturnRequest` (`natal`, `period_start`, `period_end`, `precessed` bool, lieu…).
+- **Calcul** : **révolution(s) lunaire(s)** dans la fenêtre `[period_start, period_end]`, même logique de précession optionnelle que la révolution solaire.
+
+> Signatures Pydantic exactes : `FRA/API SE/main.py` (source de vérité, réalignée sur le live 2026-07-18).
+
+---
+
 ## 9. Fail2ban
 
 - Service **actif**.
@@ -555,8 +590,15 @@ Sur les nœuds HTTP vers cette API : **timeout modéré** (10–15 s), **peu de 
 | `JOURNAL-OPERATIONS.md` | **Chronologie** des interventions et commandes (fil de l’eau) |
 | `CORRESPONDANCE-IP-URL-N8N.md` | Tableaux **ancienne URL → nouvelle URL** pour n8n (même IP ou changement de serveur) |
 | `requirements-api-astro.txt` | Gel pip pour reconstruction du venv |
-| `main.py.server-copy` | Copie alignée avec `main.py` (même contenu après correctifs) |
+| `main.py.server-copy` | Copie alignée avec `main.py` (même contenu, réaligné live 2026-07-18) |
 | `docker-compose.yml.server-copy` | Archive snapshot du compose sur le serveur (2026-04-19) |
+| `fontconfig/local.conf` | **Alias polices symboles → Noto Sans Symbols** (glyphes astro nets en PDF) ; monté dans Gotenberg. Déployer → `/opt/astro/fontconfig/local.conf` |
+| `ephe-backup/*.se1` | **Sauvegarde des fichiers Swiss Ephemeris** (`seas/semo/sepl` `_12`+`_18`, stubs `se0000Xs`) — restaurer → `/opt/astro/api/ephe/` |
+| `infra/nginx-astro-api-443.conf` | vhost gateway TLS `:443` (`/`→8000, `/pdf/`→3000, `X-API-Key`) → `/etc/nginx/sites-available/astro-api-443` |
+| `infra/astro-gateway.conf.template` | `map $http_x_api_key` + `limit_req_zone` (**clé caviardée `__APIKEY__`**) → `/etc/nginx/conf.d/astro-gateway.conf` |
+| `infra/astro-api.service` | unit systemd live → `/etc/systemd/system/astro-api.service` |
+| `infra/astro-api.default.template` | env service (**clé caviardée**) → `/etc/default/astro-api` |
+| `infra/nginx-astro-api-80.hardened.conf` | **port 80 durci** (301→HTTPS, remédiation audit F1) → `/etc/nginx/sites-available/astro-api-proxy` |
 
 ---
 

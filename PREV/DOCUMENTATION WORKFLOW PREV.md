@@ -2,6 +2,22 @@
 
 **Version** : v18.5 (Sprint 4.3 Q6-D + Sprint 4.3e Algol hotfix + Sprint 4.4 Phase B Angles + Wave 3 multi-labeling — Gold Standard M4=85/100 atteint 2026-05-06)
 **Plateforme** : n8n Cloud
+
+## ⚙ Exploitation & câblage (vérifié 2026-07-18)
+
+| | PROD | PREPROD |
+|---|---|---|
+| Workflow n8n (ID) | `PREV — PROD` (`szL522DJiXkppyt1`) | `PREV — PREPROD` (`jKwmxAm3HvjpHC5U`) |
+| Webhook (entrée) | `prev-site-order` | `prev-site-order-preprod` |
+| Site appelant | `spikka.ai` (Vercel `spikka-prod`) | staging (Vercel `site-rapports-astro`) |
+| Var site (URL) | `N8N_PREV_WEBHOOK_URL` | `N8N_PREV_WEBHOOK_URL_PREPROD` |
+
+- **Entrée** site→n8n : POST signé header `X-Site-Webhook-Secret` = `N8N_WEBHOOK_SECRET`.
+- **Sortie** n8n→site : `callbackBaseUrl` → `POST /api/webhooks/n8n-order-status` (+ télémétrie `POST /api/internal/prev-llm-audit`), secret symétrique.
+- **Moteur astro** : `https://api.spikka.eu/*` avec `X-API-Key` (jamais l'IP directe).
+- **Isolation** PROD↔spikka.ai, PREPROD↔staging — `.cursor/rules/n8n-isolation-preprod-prod.mdc`. Parité temps-forts PROD↔PREPROD restaurée (`.cursor/rules/prev-super-noeud1-prod-en-avance.mdc`). Architecture : `FRA/ARCHI/ARCHITECTURE-STACK.md`.
+
+---
 **Auteur** : François Raifaud
 **État moteur (post Wave 3 — PREV V1 PRODUCTION READY)** : (1) Pont signatures → narratif ultra fiables actif (Sprint Y) ; (2) Moteur natal `Enrichissement Astrologique` aligné sur THEME v8.3 (chartShape + Yod resserrés) ; (3) Génération bilingue native FR / EN (Sprint 9.1) ; (4) **Q6-D PROMOTEUR** d'événements et **filtre Algol/Antarès** anti-hallucinations (Sprints 4.3 + 4.3e) ; (5) **Boost angulaire** des transits aux 4 angles (AS/MC/DS/IC) selon doctrine Lilly stricte avec 4 garde-fous anti-régression et APEX assoupli (Sprint 4.4 Phase B v2) ; (6) **Wave 3 multi-labeling** sur manifest v1.5 — 26 cas patchés. Cible doctrinale **Gold Standard atteinte** : M4 = 85/100 verrouillée par ratchet dual (M1 ≥ 62, M4 ≥ 85).
 **Métriques officielles cohorte n=100 (2026-05-06)** : M1 = 62/100 (Top-1 Strict Primary, plancher invariant) ; M2 = 92/100 (Top-3 Doctrinal Coverage) ; M4 = 85/100 (Doctrinal Precision Top-1, Gold Standard) ; M5 = 75.3/100 (bioScore pondéré). Détails : `SITE/scripts/PREV-RETOUR-ASTROLOGUE-48-WAVE3-GOLD-STANDARD.md`.

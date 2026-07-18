@@ -1,11 +1,11 @@
-# Source de vérité (dépôt) — Gotenberg pour astro-server.
-# Déploiement : copier ce fichier vers /opt/astro/docker-compose.yml sur la VM, puis :
+# Source de verite (depot) - Gotenberg pour astro-server.
+# Deploiement : copier ce fichier vers /opt/astro/docker-compose.yml sur la VM, puis :
 #   cd /opt/astro && docker compose pull && docker compose up -d
 #
-# Bind LOCALHOST uniquement (2026-07-08) : Gotenberg n'est plus exposé publiquement.
-# L'accès passe exclusivement par le gateway nginx https://api.spikka.eu/pdf/ (→ 127.0.0.1:3000).
-# (voir INVENTAIRE-SERVEUR-ASTRO-SWISSEPH-GOTENBERG.md + JOURNAL-OPERATIONS.md).
-# Limites mémoire + rotation logs (Compose file format / plugin v2).
+# Port public attendu : 3000.
+# Polices : fontconfig/local.conf monte dans /etc/fonts/local.conf alias les familles
+# symboles (Segoe UI Symbol, Apple Symbols, Symbola, Arial Unicode MS, Noto Sans Symbols 2)
+# vers Noto Sans Symbols/Symbols2 pour des pictogrammes astro nets dans tous les rapports.
 
 services:
   gotenberg:
@@ -14,6 +14,8 @@ services:
     ports:
       - "127.0.0.1:3000:3000"
     mem_limit: "1536m"
+    volumes:
+      - ./fontconfig/local.conf:/etc/fonts/local.conf:ro
     logging:
       driver: json-file
       options:
@@ -23,3 +25,4 @@ services:
       - "gotenberg"
       - "--chromium-disable-javascript=false"
       - "--chromium-allow-list=.*"
+

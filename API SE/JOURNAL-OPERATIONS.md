@@ -210,6 +210,18 @@ Audit sécurité avant mise en prod commerciale. Constat : l'API `:8000` et Gote
 
 ---
 
+## 2026-07-18 — État des lieux live + réalignement dépôt↔live + audit résilience
+
+- **Contexte** : industrialisation de la mise en prod → documentation d'architecture (`FRA/ARCHI/`), audit cyber, et vérification que les livrables permettent une reconstruction rapide.
+- **État des lieux SSH (read-only)** : VM **~23 Go RAM** (upgradée vs 3,7 Go historique), disque 58 %, uptime 10 j, services `astro-api`/`nginx`/`docker`/`fail2ban` **actifs**, `:8000`/`:3000` **loopback** confirmé, cert Let's Encrypt **valide 79 j**, fail2ban 968 IP bannies. **Reboot noyau en attente** (`6.8.0-134` actif / `6.8.0-136` installé).
+- **Dérive détectée & corrigée** : `main.py` dépôt **718 l.** vs live **1473 l.** → **3 endpoints manquants** au dépôt (`/directions/primary`, `/solar-return`, `/lunar-return`). `main.py`, `main.py.server-copy`, `docker-compose.yml` **réalignés sur le live** (sha256 identiques).
+- **Livrables DR ajoutés au dépôt** : `ephe-backup/*.se1` (éphémérides), `fontconfig/local.conf`, `infra/nginx-astro-api-443.conf`, `infra/astro-gateway.conf.template` (clé **caviardée**), `infra/astro-api.service`, `infra/astro-api.default.template`, `infra/nginx-astro-api-80.hardened.conf`.
+- **Finding cyber F1** : `http://46.225.174.155/openapi.json` et `/transits` répondent **200 sans clé** (le `:80` proxifie l'API en clair) tandis que `:443` renvoie 401. Correctif prêt (`infra/nginx-astro-api-80.hardened.conf`, 301→HTTPS ; sûr car certbot = plugin nginx). **Non appliqué** (en attente feu vert).
+- **Fichiers** : `FRA/ARCHI/{ARCHITECTURE-STACK,AUDIT-CYBERSECURITE-2026-07-18,RUNBOOK-DR,README}.md` ; `FRA/API SE/` (inventaire, ce journal, README, `main.py`, `docker-compose.yml`, `fontconfig/`, `ephe-backup/`, `infra/`).
+- **Vérif** : `https://api.spikka.eu/health` = 200 ; hashes dépôt = serveur pour `main.py`/`docker-compose.yml`/`fontconfig`.
+
+---
+
 ## Référence rapide — URLs prod
 
 | Usage | URL |

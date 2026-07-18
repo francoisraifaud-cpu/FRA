@@ -1,0 +1,6 @@
+﻿map_hash_bucket_size 128;
+map $http_x_api_key $astro_key_ok {
+    default 0;
+    "__APIKEY__" 1;
+}
+limit_req_zone $binary_remote_addr zone=astro_tls:10m rate=25r/s;

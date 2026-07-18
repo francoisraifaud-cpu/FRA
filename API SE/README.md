@@ -8,6 +8,7 @@ Ce dossier est la **référence unique** dans le dépôt pour le serveur privé 
 
 | Besoin | Document |
 |--------|----------|
+| **Architecture globale, audit cyber, reprise après sinistre (DR)** | **[../ARCHI/](../ARCHI/)** (`ARCHITECTURE-STACK.md`, `AUDIT-CYBERSECURITE-2026-07-18.md`, `RUNBOOK-DR.md`) |
 | **Contrats API exhaustifs** (schémas, garanties, smoke, implémentation `main.py`) | **[DOCUMENTATION-REFERENCE-API-ET-SERVEUR.md](./DOCUMENTATION-REFERENCE-API-ET-SERVEUR.md)** |
 | **Comprendre le serveur** (IP, ports, routes HTTP, reconstruction à zéro) | **[INVENTAIRE-SERVEUR-ASTRO-SWISSEPH-GOTENBERG.md](./INVENTAIRE-SERVEUR-ASTRO-SWISSEPH-GOTENBERG.md)** |
 | **Fil de l’eau des opérations** (incidents, patchs, durcissement, commandes de déploiement) | **[JOURNAL-OPERATIONS.md](./JOURNAL-OPERATIONS.md)** |
@@ -25,6 +26,18 @@ Ce dossier est la **référence unique** dans le dépôt pour le serveur privé 
 | [`requirements-api-astro.txt`](./requirements-api-astro.txt) | Gel `pip` pour recréer le venv | `/opt/astro/api/venv` (via `pip install -r`) |
 
 **Archives / copies** : `main.py.server-copy`, `docker-compose.yml.server-copy` (snapshots ou alignement).
+
+**Sauvegardes de reconstruction (DR, ajoutées 2026-07-18)** :
+
+| Fichier | Rôle | Cible sur le serveur |
+|---------|------|----------------------|
+| `ephe-backup/*.se1` | Fichiers Swiss Ephemeris sauvegardés (plus besoin de re-télécharger) | `/opt/astro/api/ephe/` |
+| `fontconfig/local.conf` | Alias polices symboles → glyphes astro nets en PDF | `/opt/astro/fontconfig/local.conf` |
+| `infra/nginx-astro-api-443.conf` | vhost gateway TLS `:443` | `/etc/nginx/sites-available/astro-api-443` |
+| `infra/astro-gateway.conf.template` | map clé `X-API-Key` (**clé caviardée**) | `/etc/nginx/conf.d/astro-gateway.conf` |
+| `infra/astro-api.service` | unit systemd | `/etc/systemd/system/astro-api.service` |
+| `infra/astro-api.default.template` | env service (**clé caviardée**) | `/etc/default/astro-api` |
+| `infra/nginx-astro-api-80.hardened.conf` | port 80 durci (301→HTTPS, remédiation audit F1) | `/etc/nginx/sites-available/astro-api-proxy` |
 
 ---
 

@@ -2,6 +2,22 @@
 
 **Version** : v8.3 (Sprints 8.2 + 8.3 — Calibrage `computeChartShape` + orbes Yod resserrés ; déployé 2026-05-03)
 **Plateforme** : n8n Cloud
+
+## ⚙ Exploitation & câblage (vérifié 2026-07-18)
+
+| | PROD | PREPROD |
+|---|---|---|
+| Workflow n8n (ID) | `THEME - PROD` (`TbLFaLOx1dLW9oNP`) | `THEME — PREPROD` (`JVdFEkeD6rnYBnKX`) |
+| Webhook (entrée) | `theme-site-order` | `theme-site-order-preprod` |
+| Site appelant | `spikka.ai` (Vercel `spikka-prod`) | staging (Vercel `site-rapports-astro`) |
+| Var site (URL) | `N8N_THEME_WEBHOOK_URL` | `N8N_THEME_WEBHOOK_URL_PREPROD` |
+
+- **Entrée** site→n8n : POST signé header `X-Site-Webhook-Secret` = `N8N_WEBHOOK_SECRET`.
+- **Sortie** n8n→site : `callbackBaseUrl` → `POST /api/webhooks/n8n-order-status` (secret symétrique).
+- **Moteur astro** : `https://api.spikka.eu/*` avec `X-API-Key` (jamais l'IP directe).
+- **Isolation** PROD↔spikka.ai, PREPROD↔staging — `.cursor/rules/n8n-isolation-preprod-prod.mdc`. Liste canonique : `SITE/scripts/n8n-prod-workflows.json`. Architecture : `FRA/ARCHI/ARCHITECTURE-STACK.md`.
+
+---
 **Auteur** : François Raifaud
 **Bench de référence** : 100 thèmes natals de personnalités (sources Astro-Databank / Astrothème, audit Rodden Rating AA/A/B). Détail complet : `SITE/scripts/THEME-FIABILITE-RAPPORT.md`. Synthèse publique : fiche produit `/rapports/theme` du site (section « Validation et fiabilité »).
 

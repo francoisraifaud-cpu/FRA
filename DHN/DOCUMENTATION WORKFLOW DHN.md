@@ -2,6 +2,23 @@
 
 **Version doc** : v8.14 (avril 2026, **revue 2026-05-03 pour cohérence inter-produits**) — alignée sur le moteur **`Resultat final1`** en production (**`engineTag` `v8.14-affinity-ap106`**). Résumé historique v5.x : v5.11 (R2 matrice M, R1 q13–q15) ; v5.10 cap arcs ; v5.5 UX / 3 événements / Error Trigger / i18n mail ; v5.4 TZ luxon ; v5.3 confiance, anti-circulaire, P8, P-window. **Détail bench, commandes scripts et fiabilisation** : voir aussi `SITE/scripts/BENCHMARK-DHN-MANUEL.md`.
 **Plateforme** : n8n Cloud
+
+## ⚙ Exploitation & câblage (vérifié 2026-07-18)
+
+| | PROD | PREPROD |
+|---|---|---|
+| Workflow n8n (ID) | `DHN — PROD` (`uA6jTzmayt2OXByY`) | `DHN — PREPROD` (`Z9JgGaLoJhKNo8mB`) |
+| Webhook (entrée) | `dhn-site-order` | `dhn-site-order-preprod` |
+| Site appelant | `spikka.ai` (Vercel `spikka-prod`) | staging (Vercel `site-rapports-astro`) |
+| Var site (URL) | `N8N_DHN_WEBHOOK_URL` | `N8N_DHN_WEBHOOK_URL_PREPROD` |
+
+- **Entrée** site→n8n : POST signé header `X-Site-Webhook-Secret` = `N8N_WEBHOOK_SECRET`.
+- **Sortie** n8n→site : `callbackBaseUrl` → `POST /api/webhooks/n8n-order-status` (secret symétrique).
+- **Moteur astro** : `https://api.spikka.eu/{western/planets,western/houses,progressions,...}` avec `X-API-Key` (jamais l'IP directe).
+- **Déploiement code** (nœud `Resultat final1`) : `npx dotenv -e .env.local -- node scripts/dhn-deploy-code.mjs`.
+- **Isolation** PROD↔spikka.ai, PREPROD↔staging — `.cursor/rules/n8n-isolation-preprod-prod.mdc`. Liste canonique : `SITE/scripts/n8n-prod-workflows.json`. Architecture : `FRA/ARCHI/ARCHITECTURE-STACK.md`.
+
+---
 **Auteur** : François Raifaud
 **Bench de référence** : 8 cas certifiés (heure attestée par acte d'état civil ou rating Astrothème AA — Bardot, Gainsbourg, Saint Laurent, Beauvoir, Hugo, de Gaulle, etc.). Calibration confiance honnête sur 6/6 cas testés (Faible / Moyenne / Forte). Méthode 100 % déterministe — aucune IA générative dans la chaîne. Synthèse publique : fiche produit `/rapports/dhn` du site (section « Validation et fiabilité »).
 **Cohérence inter-produits** : DHN possède son **propre moteur déterministe** (`Resultat final1`) et **n'est pas un clone** du moteur natal `FRA/THEME/N8N Theme`. Les patches Sprint 8.2 (`computeChartShape`) et Sprint 8.3 (orbes Yod) déployés sur THEME / PREV / SYN le 2026-05-03 ne s'appliquent **pas** à DHN — la rectification d'heure n'utilise ni la classification Jones Patterns ni la détection de Yods. Cf. § 22 ci-dessous.
