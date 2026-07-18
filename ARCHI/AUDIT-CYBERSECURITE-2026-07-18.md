@@ -15,12 +15,12 @@
 | **F1** | Port 80 expose l'API astro **en clair, sans clé, à tout Internet** | astro-server | 🔴 **ÉLEVÉ** | ✅ **corrigé 2026-07-18** |
 | **F2** | Reboot noyau en attente (patchs sécurité inactifs) | astro-server | 🟠 MOYEN | ✅ **corrigé 2026-07-18** |
 | **F3** | Pas de snapshot/backup serveur hors-machine confirmé | astro-server | 🟠 MOYEN | ✅ **corrigé 2026-07-18** |
-| **F4** | Pas de monitoring/alerte de disponibilité externe | transverse | 🟠 MOYEN | à activer (compte requis) |
+| **F4** | Pas de monitoring/alerte de disponibilité externe | transverse | 🟠 MOYEN | ✅ **corrigé 2026-07-18** |
 | **F5** | Dérive « source de vérité » `main.py` dépôt ↔ live (718 vs 1473 l.) | API SE | 🟡 FAIBLE | ✅ **corrigé 2026-07-18** |
 | **F6** | Règles UFW 8000/3000 redondantes (rien n'écoute en public) | astro-server | ⚪ INFO | ✅ **nettoyé 2026-07-18** |
 | **F7** | SSH (22) ouvert à tout Internet | astro-server | 🟡 FAIBLE | atténué (fail2ban + clé) |
 
-**Posture globale : correcte et en durcissement.** Les fondations sont saines (TLS + clé API sur le canal canonique, secrets hors Git, signatures webhook, fail2ban, mises à jour auto, binding loopback). Le seul risque **élevé** est le contournement par le port 80, simple à corriger.
+**Posture globale (mise à jour 2026-07-18) : durcie.** Les fondations sont saines (TLS + clé API sur le canal canonique, secrets hors Git, signatures webhook, fail2ban, mises à jour auto, binding loopback). **F1→F6 corrigés le même jour** (port 80 durci en 301→HTTPS, noyau à jour, backups Hetzner + snapshot baseline, sonde uptime→Sentry, dépôt réaligné, UFW nettoyé). Seul **F7** (SSH ouvert) reste ouvert volontairement, atténué par clé-only + fail2ban.
 
 ---
 
@@ -103,9 +103,16 @@ Le journal (`API SE/JOURNAL-OPERATIONS.md`) listait « sauvegardes snapshot Hetz
 
 ### 🟠 F4 — Pas de monitoring/alerte externe
 
-Aucune supervision externe de `api.spikka.eu/health` ni des callbacks. Une panne moteur passerait inaperçue jusqu'à échec de commande client.
+Aucune supervision de `api.spikka.eu/health` ni de la base : une panne moteur passait inaperçue jusqu'à l'échec d'une commande client.
 
-**Remédiation** : sonde externe (Better Uptime / Uptime Kuma / cron Vercel) sur `https://api.spikka.eu/health` et `https://spikka.ai/api/health` + alerte (mail/Slack). Sentry couvre déjà les erreurs applicatives du site, pas la disponibilité du moteur.
+**✅ CORRIGÉ 2026-07-18** — choix d'urbanisation : **sonde intégrée qui remonte dans Sentry** (pas d'outil externe supplémentaire).
+- Nouveau cron Vercel **`/api/cron/health-probe`** (toutes les **5 min**, `vercel.json`).
+- Cibles : `api-se` = `https://api.spikka.eu/health` (moteur, SPOF externe) et `site-public` = `${site}/api/health?deep=1` (site + ping PostgreSQL).
+- Échec (HTTP≠200 / corps non sain / timeout 8 s / réseau) → `captureHealthProbeAlert` → **alerte Sentry** `level:error`, `tags: area=uptime, probe_target=<cible>`, `fingerprint` par cible (pas de bruit).
+- Le portail `SITE_GATE_PASSWORD` exempte `/api/health` et `/api/cron` (middleware) → **aucun faux positif** sur la prod fermée.
+- Déployé preprod + prod (`spikka-prod`). Fichiers : `SITE/app/api/cron/health-probe/route.ts`, `SITE/lib/sentry-uptime-alerts.ts`.
+
+> Limite assumée : si le déploiement Vercel hébergeant le cron est intégralement down, le cron ne tourne pas — mais ce cas (site totalement HS) reste couvert par Vercel + les erreurs runtime Sentry. La sonde cible surtout les SPOF *externes* (moteur) et la base, sans autre signal push.
 
 ---
 
@@ -162,8 +169,8 @@ ssh root@46.225.174.155 "sha256sum /opt/astro/api/main.py /opt/astro/docker-comp
 | ~~F5~~ | ~~Réalignement dépôt ↔ live~~ | — | ✅ fait 2026-07-18 |
 | ~~F6~~ | ~~Nettoyer règles UFW redondantes~~ | — | ✅ fait 2026-07-18 |
 | ~~F3~~ | ~~Activer backups Hetzner quotidiens + snapshot baseline~~ | — | ✅ fait 2026-07-18 |
-| **1** | **F4** — Sonde uptime `/health` + alerte | 30 min | ⏳ **compte monitoring requis** |
-| 3 | F7 — Allowlist SSH (option) | 5 min | non fait (risque lockout ; fail2ban suffit) |
+| ~~F4~~ | ~~Sonde uptime `/health` → Sentry (cron Vercel 5 min)~~ | — | ✅ fait 2026-07-18 |
+| 1 | F7 — Allowlist SSH (option) | 5 min | non fait (risque lockout ; fail2ban suffit) |
 
 ### F3 — Snapshots Hetzner ✅ fait
 
@@ -171,8 +178,6 @@ Activé 2026-07-18 par API Hetzner Cloud : backups automatiques (fenêtre `02-06
 
 > Atténué : tous les livrables de reconstruction sont déjà versionnés (`FRA/API SE/` : code, éphémérides, configs). Le snapshot ne fait que réduire encore le RTO.
 
-### F4 — Monitoring disponibilité (compte requis)
+### F4 — Monitoring disponibilité ✅ fait
 
-Options concrètes :
-- **UptimeRobot / Better Uptime (gratuit)** : 2 monitors HTTP(s) — `https://api.spikka.eu/health` et `https://spikka.ai/api/health` — alerte mail. 5 min de setup, compte requis.
-- **Ou** étendre le cron Vercel existant (`/api/cron/monitor-orders`) pour pinger `api.spikka.eu/health` et alerter via Sentry (`captureMessage`) si non-200 — livraison SITE (branche `preprod` → `main`).
+Réglé par sonde cron Vercel `/api/cron/health-probe` (5 min) → alertes Sentry (`area:uptime`). Voir détail dans la section F4 ci-dessus. Choix retenu : tout dans Sentry (urbanisation), pas d'outil externe.
