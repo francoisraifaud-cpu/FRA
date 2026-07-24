@@ -1443,7 +1443,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "={{ (($('Webhook').first().json.body && $('Webhook').first().json.body.callbackBaseUrl) || $('Webhook').first().json.callbackBaseUrl || 'https://site-rapports-astro.vercel.app') + '/api/webhooks/n8n-order-status' }}",
+        "url": "={{ /*CB_ALLOWLIST*/ (()=>{ const A=[\"https://site-rapports-astro-iastrowww.vercel.app\",\"https://site-rapports-astro.vercel.app\"]; const raw=(($('Webhook').first().json.body && $('Webhook').first().json.body.callbackBaseUrl) || $('Webhook').first().json.callbackBaseUrl || ''); const b=String(raw||'').replace(/\\/$/, ''); const safe=A.includes(b)?b:\"https://site-rapports-astro-iastrowww.vercel.app\"; return safe + \"/api/webhooks/n8n-order-status\"; })() }}",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
         "sendBody": true,
@@ -1493,7 +1493,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "={{ (($('Webhook').first().json.body && $('Webhook').first().json.body.callbackBaseUrl) || $('Webhook').first().json.callbackBaseUrl || 'https://site-rapports-astro.vercel.app') + '/api/webhooks/n8n-order-status' }}",
+        "url": "={{ /*CB_ALLOWLIST*/ (()=>{ const A=[\"https://site-rapports-astro-iastrowww.vercel.app\",\"https://site-rapports-astro.vercel.app\"]; const raw=(($('Webhook').first().json.body && $('Webhook').first().json.body.callbackBaseUrl) || $('Webhook').first().json.callbackBaseUrl || ''); const b=String(raw||'').replace(/\\/$/, ''); const safe=A.includes(b)?b:\"https://site-rapports-astro-iastrowww.vercel.app\"; return safe + \"/api/webhooks/n8n-order-status\"; })() }}",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
         "sendBody": true,
