@@ -1,0 +1,257 @@
+{
+  "id": "ZsqCS4LHRxYqEnK5",
+  "name": "ESPACE CLIENT TRANSITS DAILY - PREPROD",
+  "description": null,
+  "active": true,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "espace-client-transits-preprod",
+        "options": {},
+        "authentication": "headerAuth"
+      },
+      "id": "0f7b34b3-f652-4785-b314-508d8a40b6b9",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        -128
+      ],
+      "webhookId": "5b9315ae-f8c7-4a90-9d58-b8e3b7f1410e",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "o42Ex2btQQnyFxlJ",
+          "name": "PREV Site Webhook"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 5 * * *"
+            }
+          ]
+        }
+      },
+      "id": "7d17fa73-63f5-4d53-9238-973879626b90",
+      "name": "Schedule Daily",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        128
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Lit la date (dd/MM/yyyy) du déclencheur ou tombe sur aujourd'hui (UTC).\nconst j = $input.first().json || {};\nconst body = j.body && typeof j.body === 'object' && !Array.isArray(j.body) ? j.body : j;\nfunction pad(n){return String(n).padStart(2,'0');}\nlet dmy = body.date;\nif (!/^\\d{2}\\/\\d{2}\\/\\d{4}$/.test(dmy || '')) {\n  const d = new Date();\n  dmy = pad(d.getUTCDate()) + '/' + pad(d.getUTCMonth()+1) + '/' + d.getUTCFullYear();\n}\nconst [dd, mm, yyyy] = dmy.split('/');\nreturn [{ json: { dmy, iso: yyyy + '-' + mm + '-' + dd } }];"
+      },
+      "id": "c93969cc-32ea-4735-b1d0-ffc8ec59440d",
+      "name": "Prepare Date",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        224,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "url": "=https://api.spikka.eu/transits?date_debut={{ $('Prepare Date').first().json.dmy }}&date_fin={{ $('Prepare Date').first().json.dmy }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-API-Key",
+              "value": "__REDACTED__"
+            }
+          ]
+        }
+      },
+      "id": "31a604f2-c310-4a16-945d-1e93f757dfe8",
+      "name": "HTTP Transits",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        448,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "url": "=https://api.spikka.eu/moon?date_debut={{ $('Prepare Date').first().json.dmy }}&date_fin={{ $('Prepare Date').first().json.dmy }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-API-Key",
+              "value": "__REDACTED__"
+            }
+          ]
+        }
+      },
+      "id": "059014f7-ef97-47bc-897e-852cb097967a",
+      "name": "HTTP Moon",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        672,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Normalise transits + lune vers { date, planets[] } attendu par le site.\nconst prep = $('Prepare Date').first().json;\nconst norm360 = (a) => ((a % 360) + 360) % 360;\n\nconst trItems = $('HTTP Transits').all().map(i => i.json);\nconst trRow = trItems.find(r => r && r.planetes) || trItems[0] || {};\nconst P = (trRow && trRow.planetes) ? trRow.planetes : {};\n\nconst moonItems = $('HTTP Moon').all().map(i => i.json);\nconst moonRow = moonItems.find(r => r && typeof r.date_heure === 'string' && r.date_heure.includes('12:00'))\n  || moonItems[moonItems.length - 1] || null;\n\n// 10 classiques + Chiron + Nœuds, + Lilith & astéroïdes (Cérès/Pallas/Junon/Vesta,\n// affichés côté site en « vue avancée » uniquement — clés brutes de /transits).\nconst NAME_MAP = {\n  Soleil: 'Soleil', Mercure: 'Mercure', 'Vénus': 'Vénus', Mars: 'Mars',\n  Jupiter: 'Jupiter', Saturne: 'Saturne', Uranus: 'Uranus', Neptune: 'Neptune',\n  Pluton: 'Pluton', Chiron: 'Chiron', Noeud_Nord: 'Nœud Nord', Noeud_Sud: 'Nœud Sud',\n  Lilith: 'Lilith', Ceres: 'Cérès', Pallas: 'Pallas', Junon: 'Junon', Vesta: 'Vesta',\n};\nconst planets = [];\nfor (const src of Object.keys(NAME_MAP)) {\n  const p = P[src];\n  if (!p) continue;\n  const full = Number(p.longitude_absolue);\n  if (!Number.isFinite(full)) continue;\n  const nd = Number(p.degre_dans_signe);\n  planets.push({\n    name: NAME_MAP[src],\n    fullDegree: norm360(full),\n    normDegree: Number.isFinite(nd) ? nd : ((full % 30) + 30) % 30,\n    retro: p.est_retrograde === true || p.est_retrograde === 'True',\n    sign: typeof p.signe === 'string' ? p.signe : undefined,\n  });\n}\nif (moonRow && moonRow.lune) {\n  const m = moonRow.lune;\n  const full = Number(m.longitude_absolue);\n  if (Number.isFinite(full)) {\n    const nd = Number(m.degre_dans_signe);\n    planets.push({\n      name: 'Lune',\n      fullDegree: norm360(full),\n      normDegree: Number.isFinite(nd) ? nd : ((full % 30) + 30) % 30,\n      retro: false,\n      sign: typeof m.signe === 'string' ? m.signe : undefined,\n    });\n  }\n}\nreturn [{ json: { date: prep.iso, planets, n8nExecutionId: String($execution.id) } }];"
+      },
+      "id": "11401faa-0271-40c1-91ff-432562ae8d83",
+      "name": "Normalize",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ (($('Webhook').first().json.body && $('Webhook').first().json.body.callbackBaseUrl) || $('Webhook').first().json.callbackBaseUrl || 'https://site-rapports-astro-iastrowww.vercel.app') + '/api/webhooks/n8n-transits' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify($json) }}",
+        "options": {},
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-vercel-protection-bypass",
+              "value": "__REDACTED__"
+            }
+          ]
+        }
+      },
+      "id": "a40e3c82-12e5-4aec-a3f9-47f69e8a4472",
+      "name": "POST site transits",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1104,
+        0
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "o42Ex2btQQnyFxlJ",
+          "name": "PREV Site Webhook"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Prepare Date",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule Daily": {
+      "main": [
+        [
+          {
+            "node": "Prepare Date",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Date": {
+      "main": [
+        [
+          {
+            "node": "HTTP Transits",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Transits": {
+      "main": [
+        [
+          {
+            "node": "HTTP Moon",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Moon": {
+      "main": [
+        [
+          {
+            "node": "Normalize",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize": {
+      "main": [
+        [
+          {
+            "node": "POST site transits",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": true
+  },
+  "staticData": {
+    "node:Schedule Daily": {
+      "recurrenceRules": [
+        null
+      ],
+      "recurrenceRuleSignatures": [
+        null
+      ]
+    }
+  },
+  "pinData": {},
+  "tags": []
+}

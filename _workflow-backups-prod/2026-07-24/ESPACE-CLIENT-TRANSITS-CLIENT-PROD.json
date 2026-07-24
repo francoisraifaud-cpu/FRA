@@ -702,7 +702,8 @@
         "httpMethod": "POST",
         "path": "spikka-events",
         "options": {},
-        "responseMode": "responseNode"
+        "responseMode": "responseNode",
+        "authentication": "headerAuth"
       },
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2.1,
@@ -712,7 +713,13 @@
       ],
       "id": "c3b30344-74d8-4b38-adab-95a98b48beb5",
       "name": "Webhook",
-      "webhookId": "c3762799-3c2a-49d9-81b0-0e9c932eacb5"
+      "webhookId": "c3762799-3c2a-49d9-81b0-0e9c932eacb5",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "o42Ex2btQQnyFxlJ",
+          "name": "PREV Site Webhook"
+        }
+      }
     },
     {
       "parameters": {
@@ -852,7 +859,16 @@
         "contentType": "raw",
         "rawContentType": "application/json",
         "body": "={{ JSON.stringify({ orderId: $json.orderId, status: ($json.tier === 'essentiel' || $json.documentTier === 'data_technical') ? 'delivered' : 'delivered_site', pdfUrl: $json.pdfUrl, documentTier: $json.documentTier, n8nExecutionId: $json.n8nExecutionId, prevGranularity: $json.prevGranularity, prevCoverageYear: $json.prevCoverageYear }) }}",
-        "options": {}
+        "options": {},
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-vercel-protection-bypass",
+              "value": "__REDACTED__"
+            }
+          ]
+        }
       },
       "id": "fe986af8-0783-4601-bff8-c80f7ec1cc5a",
       "name": "PREV POST site status",
@@ -881,7 +897,16 @@
         "contentType": "raw",
         "rawContentType": "application/json",
         "body": "={{ JSON.stringify({ orderId: $('Prépare email 3 PDF').first().json.orderId, status: 'delivered_email', n8nExecutionId: typeof $execution !== 'undefined' && $execution && $execution.id != null ? String($execution.id) : '' }) }}",
-        "options": {}
+        "options": {},
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-vercel-protection-bypass",
+              "value": "__REDACTED__"
+            }
+          ]
+        }
       },
       "id": "b8e2e157-1e0b-46f8-9bfb-3f4594552921",
       "name": "PREV POST delivered_email",
@@ -1043,7 +1068,16 @@
         "contentType": "raw",
         "rawContentType": "application/json",
         "body": "={{ JSON.stringify($json) }}",
-        "options": {}
+        "options": {},
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-vercel-protection-bypass",
+              "value": "__REDACTED__"
+            }
+          ]
+        }
       },
       "id": "cf6aa71d-6fd2-4ad7-85bc-bb2f056a31af",
       "name": "PREV. POST chatBrief",

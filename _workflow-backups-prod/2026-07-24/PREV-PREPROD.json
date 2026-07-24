@@ -1559,7 +1559,8 @@
       "parameters": {
         "httpMethod": "POST",
         "path": "prev-site-order-preprod",
-        "options": {}
+        "options": {},
+        "authentication": "headerAuth"
       },
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2.1,
@@ -1569,7 +1570,13 @@
       ],
       "id": "b56e3e96-937b-4830-bc89-2558f943bd18",
       "name": "Webhook",
-      "webhookId": "c3762799-3c2a-49d9-81b0-0e9c932eacb5"
+      "webhookId": "c3762799-3c2a-49d9-81b0-0e9c932eacb5",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "o42Ex2btQQnyFxlJ",
+          "name": "PREV Site Webhook"
+        }
+      }
     },
     {
       "parameters": {
@@ -1704,7 +1711,16 @@
         "contentType": "raw",
         "rawContentType": "application/json",
         "body": "={{ JSON.stringify({ orderId: $json.orderId, status: ($json.tier === 'essentiel' || $json.documentTier === 'data_technical') ? 'delivered' : 'delivered_site', pdfUrl: $json.pdfUrl, documentTier: $json.documentTier, n8nExecutionId: $json.n8nExecutionId, prevGranularity: $json.prevGranularity, prevCoverageYear: $json.prevCoverageYear }) }}",
-        "options": {}
+        "options": {},
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-vercel-protection-bypass",
+              "value": "__REDACTED__"
+            }
+          ]
+        }
       },
       "id": "d98b9210-919e-41d1-ba73-71e56d6b94bb",
       "name": "PREV POST site status",
@@ -1732,7 +1748,16 @@
         "contentType": "raw",
         "rawContentType": "application/json",
         "body": "={{ JSON.stringify({ orderId: $('Prépare email 3 PDF').first().json.orderId, status: 'delivered_email', n8nExecutionId: typeof $execution !== 'undefined' && $execution && $execution.id != null ? String($execution.id) : '' }) }}",
-        "options": {}
+        "options": {},
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-vercel-protection-bypass",
+              "value": "__REDACTED__"
+            }
+          ]
+        }
       },
       "id": "27822389-c954-4f09-91e5-57e3ce9e139b",
       "name": "PREV POST delivered_email",
