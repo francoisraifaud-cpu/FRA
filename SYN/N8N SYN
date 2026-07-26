@@ -1763,7 +1763,13 @@ function computeAnnualProfections(personA, personB, refDate, housesA, housesB) {
         synastry_overlap: overlap
     };
 }
-const profections = computeAnnualProfections(personneA, personneB, dateRelation, natalHousesA, natalHousesB);
+// Lot 3 (2026-07-26) — FIX : les profections annuelles se calculent TOUJOURS à
+// AUJOURD'HUI (âge courant → maison profectée de l'année en cours). On ne passe
+// PLUS `dateRelation` comme date de référence : (1) cela figeait à tort les
+// profections à l'année de début du couple ; (2) `new Date("15/03/2018")` était
+// un parsing non fiable (FR/US). `date_relation` sert désormais à l'ANCIENNETÉ
+// (registre narratif, plus bas), jamais aux profections.
+const profections = computeAnnualProfections(personneA, personneB, null, natalHousesA, natalHousesB);
 
 // ---- 8c-ter. COMPATIBILITÉ DES TERMES LUNAIRES ----
 function computeMoonTermsCompatibility(planetsA, planetsB) {
@@ -7920,6 +7926,47 @@ const ageContextStr = (() => {
         : `\n- CONTEXTE D'ÂGE : ${_promptRelTermFRCap} de longue date — accent sur la sagesse acquise et l'enrichissement mutuel.`;
 })();
 
+// Lot 3 (2026-07-26) — ANCIENNETÉ DU LIEN → registre narratif (doctrine DAVISON §2 :
+// durabilité = engagement/devoir + élan d'affinité de fond). ⚠ Ne change PAS la FORME
+// du rapport : on n'AFFICHE jamais la date, on ORIENTE seulement le registre du LLM, et
+// on reste QUALITATIF (règle 12 anti-prédiction temporelle respectée : aucune année citée).
+// Année de début : ÉLECTIF = année extraite de `date_relation` ; FAMILLE (Fratrie /
+// Parent-Enfant) = max des 2 années de naissance (le cadet / l'enfant, jamais saisie).
+// ⇔ port fidèle de `SITE/lib/relationship-since.ts` (chatbot) : garder le wording ISO.
+const _FAMILY_TYPOS_BOND = ["Fratrie", "Parent / Enfant"];
+function _extractYear4Bond(str) {
+    if (!str) return null;
+    const m = String(str).match(/\b(19|20)\d{2}\b/);
+    if (!m) return null;
+    const y = parseInt(m[0], 10);
+    return isFinite(y) ? y : null;
+}
+let _bondYear = null;
+if (_FAMILY_TYPOS_BOND.indexOf(typologie) !== -1) {
+    const _yA = _extractYear4Bond(personneA.date), _yB = _extractYear4Bond(personneB.date);
+    if (_yA != null && _yB != null) _bondYear = Math.max(_yA, _yB);
+    else if (_yA != null || _yB != null) _bondYear = (_yA != null ? _yA : _yB);
+} else {
+    _bondYear = _extractYear4Bond(dateRelation);
+}
+let _bondAgeYears = null;
+if (_bondYear != null) {
+    const _bondDelta = new Date().getFullYear() - _bondYear;
+    if (_bondDelta >= 0 && _bondDelta <= 200) _bondAgeYears = _bondDelta;
+}
+const bondAgeContextStr = (() => {
+    if (_bondAgeYears == null) return '';
+    if (_bondAgeYears < 2) return isEN
+        ? `\n- BOND AGE: recent bond (under ~2 years). Read the solidity signals as POTENTIAL still forming, never as a given; speak to what is taking shape, not a shared past. Stay qualitative, don't cite the year.`
+        : `\n- ANCIENNETÉ DU LIEN : lien récent (moins de ~2 ans). Lis les signaux de solidité comme un POTENTIEL en train de se construire, jamais comme un acquis ; parle de ce qui se noue, pas d'un passé commun. Reste qualitatif, ne cite pas l'année.`;
+    if (_bondAgeYears <= 10) return isEN
+        ? `\n- BOND AGE: established bond (past the early days). Read what is consolidating as much as what recurs, without presuming the future. Stay qualitative, don't cite the year.`
+        : `\n- ANCIENNETÉ DU LIEN : lien installé (passé les débuts). Lis ce qui se consolide autant que ce qui se répète, sans présumer de l'avenir. Reste qualitatif, ne cite pas l'année.`;
+    return isEN
+        ? `\n- BOND AGE: long-standing bond. It has already endured: illuminate what has cemented it — commitment (duty, continuity) and/or the pull of deep affinity — without predicting what comes next. Stay qualitative, don't cite the year.`
+        : `\n- ANCIENNETÉ DU LIEN : lien de longue date. Le lien a déjà tenu dans le temps : éclaire ce qui l'a cimenté — l'engagement (devoir, continuité) et/ou l'élan d'affinité de fond — sans prédire la suite. Reste qualitatif, ne cite pas l'année.`;
+})();
+
 const systemPromptBase = `${isEN ? 'You are a professional astrologer specializing in synastry (relationship compatibility).' : 'Tu es un astrologue professionnel spécialisé en synastrie (compatibilité relationnelle).'}
 ${isEN ? `You analyze the relationship between ${persoStrA}${ageStrA} and ${persoStrB}${ageStrB} in the context of: ${typoConfig.label_en || typoConfig.label_fr}.` : `Tu analyses la relation entre ${persoStrA}${ageStrA} et ${persoStrB}${ageStrB} dans le contexte d'une relation de type : ${typoConfig.label_fr}.`}
 ${roleContextStr}
@@ -7959,7 +8006,7 @@ ${globalScore >= 80
     ? (isEN ? '- TONE GUIDANCE: Compatibility is moderate with real strengths and challenges. Maintain a balanced and nuanced tone.' : '- GUIDAGE TONAL : Compatibilité modérée avec de vraies forces et défis. Maintiens un ton équilibré et nuancé.')
     : globalScore >= 40
     ? (isEN ? '- TONE GUIDANCE: Compatibility shows significant friction. Be diplomatic and constructive, emphasizing growth potential alongside challenges.' : '- GUIDAGE TONAL : La compatibilité montre des frictions significatives. Sois diplomatique et constructif, souligne le potentiel de croissance aux côtés des défis.')
-    : (isEN ? '- TONE GUIDANCE: Compatibility is difficult. Exercise maximum diplomacy. Frame challenges as growth opportunities without minimizing them.' : '- GUIDAGE TONAL : Compatibilité difficile. Exerce une diplomatie maximale. Présente les défis comme des opportunités de croissance sans les minimiser.')}${ageContextStr}
+    : (isEN ? '- TONE GUIDANCE: Compatibility is difficult. Exercise maximum diplomacy. Frame challenges as growth opportunities without minimizing them.' : '- GUIDAGE TONAL : Compatibilité difficile. Exerce une diplomatie maximale. Présente les défis comme des opportunités de croissance sans les minimiser.')}${ageContextStr}${bondAgeContextStr}
 ${charteAntiHallucination}`;
 
 const maisonsResultA = {};
