@@ -7,3 +7,9 @@ node_modules/
 # Backups PRE-deploy du code node prod (contiennent la clé API en clair)
 # → filet de rollback LOCAL uniquement, JAMAIS versionner (règle prod-deploy-github-backup)
 DHN/prod-backups/
+
+# Doctrine astrologique centralisée (livres de référence : Davison, Rushman, Teal,
+# Hand, Brady, Brennan… volumineux + droits d'auteur) → bibliothèque LOCALE,
+# JAMAIS versionner. Point d'entrée « inspecter les bouquins » : règle Cursor
+# doctrine-books-inspection.mdc.
+BOOKS/

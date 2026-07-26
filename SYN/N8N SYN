@@ -2341,6 +2341,13 @@ const longevityIndex = (() => {
 // Nœuds (fil d'âme, familiarité « déjà-vu ») sont un liant majeur de longévité.
 // Flag PROD-safe DTC_SYN_DURAB_V2 (défaut ON en n8n ; OFF local via "=0" pour A/B).
 const DTC_SYN_DURAB_V2 = !(typeof process !== "undefined" && process.env && process.env.DTC_SYN_DURAB_V2 === "0");
+// Flag PROD-safe DTC_SYN_DURAB_V3 (ACTIVÉ 2026-07-26 : ON par défaut en n8n comme V2 ;
+// OFF-able en local via "=0" pour A/B). Solidité « 2 moteurs » : Engagement (Saturne,
+// Nœuds RETIRÉS → axe Karmique) + Affinité de fond (contacts luminaires/Vénus soft =
+// marqueurs DAVISON « basis of a lasting relationship »), saturation dégonflée /20.
+// Dosage « spread » calibré cohorte 85 couples (FRA/SYN/DOCTRINE-SYNASTRIE-DAVISON-2026-07-26.md).
+// N'altère PAS le `.score` /15 gelé (score global). Bascule prod après validation preprod.
+const DTC_SYN_DURAB_V3 = !(typeof process !== "undefined" && process.env && process.env.DTC_SYN_DURAB_V3 === "0");
 (() => {
     if (!longevityIndex || typeof longevityIndex !== "object") return;
     const _b = longevityIndex.breakdown || {};
@@ -2382,6 +2389,61 @@ const DTC_SYN_DURAB_V2 = !(typeof process !== "undefined" && process.env && proc
     if (DTC_SYN_DURAB_V2) {
         longevityIndex.qualitative_harmonic = longevityIndex.qualitative;   // ancien /15, conservé pour trace
         longevityIndex.qualitative = q.fr + " · " + ton.s_fr;               // ex. « solide · liaison contraignante »
+    }
+    // ─── V3 « 2 moteurs » (DTC_SYN_DURAB_V3, défaut OFF) — écrase le binding V2 ───
+    // DAVISON, Synastry : Sun/Saturn « a link that guarantees the continuity and
+    // durability of the partnership, even if there are strongly adverse cross-aspects »
+    // (moteur ENGAGEMENT) ; Sun/Moon « classic compatibility… basis of a lasting
+    // relationship », Moon/Moon « basis of a lifelong relationship » (moteur AFFINITÉ).
+    // Nœuds RETIRÉS de la durabilité → axe Karmique (Teal). Saturation /20 (dégonflée).
+    if (DTC_SYN_DURAB_V3) {
+        const _ENG = 1.0 * Math.min(g, 20) + 0.55 * Math.min(bu, 12) + 0.7 * Math.min(ss, 6);
+        const _LUM = new Set(["Soleil", "Lune", "Vénus", "Venus", "Descendant", "Ascendant"]);
+        const _norm = (x) => (x === "Venus" ? "Vénus" : x);
+        const _pk = (a, b) => [_norm(a), _norm(b)].sort().join("|");
+        const _PAIRW = { "Lune|Soleil": 1.0, "Lune|Lune": 0.9, "Lune|Vénus": 0.9, "Soleil|Vénus": 0.75, "Soleil|Soleil": 0.6, "Vénus|Vénus": 0.6, "Descendant|Soleil": 0.7, "Descendant|Lune": 0.7, "Descendant|Vénus": 0.7, "Ascendant|Soleil": 0.55, "Ascendant|Lune": 0.55, "Ascendant|Vénus": 0.55 };
+        const _best = {};
+        for (const _a of [...interAspectsBtoA, ...interAspectsAtoB]) {
+            const _ps = _a && _a.planete_source, _pc = _a && _a.planete_cible;
+            if (!_LUM.has(_ps) || !_LUM.has(_pc)) continue;
+            const _soft = /harmon/i.test(_a.nature || "") || /Trigone|Sextile|Conjonction/i.test(_a.aspect || "");
+            if (!_soft) continue;
+            const _w = _PAIRW[_pk(_ps, _pc)]; if (!_w) continue;
+            const _close = Math.max(0, 1 - (Math.abs(Number(_a.orbe) || 0) / 8));
+            const _k = _pk(_ps, _pc), _c = _w * _close;
+            if (!(_k in _best) || _best[_k] < _c) _best[_k] = _c;
+        }
+        let _affRaw = 0; for (const _k in _best) _affRaw += _best[_k] * 4.0;
+        // micro-bonus compatibilité élémentaire (DAVISON : « harmony of the elements »
+        // renforce l'affinité de fond). Poids 0.8, borné, ajouté AVANT le plafond.
+        const _ec = elementCompat || {};
+        const _rel = String(_ec.element_relation || "").toLowerCase();
+        let _elem = _rel.includes("harmon") ? 3 : _rel.includes("tension") ? -1.5 : 0;
+        _elem += Math.min(2, (Number(_ec.elements_communs) || 0) * 0.5) - Math.min(2, (Number(_ec.elements_tension) || 0) * 0.5);
+        _affRaw += 0.8 * Math.max(0, _elem);
+        const _AFF = Math.min(_affRaw, 9);              // lift secondaire borné (attraction ≠ durabilité)
+        const _raw = _ENG + _AFF;
+        const _score = Math.max(0, Math.min(100, Math.round(100 * (1 - Math.exp(-_raw / 20)))));
+        const _ton = (_AFF > _ENG)
+            ? { fr: "par élan",       en: "through attraction" }
+            : { fr: "par engagement", en: "through commitment" };
+        const _q = _score >= 75 ? { fr: "très solide",  en: "very strong" }
+            :      _score >= 60 ? { fr: "solide",       en: "strong" }
+            :      _score >= 45 ? { fr: "modérée",      en: "moderate" }
+            :      _score >= 30 ? { fr: "à consolider", en: "to consolidate" }
+            :                     { fr: "ténue",        en: "tenuous" };
+        longevityIndex.binding_score          = _score;
+        longevityIndex.binding_raw            = +_raw.toFixed(2);
+        longevityIndex.binding_engagement     = +_ENG.toFixed(2);
+        longevityIndex.binding_affinity       = +_AFF.toFixed(2);
+        longevityIndex.tonalite               = _ton.fr;
+        longevityIndex.tonalite_en            = _ton.en;
+        longevityIndex.tonalite_short         = _ton.fr;
+        longevityIndex.tonalite_short_en      = _ton.en;
+        longevityIndex.binding_qualitative    = _q.fr;
+        longevityIndex.binding_qualitative_en = _q.en;
+        longevityIndex.qualitative            = _q.fr + " · " + _ton.fr;   // ex. « solide · par engagement »
+        longevityIndex.durab_model            = "v3-2engine";
     }
 })();
 
@@ -9238,21 +9300,29 @@ synthPrompt += isEN
         + `  · Saturn glue (harmonious to partner's personal planets) : +${_lib.saturn_glue ?? 0}\n`
         + `  · Saturn hard contact (binds by duty/karma — NOT a lack of durability) : +${_lib.saturn_burden ?? 0}\n`
         + `  · Saturn ↔ Saturn (shared durability) : ${_lib.saturn_saturn >= 0 ? '+' : ''}${_lib.saturn_saturn ?? 0}\n`
-        + `  · North Node ↔ personal planets (evolutive function) : +${_lib.nodes_evolutive ?? 0}\n`
-        + `  · South Node ↔ personal planets (karmic loop / "déjà-vu" familiarity) : +${_lib.nodes_repetitive ?? 0}\n`
+        + (DTC_SYN_DURAB_V3
+            ? `  · Underlying affinity (soft luminary/Venus contacts — Sun-Moon, Moon-Moon, Moon-Venus, + Descendant) : +${_li.binding_affinity ?? 0}  (Lunar Nodes now scored on the Karmic axis, not durability)\n`
+            : `  · North Node ↔ personal planets (evolutive function) : +${_lib.nodes_evolutive ?? 0}\n`
+              + `  · South Node ↔ personal planets (karmic loop / "déjà-vu" familiarity) : +${_lib.nodes_repetitive ?? 0}\n`)
         + `> High Harmony + weak glue = beautiful relationship that may not last.\n`
         + `> Moderate Harmony + strong glue = enduring relationship despite friction (Saturn binds through the test of time).\n`
-        + `> A "binding" tone is NOT failure: the bond holds — more by duty/karma than by comfort. Low glue does NOT mean failure — it means the bond needs conscious effort to last.\n\n`
+        + (DTC_SYN_DURAB_V3
+            ? `> A bond can last "through commitment" (Saturn: duty, structure) OR "through attraction" (deep affinity: luminaries — DAVISON's "basis of a lasting relationship"). A commitment-led bond holding without comfort is NOT a failure; weak signals mean the bond needs conscious effort to last.\n\n`
+            : `> A "binding" tone is NOT failure: the bond holds — more by duty/karma than by comfort. Low glue does NOT mean failure — it means the bond needs conscious effort to last.\n\n`)
     : `\n## ÉTAPE 4 — DURABILITÉ / CIMENT RELATIONNEL\n`
         + _liHeadFR
         + `  · Saturne ciment (harmonique aux planètes personnelles de l'autre) : +${_lib.saturn_glue ?? 0}\n`
         + `  · Saturne contact dur (lie par devoir/karma — PAS un défaut de durée) : +${_lib.saturn_burden ?? 0}\n`
         + `  · Saturne ↔ Saturne (durabilité partagée) : ${_lib.saturn_saturn >= 0 ? '+' : ''}${_lib.saturn_saturn ?? 0}\n`
-        + `  · Nœud Nord ↔ planètes personnelles (fonction évolutive) : +${_lib.nodes_evolutive ?? 0}\n`
-        + `  · Nœud Sud ↔ planètes personnelles (boucle karmique / familiarité « déjà-vu ») : +${_lib.nodes_repetitive ?? 0}\n`
+        + (DTC_SYN_DURAB_V3
+            ? `  · Affinité de fond (contacts luminaires/Vénus soft — Soleil-Lune, Lune-Lune, Lune-Vénus, + Descendant) : +${_li.binding_affinity ?? 0}  (les Nœuds lunaires sont désormais notés sur l'axe Karmique, pas la durabilité)\n`
+            : `  · Nœud Nord ↔ planètes personnelles (fonction évolutive) : +${_lib.nodes_evolutive ?? 0}\n`
+              + `  · Nœud Sud ↔ planètes personnelles (boucle karmique / familiarité « déjà-vu ») : +${_lib.nodes_repetitive ?? 0}\n`)
         + `> Une Harmonie élevée + ciment faible = belle relation qui peut ne pas durer.\n`
         + `> Une Harmonie moyenne + ciment fort = relation qui dure malgré les frictions (Saturne lie les partenaires à travers l'épreuve du temps).\n`
-        + `> Une tonalité « contraignante » n'est PAS un échec : le lien tient — plutôt par devoir/karma que par confort. Un ciment faible ne signifie PAS échec — la relation demande un effort conscient pour durer.\n\n`;
+        + (DTC_SYN_DURAB_V3
+            ? `> Un lien peut durer « par engagement » (Saturne : devoir, structure) OU « par élan » (affinité profonde : luminaires — le « basis of a lasting relationship » de DAVISON). Un lien tenu par engagement sans confort n'est PAS un échec ; des signaux faibles = la relation demande un effort conscient pour durer.\n\n`
+            : `> Une tonalité « contraignante » n'est PAS un échec : le lien tient — plutôt par devoir/karma que par confort. Un ciment faible ne signifie PAS échec — la relation demande un effort conscient pour durer.\n\n`);
 
 // ===== ÉTAPE 5 — CARTE RELATIONNELLE (Composite + Davison) ================
 // v6.3.0 — Q15 : skip total pour Rivalité (le « Nous » n'existe pas).
@@ -10050,8 +10120,8 @@ const relationshipDashboard = (() => {
             en: "Eight indices to understand the raw material of your bond — reading landmarks, not pass/fail grades."
         },
         note: {
-            fr: "Ces indices décrivent la matière première du lien, pas sa réussite. Les plus révélateurs de la durée sont souvent la Durabilité et l'Alignement des valeurs — davantage que l'Intensité ou la seule Connexion mentale. Au final, la maturité et le travail des deux personnes comptent bien plus que ces chiffres.",
-            en: "These indices describe the raw material of the bond, not its success. The most telling of longevity are often Durability and Shared Values — more than Intensity or Mental connection alone. Ultimately, the maturity and shared work of both people matter far more than these numbers."
+            fr: "Ces indices décrivent la matière première du lien, pas sa réussite. Les plus révélateurs de la durée sont souvent la Solidité et l'Alignement des valeurs — davantage que l'Intensité ou la seule Connexion mentale. Au final, la maturité et le travail des deux personnes comptent bien plus que ces chiffres.",
+            en: "These indices describe the raw material of the bond, not its success. The most telling of longevity are often Solidity and Shared Values — more than Intensity or Mental connection alone. Ultimately, the maturity and shared work of both people matter far more than these numbers."
         },
         groups: {
             lien: ["fluidite", "intensite", "durabilite", "karmique"],
@@ -10071,9 +10141,13 @@ const relationshipDashboard = (() => {
                 "The charge and magnetism of the bond, its emotional power. Neither a good nor a bad omen in itself: high intensity can bind as much as it can drain, depending on each partner's maturity.",
                 { name: "Intensité", name_en: "Intensity", icon: "🌋" }),
             durabilite: mk(durabiliteScore, _durBandFused,
-                "L'aptitude du lien à tenir dans le temps : engagement, constance, capacité à traverser les épreuves — que ce soit par élan (liaison harmonieuse) ou par devoir/karma (liaison contraignante). Souvent le meilleur indice de solidité d'une relation ; une liaison forte peut tenir sans être toujours confortable.",
-                "The bond's capacity to last: commitment, steadiness, and the ability to weather hardship — whether by momentum (harmonious bond) or by duty/karma (binding bond). Often the strongest sign of a relationship's solidity; a strong bond can hold without always being comfortable.",
-                { name: "Durabilité", name_en: "Durability", icon: "🪨" }),
+                DTC_SYN_DURAB_V3
+                    ? "L'aptitude du lien à tenir dans le temps : l'engagement et la constance (Saturne) doublés de l'affinité de fond (luminaires, Vénus). Un lien peut durer par engagement (devoir, structure) autant que par élan (affinité naturelle). Souvent le meilleur indice de solidité d'une relation ; un lien fort peut tenir sans être toujours confortable."
+                    : "L'aptitude du lien à tenir dans le temps : engagement, constance, capacité à traverser les épreuves — que ce soit par élan (liaison harmonieuse) ou par devoir/karma (liaison contraignante). Souvent le meilleur indice de solidité d'une relation ; une liaison forte peut tenir sans être toujours confortable.",
+                DTC_SYN_DURAB_V3
+                    ? "The bond's capacity to last: commitment and steadiness (Saturn) combined with underlying affinity (luminaries, Venus). A bond can last through commitment (duty, structure) as much as through attraction (natural affinity). Often the strongest sign of a relationship's solidity; a strong bond can hold without always being comfortable."
+                    : "The bond's capacity to last: commitment, steadiness, and the ability to weather hardship — whether by momentum (harmonious bond) or by duty/karma (binding bond). Often the strongest sign of a relationship's solidity; a strong bond can hold without always being comfortable.",
+                { name: "Solidité", name_en: "Solidity", icon: "🪨" }),
             karmique: mk(karmiqueScore, bandKarmic(karmiqueScore),
                 "La profondeur du fil « d'âme » et la tonalité de la rencontre : plutôt tournée vers la croissance, ou vers la répétition de schémas déjà connus.",
                 "The depth of the \"soul thread\" and the tone of the encounter: leaning toward growth, or toward replaying familiar patterns.",
