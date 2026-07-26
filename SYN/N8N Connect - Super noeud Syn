@@ -2422,7 +2422,35 @@ const DTC_SYN_DURAB_V3 = !(typeof process !== "undefined" && process.env && proc
         _elem += Math.min(2, (Number(_ec.elements_communs) || 0) * 0.5) - Math.min(2, (Number(_ec.elements_tension) || 0) * 0.5);
         _affRaw += 0.8 * Math.max(0, _elem);
         const _AFF = Math.min(_affRaw, 9);              // lift secondaire borné (attraction ≠ durabilité)
-        const _raw = _ENG + _AFF;
+        // ─── Uranus corrosif (DTC_SYN_DURAB_URANUS, défaut OFF) — malus CONDITIONNEL ───
+        // DAVISON, Synastry : Uranus dur aux luminaires/Vénus/angles = « sudden changes of
+        // emotional allegiance » (l.164-166), « one of the main indicators of divorce » (l.553),
+        // « when Uranus is afflicted, the marriage bond is difficult to maintain » (l.587).
+        // MODULÉ par l'engagement Saturne : Saturne fort (ENG≥12) neutralise Uranus — Sun/Saturn
+        // « guarantees the continuity and durability… even if there are strongly adverse
+        // cross-aspects » (l.3065). Aspects tier1 (majeurs) uniquement — iso preuve chiffrée
+        // condM (base×3, cap 6). ACTIVÉ 2026-07-26 : ON par défaut en n8n (preuve chiffrée avant/après
+        // validée) ; off-able en local via env DTC_SYN_DURAB_URANUS=0 pour A/B. OFF ⇒ score V3 inchangé.
+        let _uMalus = 0;
+        if (!(typeof process !== "undefined" && process.env && process.env.DTC_SYN_DURAB_URANUS === "0")) {
+            const _uHard = new Set(["Carré", "Opposition", "Conjonction"]);
+            const _uBest = {};
+            for (const _a of [...interAspectsTier1BtoA_enriched, ...interAspectsTier1AtoB_enriched]) {
+                const _us = _a && _a.planete_source, _uc = _a && _a.planete_cible;
+                if (_us !== "Uranus" && _uc !== "Uranus") continue;
+                const _uo = _us === "Uranus" ? _uc : _us;
+                if (!_LUM.has(_uo)) continue;
+                if (!_uHard.has(_a.aspect)) continue;
+                const _uClose = Math.max(0, 1 - (Math.abs(Number(_a.orbe) || 0) / 8));
+                const _uk = _norm(_uo) + "|" + _a.aspect;
+                if (!(_uk in _uBest) || _uBest[_uk] < _uClose) _uBest[_uk] = _uClose;
+            }
+            let _uSum = 0; for (const _uk in _uBest) _uSum += _uBest[_uk];
+            const _uBase = Math.min(3.0 * _uSum, 6);                       // condM
+            _uMalus = _uBase * Math.max(0, 1 - _ENG / 12);                 // modulé par Saturne
+            longevityIndex.binding_uranus_malus = +_uMalus.toFixed(2);
+        }
+        const _raw = Math.max(0, _ENG + _AFF - _uMalus);
         const _score = Math.max(0, Math.min(100, Math.round(100 * (1 - Math.exp(-_raw / 20)))));
         const _ton = (_AFF > _ENG)
             ? { fr: "par élan",       en: "through attraction" }
