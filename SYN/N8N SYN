@@ -9250,8 +9250,8 @@ if (_useRelationalChart) {
               + `Note : cette rivalité ne vit pas qu'entre les deux personnes mais dans leur sphère commune (politique, sportive, médiatique). Le Composite montre comment l'entité-rivalité est perçue de l'extérieur.\n`;
     } else {
         synthPrompt += isEN
-            ? `### COMPOSITE CHART (the « We » as an entity — primary source) :\n`
-            : `### THÈME COMPOSITE (l'entité relationnelle — source principale) :\n`;
+            ? `### COMPOSITE CHART (the « We » as an entity — the PRIMARY relationship chart, R. Hand's midpoint method; ALWAYS analyse it first, before the Davison) :\n`
+            : `### THÈME COMPOSITE (l'entité relationnelle — la carte-relation PRINCIPALE, méthode des mi-points de R. Hand ; à analyser TOUJOURS en premier, avant le Davison) :\n`;
     }
     synthPrompt += compositeChart.planetes.map(p =>
         `• ${p.planete} composite : ${p.normDegre}° ${p.signe}${p.maison_composite ? " (M" + p.maison_composite + ")" : ""}`
@@ -9382,6 +9382,32 @@ if (DTC_SYN_DURAB_V3) {
         : `> À TISSER ENSEMBLE (un seul paragraphe, dans le registre du lien — jamais romantique hors Amour ; ne cite ni l'année ni la note chiffrée) : la solidité, son MOTEUR DOMINANT — « par engagement » (Saturne : devoir, continuité) vs « par élan » (affinité de fond : luminaires/Vénus, le « basis of a lasting relationship » de DAVISON) — ET l'ancienneté (registre « ANCIENNETÉ DU LIEN » ci-dessus). Lien récent → lis le moteur dominant comme un POTENTIEL qui se construit ; lien installé/de longue date → laisse-le éclairer ce qui a déjà cimenté le lien.\n\n`;
 }
 
+// Lot 5 (2026-07-26) — vigilances doctrine DAVISON en STEP 4 (narratif seulement, aucun
+// rescoring). A1 : attirance physique ≠ durée (Amour). A2 : Uranus dur aux luminaires/Vénus/
+// angles = instabilité (indicateur de rupture Davison). Flags dérivés des inter-aspects en scope.
+{
+    const _l5tier1 = [...interAspectsTier1BtoA_enriched, ...interAspectsTier1AtoB_enriched];
+    const _l5LumVen = new Set(["Soleil", "Lune", "Vénus", "Descendant", "Ascendant"]);
+    const _l5Hard = new Set(["Carré", "Opposition", "Conjonction"]);
+    const _uranusCorrosive = _l5tier1.some(a => {
+        const s = a.planete_source, t = a.planete_cible;
+        if (s !== "Uranus" && t !== "Uranus") return false;
+        const other = (s === "Uranus") ? t : s;
+        return _l5LumVen.has(other) && _l5Hard.has(a.aspect);
+    });
+    const _vmStrong = Array.isArray(venusMarsContacts) && venusMarsContacts.some(c => Math.abs((c && typeof c.orbe === "number") ? c.orbe : 9) <= 3);
+    if (typologie === "Amour" && _vmStrong) {
+        synthPrompt += isEN
+            ? `> ATTRACTION ≠ DURABILITY (DAVISON): a strong Venus–Mars pull is present. Per Davison, "attraction alone is the least likely to prove enduring" — weigh this magnetism against the solidity engines (commitment/affinity) and never equate physical chemistry with a lasting bond. Conditional, never a verdict.\n\n`
+            : `> ATTIRANCE ≠ DURÉE (DAVISON) : une forte attirance Vénus–Mars est présente. Selon Davison, « l'attraction seule est la moins susceptible de durer » — pèse ce magnétisme au regard des moteurs de solidité (engagement/affinité) et n'assimile jamais l'alchimie physique à un lien qui dure. Au conditionnel, jamais un verdict.\n\n`;
+    }
+    if (_uranusCorrosive) {
+        synthPrompt += isEN
+            ? `> URANUS WATCH-OUT (DAVISON): a hard Uranus contact touches the luminaries/Venus/angles. Davison reads this as instability — "sudden changes of emotional allegiance"${typologie === "Amour" ? ", one of the main indicators of divorce" : ""} — a tension on the bond's steadiness (distinct from a stimulating, soft Uranus). Present it as a growth area, conditionally, never a fatality.\n\n`
+            : `> VIGILANCE URANUS (DAVISON) : un contact dur d'Uranus touche les luminaires/Vénus/angles. Davison y lit une instabilité — « changements soudains d'allégeance affective »${typologie === "Amour" ? ", l'un des grands indicateurs de rupture" : ""} — une tension sur la constance du lien (à distinguer d'un Uranus stimulant, en aspect doux). Présente-le comme une zone de croissance, au conditionnel, jamais comme une fatalité.\n\n`;
+    }
+}
+
 // ===== ÉTAPE 5 — CARTE RELATIONNELLE (Composite + Davison) ================
 // v6.3.0 — Q15 : skip total pour Rivalité (le « Nous » n'existe pas).
 if (_useRelationalChart) {
@@ -9392,8 +9418,8 @@ synthPrompt += isEN
 // P3.1 — Davison dans la synthèse
 if (davisonChart && davisonChart.planetes.length > 0) {
     synthPrompt += isEN
-        ? `### DAVISON CHART (mid-time/mid-place — secondary source, useful for transits) :\n`
-        : `### THÈME DAVISON (date/lieu mi-chemin — source secondaire, utile pour les transits) :\n`;
+        ? `### DAVISON CHART (the « We » as a chart in its own right — computed for the mid-point in date & place; read it for the relationship's NATURE, never for transits or timing; a COMPLEMENT read AFTER the composite) :\n`
+        : `### THÈME DAVISON (le « Nous » comme thème à part entière — calculé pour la date/le lieu médians ; à lire pour la NATURE de la relation, jamais pour des transits ou du calendrier ; un COMPLÉMENT à lire APRÈS le composite) :\n`;
     if (davisonChart.meta?.date_davison) synthPrompt += `Date Davison : ${davisonChart.meta.date_davison}\n`;
     synthPrompt += davisonChart.planetes.slice(0, 12).map(p =>
         `• ${p.planete} Davison : ${p.normDegre}° ${p.signe} (M${p.maison || '?'})`
@@ -10208,8 +10234,8 @@ const relationshipDashboard = (() => {
         },
         metrics: {
             fluidite: mk(fluiditeScore, bandQuality(fluiditeScore),
-                "À quel point les échanges coulent sans effort au quotidien. Une aisance naturelle qui facilite la vie commune — sans garantir à elle seule la solidité du lien.",
-                "How effortlessly things flow between you day-to-day. A natural ease that smooths shared life — though ease alone doesn't make a bond solid.",
+                "À quel point les échanges coulent sans effort au quotidien. Elle s'appuie notamment sur l'accord des luminaires (Soleil-Lune, la « compatibilité classique » de Davison) et l'harmonie des éléments : une aisance naturelle qui facilite la vie commune — sans garantir à elle seule la solidité du lien.",
+                "How effortlessly things flow between you day-to-day. It draws in particular on the accord of the luminaries (Sun-Moon, DAVISON's \"classic compatibility\") and elemental harmony: a natural ease that smooths shared life — though ease alone doesn't make a bond solid.",
                 { name: "Fluidité", name_en: "Fluidity", icon: "🌊" }),
             intensite: mk(intensiteScore, bandIntensity(intensiteScore),
                 "La charge et le magnétisme du lien, sa puissance émotionnelle. Ni bon ni mauvais présage en soi : une forte intensité peut souder autant qu'épuiser, selon la maturité de chacun.",
@@ -10237,8 +10263,8 @@ const relationshipDashboard = (() => {
                 "The sense of trust and refuge: lowering your guard and feeling at home. It rests on the attunement of the Moons and Moon-Venus links — that \"well-being in each other's company\" which settles into lasting comfort. An anchor, distinct from the day-to-day fluidity of emotional dialogue; a fundamental need whose strength shifts across life's seasons.",
                 { name: "Ancrage émotionnel", name_en: "Emotional anchoring", icon: "⚓" }),
             valeurs: mk(valeursScore, bandQuality(valeursScore),
-                "Le partage des goûts, des priorités et du rapport à l'argent et au plaisir. Un socle discret mais puissant : les liens qui durent s'accordent souvent d'abord sur l'essentiel.",
-                "Shared tastes, priorities and outlook on money and pleasure. A quiet but powerful foundation: lasting bonds often align first on what truly matters.",
+                "Le partage des goûts, des priorités et du rapport à l'argent et au plaisir. Il s'appuie sur les accords Soleil-Vénus (favorables à tout partenariat selon Davison) et Vénus-Jupiter (générosité, valeurs et joies partagées). Un socle discret mais puissant : les liens qui durent s'accordent souvent d'abord sur l'essentiel.",
+                "Shared tastes, priorities and outlook on money and pleasure. It rests on Sun-Venus accords (favourable to any partnership, per DAVISON) and Venus-Jupiter (generosity, shared values and joys). A quiet but powerful foundation: lasting bonds often align first on what truly matters.",
                 { name: "Alignement des valeurs", name_en: "Shared values", icon: "🎨" }),
             resonance: mk(resonanceScore, bandQuality(resonanceScore),
                 (DTC_SYN_RESONANCE_V3 && _resonMinor)
