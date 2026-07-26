@@ -9301,7 +9301,8 @@ synthPrompt += isEN
         + `  · Saturn hard contact (binds by duty/karma — NOT a lack of durability) : +${_lib.saturn_burden ?? 0}\n`
         + `  · Saturn ↔ Saturn (shared durability) : ${_lib.saturn_saturn >= 0 ? '+' : ''}${_lib.saturn_saturn ?? 0}\n`
         + (DTC_SYN_DURAB_V3
-            ? `  · Underlying affinity (soft luminary/Venus contacts — Sun-Moon, Moon-Moon, Moon-Venus, + Descendant) : +${_li.binding_affinity ?? 0}  (Lunar Nodes now scored on the Karmic axis, not durability)\n`
+            ? `  · Commitment engine (Saturn — duty, continuity) : +${_li.binding_engagement ?? 0}\n`
+              + `  · Underlying affinity (soft luminary/Venus contacts — Sun-Moon, Moon-Moon, Moon-Venus, + Descendant) : +${_li.binding_affinity ?? 0}  (Lunar Nodes now scored on the Karmic axis, not durability)\n`
             : `  · North Node ↔ personal planets (evolutive function) : +${_lib.nodes_evolutive ?? 0}\n`
               + `  · South Node ↔ personal planets (karmic loop / "déjà-vu" familiarity) : +${_lib.nodes_repetitive ?? 0}\n`)
         + `> High Harmony + weak glue = beautiful relationship that may not last.\n`
@@ -9315,7 +9316,8 @@ synthPrompt += isEN
         + `  · Saturne contact dur (lie par devoir/karma — PAS un défaut de durée) : +${_lib.saturn_burden ?? 0}\n`
         + `  · Saturne ↔ Saturne (durabilité partagée) : ${_lib.saturn_saturn >= 0 ? '+' : ''}${_lib.saturn_saturn ?? 0}\n`
         + (DTC_SYN_DURAB_V3
-            ? `  · Affinité de fond (contacts luminaires/Vénus soft — Soleil-Lune, Lune-Lune, Lune-Vénus, + Descendant) : +${_li.binding_affinity ?? 0}  (les Nœuds lunaires sont désormais notés sur l'axe Karmique, pas la durabilité)\n`
+            ? `  · Moteur d'engagement (Saturne — devoir, continuité) : +${_li.binding_engagement ?? 0}\n`
+              + `  · Affinité de fond (contacts luminaires/Vénus soft — Soleil-Lune, Lune-Lune, Lune-Vénus, + Descendant) : +${_li.binding_affinity ?? 0}  (les Nœuds lunaires sont désormais notés sur l'axe Karmique, pas la durabilité)\n`
             : `  · Nœud Nord ↔ planètes personnelles (fonction évolutive) : +${_lib.nodes_evolutive ?? 0}\n`
               + `  · Nœud Sud ↔ planètes personnelles (boucle karmique / familiarité « déjà-vu ») : +${_lib.nodes_repetitive ?? 0}\n`)
         + `> Une Harmonie élevée + ciment faible = belle relation qui peut ne pas durer.\n`
@@ -9323,6 +9325,15 @@ synthPrompt += isEN
         + (DTC_SYN_DURAB_V3
             ? `> Un lien peut durer « par engagement » (Saturne : devoir, structure) OU « par élan » (affinité profonde : luminaires — le « basis of a lasting relationship » de DAVISON). Un lien tenu par engagement sans confort n'est PAS un échec ; des signaux faibles = la relation demande un effort conscient pour durer.\n\n`
             : `> Une tonalité « contraignante » n'est PAS un échec : le lien tient — plutôt par devoir/karma que par confort. Un ciment faible ne signifie PAS échec — la relation demande un effort conscient pour durer.\n\n`);
+
+// Lot 4 (2026-07-26) — TISSE note × moteur dominant × ancienneté (registre global
+// `bondAgeContextStr`) dans UN paragraphe. Narratif seulement (aucun rescoring V3).
+// Typologie-safe : registre du lien, jamais romantique hors Amour. Ne cite ni année ni chiffre.
+if (DTC_SYN_DURAB_V3) {
+    synthPrompt += isEN
+        ? `> WEAVE TOGETHER (one paragraph, in the bond's register — never romantic outside Love; cite neither the year nor the raw score): the solidity level, its DOMINANT ENGINE — "through commitment" (Saturn: duty, continuity) vs "through attraction" (underlying affinity: luminaries/Venus, DAVISON's "basis of a lasting relationship") — AND the bond age (the "BOND AGE" register above). Recent bond → read the dominant engine as a POTENTIAL taking shape; established/long-standing → let it illuminate what has already cemented the bond.\n\n`
+        : `> À TISSER ENSEMBLE (un seul paragraphe, dans le registre du lien — jamais romantique hors Amour ; ne cite ni l'année ni la note chiffrée) : la solidité, son MOTEUR DOMINANT — « par engagement » (Saturne : devoir, continuité) vs « par élan » (affinité de fond : luminaires/Vénus, le « basis of a lasting relationship » de DAVISON) — ET l'ancienneté (registre « ANCIENNETÉ DU LIEN » ci-dessus). Lien récent → lis le moteur dominant comme un POTENTIEL qui se construit ; lien installé/de longue date → laisse-le éclairer ce qui a déjà cimenté le lien.\n\n`;
+}
 
 // ===== ÉTAPE 5 — CARTE RELATIONNELLE (Composite + Davison) ================
 // v6.3.0 — Q15 : skip total pour Rivalité (le « Nous » n'existe pas).
@@ -9351,6 +9362,23 @@ if (davisonChart && davisonChart.planetes.length > 0) {
         synthPrompt += `Configurations Davison (top ${topDavCfg.length}/${davisonChart.configurations.length}) :\n`;
         synthPrompt += topDavCfg.map(c => `• ${c.type} : ${c.planets.join(", ")}`).join("\n") + "\n";
     }
+    // Lot 4 (2026-07-26) — LECTURE interprétative de la carte-relation (cœur doctrine
+    // DAVISON : la relation comme thème à part entière, son IDENTITÉ propre). Narratif
+    // seulement. Typologie-safe : Vénus « aimer » seulement en Amour. STEP 5 déjà skippé
+    // pour Rivalité (via _useRelationalChart), donc pas de « Nous » romantique parasite.
+    synthPrompt += isEN
+        ? `> READ THE RELATIONSHIP CHART (Composite/Davison = the relationship as a chart in its own right — its OWN IDENTITY as an entity). Read its core bodies like those of a "relationship-individual", in the bond's register:\n`
+            + `>  · Sun — the bond's vocation/vitality: what it fundamentally revolves around (sign = its style, house = the life area where it shines).\n`
+            + `>  · Moon — its emotional nature, inner climate and need for safety: the "well-being in each other's company" that, per DAVISON, grounds a lasting bond.\n`
+            + `>  · Venus — how the bond ${typologie === "Amour" ? "loves and attunes" : "attunes"}: its shared values, tastes and pleasures.\n`
+            + `>  · Saturn — its structure, duties and endurance: where the bond must mature and where it earns its continuity.\n`
+            + `> These describe the "We" as an entity — they COMPLEMENT (never replace) the cross-aspects (how the two individuals touch). Keep the two levels distinct.\n`
+        : `> LECTURE DE LA CARTE-RELATION (Composite/Davison = la relation comme thème à part entière — son IDENTITÉ propre en tant qu'entité). Lis ses astres-clés comme ceux d'un « individu-relation », dans le registre du lien :\n`
+            + `>  · Soleil — la vocation/vitalité du lien : ce autour de quoi il tourne (signe = son style, maison = le domaine de vie où il rayonne).\n`
+            + `>  · Lune — sa nature émotionnelle, son climat intime, son besoin de sécurité : le « bien-être en présence de l'autre » qui, chez DAVISON, fonde un lien durable.\n`
+            + `>  · Vénus — la façon dont le lien ${typologie === "Amour" ? "aime et s'accorde" : "s'accorde"} : ses valeurs, ses goûts et plaisirs partagés.\n`
+            + `>  · Saturne — sa structure, ses responsabilités, son endurance : là où le lien doit mûrir et gagne sa continuité.\n`
+            + `> Ces astres décrivent le « Nous » comme entité — ils COMPLÈTENT (sans jamais les remplacer) les aspects croisés (la façon dont les deux individus se touchent). Garde les deux niveaux distincts.\n`;
     synthPrompt += "\n";
 }
 }  // end if (_useRelationalChart) for Step 5
@@ -10154,12 +10182,12 @@ const relationshipDashboard = (() => {
                 { name: "Karmique", name_en: "Karmic", icon: "🧭",
                     direction: karmDir.fr, direction_en: karmDir.en }),
             mental: mk(mentalScore, bandQuality(mentalScore),
-                "Le plaisir de penser et d'échanger ensemble : dialogue, curiosité, stimulation intellectuelle. Un vrai confort au quotidien — à distinguer du fait de se sentir compris émotionnellement — qui, seul, dit peu de la durée du lien.",
-                "The pleasure of thinking and talking together: dialogue, curiosity, intellectual stimulation. A real day-to-day comfort — distinct from feeling emotionally understood — which alone says little about how long the bond lasts.",
+                "Le plaisir de penser et d'échanger ensemble : dialogue, curiosité, stimulation intellectuelle, portés par l'accord de Mercure — ce rapport mental qui facilite la communication dans n'importe quel lien. Un vrai confort au quotidien — à distinguer du fait de se sentir compris émotionnellement — qui, seul, dit peu de la durée du lien.",
+                "The pleasure of thinking and talking together: dialogue, curiosity, intellectual stimulation, carried by the attunement of Mercury — the mental rapport that eases communication in any kind of bond. A real day-to-day comfort — distinct from feeling emotionally understood — which alone says little about how long the bond lasts.",
                 { name: "Connexion mentale", name_en: "Mental connection", icon: "🏎️" }),
             securite: mk(securiteScore, bandQuality(securiteScore),
-                "Le sentiment de confiance et de refuge : pouvoir baisser la garde et se sentir chez soi — un ancrage, à distinguer de la fluidité du dialogue émotionnel au quotidien. Un besoin fondamental, dont l'intensité varie selon les moments de la vie.",
-                "The sense of trust and refuge: lowering your guard and feeling at home — an anchor, distinct from the day-to-day fluidity of emotional dialogue. A fundamental need whose strength shifts across life's seasons.",
+                "Le sentiment de confiance et de refuge : pouvoir baisser la garde et se sentir chez soi. Il repose sur l'accord des Lunes et les liens Lune-Vénus — ce « bien-être en présence de l'autre » qui installe la durée. Un ancrage, à distinguer de la fluidité du dialogue émotionnel au quotidien ; un besoin fondamental dont l'intensité varie selon les moments de la vie.",
+                "The sense of trust and refuge: lowering your guard and feeling at home. It rests on the attunement of the Moons and Moon-Venus links — that \"well-being in each other's company\" which settles into lasting comfort. An anchor, distinct from the day-to-day fluidity of emotional dialogue; a fundamental need whose strength shifts across life's seasons.",
                 { name: "Ancrage émotionnel", name_en: "Emotional anchoring", icon: "⚓" }),
             valeurs: mk(valeursScore, bandQuality(valeursScore),
                 "Le partage des goûts, des priorités et du rapport à l'argent et au plaisir. Un socle discret mais puissant : les liens qui durent s'accordent souvent d'abord sur l'essentiel.",
