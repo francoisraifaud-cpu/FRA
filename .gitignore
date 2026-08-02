@@ -1,5 +1,8 @@
 node_modules/
 
+# Bibliothèque de doctrine (sources primaires, droits d'auteur) — locale uniquement
+BOOKS/
+
 # Backups timestampés (locaux, ne pas versionner)
 *.backup-*.json
 *.backup-*
