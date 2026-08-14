@@ -11,12 +11,17 @@
 
 ## Verdict en une ligne
 
-**NO-GO pour le Sprint B tel que spécifié** (route serveur + moteur de précision).
-Le moteur de Marr est implémenté et **prouvé conforme au livre**, mais appliqué en
-aveugle il **ne désigne jamais l'heure** : sur 8 cas d'état civil, le vrai RAMC
-n'est jamais dans les 5 meilleurs candidats sur 10 800. Il reste un **signal
-résiduel réel mais faible** (le vrai RAMC est systématiquement dans le top ~10 %),
-cohérent avec le NO-GO DP du 2026-07-12.
+**NO-GO ferme.** Le moteur de Marr est implémenté et **prouvé conforme au livre**
+(5 RAMC publiés reproduits à moins de 0,5′), mais appliqué en aveugle il **ne
+désigne jamais l'heure** : sur 8 cas d'état civil, le vrai RAMC n'est jamais dans
+les 5 meilleurs candidats sur 10 800, et le gain contre un modèle nul à dates
+fausses est de **~1,0, soit nul**. Trois régimes testés — recherche globale,
+conditionnée au signe d'ascendant, et nombre d'événements porté à 15 — donnent
+tous le même résultat. Cohérent avec le NO-GO DP du 2026-07-12.
+
+> ⚠ Le §3 de la première rédaction annonçait un « signal résiduel faible ». **C'est
+> corrigé au §4ter** : les mesures à N apparié montrent que les dates fausses
+> obtiennent le même rang. Il n'y a pas de signal.
 
 ---
 
@@ -136,19 +141,93 @@ garde-fou : le chantier a coûté une session au lieu de plusieurs semaines.
 
 ---
 
-## 5. Seule piste que la mesure autorise encore
+## 4bis. Deux hypothèses de sauvetage testées — les deux mortes
 
-Le signal existe mais est **global et fragmenté**. La seule hypothèse compatible avec
-les deux mesures (celle-ci et le NO-GO DP de juillet) est d'utiliser la convergence de
-Marr **non pas comme moteur de recherche global, mais comme re-classeur à l'intérieur
-d'une fenêtre de signe déjà choisie par le questionnaire** (étage 0). Le bilan de
-juillet dit que la DP « ne résout pas l'heure DANS un signe » ; la présente mesure dit
-qu'elle élimine ~90 % de la journée. Les deux ensemble suggèrent une complémentarité —
-**à vérifier, pas à supposer.**
+### (a) « Donner le signe d'ascendant en oracle » → aucun gain
 
-Si cette piste est ouverte, elle reste **100 % locale** et doit passer le même type de
-gate (modèle nul, cohorte AA, p < 0,05 sur ≥ 6/8 cas) **avant** toute considération
-serveur. Sinon : gel du chantier Polaris, l'étage 0 reste le produit.
+Proposition : le questionnaire donne le top-3 des signes (~88 % de réussite sur le
+bench), l'astrologue tranche, Marr trouve l'heure dans la fenêtre du signe.
+
+Testé avec le **vrai signe fourni en oracle** (donc arbitrage supposé parfait,
+hypothèse plus favorable que la réalité) :
+
+| Méthode, signe connu | Erreur médiane sur l'heure | Cas ≤ 15 min |
+|---|---|---|
+| **Milieu de la fenêtre de signe** | **27,5 min** | 4/8 |
+| Marr, toutes cuspides | 27,7 min | 3/8 |
+| Marr, symbolisme | 37,3 min | 1/8 |
+| Marr, majeurs + symbolisme | 32,7 min | 3/8 |
+
+Marr fait **exactement aussi bien que pointer le milieu de la fenêtre**. Le signe
+n'est donc pas le verrou. Script : `marr_within_sign.py`.
+
+Nuance à ne pas surinterpréter : si l'on savait désigner le bon pic parmi les
+égalités, l'erreur médiane tomberait à ~11 min. Mais le nombre d'égalités va de
+**1 à 33** ; sur les cas où il n'y a que 2 candidats (donc où « désigner le bon »
+veut dire quelque chose), on obtient **1 réussite sur 4** — soit le hasard. Ce
+plafond de 11 min est un artefact de sélection oraculaire, pas une performance
+atteignable.
+
+### (b) « Il faut 15 événements comme Marr » → courbe plate
+
+Hypothèse : nos cas AA ont 3 à 6 événements, Marr travaille Lennon avec 15 ; le
+critère étant une convergence, le test serait sous-dimensionné.
+
+Testé en tirant des sous-ensembles de taille N = 3…15 (30 tirages par N), avec
+modèle nul au même N. Résultat sur Lennon (toutes cuspides) :
+
+| N événements | 3 | 5 | 8 | 11 | 13 | 15 |
+|---|---|---|---|---|---|---|
+| rang réel | 1164 | 694 | 2167 | 1773 | 1183 | 753 |
+| rang nul (dates fausses) | 1144 | 636 | 649 | 587 | 1102 | 706 |
+| gain ×  | 1,0 | 0,9 | 0,3 | 0,3 | 0,9 | 0,9 |
+
+**Aucune pente.** Le rang oscille sans tendance et le gain contre le modèle nul
+reste autour de 1,0 à tous les N. Même constat sur le volet AA (contrôle sans
+circularité). Étoffer les timelines ne servira à rien.
+Script : `event_count_curve.py`.
+
+---
+
+## 4ter. ⚠ CORRECTION du §3 — le « signal résiduel » n'en était pas un
+
+Le §3 annonçait un « signal réel mais faible » au motif que le vrai RAMC tombait
+dans le top ~10 % (rang médian 1042/10 800). **C'était une erreur de lecture** :
+les mesures à N apparié montrent que les **dates fausses tombent dans le même
+top 10 %**. La distribution des candidats est intrinsèquement non uniforme (les
+ascensions obliques des points d'aspect se concentrent), donc « top 10 % » est la
+**ligne de base**, pas un signal.
+
+Correctement contrôlé, le gain contre le modèle nul est de **~1,0** — c'est-à-dire
+**nul**. Et les 3 cas apparemment significatifs du §2 (de Gaulle p=0,015,
+Proust p=0,035, Deneuve p=0,015) sont à relire à la lumière des **32 tests**
+effectués (4 configurations × 8 cas) : l'espérance de faux positifs à p<0,05 est
+de 1,6, en observer 4 donne P ≈ 0,08. Rien d'établi.
+
+**Conséquence : le verdict passe de « signal faible » à « aucun signal mesurable ».**
+
+---
+
+## 5. Ce qui reste réellement exploitable
+
+Marr **comme détecteur d'heure est mort** : trois régimes testés (global, conditionné
+au signe, nombre d'événements) donnent tous un gain nul contre le modèle nul.
+
+Ce qui reste, et qui est solide, c'est le **moteur lui-même**, prouvé conforme au livre.
+Il ne sait pas *trouver* l'heure, mais il sait *documenter* une heure donnée :
+« à 03h50, Vénus dirigée conjoint le DESC radical à 0,4′ — cohérent avec le mariage
+d'avril 1921 ». C'est **Marr en narrateur, pas en détective**.
+
+Usage produit possible (à arbitrer, hors périmètre de ce bilan) : dans le rapport
+**Expert** du DHN, une fois l'heure candidate retenue par l'étage 0, lister les
+directions primaires topocentriques qui appuient chaque événement de vie. Ça
+n'affirme rien sur la découverte de l'heure — ça documente l'hypothèse retenue, avec
+une méthode traçable et sourcée (Marr, *Prediction II*). Coût faible : le moteur existe.
+
+**Recommandation : gel de Polaris comme moteur de rectification.** L'étage 0
+(questionnaire → signe + fenêtre + confiance) reste le produit. Ne pas rouvrir le
+sujet sans une **information nouvelle** (nouvelle doctrine, ou cohorte AA nettement
+plus grande avec dates exactes vérifiées), et jamais sans repasser le gate §7.
 
 ---
 
