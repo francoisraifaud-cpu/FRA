@@ -197,6 +197,46 @@ On reste à plus d'un ordre de grandeur du pouvoir discriminant nécessaire.
 naissance. Ce n'est pas un manque d'outillage, de finesse d'orbe ou de puissance
 statistique : l'information n'est pas là.**
 
+## La doctrine des deux temps ne rattrape pas la méthode
+
+Objection doctrinale légitime : une direction primaire ne produit pas l'événement
+seule, elle **pose le décor** ; c'est un transit, une éclipse ou une lunaison qui
+**déclenche** (Rushman, L577 + ch. 2, repris par Marr). Les tests ci-dessus ne
+mesuraient qu'une moitié de la doctrine. Mesure de la doctrine complète
+(`marr_trigger_test.py`, 35 cas PREMIUM, déclencheur = aspect dur d'un transitant
+lent à 1°, fenêtre ±45 jours) :
+
+| Ce qui est testé | réel | hasard | z |
+|---|---|---|---|
+| Déclencheur seul sur **angle** natal (ASC/MC) — dépend de l'heure | 86 % | 86 % | **−0,05** |
+| Déclencheur seul sur **Soleil** natal — témoin, ne dépend pas de l'heure | 74 % | 70 % | +0,50 |
+| Direction seule (conj+opp, 12 cuspides) | 40 % | 32 % | +0,96 |
+| **Deux temps** — direction + déclencheur | 34 % | 28 % | **+0,86** |
+
+**Le déclencheur est présent 86 % du temps, sur n'importe quelle date.** Avec
+6 transitants lents × 3 aspects durs × 2 angles = 36 points d'aspect et une fenêtre
+de ±45 jours, la condition est presque toujours satisfaite. Elle n'exclut donc
+rien, et son z est nul (−0,05).
+
+Conséquence : exiger un déclencheur réduit le taux réel et le taux du hasard **dans
+la même proportion**. Le z de la doctrine complète (+0,86) est même légèrement
+inférieur à celui de la direction seule (+0,96). Le conditionnement est un filtre,
+pas une preuve.
+
+### La raison de fond, et elle vaut pour toute couche qu'on ajouterait
+
+Chaque couche invoquée est **quasi saturée** : 3 directions par an, un transit lourd
+aux angles présent 86 % du temps. Faire converger deux quasi-certitudes ne crée
+aucun pouvoir discriminant. Or désigner **un** créneau parmi 288 exige d'en
+**exclure 287**. Les facteurs astrologiques, tels qu'utilisés ici, n'excluent
+presque rien — c'est un problème d'information, pas de doctrine ni de code.
+
+À noter, car la distinction est importante et la doctrine n'est pas en cause : la
+convergence de couches **fonctionne** pour hiérarchiser des périodes à heure
+**connue** — c'est le produit « temps forts » de PREV, mûr et audité. Elle échoue
+seulement à hiérarchiser des **heures**, parce que les couches ne varient pas assez
+avec l'heure.
+
 ### Ce que cela dit de « les autres y arrivent »
 
 Les thèmes publiés par Marr (*Notable Nativities*, 106 vies) sont rectifiés **sur**
