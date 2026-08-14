@@ -62,121 +62,366 @@ const sgn=['Belier','Taureau','Gemeaux','Cancer','Lion','Vierge','Balance','Scor
 function signOf(d){return sgn[Math.floor(((d%360)+360)%360/30)]}
 
 // __MARR_NARRATOR_BEGIN__
-// NARRATEUR MARR — directions primaires topocentriques (clé Naibod).
-// Miroir versionné : SITE/scripts/dhn-marr-narrator.js. Toute modif se fait
-// LÀ-BAS d'abord, puis se recopie ici entre les deux marqueurs ; la parité
-// Python↔JS (scripts/_enprat/audit/DHN/marr_narrator_parity.mjs) et le golden
-// test de Marr doivent rester verts.
-//
-// Ce bloc ne CHERCHE PAS l'heure : le Sprint A a mesuré que la méthode inverse
-// de Marr, automatisée, ne détecte rien au-dessus du modèle nul
-// (FRA/DHN/BILAN-SPRINT-A-POLARIS-FALSIFICATION-2026-08-14.md). Il DOCUMENTE
-// l'heure choisie par le scoring ci-dessus. Aucun appel serveur : le RAMC se
-// déduit exactement de la longitude du MC, et les directions zodiacales (β=0,
-// choix qui reproduit les valeurs publiées par Marr à 0,48' près) n'ont besoin
-// que des longitudes natales déjà récupérées.
-var MARR_NAIBOD=0.9856473614,MARR_TROPICAL_YEAR=365.242199;
-var MARR_CUSP_OFFSET={MC:0,XI:30,XII:60,ASC:90,II:120,III:150};
-var MARR_CUSP_POLE_FACTOR={MC:0,XI:1/3,XII:2/3,ASC:1,II:2/3,III:1/3};
-// Marr note « IC(MC) », « V(XI) », « DESC(ASC) » : une cuspide opposée se dirige
-// via sa base, l'aspect étant miroité (T_opposé = T_base+180).
-var MARR_CUSP_BASE={MC:'MC',XI:'XI',XII:'XII',ASC:'ASC',II:'II',III:'III',IC:'MC',V:'XI',VI:'XII',DESC:'ASC',VIII:'II',IX:'III'};
-var MARR_ASPECT_OFFSETS={conjonction:[0],opposition:[180],trigone:[120,-120],carre:[90,-90],sextile:[60,-60]};
-var MARR_ASPECT_MIRROR={conjonction:'opposition',opposition:'conjonction',trigone:'sextile',sextile:'trigone',carre:'carre'};
-// (cuspide, aspect) et (cuspide opposée, aspect miroir) = LA MÊME direction, au
-// même instant : « Saturne carré MC » ≡ « Saturne carré IC », « Vénus opposition
-// ASC » ≡ « Vénus conjonction DESC ». D'où la déduplication par axe plus bas,
-// sans laquelle chaque direction s'afficherait deux fois.
-var MARR_OPPOSITE_CUSP={MC:'IC',IC:'MC',XI:'V',V:'XI',XII:'VI',VI:'XII',ASC:'DESC',DESC:'ASC',II:'VIII',VIII:'II',III:'IX',IX:'III'};
-var MARR_ANGLES={ASC:1,DESC:1,MC:1,IC:1};
-// Cuspides attendues par type d'événement (Prediction II ch.2 : « Suitable cusps
-// for First Marriage — IC(MC), V(XI), DESC(ASC) »). Clés = ensemble fermé des
-// types du formulaire (SITE/lib/dhn-event-types.ts).
-// /!\ PONDÈRE l'affichage, n'EXCLUT rien : 2 des 5 directions publiées par Marr
-// tombent hors de toute table plausible (Saturne carré DESC pour un décès).
-var MARR_EVENT_CUSPS={mariage:['IC','V','DESC'],enfant:['V','XI','ASC'],accident:['VIII','ASC','VI'],carriere:['MC','II','VI'],demenagement:['IC','III','IX'],rupture:['DESC','IC','VIII'],promotion:['MC','XI','ASC'],deces_proche:['VIII','IC','ASC'],maladie:['VI','ASC','XII'],voyage_important:['IX','III']};
-// « angles first » (ch.2) — classement d'AFFICHAGE seulement, aucun score ici
-// n'entre dans le choix de l'heure.
-var MARR_CUSP_WEIGHT={ASC:1,DESC:1,MC:1,IC:1};
-var MARR_ASPECT_WEIGHT={conjonction:1,opposition:1,carre:0.7,trigone:0.7,sextile:0.5};
-var MARR_SYMBOLIC_BONUS=2;
-function marrNorm360(x){var v=x%360;return v<0?v+360:v}
-function marrSignedDelta(a,b){return((a-b+540)%360)-180}
-function marrJulianDay(y,m,d,ut){var yy=y,mm=m;if(mm<=2){yy-=1;mm+=12}var a=Math.floor(yy/100),b=2-a+Math.floor(a/4);return Math.floor(365.25*(yy+4716))+Math.floor(30.6001*(mm+1))+d+b-1524.5+(ut||0)/24}
-// Obliquité moyenne : la nutation (≤9,2") déplace une direction de <2 jours,
-// négligeable devant l'orbe annuel imposé par la grille 5 min de l'étage 0.
-function marrObliquity(jd){var T=(jd-2451545)/36525;return 23+26/60+(21.448-46.815*T-0.00059*T*T+0.001813*T*T*T)/3600}
-function marrRaDecFromLon(lon,epsDeg){var L=lon*Math.PI/180,E=epsDeg*Math.PI/180;return{ra:marrNorm360(Math.atan2(Math.sin(L)*Math.cos(E),Math.cos(L))*180/Math.PI),dec:Math.asin(Math.sin(E)*Math.sin(L))*180/Math.PI}}
-function marrPoleForCusp(base,latDeg){var f=MARR_CUSP_POLE_FACTOR[base];if(!f)return 0;return Math.atan(f*Math.tan(latDeg*Math.PI/180))*180/Math.PI}
-function marrObliqueAscension(lon,epsDeg,poleDeg){var rd=marrRaDecFromLon(lon,epsDeg);if(!poleDeg)return rd.ra;var v=Math.tan(rd.dec*Math.PI/180)*Math.tan(poleDeg*Math.PI/180);if(Math.abs(v)>=1)return null;return marrNorm360(rd.ra-Math.asin(v)*180/Math.PI)}
-// Le MC étant sur le méridien, son ascension droite EST le RAMC (exact).
-function marrRamcFromMc(mcLon,epsDeg){return marrRaDecFromLon(mcLon,epsDeg).ra}
-function buildMarrDirections(o){
-  var out={directions:[],byEvent:[],meta:{}};
-  if(!o||!o.birth||!Array.isArray(o.planets)||!Array.isArray(o.events))return out;
-  var b=o.birth;if(!isFinite(b.year)||!isFinite(b.lat))return out;
-  var orbYr=isFinite(o.orbYr)?o.orbYr:1,maxPerEvent=isFinite(o.maxPerEvent)?o.maxPerEvent:3;
-  var symbolism=o.symbolism!==false;
-  var aspectNames=(o.aspects&&o.aspects.length)?o.aspects:['conjonction','opposition','carre','trigone','sextile'];
-  var jdBirth=marrJulianDay(b.year,b.month,b.day,isFinite(b.ut)?b.ut:12);
-  var eps=isFinite(o.eps)?o.eps:marrObliquity(jdBirth);
-  var ramc=isFinite(o.ramc)?marrNorm360(o.ramc):(isFinite(o.mcLon)?marrRamcFromMc(o.mcLon,eps):NaN);
-  if(!isFinite(ramc))return out;
-  var bodies=o.planets.filter(function(p){return p&&isFinite(p.deg)&&!/^(Ascendant|Descendant|Milieu du Ciel|Imum Coeli|MC|IC)$/.test(String(p.name))});
-  if(!bodies.length)return out;
-  var allCusps=Object.keys(MARR_CUSP_BASE),hits=[];
-  for(var ie=0;ie<o.events.length;ie++){
-    var ev=o.events[ie];if(!ev||!isFinite(ev.year))continue;
-    var ageEvent=(marrJulianDay(ev.year,ev.month,ev.day,12)-jdBirth)/MARR_TROPICAL_YEAR;
-    if(!(ageEvent>0))continue;
-    var arc=ageEvent*MARR_NAIBOD;
-    var kind=String(ev.type||'autre').toLowerCase(),expected=MARR_EVENT_CUSPS[kind]||[];
-    var perEvent={};
-    for(var ic=0;ic<allCusps.length;ic++){
-      var label=allCusps[ic],base=MARR_CUSP_BASE[label];if(!base)continue;
-      var symbolic=symbolism&&expected.indexOf(label)!==-1;
-      var pole=marrPoleForCusp(base,b.lat),offset=MARR_CUSP_OFFSET[base];
-      for(var ia=0;ia<aspectNames.length;ia++){
-        var aspName=aspectNames[ia];
-        var eff=(label!==base)?MARR_ASPECT_MIRROR[aspName]:aspName;
-        var offs=MARR_ASPECT_OFFSETS[eff];if(!offs)continue;
-        for(var io=0;io<offs.length;io++){
-          for(var ib=0;ib<bodies.length;ib++){
-            var oa=marrObliqueAscension(marrNorm360(bodies[ib].deg+offs[io]),eps,pole);
-            if(oa===null)continue;
-            for(var s=1;s>=-1;s-=2){
-              var ramcReq=marrNorm360(oa-offset-s*arc);
-              var deltaYr=s*marrSignedDelta(ramcReq,ramc)/MARR_NAIBOD;
-              if(Math.abs(deltaYr)>orbYr)continue;
-              var key=label+'|'+bodies[ib].name+'|'+aspName+'|'+s,prev=perEvent[key];
-              if(prev&&Math.abs(prev.deltaYr)<=Math.abs(deltaYr))continue;
-              var strength=1-Math.abs(deltaYr)/orbYr;
-              perEvent[key]={event:ev.label,eventType:kind,cusp:label,body:bodies[ib].name,aspect:aspName,sense:s>0?'directe':'converse',ageEvent:ageEvent,ageExact:ageEvent+deltaYr,deltaYr:deltaYr,deltaMonths:deltaYr*12,ramcRequired:ramcReq,symbolic:symbolic,rank:strength*(MARR_CUSP_WEIGHT[label]||0.6)*(MARR_ASPECT_WEIGHT[aspName]||0.3)*(symbolic?MARR_SYMBOLIC_BONUS:1)};
+/**
+ * NARRATEUR MARR — directions primaires topocentriques (clé Naibod), port JS.
+ *
+ * MIROIR VERSIONNÉ du bloc injecté dans le nœud Code « Resultat final1 » du
+ * workflow DHN (n8n). Même rôle que SITE/scripts/spikka-events-build-node.js
+ * pour le nœud « SPIKKA Events Build ».
+ *
+ * CE QUE CE MODULE FAIT — et surtout CE QU'IL NE FAIT PAS
+ * ------------------------------------------------------
+ * Il ne CHERCHE PAS l'heure de naissance. Le Sprint A (2026-08-14) a mesuré que
+ * la méthode inverse de Marr, automatisée, ne détecte aucun signal au-dessus du
+ * modèle nul (cf. FRA/DHN/BILAN-SPRINT-A-POLARIS-FALSIFICATION-2026-08-14.md).
+ * Ce module DOCUMENTE : l'étage 0 du DHN (questionnaire + arcs + progressions +
+ * RS) désigne une heure, et le narrateur liste les directions primaires
+ * topocentriques qui l'appuient sur les événements datés du client.
+ *
+ * Référence : A. Marr, « Prediction II — Directions and the Art of
+ * Rectification » (1985), ch. 2-3 ; maisons topocentriques Polich/Page.
+ *
+ * Formule (identique au moteur Python vérifié, cf. marr_narrator.py) :
+ *   RAMC_requis = OA_pole(cuspide)(planète ± aspect) − offset(cuspide) − s·ARC
+ *   ARC = âge × 0,9856473614° d'AR/an   (clé Naibod = 59'08,33")
+ *   âge_exact = âge_événement + s·(RAMC_requis − RAMC_réel) / NAIBOD
+ *
+ * Les rayons d'aspect sont pris sur l'écliptique (β = 0, directions zodiacales) :
+ * c'est avec ce choix que le golden test reproduit les valeurs publiées par Marr
+ * à 0,48' d'arc près. Ne pas « améliorer » en injectant la latitude réelle sans
+ * repasser le golden test.
+ *
+ * Parité Python ↔ JS : scripts/_enprat/audit/DHN/marr_narrator_parity.mjs
+ */
+
+'use strict';
+
+var MARR_NAIBOD = 0.9856473614;      // degrés d'AR par an
+var MARR_TROPICAL_YEAR = 365.242199;
+
+// Les 6 cuspides dirigeables : offset d'AR depuis le RAMC + facteur de pôle
+// (trisection topocentrique Polich/Page : tan(pôle) = facteur × tan(latitude)).
+var MARR_CUSP_OFFSET = { MC: 0, XI: 30, XII: 60, ASC: 90, II: 120, III: 150 };
+var MARR_CUSP_POLE_FACTOR = { MC: 0, XI: 1 / 3, XII: 2 / 3, ASC: 1, II: 2 / 3, III: 1 / 3 };
+
+// Marr note lui-même « IC(MC) », « V(XI) », « DESC(ASC) » : une cuspide opposée
+// se dirige via sa cuspide de base, l'aspect étant miroité (T_opposé = T_base+180).
+var MARR_CUSP_BASE = {
+  MC: 'MC', XI: 'XI', XII: 'XII', ASC: 'ASC', II: 'II', III: 'III',
+  IC: 'MC', V: 'XI', VI: 'XII', DESC: 'ASC', VIII: 'II', IX: 'III'
+};
+
+var MARR_ASPECT_OFFSETS = {
+  conjonction: [0],
+  opposition: [180],
+  trigone: [120, -120],
+  carre: [90, -90],
+  sextile: [60, -60],
+  'semi-carre': [45, -45],
+  'sesqui-carre': [135, -135],
+  'semi-sextile': [30, -30],
+  quinconce: [150, -150]
+};
+
+var MARR_ASPECT_MIRROR = {
+  conjonction: 'opposition', opposition: 'conjonction',
+  trigone: 'sextile', sextile: 'trigone',
+  carre: 'carre',
+  'semi-carre': 'sesqui-carre', 'sesqui-carre': 'semi-carre',
+  'semi-sextile': 'quinconce', quinconce: 'semi-sextile'
+};
+
+// Cuspides opposées. Conséquence à ne pas perdre de vue : (cuspide, aspect) et
+// (cuspide opposée, aspect miroir) désignent LA MÊME direction, au même instant.
+// « Saturne carré MC » ≡ « Saturne carré IC », « Vénus opposition ASC » ≡ « Vénus
+// conjonction DESC ». Sans déduplication, chaque direction s'afficherait deux fois.
+var MARR_OPPOSITE_CUSP = {
+  MC: 'IC', IC: 'MC', XI: 'V', V: 'XI', XII: 'VI', VI: 'XII',
+  ASC: 'DESC', DESC: 'ASC', II: 'VIII', VIII: 'II', III: 'IX', IX: 'III'
+};
+var MARR_ANGLES = { ASC: 1, DESC: 1, MC: 1, IC: 1 };
+
+/**
+ * Cuspides attendues par type d'événement (Marr, Prediction II ch.2 :
+ * « Suitable cusps for First Marriage — IC(MC), V(XI), DESC(ASC) »).
+ *
+ * Clés = ensemble FERMÉ des types du formulaire DHN (SITE/lib/dhn-event-types.ts).
+ *
+ * ⚠ Cette table PONDÈRE l'affichage, elle n'EXCLUT rien. Raison mesurée : parmi
+ * les 5 directions que Marr publie lui-même pour Lennon, deux tombent hors de
+ * toute table plausible (Saturne carré DESC pour un décès, Nœud trigone ASC pour
+ * un mariage). Filtrer durement aurait masqué les propres résultats de l'auteur.
+ * Les 12 cuspides sont donc toujours évaluées ; celles-ci remontent en tête.
+ */
+var MARR_EVENT_CUSPS = {
+  mariage: ['IC', 'V', 'DESC'],
+  enfant: ['V', 'XI', 'ASC'],
+  accident: ['VIII', 'ASC', 'VI'],
+  carriere: ['MC', 'II', 'VI'],
+  demenagement: ['IC', 'III', 'IX'],
+  rupture: ['DESC', 'IC', 'VIII'],
+  promotion: ['MC', 'XI', 'ASC'],
+  deces_proche: ['VIII', 'IC', 'ASC'],
+  maladie: ['VI', 'ASC', 'XII'],
+  voyage_important: ['IX', 'III']
+};
+
+// Doctrine Marr ch.2 : « angles first » — les 4 angles primeraient sur les
+// cuspides intermédiaires. Classement d'AFFICHAGE uniquement : aucun score
+// produit ici n'entre dans le choix de l'heure (fait par l'étage 0).
+var MARR_CUSP_WEIGHT = { ASC: 1, DESC: 1, MC: 1, IC: 1 };
+var MARR_ASPECT_WEIGHT = {
+  conjonction: 1, opposition: 1, carre: 0.7, trigone: 0.7, sextile: 0.5,
+  'semi-carre': 0.3, 'sesqui-carre': 0.3, 'semi-sextile': 0.25, quinconce: 0.25
+};
+var MARR_SYMBOLIC_BONUS = 2;
+
+/**
+ * Corps que Marr dirige : les 7 planètes traditionnelles, les 3 modernes, et le
+ * Nœud MOYEN — « Node trigone ASC » figure parmi les 5 directions qu'il publie
+ * pour Lennon, le Nœud n'est donc pas optionnel.
+ *
+ * Liste blanche et non liste noire, à dessein. DHN calcule aussi Cérès, Junon,
+ * Chiron, Lilith et le Nœud VRAI, qui n'appartiennent pas à la méthode. Sans ce
+ * filtre ils remontaient dans la section et évinçaient de vraies directions (un
+ * « Cérès trigone ASC » occupait un des trois emplacements du décès de la mère),
+ * et le Nœud vrai doublait le Nœud moyen à ~1° près.
+ *
+ * Les clés sont normalisées (minuscules, sans accent) : le miroir Python nomme
+ * « Venus » et « Noeud », le nœud n8n « Vénus » et « Nœud moyen ».
+ */
+var MARR_BODIES = {
+  soleil: 1, lune: 1, mercure: 1, venus: 1, mars: 1, jupiter: 1,
+  saturne: 1, uranus: 1, neptune: 1, pluton: 1,
+  noeud: 1, 'noeud moyen': 1
+};
+// Repli manuel plutôt que String.normalize('NFD') : le VM n8n reste un terrain
+// où l'on préfère ne dépendre que de l'indexation de chaîne.
+var MARR_ACCENTS = {
+  'à': 'a', 'á': 'a', 'â': 'a', 'ä': 'a', 'ã': 'a', 'å': 'a',
+  'è': 'e', 'é': 'e', 'ê': 'e', 'ë': 'e',
+  'ì': 'i', 'í': 'i', 'î': 'i', 'ï': 'i',
+  'ò': 'o', 'ó': 'o', 'ô': 'o', 'ö': 'o', 'õ': 'o',
+  'ù': 'u', 'ú': 'u', 'û': 'u', 'ü': 'u',
+  'ç': 'c', 'ñ': 'n', 'œ': 'oe', 'æ': 'ae', 'ÿ': 'y'
+};
+function marrBodyKey(name) {
+  var s = String(name === null || name === undefined ? '' : name).toLowerCase();
+  var out = '';
+  for (var i = 0; i < s.length; i++) out += (MARR_ACCENTS[s.charAt(i)] || s.charAt(i));
+  return out.replace(/\s+/g, ' ').trim();
+}
+function marrIsBody(name) { return MARR_BODIES[marrBodyKey(name)] === 1; }
+
+function marrNorm360(x) { var v = x % 360; return v < 0 ? v + 360 : v; }
+function marrSignedDelta(a, b) { return ((a - b + 540) % 360) - 180; }
+function marrRad(d) { return d * Math.PI / 180; }
+function marrDeg(r) { return r * 180 / Math.PI; }
+
+/** Jour julien (UT) — algorithme grégorien standard. */
+function marrJulianDay(y, m, d, ut) {
+  var yy = y, mm = m;
+  if (mm <= 2) { yy -= 1; mm += 12; }
+  var a = Math.floor(yy / 100);
+  var b = 2 - a + Math.floor(a / 4);
+  return Math.floor(365.25 * (yy + 4716)) + Math.floor(30.6001 * (mm + 1))
+    + d + b - 1524.5 + (ut || 0) / 24;
+}
+
+/**
+ * Obliquité MOYENNE de l'écliptique (degrés). On ignore la nutation (≤ 9,2"),
+ * ce qui déplace une direction de moins de 2 jours — négligeable devant l'orbe
+ * de l'ordre de l'année imposé par la granularité de l'étage 0.
+ */
+function marrObliquity(jd) {
+  var T = (jd - 2451545.0) / 36525.0;
+  var sec = 21.448 - 46.8150 * T - 0.00059 * T * T + 0.001813 * T * T * T;
+  return 23 + 26 / 60 + sec / 3600;
+}
+
+/** Ascension droite et déclinaison d'un point de l'écliptique (β = 0). */
+function marrRaDecFromLon(lon, epsDeg) {
+  var L = marrRad(lon), E = marrRad(epsDeg);
+  var ra = Math.atan2(Math.sin(L) * Math.cos(E), Math.cos(L));
+  var dec = Math.asin(Math.sin(E) * Math.sin(L));
+  return { ra: marrNorm360(marrDeg(ra)), dec: marrDeg(dec) };
+}
+
+/** Différence ascensionnelle (degrés) ; null si circumpolaire sous ce pôle. */
+function marrAscensionalDiff(decDeg, poleDeg) {
+  var v = Math.tan(marrRad(decDeg)) * Math.tan(marrRad(poleDeg));
+  if (Math.abs(v) >= 1) return null;
+  return marrDeg(Math.asin(v));
+}
+
+function marrPoleForCusp(cuspBase, latDeg) {
+  var f = MARR_CUSP_POLE_FACTOR[cuspBase];
+  if (!f) return 0;
+  return marrDeg(Math.atan(f * Math.tan(marrRad(latDeg))));
+}
+
+/** Ascension oblique d'un point écliptique sous un pôle donné. */
+function marrObliqueAscension(lon, epsDeg, poleDeg) {
+  var rd = marrRaDecFromLon(lon, epsDeg);
+  if (!poleDeg) return rd.ra;
+  var ad = marrAscensionalDiff(rd.dec, poleDeg);
+  if (ad === null) return null;
+  return marrNorm360(rd.ra - ad);
+}
+
+/**
+ * RAMC à partir de la longitude écliptique du MC. Le MC étant sur le méridien,
+ * son ascension droite EST le RAMC — relation exacte, aucun appel serveur.
+ */
+function marrRamcFromMc(mcLon, epsDeg) {
+  return marrRaDecFromLon(mcLon, epsDeg).ra;
+}
+
+/**
+ * Directions primaires topocentriques actives autour des événements fournis.
+ *
+ * @param {Object} o
+ * @param {Object} o.birth   { year, month, day, ut, lat, lon }  (lon est positif)
+ *                           `ut` = heure UT décimale du créneau retenu ; elle ne
+ *                           sert qu'à l'âge (donc à l'arc), le RAMC portant la
+ *                           position du ciel. Défaut 12 h.
+ * @param {number} o.mcLon   longitude écliptique du MC du créneau retenu
+ * @param {number} [o.ramc]  RAMC direct (prioritaire sur mcLon)
+ * @param {number} [o.eps]   obliquité en degrés (sinon calculée)
+ * @param {Array}  o.planets [{ name, deg }] planètes natales (longitude écliptique)
+ * @param {Array}  o.events  [{ label, type, year, month, day }]
+ * @param {number} [o.orbYr=1]        tolérance en années
+ * @param {number} [o.maxPerEvent=3]  directions affichées par événement (0 = toutes)
+ * @param {Array}  [o.aspects]        sous-ensemble d'aspects
+ * @param {boolean}[o.symbolism=true] pondérer l'affichage par le type d'événement
+ */
+function buildMarrDirections(o) {
+  var out = { directions: [], byEvent: [], meta: {} };
+  if (!o || !o.birth || !Array.isArray(o.planets) || !Array.isArray(o.events)) return out;
+  var b = o.birth;
+  if (!isFinite(b.year) || !isFinite(b.lat)) return out;
+
+  var orbYr = isFinite(o.orbYr) ? o.orbYr : 1;
+  var maxPerEvent = isFinite(o.maxPerEvent) ? o.maxPerEvent : 3;
+  var symbolism = o.symbolism !== false;
+  var aspectNames = (o.aspects && o.aspects.length) ? o.aspects
+    : ['conjonction', 'opposition', 'carre', 'trigone', 'sextile'];
+
+  var jdBirth = marrJulianDay(b.year, b.month, b.day, isFinite(b.ut) ? b.ut : 12);
+  var eps = isFinite(o.eps) ? o.eps : marrObliquity(jdBirth);
+  var ramc = isFinite(o.ramc) ? marrNorm360(o.ramc)
+    : (isFinite(o.mcLon) ? marrRamcFromMc(o.mcLon, eps) : NaN);
+  if (!isFinite(ramc)) return out;
+
+  var bodies = o.planets.filter(function (p) {
+    return p && isFinite(p.deg) && marrIsBody(p.name);
+  });
+  if (!bodies.length) return out;
+
+  var allCusps = Object.keys(MARR_CUSP_BASE);
+  var hits = [];
+
+  for (var ie = 0; ie < o.events.length; ie++) {
+    var ev = o.events[ie];
+    if (!ev || !isFinite(ev.year)) continue;
+    var jdEv = marrJulianDay(ev.year, ev.month, ev.day, 12);
+    var ageEvent = (jdEv - jdBirth) / MARR_TROPICAL_YEAR;
+    if (!(ageEvent > 0)) continue;
+    var arc = ageEvent * MARR_NAIBOD;
+
+    var kind = String(ev.type || 'autre').toLowerCase();
+    var expected = MARR_EVENT_CUSPS[kind] || [];
+
+    var perEvent = {};
+    for (var ic = 0; ic < allCusps.length; ic++) {
+      var label = allCusps[ic];
+      var base = MARR_CUSP_BASE[label];
+      if (!base) continue;
+      var symbolic = symbolism && expected.indexOf(label) !== -1;
+      var pole = marrPoleForCusp(base, b.lat);
+      var offset = MARR_CUSP_OFFSET[base];
+      for (var ia = 0; ia < aspectNames.length; ia++) {
+        var aspName = aspectNames[ia];
+        var eff = (label !== base) ? MARR_ASPECT_MIRROR[aspName] : aspName;
+        var offs = MARR_ASPECT_OFFSETS[eff];
+        if (!offs) continue;
+        for (var io = 0; io < offs.length; io++) {
+          for (var ib = 0; ib < bodies.length; ib++) {
+            var oa = marrObliqueAscension(marrNorm360(bodies[ib].deg + offs[io]), eps, pole);
+            if (oa === null) continue;
+            for (var s = 1; s >= -1; s -= 2) {
+              var ramcReq = marrNorm360(oa - offset - s * arc);
+              var deltaYr = s * marrSignedDelta(ramcReq, ramc) / MARR_NAIBOD;
+              if (Math.abs(deltaYr) > orbYr) continue;
+              var key = label + '|' + bodies[ib].name + '|' + aspName + '|' + s;
+              var prev = perEvent[key];
+              if (prev && Math.abs(prev.deltaYr) <= Math.abs(deltaYr)) continue;
+              // « strength » = proximité relative à l'orbe (1 = exact au jour de
+              // l'événement, 0 = au bord de l'orbe). Le rang d'affichage combine
+              // cette proximité, le poids doctrinal (angles d'abord, aspects
+              // majeurs d'abord) et le bonus symbolique du type d'événement.
+              var strength = 1 - Math.abs(deltaYr) / orbYr;
+              perEvent[key] = {
+                event: ev.label, eventType: kind,
+                cusp: label, body: bodies[ib].name, aspect: aspName,
+                sense: s > 0 ? 'directe' : 'converse',
+                ageEvent: ageEvent, ageExact: ageEvent + deltaYr,
+                deltaYr: deltaYr, deltaMonths: deltaYr * 12,
+                ramcRequired: ramcReq, symbolic: symbolic,
+                rank: strength
+                  * (MARR_CUSP_WEIGHT[label] || 0.6)
+                  * (MARR_ASPECT_WEIGHT[aspName] || 0.3)
+                  * (symbolic ? MARR_SYMBOLIC_BONUS : 1)
+              };
             }
           }
         }
       }
     }
-    // Dédup par AXE : une seule étiquette par direction, en préférant celle que
-    // Marr retiendrait (cuspide attendue du type d'événement, sinon un angle).
-    var byAxis={},axisKeys=Object.keys(perEvent);
-    for(var ik=0;ik<axisKeys.length;ik++){
-      var cand=perEvent[axisKeys[ik]];
-      var axis=cand.body+'|'+cand.sense+'|'+cand.ramcRequired.toFixed(6);
-      var pref=(cand.symbolic?2:0)+(MARR_ANGLES[cand.cusp]?1:0),held=byAxis[axis];
-      if(!held||pref>held.pref){cand.alias=held?held.dir.cusp:(MARR_OPPOSITE_CUSP[cand.cusp]||null);byAxis[axis]={pref:pref,dir:cand};}
-      else{held.dir.alias=cand.cusp;}
+
+    // Déduplication par AXE : une direction se nomme de deux façons (cuspide et
+    // cuspide opposée avec l'aspect miroir). On garde une seule étiquette, en
+    // préférant celle que Marr retiendrait : la cuspide attendue pour ce type
+    // d'événement, sinon un angle, sinon la première dans l'ordre canonique.
+    var byAxis = {};
+    var axisKeys = Object.keys(perEvent);
+    for (var ik = 0; ik < axisKeys.length; ik++) {
+      var cand = perEvent[axisKeys[ik]];
+      var axis = cand.body + '|' + cand.sense + '|' + cand.ramcRequired.toFixed(6);
+      var pref = (cand.symbolic ? 2 : 0) + (MARR_ANGLES[cand.cusp] ? 1 : 0);
+      var held = byAxis[axis];
+      if (!held || pref > held.pref) {
+        cand.alias = held ? held.dir.cusp : (MARR_OPPOSITE_CUSP[cand.cusp] || null);
+        byAxis[axis] = { pref: pref, dir: cand };
+      } else {
+        held.dir.alias = cand.cusp;
+      }
     }
-    var list=Object.keys(byAxis).map(function(k){return byAxis[k].dir});
-    list.sort(function(x,y){if(Math.abs(y.rank-x.rank)>1e-12)return y.rank-x.rank;return Math.abs(x.deltaYr)-Math.abs(y.deltaYr)});
-    var kept=maxPerEvent>0?list.slice(0,maxPerEvent):list;
-    if(kept.length){
-      out.byEvent.push({event:ev.label,eventType:kind,ageEvent:ageEvent,year:ev.year,month:ev.month,day:ev.day,directions:kept,totalInOrb:list.length});
-      hits=hits.concat(kept);
+    var list = Object.keys(byAxis).map(function (k) { return byAxis[k].dir; });
+    list.sort(function (x, y) {
+      if (Math.abs(y.rank - x.rank) > 1e-12) return y.rank - x.rank;
+      return Math.abs(x.deltaYr) - Math.abs(y.deltaYr);
+    });
+    var kept = maxPerEvent > 0 ? list.slice(0, maxPerEvent) : list;
+    if (kept.length) {
+      out.byEvent.push({
+        event: ev.label, eventType: kind, ageEvent: ageEvent,
+        year: ev.year, month: ev.month, day: ev.day,
+        directions: kept, totalInOrb: list.length
+      });
+      hits = hits.concat(kept);
     }
   }
-  out.directions=hits;
-  out.meta={ramc:ramc,eps:eps,orbYr:orbYr,eventsTotal:o.events.length,eventsCovered:out.byEvent.length,directionsShown:hits.length,naibod:MARR_NAIBOD,engine:'marr-narrator-js-v1'};
+
+  out.directions = hits;
+  out.meta = {
+    ramc: ramc, eps: eps, orbYr: orbYr,
+    eventsTotal: o.events.length,
+    eventsCovered: out.byEvent.length,
+    directionsShown: hits.length,
+    naibod: MARR_NAIBOD,
+    engine: 'marr-narrator-js-v1'
+  };
   return out;
 }
 // __MARR_NARRATOR_END__
