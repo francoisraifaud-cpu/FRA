@@ -148,6 +148,55 @@ Mais cette réserve n'explique pas le résultat : sur les configurations
 restrictives, le réel est **moins bon** que le nul (7,9 mois contre 5,9). Ce n'est
 pas un signal masqué, c'est une absence de signal.
 
+## Corpus élargi — la question est tranchée
+
+Les deux faiblesses de puissance du premier test ont été levées avec un corpus
+reconstitué depuis les manifestes déjà audités du moteur PREV
+(`prev-bench-baseline-100/150`), qui apportent rating Rodden, date d'événement
+exacte et coordonnées (`aa_corpus.py`) :
+
+- **événements instantanés uniquement** — mariage, naissance d'un enfant,
+  accident, décès d'un proche. Écartés : carrière, santé, relocation, scandale,
+  finance, dont le « moment » astrologique est discutable ;
+- **heures d'état civil réelles** — sous-ensemble PREMIUM dont la minute n'est pas
+  ronde (hors 00/15/30/45), signe d'un relevé effectif et non d'un arrondi ;
+- **effectif** : 54 cas instantanés, dont 35 PREMIUM.
+
+Modèle nul **apparié** : même personne, même type d'événement, même tranche d'âge
+(± 15 ans), seule la date change. Fuseaux horaires calculés depuis les coordonnées
+via tzdata, donc historiquement exacts (Paris UT+0h09 avant 1911, Mexico UT−6h37
+en 1907, etc.).
+
+### Le test de puissance, et c'est lui qui tranche
+
+Deux configurations paraissaient prometteuses sur les 35 cas PREMIUM. En passant à
+54 cas, leur z **baisse** au lieu de monter :
+
+| Configuration | seuil | z sur 35 cas | z sur 54 cas | z attendu si l'effet était réel |
+|---|---|---|---|---|
+| symbolique, conj+opp | 1 mois | +1,64 | **+0,90** | ≈ +2,0 |
+| conj+opp, 12 cuspides | 3 mois | +1,28 | **+1,00** | ≈ +1,6 |
+
+Un effet réel grandit comme √n : ajouter 54 % de données devait multiplier z par
+1,24. Il a été divisé. **C'est la signature d'une fluctuation, pas d'un signal.**
+Sur 28 comparaisons (7 configurations × 4 seuils), aucune n'atteint 2 σ, et le
+gate était fixé à 3 σ pour tenir compte de la multiplicité.
+
+### Ce que ce résultat exclut, chiffré
+
+Avec 54 événements, l'intervalle de confiance borne tout effet réel restant à
+environ **13 points de pourcentage** de taux de coïncidence. Or la rectification
+doit désigner **un** créneau parmi ~288 : cela exige un rapport de vraisemblance de
+l'ordre de plusieurs centaines, pas un écart de 13 points sur un tirage à ~40 %.
+
+Même en prenant la **borne haute** de l'effet qu'on ne parvient pas à détecter
+(1,3× par événement), dix événements indépendants ne donneraient que 1,3¹⁰ ≈ 13×.
+On reste à plus d'un ordre de grandeur du pouvoir discriminant nécessaire.
+
+**La rectification par directions primaires ne peut pas retrouver une heure de
+naissance. Ce n'est pas un manque d'outillage, de finesse d'orbe ou de puissance
+statistique : l'information n'est pas là.**
+
 ### Ce que cela dit de « les autres y arrivent »
 
 Les thèmes publiés par Marr (*Notable Nativities*, 106 vies) sont rectifiés **sur**
@@ -168,6 +217,7 @@ caché. Ce qui est vérifiable, c'est sa cohérence interne — pas son exactitu
 | « prog est la couche fautive » | ne porte l'écart que sur 4 cas sur 7 |
 | Reponderer une couche pour gagner des minutes | aucune variante ne sort du modèle nul |
 | Affiner l'orbe / le pas de balayage des directions primaires | le **modèle direct** lui-même ne distingue pas les vrais événements du hasard : il n'y a rien à affiner |
+| **La rectification par directions primaires, sous toute forme** | mesurée sur 54 événements instantanés (35 à minute d'état civil réelle), 7 configurations doctrinales, modèle nul apparié : aucun z ≥ 2, et le z **baisse** quand l'effectif monte. Tout effet résiduel est borné à ~13 pp, soit un ordre de grandeur sous ce qu'exige le choix d'un créneau parmi 288 |
 
 ## Suites recommandées, dans l'ordre
 
