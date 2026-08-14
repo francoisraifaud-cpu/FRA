@@ -27,13 +27,17 @@ try{
   const pm=firstItem._plageMeta?JSON.parse(firstItem._plageMeta):null;
   if(pm&&pm.active){
     const loN=Number(pm.lo),hiN=Number(pm.hiInc);
-    const journeeNum=!Number.isNaN(loN)&&!Number.isNaN(hiN)&&loN<=0&&hiN>=1439;
+    // [P-window v5.7] wrap = la plage passe minuit (ex. 23H30 → 00H30). Elle n'est
+    // alors JAMAIS une journée entière, et le filtre de bornes doit être inclusif
+    // par réunion et non par intervalle (cf. plageHasSlot plus bas).
+    const wrapN=Boolean(pm.wrap);
+    const journeeNum=!wrapN&&!Number.isNaN(loN)&&!Number.isNaN(hiN)&&loN<=0&&hiN>=1439;
     const journeeEntiere=journeeNum||labelLooksFullDay(pm.label);
     if(!journeeEntiere){
       const lab=String(pm.label||'').replace(/</g,'');
       _plageRaw={lab:lab,ignored:Boolean(pm.ignored)};
       if(!pm.ignored){
-        plageBounds={lo:loN,hiInc:hiN,label:lab};
+        plageBounds={lo:loN,hiInc:hiN,wrap:wrapN,label:lab};
       }
     }
   }
@@ -46,7 +50,10 @@ const birthY=parseInt(ddd[2]),birthM=parseInt(ddd[1]),birthD=parseInt(ddd[0]);
 const birthDecimal=birthY+((birthM-1)*30.44+birthD)/365.25;
 
 const prep=gn('Prepare Timezone')||gn('Prepare Timezone1');
-const tzNode=gn('Get Timezone')||gn('Get Timezone1');
+// [P-tz v5.7] Lire le fuseau CORRIGÉ (nœud « TZ Historique » : LMT avant 1910, sinon
+// luxon sur la zone IANA) et non le gmtOffset brut de TimezoneDB, qui rend l'offset
+// MODERNE. Sur une naissance de 1890 l'écart atteint 51 min — soit 12,75° d'ascendant.
+const tzNode=gn('TZ Historique')||gn('TZ Historique1')||gn('Get Timezone')||gn('Get Timezone1');
 const lat=parseFloat(prep.lat),lon=parseFloat(prep.lon),tz=(tzNode.gmtOffset||0)/3600;
 
 const R=Math.PI/180;
@@ -1673,9 +1680,15 @@ if(bestSignByMean){
   bestGlobal=pickBest(validDetail);
 }
 let bestPlage=null;
+// [P-window v5.7] Une plage qui passe minuit est une RÉUNION de deux intervalles
+// ([lo,1439] ∪ [0,hi]), pas un intervalle. Le test lo<=m<=hi la rejetait en bloc.
+function plageHasSlot(pl,m){
+  if(!pl)return true;
+  const lo=+pl.lo,hi=+pl.hiInc;
+  return pl.wrap?(m>=lo||m<=hi):(m>=lo&&m<=hi);
+}
 if(plageBounds&&validDetail.length>0){
-  const loP=+plageBounds.lo,hiP=+plageBounds.hiInc;
-  const sub=validDetail.filter(d=>{const sm=slotMinOf(d);return sm>=loP&&sm<=hiP});
+  const sub=validDetail.filter(d=>plageHasSlot(plageBounds,slotMinOf(d)));
   if(sub.length>0)bestPlage=pickBest(sub);
 }
 let best;
