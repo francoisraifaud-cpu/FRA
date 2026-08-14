@@ -61,6 +61,126 @@ function calcASC(h){
 const sgn=['Belier','Taureau','Gemeaux','Cancer','Lion','Vierge','Balance','Scorpion','Sagittaire','Capricorne','Verseau','Poissons'];
 function signOf(d){return sgn[Math.floor(((d%360)+360)%360/30)]}
 
+// __MARR_NARRATOR_BEGIN__
+// NARRATEUR MARR — directions primaires topocentriques (clé Naibod).
+// Miroir versionné : SITE/scripts/dhn-marr-narrator.js. Toute modif se fait
+// LÀ-BAS d'abord, puis se recopie ici entre les deux marqueurs ; la parité
+// Python↔JS (scripts/_enprat/audit/DHN/marr_narrator_parity.mjs) et le golden
+// test de Marr doivent rester verts.
+//
+// Ce bloc ne CHERCHE PAS l'heure : le Sprint A a mesuré que la méthode inverse
+// de Marr, automatisée, ne détecte rien au-dessus du modèle nul
+// (FRA/DHN/BILAN-SPRINT-A-POLARIS-FALSIFICATION-2026-08-14.md). Il DOCUMENTE
+// l'heure choisie par le scoring ci-dessus. Aucun appel serveur : le RAMC se
+// déduit exactement de la longitude du MC, et les directions zodiacales (β=0,
+// choix qui reproduit les valeurs publiées par Marr à 0,48' près) n'ont besoin
+// que des longitudes natales déjà récupérées.
+var MARR_NAIBOD=0.9856473614,MARR_TROPICAL_YEAR=365.242199;
+var MARR_CUSP_OFFSET={MC:0,XI:30,XII:60,ASC:90,II:120,III:150};
+var MARR_CUSP_POLE_FACTOR={MC:0,XI:1/3,XII:2/3,ASC:1,II:2/3,III:1/3};
+// Marr note « IC(MC) », « V(XI) », « DESC(ASC) » : une cuspide opposée se dirige
+// via sa base, l'aspect étant miroité (T_opposé = T_base+180).
+var MARR_CUSP_BASE={MC:'MC',XI:'XI',XII:'XII',ASC:'ASC',II:'II',III:'III',IC:'MC',V:'XI',VI:'XII',DESC:'ASC',VIII:'II',IX:'III'};
+var MARR_ASPECT_OFFSETS={conjonction:[0],opposition:[180],trigone:[120,-120],carre:[90,-90],sextile:[60,-60]};
+var MARR_ASPECT_MIRROR={conjonction:'opposition',opposition:'conjonction',trigone:'sextile',sextile:'trigone',carre:'carre'};
+// (cuspide, aspect) et (cuspide opposée, aspect miroir) = LA MÊME direction, au
+// même instant : « Saturne carré MC » ≡ « Saturne carré IC », « Vénus opposition
+// ASC » ≡ « Vénus conjonction DESC ». D'où la déduplication par axe plus bas,
+// sans laquelle chaque direction s'afficherait deux fois.
+var MARR_OPPOSITE_CUSP={MC:'IC',IC:'MC',XI:'V',V:'XI',XII:'VI',VI:'XII',ASC:'DESC',DESC:'ASC',II:'VIII',VIII:'II',III:'IX',IX:'III'};
+var MARR_ANGLES={ASC:1,DESC:1,MC:1,IC:1};
+// Cuspides attendues par type d'événement (Prediction II ch.2 : « Suitable cusps
+// for First Marriage — IC(MC), V(XI), DESC(ASC) »). Clés = ensemble fermé des
+// types du formulaire (SITE/lib/dhn-event-types.ts).
+// /!\ PONDÈRE l'affichage, n'EXCLUT rien : 2 des 5 directions publiées par Marr
+// tombent hors de toute table plausible (Saturne carré DESC pour un décès).
+var MARR_EVENT_CUSPS={mariage:['IC','V','DESC'],enfant:['V','XI','ASC'],accident:['VIII','ASC','VI'],carriere:['MC','II','VI'],demenagement:['IC','III','IX'],rupture:['DESC','IC','VIII'],promotion:['MC','XI','ASC'],deces_proche:['VIII','IC','ASC'],maladie:['VI','ASC','XII'],voyage_important:['IX','III']};
+// « angles first » (ch.2) — classement d'AFFICHAGE seulement, aucun score ici
+// n'entre dans le choix de l'heure.
+var MARR_CUSP_WEIGHT={ASC:1,DESC:1,MC:1,IC:1};
+var MARR_ASPECT_WEIGHT={conjonction:1,opposition:1,carre:0.7,trigone:0.7,sextile:0.5};
+var MARR_SYMBOLIC_BONUS=2;
+function marrNorm360(x){var v=x%360;return v<0?v+360:v}
+function marrSignedDelta(a,b){return((a-b+540)%360)-180}
+function marrJulianDay(y,m,d,ut){var yy=y,mm=m;if(mm<=2){yy-=1;mm+=12}var a=Math.floor(yy/100),b=2-a+Math.floor(a/4);return Math.floor(365.25*(yy+4716))+Math.floor(30.6001*(mm+1))+d+b-1524.5+(ut||0)/24}
+// Obliquité moyenne : la nutation (≤9,2") déplace une direction de <2 jours,
+// négligeable devant l'orbe annuel imposé par la grille 5 min de l'étage 0.
+function marrObliquity(jd){var T=(jd-2451545)/36525;return 23+26/60+(21.448-46.815*T-0.00059*T*T+0.001813*T*T*T)/3600}
+function marrRaDecFromLon(lon,epsDeg){var L=lon*Math.PI/180,E=epsDeg*Math.PI/180;return{ra:marrNorm360(Math.atan2(Math.sin(L)*Math.cos(E),Math.cos(L))*180/Math.PI),dec:Math.asin(Math.sin(E)*Math.sin(L))*180/Math.PI}}
+function marrPoleForCusp(base,latDeg){var f=MARR_CUSP_POLE_FACTOR[base];if(!f)return 0;return Math.atan(f*Math.tan(latDeg*Math.PI/180))*180/Math.PI}
+function marrObliqueAscension(lon,epsDeg,poleDeg){var rd=marrRaDecFromLon(lon,epsDeg);if(!poleDeg)return rd.ra;var v=Math.tan(rd.dec*Math.PI/180)*Math.tan(poleDeg*Math.PI/180);if(Math.abs(v)>=1)return null;return marrNorm360(rd.ra-Math.asin(v)*180/Math.PI)}
+// Le MC étant sur le méridien, son ascension droite EST le RAMC (exact).
+function marrRamcFromMc(mcLon,epsDeg){return marrRaDecFromLon(mcLon,epsDeg).ra}
+function buildMarrDirections(o){
+  var out={directions:[],byEvent:[],meta:{}};
+  if(!o||!o.birth||!Array.isArray(o.planets)||!Array.isArray(o.events))return out;
+  var b=o.birth;if(!isFinite(b.year)||!isFinite(b.lat))return out;
+  var orbYr=isFinite(o.orbYr)?o.orbYr:1,maxPerEvent=isFinite(o.maxPerEvent)?o.maxPerEvent:3;
+  var symbolism=o.symbolism!==false;
+  var aspectNames=(o.aspects&&o.aspects.length)?o.aspects:['conjonction','opposition','carre','trigone','sextile'];
+  var jdBirth=marrJulianDay(b.year,b.month,b.day,isFinite(b.ut)?b.ut:12);
+  var eps=isFinite(o.eps)?o.eps:marrObliquity(jdBirth);
+  var ramc=isFinite(o.ramc)?marrNorm360(o.ramc):(isFinite(o.mcLon)?marrRamcFromMc(o.mcLon,eps):NaN);
+  if(!isFinite(ramc))return out;
+  var bodies=o.planets.filter(function(p){return p&&isFinite(p.deg)&&!/^(Ascendant|Descendant|Milieu du Ciel|Imum Coeli|MC|IC)$/.test(String(p.name))});
+  if(!bodies.length)return out;
+  var allCusps=Object.keys(MARR_CUSP_BASE),hits=[];
+  for(var ie=0;ie<o.events.length;ie++){
+    var ev=o.events[ie];if(!ev||!isFinite(ev.year))continue;
+    var ageEvent=(marrJulianDay(ev.year,ev.month,ev.day,12)-jdBirth)/MARR_TROPICAL_YEAR;
+    if(!(ageEvent>0))continue;
+    var arc=ageEvent*MARR_NAIBOD;
+    var kind=String(ev.type||'autre').toLowerCase(),expected=MARR_EVENT_CUSPS[kind]||[];
+    var perEvent={};
+    for(var ic=0;ic<allCusps.length;ic++){
+      var label=allCusps[ic],base=MARR_CUSP_BASE[label];if(!base)continue;
+      var symbolic=symbolism&&expected.indexOf(label)!==-1;
+      var pole=marrPoleForCusp(base,b.lat),offset=MARR_CUSP_OFFSET[base];
+      for(var ia=0;ia<aspectNames.length;ia++){
+        var aspName=aspectNames[ia];
+        var eff=(label!==base)?MARR_ASPECT_MIRROR[aspName]:aspName;
+        var offs=MARR_ASPECT_OFFSETS[eff];if(!offs)continue;
+        for(var io=0;io<offs.length;io++){
+          for(var ib=0;ib<bodies.length;ib++){
+            var oa=marrObliqueAscension(marrNorm360(bodies[ib].deg+offs[io]),eps,pole);
+            if(oa===null)continue;
+            for(var s=1;s>=-1;s-=2){
+              var ramcReq=marrNorm360(oa-offset-s*arc);
+              var deltaYr=s*marrSignedDelta(ramcReq,ramc)/MARR_NAIBOD;
+              if(Math.abs(deltaYr)>orbYr)continue;
+              var key=label+'|'+bodies[ib].name+'|'+aspName+'|'+s,prev=perEvent[key];
+              if(prev&&Math.abs(prev.deltaYr)<=Math.abs(deltaYr))continue;
+              var strength=1-Math.abs(deltaYr)/orbYr;
+              perEvent[key]={event:ev.label,eventType:kind,cusp:label,body:bodies[ib].name,aspect:aspName,sense:s>0?'directe':'converse',ageEvent:ageEvent,ageExact:ageEvent+deltaYr,deltaYr:deltaYr,deltaMonths:deltaYr*12,ramcRequired:ramcReq,symbolic:symbolic,rank:strength*(MARR_CUSP_WEIGHT[label]||0.6)*(MARR_ASPECT_WEIGHT[aspName]||0.3)*(symbolic?MARR_SYMBOLIC_BONUS:1)};
+            }
+          }
+        }
+      }
+    }
+    // Dédup par AXE : une seule étiquette par direction, en préférant celle que
+    // Marr retiendrait (cuspide attendue du type d'événement, sinon un angle).
+    var byAxis={},axisKeys=Object.keys(perEvent);
+    for(var ik=0;ik<axisKeys.length;ik++){
+      var cand=perEvent[axisKeys[ik]];
+      var axis=cand.body+'|'+cand.sense+'|'+cand.ramcRequired.toFixed(6);
+      var pref=(cand.symbolic?2:0)+(MARR_ANGLES[cand.cusp]?1:0),held=byAxis[axis];
+      if(!held||pref>held.pref){cand.alias=held?held.dir.cusp:(MARR_OPPOSITE_CUSP[cand.cusp]||null);byAxis[axis]={pref:pref,dir:cand};}
+      else{held.dir.alias=cand.cusp;}
+    }
+    var list=Object.keys(byAxis).map(function(k){return byAxis[k].dir});
+    list.sort(function(x,y){if(Math.abs(y.rank-x.rank)>1e-12)return y.rank-x.rank;return Math.abs(x.deltaYr)-Math.abs(y.deltaYr)});
+    var kept=maxPerEvent>0?list.slice(0,maxPerEvent):list;
+    if(kept.length){
+      out.byEvent.push({event:ev.label,eventType:kind,ageEvent:ageEvent,year:ev.year,month:ev.month,day:ev.day,directions:kept,totalInOrb:list.length});
+      hits=hits.concat(kept);
+    }
+  }
+  out.directions=hits;
+  out.meta={ramc:ramc,eps:eps,orbYr:orbYr,eventsTotal:o.events.length,eventsCovered:out.byEvent.length,directionsShown:hits.length,naibod:MARR_NAIBOD,engine:'marr-narrator-js-v1'};
+  return out;
+}
+// __MARR_NARRATOR_END__
+
 let housesItems=[];
 try{housesItems=$('Scan fin maisons').all()}catch(e){try{housesItems=$('Scan fin maisons1').all()}catch(e2){}}
 
@@ -1439,6 +1559,18 @@ const STR = {
     arcsTitle: 'Arcs solaires ({x} pts)',
     progTitle: 'Progressions API ({x} pts)',
     srTitle: 'Révolutions Solaires ({x} pts)',
+    marrTitle: 'Directions primaires topocentriques (méthode Marr)',
+    marrIntro: 'Lecture de l\u2019heure retenue ci-dessus \u00e0 la technique la plus exigeante de la rectification classique : les <b>directions primaires topocentriques</b> \u00e0 la <b>clé de Naibod</b> (59\u203208,33\u2033 d\u2019ascension droite par année de vie), telles qu\u2019Alexander Marr les emploie dans <i>Prediction II \u2014 Directions and the Art of Rectification</i> (1985).',
+    marrHonesty: '<b>Ce que cette section est, et ce qu\u2019elle n\u2019est pas.</b> Elle <b>documente</b> l\u2019heure de {time} : elle ne l\u2019a pas trouvée. L\u2019heure vient du questionnaire, des arcs solaires, des progressions et des révolutions solaires. Nos mesures montrent qu\u2019employée seule et automatiquement, cette technique ne permet pas de <i>déduire</i> une heure inconnue \u2014 elle sert \u00e0 <i>éclairer</i> une heure déj\u00e0 retenue. Les directions ci-dessous sont donc des <b>appuis</b>, pas des preuves.',
+    marrMeta: 'RAMC du créneau retenu : <b>{ramc}</b> \u00b7 orbe de lecture \u00b1{orb} an \u00b7 {n} direction(s) sur {c}/{t} événement(s).',
+    marrOrbNote: 'L\u2019orbe est volontairement large (\u00b11 an). Marr travaille \u00e0 10\u2032 et 5\u2032 d\u2019arc, mais sur un thème <i>déj\u00e0 rectifié \u00e0 la seconde</i> ; ici le créneau vient d\u2019une grille de 5 minutes, ce qui vaut d\u00e9j\u00e0 environ \u00b11,3 an d\u2019incertitude sur l\u2019arc. Annoncer une précision \u00e0 la minute d\u2019arc serait donc trompeur.',
+    marrSymbolicLegend: '\u2605 = cuspide attendue pour ce type d\u2019événement selon Marr (ex. mariage \u2192 IC, V, DESC). Les autres cuspides restent affichées : Marr lui-même retient parfois une cuspide hors table.',
+    marrEventLine: '{label} \u2014 \u00e0 {age} ans',
+    marrDirLine: '{body} {aspect} {cusp} <span style="color:#777">({sense})</span> \u2014 exacte \u00e0 {exact} ans, soit {gap} de l\u2019événement',
+    marrNone: 'Aucune direction primaire dans l\u2019orbe d\u2019un an pour les événements fournis. Ce n\u2019est pas un défaut de l\u2019heure retenue : les directions primaires sont rares par construction.',
+    marrMonths: '{n} mois',
+    marrDays: '{n} jours',
+    marrDay: '{n} jour',
     qGridSignTitle: 'Signe grille Q : {sign} (pts Q grille 5 min{w} : {score})',
     qGridSignWeight: ', pond. ×{q}',
     thHeure: 'Heure', thASC: 'ASC', thDeg: 'Deg', thSrc: 'Src', thArc: 'Arc', thProg: 'Prog', thRS: 'RS', thTot: 'Tot',
@@ -1501,6 +1633,18 @@ const STR = {
     arcsTitle: 'Solar arcs ({x} pts)',
     progTitle: 'API progressions ({x} pts)',
     srTitle: 'Solar returns ({x} pts)',
+    marrTitle: 'Topocentric primary directions (Marr method)',
+    marrIntro: 'The time selected above, read with the most demanding technique of classical rectification: <b>topocentric primary directions</b> on the <b>Naibod key</b> (59\u203208.33\u2033 of right ascension per year of life), as Alexander Marr uses them in <i>Prediction II \u2014 Directions and the Art of Rectification</i> (1985).',
+    marrHonesty: '<b>What this section is, and what it is not.</b> It <b>documents</b> the {time} time; it did not find it. The time comes from the questionnaire, solar arcs, progressions and solar returns. Our own measurements show that, used alone and automatically, this technique cannot <i>deduce</i> an unknown birth time \u2014 it serves to <i>illuminate</i> a time already selected. The directions below are therefore <b>supporting evidence</b>, not proof.',
+    marrMeta: 'RAMC of the selected slot: <b>{ramc}</b> \u00b7 reading orb \u00b1{orb} year \u00b7 {n} direction(s) across {c}/{t} event(s).',
+    marrOrbNote: 'The orb is deliberately wide (\u00b11 year). Marr works to 10\u2032 and 5\u2032 of arc, but on a chart <i>already rectified to the second</i>; here the slot comes from a 5-minute grid, which alone amounts to about \u00b11.3 years of uncertainty on the arc. Claiming arc-minute precision would be misleading.',
+    marrSymbolicLegend: '\u2605 = cusp expected for this event type per Marr (e.g. marriage \u2192 IC, V, DESC). Other cusps are still shown: Marr himself sometimes retains a cusp outside any table.',
+    marrEventLine: '{label} \u2014 at age {age}',
+    marrDirLine: '{body} {aspect} {cusp} <span style="color:#777">({sense})</span> \u2014 exact at age {exact}, i.e. {gap} from the event',
+    marrNone: 'No primary direction within a one-year orb for the events provided. This is not a flaw in the selected time: primary directions are rare by construction.',
+    marrMonths: '{n} months',
+    marrDays: '{n} days',
+    marrDay: '{n} day',
     qGridSignTitle: 'Q-grid sign: {sign} (5-min Q points{w}: {score})',
     qGridSignWeight: ', weight ×{q}',
     thHeure: 'Time', thASC: 'ASC', thDeg: 'Deg', thSrc: 'Src', thArc: 'Arc', thProg: 'Prog', thRS: 'SR', thTot: 'Tot',
@@ -1739,6 +1883,69 @@ if(events.length>0){
     }
   }
 }
+
+// __MARR_RENDER_BEGIN__
+// ── Narrateur Marr : directions primaires topocentriques de l'heure retenue ──
+// Section de LECTURE, pas de décision : le classement des créneaux plus haut est
+// inchangé. Si le calcul échoue, on n'affiche rien plutôt que de casser le rapport.
+// Prévisualisation hors n8n : scripts/_enprat/audit/DHN/marr_render_preview.mjs
+if(events.length>0&&hasPlanets&&natalBodies.length>0){
+  try{
+    var _mTime=String(best.time||'').match(/(\d{1,2}):(\d{2})/);
+    var _mLocalH=_mTime?parseInt(_mTime[1],10)+parseInt(_mTime[2],10)/60:12;
+    var _marr=buildMarrDirections({
+      birth:{year:birthY,month:birthM,day:birthD,ut:_mLocalH-tz,lat:lat,lon:lon},
+      mcLon:best.mcDeg,
+      planets:natalBodies,
+      events:events,
+      orbYr:1,
+      maxPerEvent:3
+    });
+    if(_marr&&_marr.meta&&isFinite(_marr.meta.ramc)){
+      var _aspLbl=isEN
+        ?{conjonction:'conjunct',opposition:'opposite',carre:'square',trigone:'trine',sextile:'sextile'}
+        :{conjonction:'conjonction',opposition:'opposition',carre:'carr\u00e9',trigone:'trigone',sextile:'sextile'};
+      var _senseLbl=isEN?{directe:'direct',converse:'converse'}:{directe:'directe',converse:'converse'};
+      var _bodyLbl=isEN
+        ?{Soleil:'Sun',Lune:'Moon',Mercure:'Mercury','V\u00e9nus':'Venus',Venus:'Venus',Mars:'Mars',Jupiter:'Jupiter',Saturne:'Saturn',Uranus:'Uranus',Neptune:'Neptune',Pluton:'Pluto'}
+        :{};
+      var _marrDeg=function(d){var v=((d%360)+360)%360,g=Math.floor(v),m=(v-g)*60;return g+'\u00b0'+(m<10?'0':'')+m.toFixed(1)+'\u2032'};
+      var _marrGap=function(months){
+        var a=Math.abs(months),sign=months>=0?'+':'\u2212';
+        if(a<1){var _dd=Math.round(a*30.44);return sign+T(_dd===1?'marrDay':'marrDays',{n:_dd});}
+        return sign+T('marrMonths',{n:a.toFixed(1)});
+      };
+      html+='<h3 style="margin-top:22px">'+T('marrTitle')+'</h3>';
+      html+='<p style="font-size:12px;line-height:1.5;margin:6px 0">'+T('marrIntro')+'</p>';
+      html+='<p style="font-size:11px;line-height:1.5;margin:8px 0;padding:10px 12px;background:#fff8ee;border-left:3px solid #d89a3a;border-radius:4px;color:#4a3b22">'+T('marrHonesty',{time:best.time})+'</p>';
+      html+='<p style="font-size:11px;color:#555;margin:8px 0">'+T('marrMeta',{ramc:_marrDeg(_marr.meta.ramc),orb:_marr.meta.orbYr,n:_marr.meta.directionsShown,c:_marr.meta.eventsCovered,t:_marr.meta.eventsTotal})+'</p>';
+      if(_marr.byEvent.length===0){
+        html+='<p style="font-size:12px;color:#999">'+T('marrNone')+'</p>';
+      }else{
+        for(var _ib2=0;_ib2<_marr.byEvent.length;_ib2++){
+          var _be=_marr.byEvent[_ib2];
+          html+='<h4 style="margin:12px 0 4px;font-size:13px">'+T('marrEventLine',{label:_be.event,age:_be.ageEvent.toFixed(1)})+'</h4>';
+          html+='<ul style="font-size:12px;margin:0 0 6px;padding-left:20px">';
+          for(var _id2=0;_id2<_be.directions.length;_id2++){
+            var _d2=_be.directions[_id2];
+            html+='<li style="margin:2px 0">'+T('marrDirLine',{
+              body:(_bodyLbl[_d2.body]||_d2.body),
+              aspect:(_aspLbl[_d2.aspect]||_d2.aspect),
+              cusp:_d2.cusp,
+              sense:(_senseLbl[_d2.sense]||_d2.sense),
+              exact:_d2.ageExact.toFixed(2),
+              gap:_marrGap(_d2.deltaMonths)
+            })+(_d2.symbolic?' \u2605':'')+'</li>';
+          }
+          html+='</ul>';
+        }
+        html+='<p style="font-size:10px;color:#888;margin:10px 0 0;line-height:1.45">'+T('marrSymbolicLegend')+'</p>';
+      }
+      html+='<p style="font-size:10px;color:#888;margin:6px 0 0;line-height:1.45">'+T('marrOrbNote')+'</p>';
+    }
+  }catch(_eMarr){/* narrateur non bloquant : le rapport reste complet sans lui */}
+}
+// __MARR_RENDER_END__
 
 for(const wk of Object.keys(windowGroups)){
   const wg=windowGroups[wk];
