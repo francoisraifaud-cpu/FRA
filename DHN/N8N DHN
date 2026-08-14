@@ -1791,15 +1791,17 @@ const STR = {
     estimatedBirthTime: 'Heure de naissance estimee',
     estimatedBirthWindow: 'Fenêtre horaire estimée',
     windowCenter: 'centrée sur {t} · à lire en fourchette ±{x} min',
-    signIsAnchor: 'L\u2019élément fiable de cette rectification est le <b>signe Ascendant</b> ; l\u2019heure exacte se lit en fourchette, pas à la minute.',
+    signIsAnchor: 'L\u2019élément le mieux établi de cette rectification est le <b>signe Ascendant</b> \u2014 sans être une certitude ; l\u2019heure, elle, se lit en fourchette et jamais à la minute.',
     ascendant: 'Ascendant {sign}',
     eventCountWeight: '{n} date(s) d\u2019événements : pondération questionnaire ×{q} pour privilégier arcs, progressions et RS.',
     notPercents: 'Les totaux ne sont pas des pourcentages ni une probabilité.',
     marginGap: ' Écart 1er / 2e meilleur score ({scope}) : {x}.',
     scopeFullDay: 'grille 24 h complète',
     scopeAnalysed: 'parmi les créneaux analysés',
-    confGlobalLabel: 'Fiabilité du signe Ascendant : ',
+    confGlobalLabel: 'Signe Ascendant retenu : ',
+    confSignBadge: 'Signe estimé',
     confSign: '<b>Signe ({sign})</b> : <b>{label}</b>{gap}',
+    confSignMeasured: '<b>Signe ({sign})</b> : estimation issue du questionnaire. Sur nos 8 naissances de référence à heure certifiée, analysées <b>sans aucun indice d\u2019heure</b>, le signe annoncé est le bon dans <b>5 cas sur 8</b> et le bon signe figure parmi les <b>3 hypothèses</b> ci-dessous dans <b>6 cas sur 8</b>. Nous n\u2019affichons plus de note de fiabilité par dossier : aucun indicateur mesuré ne permet de distinguer à l\u2019avance un résultat juste d\u2019un résultat faux.',
     confSignForced: '<b>Signe ({sign})</b> : seul signe Ascendant possible dans la plage indiquée. Il découle donc de la plage elle-même, et non d\u2019une discrimination entre les techniques : élargissez la plage si vous souhaitez que la rectification mette plusieurs signes en concurrence.',
     confSignGap: ' — écart au 2e signe : {x} pt ({y} %)',
     confTimeFixed: '<b>Heure ({time})</b> : estimation à lire à <b>±{x} min</b>. Sur nos 8 naissances de référence à heure certifiée, cette fourchette contient l\u2019heure réelle dans 7 cas sur 8 ; la minute affichée n\u2019est qu\u2019un centre, jamais une mesure.',
@@ -1864,15 +1866,17 @@ const STR = {
     estimatedBirthTime: 'Estimated birth time',
     estimatedBirthWindow: 'Estimated birth-time window',
     windowCenter: 'centered on {t} · read as a ±{x} min range',
-    signIsAnchor: 'The reliable output of this rectification is the <b>Ascendant sign</b>; the exact time should be read as a range, not to the minute.',
+    signIsAnchor: 'The best-established output of this rectification is the <b>Ascendant sign</b> \u2014 though not a certainty; the time is to be read as a range, never to the minute.',
     ascendant: 'Ascendant {sign}',
     eventCountWeight: '{n} life-event date(s): questionnaire weight ×{q} to favour solar arcs, progressions and solar returns.',
     notPercents: 'Totals are neither percentages nor probabilities.',
     marginGap: ' Gap between 1st and 2nd best score ({scope}): {x}.',
     scopeFullDay: 'full 24-h grid',
     scopeAnalysed: 'across analysed slots',
-    confGlobalLabel: 'Ascendant-sign reliability: ',
+    confGlobalLabel: 'Ascendant sign selected: ',
+    confSignBadge: 'Estimated sign',
     confSign: '<b>Sign ({sign})</b>: <b>{label}</b>{gap}',
+    confSignMeasured: '<b>Sign ({sign})</b>: an estimate derived from the questionnaire. Across our 8 reference births with certified times, analysed <b>with no time hint at all</b>, the sign reported is correct in <b>5 cases out of 8</b>, and the correct sign appears among the <b>3 hypotheses</b> below in <b>6 cases out of 8</b>. We no longer display a per-case reliability grade: no measured indicator tells a correct result from a wrong one in advance.',
     confSignForced: '<b>Sign ({sign})</b>: the only Ascendant sign possible within the range you provided. It therefore follows from the range itself, not from any discrimination between techniques \u2014 widen the range if you want the rectification to put several signs in competition.',
     confSignGap: ' \u2014 gap to 2nd sign: {x} pt ({y} %)',
     confTimeFixed: '<b>Time ({time})</b>: an estimate to be read as <b>±{x} min</b>. Across our 8 reference births with certified times, this range contains the actual time in 7 cases out of 8; the minute shown is only a centre, never a measurement.',
@@ -1978,10 +1982,25 @@ if(typeof te !== 'undefined' && te > 0){
 //    de significativité de 0,71 à n=8, donc dans le bruit. Régler quatre paliers sur
 //    8 cas serait du surapprentissage ;
 //  - ±45 min couvre 7 cas sur 8 (±40 n'en couvre que 5, ±50 les 8).
-// La confiance SIGNE, elle, reste graduée : c'est le livrable réellement établi
-// (5/8 en top-1, 8/8 en top-3 sur le même banc).
+// [v9.2] La confiance SIGNE n'est plus GRADUÉE non plus, pour trois raisons mesurées le
+// 2026-08-14 sur le banc AVEUGLE (24 h, aucun indice d'heure — l'ancien banc centrait la
+// fenêtre sur l'heure vraie et ne laissait que 1 à 3 signes en compétition) :
+//  - elle était calculée sur l'écart entre PICS TECHNIQUES, alors que le signe est choisi
+//    par le questionnaire (SIGN_FROM_Q_ONLY) : elle notait un classement qui ne décide pas ;
+//  - en scan 24 h l'écart relatif entre deux pics de signes voisins reste sous 4 %, donc le
+//    grader restait collé au plancher : 7 cas sur 8 affichaient « Très faible », dont les
+//    5 cas où le signe trouvé était JUSTE. On sous-vendait un résultat correct ;
+//  - aucun indicateur disponible au moment du run ne sépare les justes des faux (marge
+//    absolue, marge relative, score absolu, qConvergence : tous chevauchent — cf.
+//    scripts/_enprat/audit/DHN/dhn-separabilite-confiance.mjs).
+// Chiffres réels du banc aveugle : 5/8 en top-1, 6/8 en top-3. Ils sont désormais annoncés
+// tels quels (confSignMeasured), comme la fenêtre horaire l'est depuis _HOUR_BAND_MIN.
+// Le label gradué reste CALCULÉ et exporté dans dhnMetrics.confidence pour le diagnostic.
 const _HOUR_BAND_MIN=45;
-let confLabelGlobal='Inconnue', confColor='#888', confSigneTxt='', confHeureTxt='', confEcartS=null, confEcartH=null, confSigneLabel='Inconnue', confHeureLabel='Inconnue';
+let confLabelGlobal='Inconnue', confColor='#2E1560', confSigneTxt='', confHeureTxt='', confEcartS=null, confEcartH=null, confSigneLabel='Inconnue', confHeureLabel='Inconnue';
+// Libellé public du badge. Initialisé hors du try : si le calcul de confiance échoue, le
+// mail doit rester lisible plutôt qu'afficher « undefined » sous la fenêtre horaire.
+let confBadgeTxt=T('confSignBadge');
 try{
   const sortedSig=ascPeaksSorted.map(e=>e[1].totalScore);
   let ecartSrel=null;
@@ -2026,19 +2045,15 @@ try{
   // L'ancien code affichait alors « Inconnue » (badge « — »), ce qui le sous-vendait ;
   // le grader « Très net » le survendrait, puisque rien n'a été discriminé.
   if(sortedSig.length===1)confSigneLabel='Imposée';
-  const confRank={'Forte':3,'Moyenne':2,'Faible':1,'Très faible':0,'Inconnue':-1};
-  // La synthèse ne porte plus que la confiance SIGNE. Faire entrer l'heure dans un
-  // minimum tirait le badge vers le bas sur la foi d'un indicateur qui ne mesure
-  // rien (cf. _HOUR_BAND_MIN) : le client lisait « Très faible » alors que le signe,
-  // seul livrable établi, était net.
   confLabelGlobal=confSigneLabel;
-  const minR=confRank[confSigneLabel]??-1;
-  // Couleurs badge : lisibles mais moins « alarme » qu’un rouge vif sur Faible / Très faible.
-  confColor=confSigneLabel==='Imposée'?'#2E1560':minR>=3?'#15803d':minR===2?'#a16207':minR===1?'#b45309':'#92400e';
-  const sGap = confEcartS!=null ? T('confSignGap',{x:sf(confEcartS),y:(ecartSrel*100).toFixed(1)}) : '';
+  // Un seul libellé public : « Imposé par la plage » quand la plage a tranché à notre place
+  // (information vraie et utile), « Signe estimé » sinon. Plus de gradation ni de code
+  // couleur d'alarme : il n'y a rien à graduer (voir en tête de bloc).
+  confBadgeTxt = confSigneLabel==='Imposée' ? TConfLabel('Imposée') : T('confSignBadge');
+  confColor='#2E1560';
   confSigneTxt = confSigneLabel==='Imposée'
     ? T('confSignForced',{sign:best.ascSign||'?'})
-    : T('confSign',{sign:best.ascSign||'?',label:TConfLabel(confSigneLabel),gap:sGap});
+    : T('confSignMeasured',{sign:best.ascSign||'?'});
   // L'heure est annoncée pour ce qu'elle est : une estimation dans une fourchette
   // mesurée, sans note de confiance qui laisserait croire à une précision variable.
   confHeureTxt = T('confTimeFixed',{time:best.time||'?',x:_HOUR_BAND_MIN});
@@ -2065,7 +2080,7 @@ html+='<p style="font-size:17px;font-weight:700;margin:0 0 14px;color:#1a1a2e">'
 html+='<p style="font-size:13px;margin:0 0 5px;color:#8a8aa0">'+T('estimatedBirthWindow')+'</p>';
 html+='<p style="font-size:32px;font-weight:700;margin:0;color:#2E1560;letter-spacing:-.01em">'+bestWindowTxt+'</p>';
 html+='<p style="font-size:12px;margin:6px 0 0;color:#8a8aa0">'+T('windowCenter',{t:bestTime,x:_band})+'</p>';
-html+='<p style="margin:14px 0 0"><span style="display:inline-block;padding:6px 16px;border-radius:9999px;font-size:12px;font-weight:700;letter-spacing:0.02em;border:1.5px solid '+confColor+';color:'+confColor+';background:#fff">'+TConfLabel(confLabelGlobal)+'</span></p>';
+html+='<p style="margin:14px 0 0"><span style="display:inline-block;padding:6px 16px;border-radius:9999px;font-size:12px;font-weight:700;letter-spacing:0.02em;border:1.5px solid '+confColor+';color:'+confColor+';background:#fff">'+confBadgeTxt+'</span></p>';
 html+='<p style="font-size:12px;margin:10px 0 0;color:#8a8aa0">'+method+'</p>';
 if(qFactor<1){
   html+='<p style="font-size:11px;margin-top:10px;color:#555">'+T('eventCountWeight',{n:evtCount,q:sfq(qFactor)})+'</p>';
@@ -2088,10 +2103,14 @@ html+='<p style="font-size:12px;line-height:1.6;color:#57534e;margin:14px 0 0">'
 
 if(confSigneTxt||confHeureTxt){
   html+='<div style="margin:16px 0;padding:14px 16px;border-radius:12px;border-left:4px solid #2E1560;background:#faf9fc">';
-  html+='<p style="margin:0 0 8px;font-size:14px;color:#1a1a2e">'+T('confGlobalLabel')+'<span style="color:'+confColor+';font-weight:bold">'+TConfLabel(confLabelGlobal)+'</span></p>';
+  html+='<p style="margin:0 0 8px;font-size:14px;color:#1a1a2e">'+T('confGlobalLabel')+'<span style="color:'+confColor+';font-weight:bold">'+(best.ascSign||'?')+'</span></p>';
   if(confSigneTxt)html+='<p style="margin:2px 0;font-size:12px;color:#444">'+confSigneTxt+'</p>';
   if(confHeureTxt)html+='<p style="margin:2px 0;font-size:12px;color:#444">'+confHeureTxt+'</p>';
-  if(confSigneLabel==='Très faible'||confSigneLabel==='Faible'){
+  // Le renvoi vers les trois pistes n'est plus conditionné à un grade « Faible » : le
+  // top-3 est le livrable le mieux établi (6/8 contre 5/8 pour le signe seul), donc on y
+  // renvoie toujours — sauf quand la plage a imposé un signe unique, cas où il n'y a pas
+  // de concurrence à arbitrer.
+  if(confSigneLabel!=='Imposée'){
     html+='<p style="margin:6px 0 0;font-size:11px;color:#57534e;line-height:1.5">'+T('confLowSignWarn')+'</p>';
   }
   html+='</div>';
@@ -2106,12 +2125,11 @@ if(bioPersonalCount<2){
 if(Array.isArray(top3Hypotheses)&&top3Hypotheses.length>=2){
   html+='<div style="margin:14px 0;padding:14px 16px;border-radius:8px;background:#f0f7ff;border:1px solid #cfe2ff">';
   html+='<p style="margin:0 0 6px;font-size:14px;font-weight:bold;color:#1e3a5f">'+T('phase4Top3Title')+'</p>';
-  if(confLabelGlobal!=='Forte'){
-    html+='<p style="margin:0 0 8px;font-size:11px;color:#555;line-height:1.45">'+T('phase4Top3Intro')+'</p>';
-    html+='<p style="margin:0 0 12px;font-size:11px;color:#444;line-height:1.45">'+T('phase4Top3Why')+'</p>';
-  }else{
-    html+='<p style="margin:0 0 12px;font-size:11px;color:#555;line-height:1.45">'+T('phase4Top3Intro')+'</p>';
-  }
+  // Les deux paragraphes s'affichent désormais dans tous les cas : la branche courte était
+  // réservée à un grade « Forte » qui n'existe plus à l'affichage, et le « pourquoi trois
+  // pistes » est justement l'information utile quand le signe seul se trompe 3 fois sur 8.
+  html+='<p style="margin:0 0 8px;font-size:11px;color:#555;line-height:1.45">'+T('phase4Top3Intro')+'</p>';
+  html+='<p style="margin:0 0 12px;font-size:11px;color:#444;line-height:1.45">'+T('phase4Top3Why')+'</p>';
   for(const h of top3Hypotheses){
     const hlabel=THypConf(h.confidence||'low');
     const m=(h.marginToNext!=null&&Number(h.marginToNext)>0)?String(h.marginToNext):'\u2014';
