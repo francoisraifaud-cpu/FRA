@@ -99,6 +99,66 @@ la convention du moteur. Et la largeur de la fenêtre change la réponse : de
 Gaulle donne 03:20 avec ±60 min, 05:30 avec ±90 min. Le paysage de score comporte
 donc plusieurs sommets comparables à quelques heures d'écart.
 
+## Le test du modèle direct — le prérequis qui avait été sauté
+
+Toutes les tentatives précédentes attaquaient l'**inversion** : « quelle heure rend
+les directions cohérentes avec les événements ? ». Personne n'avait vérifié le
+prérequis logique, le **modèle direct** :
+
+> l'heure de naissance étant **connue et exacte**, les directions primaires
+> tombent-elles sur les dates des événements mieux que sur des dates tirées au
+> hasard dans la même vie ?
+
+Si non, inverser cette fonction est sans espoir : on inverserait une fonction sans
+information. Mesuré sur les 8 cas AA, avec l'heure d'état civil comme vérité et
+300 dates nulles par cas (`marr_forward_test.py`) :
+
+| Configuration | directions/an | écart médian réel | écart médian nul | < 3 mois réel | < 3 mois nul |
+|---|---|---|---|---|---|
+| narrateur (tout) | 3,0 | 1,2 mois | 1,4 mois | **84 %** | **77 %** |
+| 5 aspects, angles | 1,0 | 4,0 mois | 3,4 mois | 45 % | 45 % |
+| conj+opp, 12 cuspides | 0,8 | 4,2 mois | 3,8 mois | 34 % | 42 % |
+| conj+opp, angles | 0,3 | 6,1 mois | 5,3 mois | 27 % | 31 % |
+| conj+opp, angles, directes | 0,2 | 7,9 mois | 5,9 mois | 11 % | 29 % |
+| symbolique, conj+opp | 0,3 | 5,1 mois | 4,6 mois | 31 % | 33 % |
+
+**Aucune configuration ne distingue les vrais événements du hasard.**
+
+Deux lectures s'imposent :
+
+1. **La densité rend la méthode infalsifiable.** À 3 directions par an, il en tombe
+   une tous les quatre mois : n'importe quelle date a une direction « exacte » à
+   côté. Les 84 % de coïncidences à moins de 3 mois du narrateur ne sont donc pas
+   une preuve — le hasard en produit 77 %.
+2. **Resserrer ne révèle rien.** S'il y avait du signal, durcir les critères
+   tuerait les coïncidences fortuites en gardant les vraies : le rapport
+   réel/hasard grandirait. Il ne grandit pas — les vraies disparaissent au même
+   rythme que les fausses.
+
+### Réserve à énoncer honnêtement
+
+Le test a une limite de puissance : **1 minute d'erreur d'heure déplace une
+direction de 3 mois** (l'angle horaire avance de 15°/h, la clé de Naibod de
+0,9856°/an). Nos heures « vraies » sont des heures d'état civil arrondies à la
+minute, donc porteuses de ±1,5 mois de flou directionnel, et nos dates
+d'événements sont des dates légales dont la correspondance astrologique peut être
+diffuse. Un signal faible pourrait être masqué.
+
+Mais cette réserve n'explique pas le résultat : sur les configurations
+restrictives, le réel est **moins bon** que le nul (7,9 mois contre 5,9). Ce n'est
+pas un signal masqué, c'est une absence de signal.
+
+### Ce que cela dit de « les autres y arrivent »
+
+Les thèmes publiés par Marr (*Notable Nativities*, 106 vies) sont rectifiés **sur**
+les événements : les directions y tombent juste par construction. Aucun cas publié
+ne montre une heure inconnue retrouvée en aveugle, et la rectification d'Assad par
+Starkman (16 h 43) n'est pas vérifiable puisque personne ne connaît l'heure vraie.
+
+Ce n'est pas un procès fait à la tradition : c'est la nature de la revendication.
+Une rectification est une **construction cohérente**, pas la récupération d'un fait
+caché. Ce qui est vérifiable, c'est sa cohérence interne — pas son exactitude.
+
 ## Ce qui est mort, et ne doit pas être rouvert sans mesure nouvelle
 
 | Piste | Cause de fermeture |
@@ -107,6 +167,7 @@ donc plusieurs sommets comparables à quelques heures d'écart.
 | Dual Test comme validateur | 100 % des créneaux passent : l'Époque est un paramètre libre |
 | « prog est la couche fautive » | ne porte l'écart que sur 4 cas sur 7 |
 | Reponderer une couche pour gagner des minutes | aucune variante ne sort du modèle nul |
+| Affiner l'orbe / le pas de balayage des directions primaires | le **modèle direct** lui-même ne distingue pas les vrais événements du hasard : il n'y a rien à affiner |
 
 ## Suites recommandées, dans l'ordre
 
