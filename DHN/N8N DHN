@@ -1273,7 +1273,7 @@ function _eclipseUrlFor(slotTime){
     '&year='+birthY+'&month='+birthM+'&date='+birthD+
     '&hours='+hh+'&minutes='+mm+'&seconds=0'+
     '&latitude='+lat+'&longitude='+lon+'&timezone='+tz;
-  return 'http://46.225.174.155:8000/progressions/eclipses?'+qs;
+  return 'https://api.spikka.eu/progressions/eclipses?'+qs;
 }
 
 // Score eclipse-event : pour chaque eclipse, on cherche l'event le plus proche en
@@ -1309,6 +1309,11 @@ function _eclipseScore(eclipses,eventDates){
 let _eclipseFetchDbg='init';
 const _ctx=(typeof this!=='undefined'&&this)?this:null;
 const _httpHelper=_ctx?.helpers?.httpRequest||null;
+// L'API exige X-API-Key (401 sans). La valeur est injectee au deploiement depuis
+// ASTRO_API_KEY (.env.local) par scripts/dhn-deploy-code.mjs : elle n'est jamais
+// committee dans le miroir FRA.
+const _API_KEY='__ASTRO_API_KEY__';
+const _API_HEADERS={'X-API-Key':_API_KEY,Accept:'application/json'};
 function _extractEclArr(j){
   return Array.isArray(j?.eclipses)?j.eclipses:(Array.isArray(j?.output)?j.output:(Array.isArray(j)?j:[]));
 }
@@ -1318,7 +1323,7 @@ async function _fetchProgEclipses(slotTime){
   // Methode 1 : this.helpers.httpRequest (passe par l'infra n8n autorisee)
   if(_httpHelper){
     try{
-      const j=await _httpHelper.call(_ctx,{method:'GET',url:url,json:true,timeout:15000});
+      const j=await _httpHelper.call(_ctx,{method:'GET',url:url,json:true,timeout:15000,headers:_API_HEADERS});
       const arr=_extractEclArr(j);
       _eclipseFetchDbg='helper-ok-'+arr.length;
       return arr;
@@ -1327,17 +1332,17 @@ async function _fetchProgEclipses(slotTime){
   // Methode 2 : fetch global (Node 18+, peut etre absent en vm2)
   if(typeof fetch==='function'){
     try{
-      const r=await fetch(url,{method:'GET',headers:{Accept:'application/json'}});
+      const r=await fetch(url,{method:'GET',headers:_API_HEADERS});
       if(r.ok){const j=await r.json();const arr=_extractEclArr(j);_eclipseFetchDbg='fetch-ok-'+arr.length;return arr;}
       _eclipseFetchDbg='fetch-http-'+r.status;return[];
     }catch(e){_eclipseFetchDbg='fetch-err-'+(String(e?.message||e).slice(0,60));}
   }
-  // Methode 3 : require('http') natif
+  // Methode 3 : module natif. L'URL etant en https, c'est require('https') qu'il faut.
   try{
-    const http=require('http');
+    const http=require('https');
     const arr=await new Promise(resolve=>{
       try{
-        http.get(url,resp=>{
+        http.get(url,{headers:_API_HEADERS},resp=>{
           let body='';resp.on('data',d=>body+=d);
           resp.on('end',()=>{try{resolve(_extractEclArr(JSON.parse(body)));}catch(e){resolve([]);}});
         }).on('error',()=>resolve([]));
