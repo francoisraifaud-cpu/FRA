@@ -138,35 +138,62 @@ gain ×1,0 contre le modèle nul. Marr le savait ; son livre ne le cache pas.
 | Dual Test comme *moteur de recherche* d’heure inconnue | Marr : « rectified birth chart indispensable » |
 | Oracle de signe → Marr donne l’heure | Mesuré : = milieu de fenêtre |
 | Étoffer à 15 événements | Courbe plate |
+| Dual Test comme *validateur* / gate de précision | Mesuré : 100 % de passage règles 1+2, ~6,8 Époques libres par heure candidate → ajoute 28× de combinatoire au lieu d’en retirer (§ Piste A) |
 
-### Ce qui reste TESTABLE (ordre de priorité)
+### ⚠ Piste A (Dual Test validateur) — FERMÉE, mesurée le 2026-08-14
 
-#### Piste A — Dual Test comme **VALIDATEUR** (recommandée)
+La première rédaction recommandait cette piste. **Elle est morte**, et pas par un
+résultat statistique faible : par une raison **structurelle**, mesurée.
 
-Hypothèse falsifiable :
+Script : `SITE/scripts/_enprat/audit/DHN/dual_test_power.py`
 
-> Sur les 8 cas AA, l’heure d’état civil **admet** une Époque (règles 1–2–3) ;
-> des heures leurres dans la même fenêtre de signe **n’en admettent pas**
-> (ou significativement moins).
+| Cohorte | Créneaux testés | Passe règle 1 | Passe règles 1+2 | Époques valides / créneau |
+|---|---|---|---|---|
+| 8 cas AA, fenêtre du signe ASC | 161 | **100,0 %** | **100,0 %** | **6,82** |
 
-- Si OUI → on a un **gate** après l’étage 0 DHN : « cette heure candidate est /
-  n’est pas dual-testable ». Produit honnête : confiance ↑/↓, pas ±10 min.
-- Si NON → Dual Test n’apporte rien sur cohorte réelle → gel définitif Polaris
-  détecteur + validateur.
+**La règle 1 est une définition, pas un test.** L’Époque est un *paramètre libre* :
+on la cherche ~9 mois avant la naissance, et la Lune repasse sur n’importe quel
+degré tous les 27,3 jours. Donc pour **n’importe quelle** heure candidate on
+fabrique une Époque dont la Lune tombe sur l’ASC (ou le DESC) à moins de 5′.
+Aucune heure n’est jamais rejetée.
 
-Coût : script local (Époque ≈ Lune à ASC/DESC ±9 mois, check waxing/waning, MDO).
-Zéro serveur. Gate binaire clair.
+**La règle 2 ne rattrape rien.** Avec ~6,8 Époques disponibles par créneau, il
+suffit qu’**une** ait la bonne phase de Lune : taux de passage 100 %.
 
-#### Piste B — Ascendant-Lunar comme **recherche dans la fenêtre de signe**
+**Et le Dual Test ajoute des degrés de liberté au lieu d’en retirer.** Marr note
+que le nombre de directions est **×4** avec l’Époque. Mais l’Époque elle-même n’est
+pas unique : ~7 candidates par heure. La combinatoire réelle est donc **×4 × 7 ≈ ×28**.
+Confronté au calcul de Marr lui-même (§4 : ~3,4′ d’arc de coïncidence attendue pour
+le radix seul), le Dual Test rend les faux positifs **plus** probables, pas moins.
 
-Hypothèse : pour chaque créneau de 5 min dans la fenêtre ASC du questionnaire,
-calculer l’ASC-Lunar de chaque événement ; scorer « planète angulaire cohérente
-avec le type d’événement » (table Ebertin / Marr minimale).
+**Circularité logique.** Marr répondrait que l’Époque doit elle aussi être rectifiée
+par directions — mais on la rectifie *contre le radix*, qui est précisément ce qu’on
+cherche à valider. D’où sa propre phrase : *« a rectified birth chart is
+indispensable »*. Le Dual Test documente la cohérence d’un thème **déjà tenu pour
+juste** ; il ne peut pas arbitrer entre deux heures candidates.
 
-- Plus proche d’un vrai « Polaris maison » (Marr le dit 2ᵉ méthode).
-- Mais **reintroduit le symbolisme** — risque de retomber sur le NO-GO.
-- À ne lancer **que si** la piste A est verte (sinon on empile de la complexité
-  sur une validation qui échoue).
+### Piste B — Ascendant-Lunar : la SEULE piste encore structurellement saine
+
+Réévaluée à la hausse après la fermeture de A. Ce qui la distingue :
+
+1. **Aucun paramètre libre.** Le Lunar est *entièrement déterminé* par (ASC candidat,
+   date de l’événement) — contrairement à l’Époque du Dual Test. On ne peut pas le
+   « fabriquer » pour faire passer le test.
+2. **Résolution 30×.** Les angles du Lunar bougent ~7,5° de RAMC par **minute** de
+   temps de naissance. Le critère bascule donc sur une granularité de l’ordre de la
+   minute — bien plus fin que les DP.
+3. **Marr la classe 2ᵉ** juste après les DP, avec un claim vérifiable : 15 thèmes,
+   1 seul échec.
+
+Combinatoire à battre (à estimer avant de coder) : orbe 3° autour des 4 angles →
+~6,7 % par planète ; 10 planètes → ~50 % de touche par événement **par hasard** ;
+avec filtre de symbolisme (2-4 planètes pertinentes) → ~19 %. Donc sur 5 événements
+on attend ~1 touche fortuite : le protocole doit mesurer l’écart au **modèle nul**,
+exactement comme au Sprint A.
+
+Risque assumé : le symbolisme revient (choix planète↔type d’événement). Mais cette
+fois il porte sur **4 angles**, pas sur 6 cuspides × 9 aspects × 2 sens — soit deux
+ordres de grandeur de combinatoire en moins.
 
 #### Piste C — Marr narrateur (déjà proposée)
 
@@ -180,18 +207,30 @@ ou cohorte AA nettement plus grande.
 
 ---
 
-## 7. Recommandation
+## 7. Recommandation (révisée après mesure du 2026-08-14)
 
-**Enchaîner sur la piste A (Dual Test validateur), 100 % local**, avant toute autre
-chose. Raisons :
+La recommandation initiale (piste A d’abord) est **caduque** : A est mesurée et
+fermée le jour même. Ordre retenu :
 
-1. C’est la **seule** pièce doctrinale encore non mesurée qui Marr revendique
-   comme anti-coïncidence.
-2. Marr lui-même la place **après** une rectification — donc elle matche notre
-   architecture étage 0 → contrôle, pas l’inverse.
-3. Le test est **binaire et honnête** : si les heures AA ne passent pas mieux que
-   des leurres, on ferme sans ambiguïté.
-4. Ça ne contredit pas le NO-GO Sprint A : on ne redemande pas au reverse-RAMC
-   de trouver l’heure.
+1. **Piste C tout de suite** (Marr narrateur, rapport Expert) — valeur produit
+   certaine, zéro risque de recherche, moteur DP déjà écrit et vérifié au Sprint A.
+2. **Piste B en une seule expérience bornée** (Ascendant-Lunar, 100 % local, même
+   harnais de modèle nul que le Sprint A). C’est la dernière pièce doctrinale
+   **structurellement saine** : pas de paramètre libre, résolution 30×.
+3. **Piste D (gel Polaris détecteur)** si B échoue au modèle nul. Dans ce cas
+   l’étage 0 + le narrateur constituent le produit final, et on arrête d’y investir.
 
-Ensuite seulement, selon le verdict A → B, C ou D.
+Règle de clôture, non négociable : B se juge **contre le modèle nul**, sur les 8 cas
+AA, avec le protocole du Sprint A. Pas de POC sur 1 thème présenté comme un GO
+(anti-pattern déjà documenté).
+
+---
+
+## 8. Journal des mesures
+
+| Date | Mesure | Script | Verdict |
+|---|---|---|---|
+| 2026-08-14 | Reverse-RAMC détecteur (8 cas AA, modèle nul) | `marr_reverse_ramc.py`, `aa_cases.py` | ❌ aucun signal mesurable |
+| 2026-08-14 | Oracle signe ASC + reverse-RAMC | `marr_within_sign.py` | ❌ aucun gain |
+| 2026-08-14 | Courbe signal / nb d’événements | `event_count_curve.py` | ❌ plate |
+| 2026-08-14 | Dual Test règles 1-2, pouvoir discriminant | `dual_test_power.py` | ❌ 100 % de passage — règle 1 = définition |
