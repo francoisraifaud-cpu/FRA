@@ -259,20 +259,58 @@ caché. Ce qui est vérifiable, c'est sa cohérence interne — pas son exactitu
 | Affiner l'orbe / le pas de balayage des directions primaires | le **modèle direct** lui-même ne distingue pas les vrais événements du hasard : il n'y a rien à affiner |
 | **La rectification par directions primaires, sous toute forme** | mesurée sur 54 événements instantanés (35 à minute d'état civil réelle), 7 configurations doctrinales, modèle nul apparié : aucun z ≥ 2, et le z **baisse** quand l'effectif monte. Tout effet résiduel est borné à ~13 pp, soit un ordre de grandeur sous ce qu'exige le choix d'un créneau parmi 288 |
 
+## Calibration de la fenêtre horaire — appliquée le 2026-08-14
+
+Le point 2 des suites (« retirer `rs` du calcul de confiance et replacer les
+seuils ») a été **mesuré avant d'être codé**, avec
+`SITE/scripts/_enprat/audit/DHN/dhn-calibre-confiance.mjs`, sur les 8 cas AA. Le
+résultat a fait abandonner le reparamétrage au profit d'une suppression :
+
+| Ce qui était annoncé | Ce que la mesure donne |
+|---|---|
+| Fenêtre graduée ±15 / ±25 / ±40 / ±60 selon la confiance heure | contient l'heure vraie dans **2 cas sur 8** |
+| L'écart relatif au 2ᵉ créneau prédit l'erreur | **r = −0,51** pour un seuil de significativité de **0,71** à n = 8 → dans le bruit |
+| Idem, `rs` retirée du calcul | **r = −0,48** → toujours dans le bruit ; retirer `rs` ne sauve pas l'indicateur |
+| — | **±45 min couvre 7 cas sur 8** (±40 → 5 cas, ±50 → 8 cas) |
+
+Régler quatre paliers sur 8 cas avec un prédicteur non significatif serait du
+surapprentissage. Donc :
+
+- **demi-largeur FIXE de ±45 min** (`_HOUR_BAND_MIN` dans le nœud de rendu), plus
+  aucune graduation de la fenêtre ;
+- **le libellé de confiance sur l'heure n'est plus affiché.** Il reste calculé et
+  exporté dans `dhnMetrics.confidence.heure` pour le banc d'audit — jamais montré
+  au client, puisqu'il ne mesure rien ;
+- **le badge de synthèse ne porte plus que la confiance SIGNE.** Le minimum
+  signe/heure le tirait vers le bas sur la foi de cet indicateur ;
+- **cas « fenêtre à signe unique »** (Bardot) : le badge affichait « — »
+  (Inconnue), ce qui sous-vendait un fait simple. Il affiche désormais **« Imposé
+  par la plage »**, avec la phrase qui l'explique : le signe découle de la plage
+  fournie, pas d'une discrimination entre techniques. Ni sous-vendu, ni survendu.
+
+La confiance **signe** reste graduée : c'est le livrable réellement établi (6/8 en
+top-1 sur les cas réellement en compétition, 8/8 en top-3).
+
 ## Suites recommandées, dans l'ordre
 
 1. **Aligner la promesse sur la mesure.** L'ascendant + la fenêtre sont le
    livrable ; l'heure est une estimation. C'est le seul levier qui ne dépend
    d'aucune découverte.
-2. **Retirer `rs` du calcul de confiance** et replacer les seuils du libellé sur
-   la marge réellement discriminante (arc + prog). Correctif d'hygiène de
-   scoring, sans changement de doctrine.
+2. ~~**Retirer `rs` du calcul de confiance** et replacer les seuils du libellé sur
+   la marge réellement discriminante (arc + prog).~~ **Fait autrement le
+   2026-08-14** : la mesure montre que l'indicateur reste non significatif même
+   sans `rs`. Le libellé heure a donc été retiré de l'affichage plutôt que
+   reparamétré, et la fenêtre est fixée à ±45 min (section ci-dessus).
 3. **Retirer q13/q14/q15 du formulaire.** Fiabilités mesurées 0,24 / 0,23 / 0,13
    (le hasard est à 0,08), et le jeu réduit à 5 questions donne un top-3
    identique. La réduction avait été appliquée en local le 2026-07-12 mais n'est
    jamais partie : le fichier en contient toujours 10.
-4. **Corriger les deux défauts de l'instrument** (fenêtre passant minuit ;
-   sensibilité à la largeur documentée) avant toute nouvelle campagne.
+4. ~~**Corriger les deux défauts de l'instrument**~~ **Fait le 2026-08-14** : les
+   plages passant minuit sont désormais **enroulées** et non inversées
+   (`Scorer1`, `Build Prog URL`, `Resultat final1`), et les trois nœuds lisent le
+   fuseau **corrigé** du nœud « TZ Historique » au lieu du `gmtOffset` brut de
+   TimezoneDB — 51 min d'écart mesurées sur une naissance de 1890. La sensibilité
+   à la largeur de fenêtre reste, elle, un fait documenté et non un bug.
 5. **Élargir le corpus** si l'on veut trancher l'heure : 7 cas exploitables ne
    permettent de détecter que des effets énormes. Sans corpus plus large, toute
    conclusion sur l'heure restera indécidable.

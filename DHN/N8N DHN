@@ -1798,12 +1798,11 @@ const STR = {
     marginGap: ' Écart 1er / 2e meilleur score ({scope}) : {x}.',
     scopeFullDay: 'grille 24 h complète',
     scopeAnalysed: 'parmi les créneaux analysés',
-    confGlobalLabel: 'Lecture de la synthèse : ',
+    confGlobalLabel: 'Fiabilité du signe Ascendant : ',
     confSign: '<b>Signe ({sign})</b> : <b>{label}</b>{gap}',
+    confSignForced: '<b>Signe ({sign})</b> : seul signe Ascendant possible dans la plage indiquée. Il découle donc de la plage elle-même, et non d\u2019une discrimination entre les techniques : élargissez la plage si vous souhaitez que la rectification mette plusieurs signes en concurrence.',
     confSignGap: ' — écart au 2e signe : {x} pt ({y} %)',
-    confTime: '<b>Heure ({time})</b> : <b>{label}</b>{gap}',
-    confTimeGap: ' — écart au 2e meilleur créneau du même signe : {x} pt ({y} %)',
-    confLowHourWarn: 'Astuce : plusieurs créneaux du même signe sont proches — le <b>signe</b> tient bien, l\u2019<b>heure</b> peut être lue en fourchette <b>±10\u201320 min</b> autour de l\u2019heure affichée. Des dates d\u2019événements un peu plus précises aident à resserrer.',
+    confTimeFixed: '<b>Heure ({time})</b> : estimation à lire à <b>±{x} min</b>. Sur nos 8 naissances de référence à heure certifiée, cette fourchette contient l\u2019heure réelle dans 7 cas sur 8 ; la minute affichée n\u2019est qu\u2019un centre, jamais une mesure.',
     confLowSignWarn: 'Les techniques ne plaquent pas toutes le même signe au même degré : la synthèse ci-dessous propose <b>trois pistes ASC</b> classées ; croisez-les avec le vécu du client plutôt qu\u2019avec une seule heure « absolue ».',
     bestGlobalIntro: '<b>Meilleur créneau sur toute la journée</b> (hors contrainte de plage) : <b>{time}</b>, ASC {sign} \u2014 total {x}.',
     bestGlobalNote: 'L\u2019heure en tête de mail est le meilleur <em>uniquement entre {plage}</em> (ici {time}, total {x}). Les deux existent sur la même grille 5 min ; le total = arcs + progressions + RS + questionnaire (pondéré). Un 2e signe au questionnaire (ex. Verseau) peut donc gagner dans une fenêtre horaire alors qu\u2019un autre créneau reste n\u00B01 sur 24 h.',
@@ -1843,7 +1842,7 @@ const STR = {
     natalLine: 'Natales (planetes): ',
     alignWarn: 'Alignement : {n} créneaux (scorer) vs {p} réponses planètes et {h} maisons \u2014 en cas d\u2019échecs HTTP partiels, les lignes peuvent se décaler ; vérifier le scan.',
     pairedHint: 'Appariement planètes/maisons → créneau via <b>pairedItem</b> (n8n), pas seulement la position dans la liste.',
-    confLabels: { 'Forte':'Très net', 'Moyenne':'Solide', 'Faible':'Plusieurs pistes', 'Très faible':'À nuancer', 'Inconnue':'—' },
+    confLabels: { 'Forte':'Très net', 'Moyenne':'Solide', 'Faible':'Plusieurs pistes', 'Très faible':'À nuancer', 'Imposée':'Imposé par la plage', 'Inconnue':'—' },
     methodArcsProg: 'Arcs({a})+Prog({p})+RS({r})',
     methodQuestAdj: '+Quest(aj. {w}, brut {raw} ×{q})',
     methodQuestRaw: '+Quest({w})',
@@ -1872,12 +1871,11 @@ const STR = {
     marginGap: ' Gap between 1st and 2nd best score ({scope}): {x}.',
     scopeFullDay: 'full 24-h grid',
     scopeAnalysed: 'across analysed slots',
-    confGlobalLabel: 'How clear the synthesis is: ',
+    confGlobalLabel: 'Ascendant-sign reliability: ',
     confSign: '<b>Sign ({sign})</b>: <b>{label}</b>{gap}',
+    confSignForced: '<b>Sign ({sign})</b>: the only Ascendant sign possible within the range you provided. It therefore follows from the range itself, not from any discrimination between techniques \u2014 widen the range if you want the rectification to put several signs in competition.',
     confSignGap: ' \u2014 gap to 2nd sign: {x} pt ({y} %)',
-    confTime: '<b>Time ({time})</b>: <b>{label}</b>{gap}',
-    confTimeGap: ' \u2014 gap to 2nd best slot of the same sign: {x} pt ({y} %)',
-    confLowHourWarn: 'Tip: several slots of the same sign are close — the <b>sign</b> is still reliable; read the <b>time</b> in a <b>±10\u201320 min</b> band around the value shown. Slightly more precise event dates help narrow it.',
+    confTimeFixed: '<b>Time ({time})</b>: an estimate to be read as <b>±{x} min</b>. Across our 8 reference births with certified times, this range contains the actual time in 7 cases out of 8; the minute shown is only a centre, never a measurement.',
     confLowSignWarn: 'Techniques do not all stress the same sign to the same degree: the ranked <b>three ASC tracks</b> below are meant to be cross-checked with the client\u2019s life story rather than taken as a single fixed clock time.',
     bestGlobalIntro: '<b>Best slot over the whole day</b> (without window constraint): <b>{time}</b>, ASC {sign} \u2014 total {x}.',
     bestGlobalNote: 'The time at the top of this email is the best <em>only within {plage}</em> (here {time}, total {x}). Both exist on the same 5-min grid; total = arcs + progressions + solar returns + weighted questionnaire. A different 2nd sign in the questionnaire (e.g. Verseau) may therefore win within a time window even though another slot remains #1 over 24 h.',
@@ -1917,7 +1915,7 @@ const STR = {
     natalLine: 'Natal (planets): ',
     alignWarn: 'Alignment: {n} slots (scorer) vs {p} planet responses and {h} houses \u2014 partial HTTP failures may shift rows; verify the scan.',
     pairedHint: 'Planets/houses pairing → slot via <b>pairedItem</b> (n8n), not just list position.',
-    confLabels: { 'Forte':'Very clear', 'Moyenne':'Solid', 'Faible':'Several tracks', 'Très faible':'Keep flexible', 'Inconnue':'—' },
+    confLabels: { 'Forte':'Very clear', 'Moyenne':'Solid', 'Faible':'Several tracks', 'Très faible':'Keep flexible', 'Imposée':'Set by the given range', 'Inconnue':'—' },
     methodArcsProg: 'Arcs({a})+Prog({p})+SR({r})',
     methodQuestAdj: '+Quest(adj. {w}, raw {raw} ×{q})',
     methodQuestRaw: '+Quest({w})',
@@ -1969,8 +1967,20 @@ if(typeof te !== 'undefined' && te > 0){
   method = T('methodQuestionnaireOnly', { sign: best.wSign||'?', raw: sf(best.wScoreRaw||0), w: w });
 }
 
-// [P2 v5.1] Score de confiance — deux niveaux indépendants : signe (écart au 2e signe) et heure (écart au 2e créneau du même signe).
+// [P2 v5.1] Score de confiance. Un seul niveau est désormais publié : le SIGNE (écart
+// au 2e signe). Le niveau HEURE reste calculé pour le diagnostic, jamais affiché.
 // [Phase 4] Calcul avant le bloc hero pour afficher le badge de confiance global dans l'en-tête.
+// [P-confiance v5.7] La fenêtre horaire n'est plus GRADUÉE : demi-largeur fixe et
+// mesurée. Trois constats sur les 8 cas AA certifiés du banc (script
+// SITE/scripts/_enprat/audit/DHN/dhn-calibre-confiance.mjs) :
+//  - la fenêtre graduée (±15 à ±60) ne contenait l'heure vraie que dans 2 cas sur 8 ;
+//  - l'écart relatif au 2e créneau ne PRÉDIT PAS l'erreur : r = -0,51 pour un seuil
+//    de significativité de 0,71 à n=8, donc dans le bruit. Régler quatre paliers sur
+//    8 cas serait du surapprentissage ;
+//  - ±45 min couvre 7 cas sur 8 (±40 n'en couvre que 5, ±50 les 8).
+// La confiance SIGNE, elle, reste graduée : c'est le livrable réellement établi
+// (5/8 en top-1, 8/8 en top-3 sur le même banc).
+const _HOUR_BAND_MIN=45;
 let confLabelGlobal='Inconnue', confColor='#888', confSigneTxt='', confHeureTxt='', confEcartS=null, confEcartH=null, confSigneLabel='Inconnue', confHeureLabel='Inconnue';
 try{
   const sortedSig=ascPeaksSorted.map(e=>e[1].totalScore);
@@ -2002,32 +2012,46 @@ try{
   if(sameSignSlots.length>=2&&sameSignSlots[0].totalScore>0){
     confEcartH=sameSignSlots[0].totalScore-sameSignSlots[1].totalScore;
     ecartHrel=confEcartH/sameSignSlots[0].totalScore;
-    // [v5.8 P1.3] Seuils heure durcis (écart relatif au 2e créneau même signe).
+    // [v5.8 P1.3] Seuils heure (écart relatif au 2e créneau même signe). Conservés
+    // pour le DIAGNOSTIC seul (exportés dans `confidence.heure` et lus par le banc
+    // d'audit) : ils ne pilotent plus ni le texte client ni la largeur de fenêtre,
+    // l'écart relatif ne prédisant pas l'erreur (cf. _HOUR_BAND_MIN).
     if(ecartHrel>=0.08)confHeureLabel='Forte';
     else if(ecartHrel>=0.03)confHeureLabel='Moyenne';
     else if(ecartHrel>=0.01)confHeureLabel='Faible';
     else confHeureLabel='Très faible';
   }
+  // Un seul signe candidat sur les créneaux analysés : le signe ne sort pas d'une
+  // compétition entre techniques, il est IMPOSÉ par la plage fournie par le client.
+  // L'ancien code affichait alors « Inconnue » (badge « — »), ce qui le sous-vendait ;
+  // le grader « Très net » le survendrait, puisque rien n'a été discriminé.
+  if(sortedSig.length===1)confSigneLabel='Imposée';
   const confRank={'Forte':3,'Moyenne':2,'Faible':1,'Très faible':0,'Inconnue':-1};
-  const rS=confRank[confSigneLabel]??-1, rH=confRank[confHeureLabel]??-1;
-  const minR=Math.min(rS,rH);
-  confLabelGlobal=Object.keys(confRank).find(k=>confRank[k]===minR)||'Inconnue';
+  // La synthèse ne porte plus que la confiance SIGNE. Faire entrer l'heure dans un
+  // minimum tirait le badge vers le bas sur la foi d'un indicateur qui ne mesure
+  // rien (cf. _HOUR_BAND_MIN) : le client lisait « Très faible » alors que le signe,
+  // seul livrable établi, était net.
+  confLabelGlobal=confSigneLabel;
+  const minR=confRank[confSigneLabel]??-1;
   // Couleurs badge : lisibles mais moins « alarme » qu’un rouge vif sur Faible / Très faible.
-  confColor=minR>=3?'#15803d':minR===2?'#a16207':minR===1?'#b45309':'#92400e';
+  confColor=confSigneLabel==='Imposée'?'#2E1560':minR>=3?'#15803d':minR===2?'#a16207':minR===1?'#b45309':'#92400e';
   const sGap = confEcartS!=null ? T('confSignGap',{x:sf(confEcartS),y:(ecartSrel*100).toFixed(1)}) : '';
-  const hGap = confEcartH!=null ? T('confTimeGap',{x:sf(confEcartH),y:(ecartHrel*100).toFixed(2)}) : '';
-  confSigneTxt = T('confSign',{sign:best.ascSign||'?',label:TConfLabel(confSigneLabel),gap:sGap});
-  confHeureTxt = T('confTime',{time:best.time||'?',label:TConfLabel(confHeureLabel),gap:hGap});
+  confSigneTxt = confSigneLabel==='Imposée'
+    ? T('confSignForced',{sign:best.ascSign||'?'})
+    : T('confSign',{sign:best.ascSign||'?',label:TConfLabel(confSigneLabel),gap:sGap});
+  // L'heure est annoncée pour ce qu'elle est : une estimation dans une fourchette
+  // mesurée, sans note de confiance qui laisserait croire à une précision variable.
+  confHeureTxt = T('confTimeFixed',{time:best.time||'?',x:_HOUR_BAND_MIN});
 }catch(eConf){}
 
 // [v9.1 UX honnête] L'HEURE est affichée comme une FENÊTRE, pas une fausse minute.
 // Mesuré (harnais phaseB 18 cas AA) : la couche horaire la plus informative plafonne
 // à ~24 min d'erreur médiane (plateau, jamais un pic ±3 min) ; le SIGNE est le seul
-// livrable fiable. La demi-largeur suit la confiance HEURE calculée ci-dessus.
+// livrable fiable. La demi-largeur est FIXE (cf. _HOUR_BAND_MIN) : la graduer sur
+// l'écart au 2e créneau serait du surapprentissage sur 8 cas.
 function _hm2min(s){const m=/^(\d{1,2}):(\d{2})/.exec(String(s||''));return m?(+m[1]*60+ +m[2]):null;}
 function _min2hm(x){x=((Math.round(x)%1440)+1440)%1440;return String(Math.floor(x/60)).padStart(2,'0')+':'+String(x%60).padStart(2,'0');}
-const _bandByConf={'Forte':15,'Moyenne':25,'Faible':40,'Très faible':60,'Inconnue':60};
-const _band=_bandByConf[confHeureLabel]||60;
+const _band=_HOUR_BAND_MIN;
 const _bt=_hm2min(bestTime);
 const bestWindowTxt=(_bt!=null)?(_min2hm(_bt-_band)+' \u2013 '+_min2hm(_bt+_band)):bestTime;
 
@@ -2067,9 +2091,6 @@ if(confSigneTxt||confHeureTxt){
   html+='<p style="margin:0 0 8px;font-size:14px;color:#1a1a2e">'+T('confGlobalLabel')+'<span style="color:'+confColor+';font-weight:bold">'+TConfLabel(confLabelGlobal)+'</span></p>';
   if(confSigneTxt)html+='<p style="margin:2px 0;font-size:12px;color:#444">'+confSigneTxt+'</p>';
   if(confHeureTxt)html+='<p style="margin:2px 0;font-size:12px;color:#444">'+confHeureTxt+'</p>';
-  if(confHeureLabel==='Très faible'||confHeureLabel==='Faible'){
-    html+='<p style="margin:8px 0 0;font-size:11px;color:#57534e;line-height:1.5">'+T('confLowHourWarn')+'</p>';
-  }
   if(confSigneLabel==='Très faible'||confSigneLabel==='Faible'){
     html+='<p style="margin:6px 0 0;font-size:11px;color:#57534e;line-height:1.5">'+T('confLowSignWarn')+'</p>';
   }
@@ -2274,7 +2295,7 @@ const dhnMetrics={
   bestGlobal24h:bestGlobal&&best&&bestGlobal.time!==best.time?{time:bestGlobal.time,ascSign:bestGlobal.ascSign||null,totalScore:bestGlobal.totalScore}:null,
   grid:{slotsAnalysed:nAnalysed,slotsExpected:scorerItems.length,gridFull:!!gridFull},
   marginFirstSecond:marginFirstSecond,
-  confidence:{global:confLabelGlobal,signe:confSigneLabel,heure:confHeureLabel,ecartSignePts:confEcartS,ecartHeurePts:confEcartH},
+  confidence:{global:confLabelGlobal,signe:confSigneLabel,heure:confHeureLabel,ecartSignePts:confEcartS,ecartHeurePts:confEcartH,hourBandMin:_HOUR_BAND_MIN},
   questionnaire:{qFactor:sfq(qFactor),evtCount:evtCount,qConvergence:Number((qConvergence||0).toFixed(4)),qTopSign:qTopSign||null,rankedTop5:(ranked||[]).slice(0,5).map(r=>({sign:r.sign,score:r.score}))},
   peaksBySignTop12:ascPeaksSorted.slice(0,12).map(e=>({sign:e[0],time:e[1].time,totalScore:e[1].totalScore})),
   noiseAudit:noiseAudit,
