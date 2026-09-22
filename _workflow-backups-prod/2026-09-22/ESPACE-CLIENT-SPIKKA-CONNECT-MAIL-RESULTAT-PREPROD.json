@@ -1,0 +1,110 @@
+{
+  "id": "TWzn8ttrMC5ZVbUv",
+  "name": "ESPACE CLIENT SPIKKA CONNECT - MAIL RESULTAT - PREPROD",
+  "description": "SPIKKA Connect Option 3 : envoie à la personne B l'e-mail de résultat (image 8 axes) + upsell « Débloquer l'analyse détaillée » (spikka.ai). Webhook spikka-connect-result. 100% déterministe, aucun LLM.",
+  "active": true,
+  "isArchived": false,
+  "nodes": [
+    {
+      "id": "6b68820c-8423-411d-8f7a-7fb8366a0f77",
+      "name": "Webhook Resultat",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -400,
+        300
+      ],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "spikka-connect-result-preprod",
+        "responseMode": "onReceived",
+        "options": {},
+        "authentication": "headerAuth"
+      },
+      "webhookId": "db95e611-19fc-4654-a749-9fad04cae6bb",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "o42Ex2btQQnyFxlJ",
+          "name": "PREV Site Webhook"
+        }
+      }
+    },
+    {
+      "id": "485858e0-3dd9-4c4a-95a3-50ace83bb68f",
+      "name": "Prépare mail resultat",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -160,
+        300
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "const src = ($json && $json.body && typeof $json.body === 'object') ? $json.body : ($json || {});\nconst mail = String(src.mail || '').trim();\nconst inviter = String(src.inviterFirstName || '').trim();\nconst resultUrl = String(src.resultUrl || '#').trim();\nconst imageUrl = String(src.imageUrl || '').trim();\nconst isEn = /^en/i.test(String(src.locale || '')) || /english|anglais/i.test(String(src.langue || ''));\nconst btn = 'display:inline-block;background:#2E1560;color:#ffffff;text-decoration:none;font-weight:600;font-size:16px;line-height:1;padding:15px 30px;border-radius:9999px;';\nconst link = 'color:#2E1560;text-decoration:underline;font-size:14px;';\nconst subject = isEn ? 'Your astral alchemy is ready ✨' : 'Votre alchimie astrale est prête ✨';\nconst titleFr = inviter ? ('L’alchimie que ' + inviter + ' a lancée avec vous est prête ✨') : 'Votre alchimie astrale est prête ✨';\nconst titleEn = inviter ? ('The alchemy ' + inviter + ' started with you is ready ✨') : 'Your astral alchemy is ready ✨';\nconst leadFr = 'Voici votre tableau, axe par axe.';\nconst leadEn = 'Here is your dashboard, axis by axis.';\nconst upTitleFr = 'À vous de jouer';\nconst upTitleEn = 'Your turn';\nconst upTextFr = 'Ouvrez votre espace Spikka gratuit : lancez vos propres alchimies avec qui vous voulez, et commandez vos lectures — synastrie, thème natal, prévisions — pour vous et vos proches.';\nconst upTextEn = 'Open your free Spikka space: run your own alchemies with whoever you like, and order your readings — synastry, birth chart, forecasts — for you and your loved ones.';\nconst ctaFr = 'Débloquer l’analyse détaillée';\nconst ctaEn = 'Unlock the detailed analysis';\nconst seeFr = 'Revoir le résultat en ligne';\nconst seeEn = 'View the result online';\nconst greet = isEn ? 'Hi,' : 'Bonjour,';\nconst title = isEn ? titleEn : titleFr;\nconst lead = isEn ? leadEn : leadFr;\nconst upTitle = isEn ? upTitleEn : upTitleFr;\nconst upText = isEn ? upTextEn : upTextFr;\nconst cta = isEn ? ctaEn : ctaFr;\nconst see = isEn ? seeEn : seeFr;\nconst imgBlock = imageUrl ? ('<p style=\"margin:0 0 22px;\"><img src=\"' + imageUrl + '\" alt=\"\" style=\"display:block;width:100%;max-width:520px;height:auto;border-radius:14px;\" /></p>') : '';\nconst html = '<div style=\"max-width:520px;margin:0 auto;padding:32px 24px;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#1a1a2e;\">' + '<p style=\"font-size:13px;letter-spacing:.12em;text-transform:uppercase;color:#2E1560;font-weight:700;margin:0 0 18px;\">SPIKKA Connect</p>' + '<p style=\"font-size:16px;line-height:1.6;margin:0 0 12px;\">' + greet + '</p>' + '<p style=\"font-size:18px;font-weight:700;line-height:1.4;margin:0 0 16px;\">' + title + '</p>' + '<p style=\"font-size:16px;line-height:1.6;margin:0 0 22px;\">' + lead + '</p>' + imgBlock + '<p style=\"margin:0 0 4px;\"><a href=\"' + resultUrl + '\" style=\"' + link + '\">' + see + '</a></p>' + '<div style=\"border-top:1px solid #eceaf2;margin:26px 0 0;\"></div>' + '<p style=\"font-size:15px;font-weight:700;color:#2E1560;margin:24px 0 8px;\">' + upTitle + '</p>' + '<p style=\"font-size:15px;line-height:1.6;margin:0 0 22px;\">' + upText + '</p>' + '<p style=\"margin:0;\"><a href=\"https://spikka.ai\" style=\"' + btn + '\">' + cta + '</a></p>' + '</div>';\nconst ccMail = String(src.inviterEmail || '').trim();\nconst out = { mail: mail, emailSubject: subject, emailHtml: html };\nif (ccMail) out.ccMail = ccMail;\nreturn [{ json: out }];"
+      }
+    },
+    {
+      "id": "459d11ca-3a1a-49a5-892f-907c4a89a8ab",
+      "name": "Envoi resultat",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        120,
+        300
+      ],
+      "parameters": {
+        "resource": "message",
+        "operation": "send",
+        "sendTo": "={{ $json.mail }}",
+        "subject": "={{ $json.emailSubject }}",
+        "emailType": "html",
+        "message": "={{ $json.emailHtml }}",
+        "options": {
+          "appendAttribution": false,
+          "senderName": "Spikka Support",
+          "ccList": "={{ $json.ccMail || '' }}"
+        },
+        "path": "d8ebeda9-ac38-4285-bb49-c779a087cb9d"
+      },
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "UJK3AEl51n89VVrP",
+          "name": "Gmail account 2"
+        }
+      },
+      "webhookId": "d8ebeda9-ac38-4285-bb49-c779a087cb9d"
+    }
+  ],
+  "connections": {
+    "Webhook Resultat": {
+      "main": [
+        [
+          {
+            "node": "Prépare mail resultat",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prépare mail resultat": {
+      "main": [
+        [
+          {
+            "node": "Envoi resultat",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": true
+  },
+  "staticData": null,
+  "pinData": null,
+  "tags": []
+}
